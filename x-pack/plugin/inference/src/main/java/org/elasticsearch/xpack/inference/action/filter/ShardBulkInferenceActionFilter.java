@@ -25,13 +25,13 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceService;
@@ -55,6 +55,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -386,20 +388,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             var newDocMap = indexRequest.sourceAsMap();
             Map<String, Object> inferenceFieldsMap = new HashMap<>();
-            final boolean addMetadataField = indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
+            final boolean addMetadataField = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                Map<String, List<SemanticTextField.Chunk>> chunkMap = new HashMap<>();
+                Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
                 for (var resp : responses) {
                     var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
                     lst.addAll(
                         SemanticTextField.toSemanticTextFieldChunks(
                             resp.input,
-                            List.of(resp.chunkedResults),
+                            resp.chunkedResults,
                             indexRequest.getContentType(),
                             addMetadataField
                         )
@@ -442,6 +444,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * TODO: We should validate the settings for pre-existing results here and apply the inference only if they differ?
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
+            final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
+
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
             for (int itemIndex = 0; itemIndex < bulkShardRequest.items().length; itemIndex++) {
                 var item = bulkShardRequest.items()[itemIndex];
@@ -476,17 +480,30 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
-                        // Inference has already been computed, or there is no inference required.
-                        continue;
+
+                    if (useInferenceMetadataFieldsFormat) {
+                        var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                            InferenceMetadataFieldsMapper.NAME + "." + field,
+                            docMap
+                        );
+                        if (inferenceMetadataFieldsValue != null) {
+                            // Inference has already been computed
+                            continue;
+                        }
+                    } else {
+                        var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                        if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                            // Inference has already been computed, or there is no inference required.
+                            continue;
+                        }
                     }
+
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
                         // TODO: Detect when the field is provided with an explicit null value
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
-                            if (isUpdateRequest && indexCreatedVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                            if (isUpdateRequest && (useInferenceMetadataFieldsFormat == false)) {
                                 addInferenceResponseFailure(
                                     item.id(),
                                     new ElasticsearchStatusException(
@@ -501,15 +518,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             continue;
                         }
                         ensureResponseAccumulatorSlot(itemIndex);
-                        final String value;
+                        final List<String> values;
                         try {
-                            value = SemanticTextUtils.nodeStringValues(field, valueObj);
+                            values = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
                             addInferenceResponseFailure(item.id(), exc);
                             break;
                         }
+
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, value, order++));
+                        if (useInferenceMetadataFieldsFormat) {
+                            // When using the inference metadata fields format, all the input values are concatenated so that the chunk
+                            // offsets are expressed in the context of a single string
+                            String concatenatedValue = Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
+                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, concatenatedValue, order++));
+                        } else {
+                            // When using the legacy format, each input value is processed using its own inference request
+                            for (String v : values) {
+                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++));
+                            }
+                        }
                     }
                 }
             }

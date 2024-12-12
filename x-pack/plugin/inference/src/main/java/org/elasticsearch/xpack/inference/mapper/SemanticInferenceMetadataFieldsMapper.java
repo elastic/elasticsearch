@@ -1,10 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.inference.mapper;
@@ -14,7 +12,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,10 +38,12 @@ import java.util.function.Function;
 public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFieldsMapper {
     private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(
+        c -> InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated()) ? INSTANCE : null
+    );
 
     static class FieldType extends InferenceMetadataFieldType {
-        private static FieldType INSTANCE = new FieldType();
+        private static final FieldType INSTANCE = new FieldType();
 
         FieldType() {
             super();
@@ -51,7 +51,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+            if (InferenceMetadataFieldsMapper.isEnabled(context.getIndexSettings().getIndexVersionCreated()) == false) {
                 return ValueFetcher.EMPTY;
             }
             return valueFetcher(context.getMappingLookup(), context::bitsetFilter, context.searcher());
@@ -127,26 +127,52 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            String fieldName = parser.currentName();
-            var parent = context.parent().findParentMapper(fieldName);
-            if (parent == null) {
-                throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
-            }
-            String suffix = parent != context.parent() ? fieldName.substring(parent.fullPath().length() + 1) : fieldName;
-            var mapper = parent.getMapper(suffix);
-            if (mapper != null && mapper instanceof SemanticTextFieldMapper fieldMapper) {
-                XContentLocation xContentLocation = context.parser().getTokenLocation();
-                var input = fieldMapper.parseSemanticTextField(context);
-                if (input != null) {
-                    fieldMapper.parseCreateFieldFromContext(context, input, xContentLocation);
+        final boolean isWithinLeaf = context.path().isWithinLeafObject();
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            XContentParser parser = context.parser();
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                String fieldName = parser.currentName();
+
+                // Set the path to that of semantic text field so the parser acts as if we are parsing the semantic text field value
+                // directly. We can safely split on all "." chars because semantic text fields cannot be used when subobjects == false.
+                String[] fieldNameParts = fieldName.split("\\.");
+                setPath(context.path(), fieldNameParts);
+
+                var parent = context.parent().findParentMapper(fieldName);
+                if (parent == null) {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] does not have a parent mapper");
                 }
-            } else {
-                throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
+                String suffix = parent != context.parent() ? fieldName.substring(parent.fullPath().length() + 1) : fieldName;
+                var mapper = parent.getMapper(suffix);
+                if (mapper instanceof SemanticTextFieldMapper fieldMapper) {
+                    XContentLocation xContentLocation = context.parser().getTokenLocation();
+                    var input = fieldMapper.parseSemanticTextField(context);
+                    if (input != null) {
+                        fieldMapper.parseCreateFieldFromContext(context, input, xContentLocation);
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "Field [" + fieldName + "] is not a [" + SemanticTextFieldMapper.CONTENT_TYPE + "] field"
+                    );
+                }
             }
+        } finally {
+            context.path().setWithinLeafObject(isWithinLeaf);
+            setPath(context.path(), new String[] { InferenceMetadataFieldsMapper.NAME });
+        }
+    }
+
+    private static void setPath(ContentPath contentPath, String[] newPath) {
+        while (contentPath.length() > 0) {
+            contentPath.remove();
+        }
+
+        for (String pathPart : newPath) {
+            contentPath.add(pathPart);
         }
     }
 }

@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.Model;
@@ -30,11 +32,15 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -228,22 +234,43 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         ChunkedInferenceServiceResults results,
         XContentType contentType
     ) {
+        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
+
+        final List<SemanticTextField.Chunk> chunks;
+        if (useInferenceMetadataFields) {
+            // When using the inference metadata fields format, all the input values are concatenated so that the chunk offsets are
+            // expressed in the context of a single string
+            chunks = toSemanticTextFieldChunks(
+                Strings.collectionToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR)),
+                results,
+                contentType,
+                useInferenceMetadataFields
+            );
+        } else {
+            // When using the legacy format, each input value is processed using its own inference request.
+            // In this test framework, we don't perform "real" chunking; each input generates one chunk. Thus, we can assume there is a
+            // one-to-one relationship between inputs and chunks. Iterate over the inputs and chunks to match each input with its
+            // corresponding chunk.
+            chunks = new ArrayList<>(inputs.size());
+            Iterator<String> inputsIt = inputs.iterator();
+            Iterator<ChunkedInferenceServiceResults.Chunk> chunkIt = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+            while (inputsIt.hasNext() && chunkIt.hasNext()) {
+                chunks.add(toSemanticTextFieldChunk(inputsIt.next(), chunkIt.next(), useInferenceMetadataFields));
+            }
+
+            if (inputsIt.hasNext() || chunkIt.hasNext()) {
+                throw new IllegalArgumentException("Input list size and chunk count do not match");
+            }
+        }
+
         return new SemanticTextField(
             indexVersion,
             fieldName,
-            indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS) ? null : inputs,
+            useInferenceMetadataFields ? null : inputs,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),
-                Map.of(
-                    fieldName,
-                    toSemanticTextFieldChunks(
-                        inputs.get(0),
-                        List.of(results),
-                        contentType,
-                        indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                    )
-                )
+                Map.of(fieldName, chunks)
             ),
             contentType
         );
@@ -267,14 +294,20 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
     }
 
-    public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {
+    public static ChunkedInferenceServiceResults toChunkedResult(Map<String, List<String>> matchedTextMap, SemanticTextField field)
+        throws IOException {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
                 List<MlChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
-                    for (var chunk : entry.getValue()) {
+                    String entryField = entry.getKey();
+                    List<SemanticTextField.Chunk> entryChunks = entry.getValue();
+                    List<String> entryFieldMatchedText = validateAndGetMatchedTextForField(matchedTextMap, entryField, entryChunks.size());
+
+                    ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
+                    for (var chunk : entryChunks) {
                         var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                        chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(chunk.text(), tokens));
+                        chunks.add(new MlChunkedTextExpansionResults.ChunkedResult(matchedTextIt.next(), tokens));
                     }
                 }
                 return new InferenceChunkedSparseEmbeddingResults(chunks);
@@ -282,7 +315,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case TEXT_EMBEDDING -> {
                 List<InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
-                    for (var chunk : entry.getValue()) {
+                    String entryField = entry.getKey();
+                    List<SemanticTextField.Chunk> entryChunks = entry.getValue();
+                    List<String> entryFieldMatchedText = validateAndGetMatchedTextForField(matchedTextMap, entryField, entryChunks.size());
+
+                    ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
+                    for (var chunk : entryChunks) {
                         double[] values = parseDenseVector(
                             chunk.rawEmbeddings(),
                             field.inference().modelSettings().dimensions(),
@@ -290,7 +328,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         );
                         chunks.add(
                             new InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk(
-                                chunk.text(),
+                                matchedTextIt.next(),
                                 FloatConversionUtils.floatArrayOf(values)
                             )
                         );
@@ -300,6 +338,21 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             }
             default -> throw new AssertionError("Invalid task_type: " + field.inference().modelSettings().taskType().name());
         }
+    }
+
+    private static List<String> validateAndGetMatchedTextForField(
+        Map<String, List<String>> matchedTextMap,
+        String fieldName,
+        int chunkCount
+    ) {
+        List<String> fieldMatchedText = matchedTextMap.get(fieldName);
+        if (fieldMatchedText == null) {
+            throw new IllegalStateException("No matched text list exists for field [" + fieldName + "]");
+        } else if (fieldMatchedText.size() != chunkCount) {
+            throw new IllegalStateException("Matched text list size does not equal chunk count for field [" + fieldName + "]");
+        }
+
+        return fieldMatchedText;
     }
 
     private static double[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {

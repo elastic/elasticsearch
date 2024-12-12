@@ -303,7 +303,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean hasInferenceMetadataFields = false;
         if (storedFields != null) {
             for (String field : storedFields) {
-                if (field.equals(InferenceMetadataFieldsMapper.NAME) && indexVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)) {
+                if (field.equals(InferenceMetadataFieldsMapper.NAME) && InferenceMetadataFieldsMapper.isEnabled(indexVersion)) {
                     hasInferenceMetadataFields = true;
                     continue;
                 }

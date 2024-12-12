@@ -191,7 +191,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getBackingIndices());
         final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
@@ -208,7 +209,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         // create some indices with names that conflict with the names of the data stream's backing indices
         int numConflictingIndices = randomIntBetween(1, 10);
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 1; k <= numConflictingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + k, 0L))
                 .settings(settings(IndexVersion.current()))
@@ -234,7 +235,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setReplicated(false)
             .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
             .build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getBackingIndices());
 
         var rolledDs = ds.rollover(
             new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
@@ -256,7 +258,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setReplicated(false)
             .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
             .build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getBackingIndices());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOGSDB, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -269,7 +272,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverDowngradeFromTsdbToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getBackingIndices());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -282,7 +286,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverDowngradeFromLogsdbToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getBackingIndices());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -295,7 +300,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverFailureStore() {
         DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
-        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getFailureIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getFailureIndices());
         final DataStream rolledDs = ds.rolloverFailureStore(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2());
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));

@@ -534,25 +534,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     /**
      * Generates the next write index name and <code>generation</code> to be used for rolling over this data stream.
      *
-     * @param clusterMetadata Cluster metadata
+     * @param project Project metadata
      * @param dataStreamIndices The data stream indices that we're generating the next write index name and generation for
      * @return tuple of the next write index name and next generation.
      */
-    public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata, DataStreamIndices dataStreamIndices) {
+    public Tuple<String, Long> nextWriteIndexAndGeneration(ProjectMetadata project, DataStreamIndices dataStreamIndices) {
         ensureNotReplicated();
-        return unsafeNextWriteIndexAndGeneration(clusterMetadata, dataStreamIndices);
+        return unsafeNextWriteIndexAndGeneration(project, dataStreamIndices);
     }
 
     /**
-     * Like {@link #nextWriteIndexAndGeneration(Metadata, DataStreamIndices)}, but does no validation, use with care only.
+     * Like {@link #nextWriteIndexAndGeneration(ProjectMetadata, DataStreamIndices)}, but does no validation, use with care only.
      */
-    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata, DataStreamIndices dataStreamIndices) {
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(ProjectMetadata project, DataStreamIndices dataStreamIndices) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
         do {
             newWriteIndexName = dataStreamIndices.generateName(name, ++generation, currentTimeMillis);
-        } while (clusterMetadata.getProject().hasIndexAbstraction(newWriteIndexName));
+        } while (project.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
 

@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 
-public class ArchiveIndexCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
+public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");

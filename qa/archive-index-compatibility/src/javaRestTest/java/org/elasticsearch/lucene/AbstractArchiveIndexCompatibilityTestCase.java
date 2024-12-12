@@ -38,8 +38,8 @@ import static org.hamcrest.Matchers.notNullValue;
  * Test suite for Lucene indices backward compatibility with N-2 versions. The test suite creates a cluster in N-2 version, then upgrades it
  * to N-1 version and finally upgrades it to the current version. Test methods are executed after each upgrade.
  */
-@TestCaseOrdering(AbstractLuceneIndexCompatibilityTestCase.TestCaseOrdering.class)
-public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTestCase {
+@TestCaseOrdering(AbstractArchiveIndexCompatibilityTestCase.TestCaseOrdering.class)
+public abstract class AbstractArchiveIndexCompatibilityTestCase extends ESRestTestCase {
 
     protected static final Version VERSION_MINUS_1 = fromString(System.getProperty("tests.minimum.wire.compatible"));
     protected static final Version VERSION_CURRENT = CURRENT;
@@ -64,7 +64,7 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
 
     private final Version clusterVersion;
 
-    public AbstractLuceneIndexCompatibilityTestCase(@Name("cluster") Version clusterVersion) {
+    public AbstractArchiveIndexCompatibilityTestCase(@Name("cluster") Version clusterVersion) {
         this.clusterVersion = clusterVersion;
     }
 
@@ -105,10 +105,6 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
         assumeFalse("Cluster upgrade failed", upgradeFailed);
     }
 
-    /*   protected String suffix(String name) {
-        return name + '-' + getTestName().split(" ")[0].toLowerCase(Locale.ROOT);
-    }*/
-
     protected static Version clusterVersion() throws Exception {
         var response = assertOK(client().performRequest(new Request("GET", "/")));
         var responseBody = createFromResponse(response);
@@ -116,13 +112,6 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
         assertThat("Failed to retrieve cluster version", version, notNullValue());
         return version;
     }
-
-    /* protected static Version indexLuceneVersion(String indexName) throws Exception {
-        var response = assertOK(client().performRequest(new Request("GET", "/" + indexName + "/_settings")));
-        int id = Integer.parseInt(createFromResponse(response).evaluate(indexName + ".settings.index.version.created"));
-        return new Version((byte) ((id / 1000000) % 100), (byte) ((id / 10000) % 100), (byte) ((id / 100) % 100));
-    }*/
-
     /**
      * Execute the test suite with the parameters provided by the {@link #parameters()} in version order.
      */

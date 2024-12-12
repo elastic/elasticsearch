@@ -440,3 +440,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116694
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118548
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/10_reindex/Test Reindex With Existing Data Stream}
+  issue: https://github.com/elastic/elasticsearch/issues/118575

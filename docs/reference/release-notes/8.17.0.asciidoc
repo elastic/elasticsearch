@@ -1,9 +1,25 @@
 [[release-notes-8.17.0]]
 == {es} version 8.17.0
 
-coming[8.17.0]
+[IMPORTANT]
+====
+The 8.17.0 release contains a fix for a potential security vulnerability. See our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
 
 Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[license-8.17.0]]
+[float]
+=== License changes
+
+[float] 
+==== Change to synthetic `_source` licensing
+
+Starting with this release, the <<synthetic-source,synthetic `_source`>> feature is available exclusively with the Enterprise subscription. Synthetic `_source` is used in logs data streams (`logsdb` index mode), time series data streams (TSDS, using `time_series` index mode), application performance monitoring (APM), and Universal Profiling. 
+
+If you are using these capabilities and are not on an Enterprise license, the change will result in increased storage requirements for new data, as the synthetic `_source` setting will be ignored. Existing indices that used synthetic `_source` will remain seamlessly accessible. 
+
+Refer to the subscription page for https://www.elastic.co/subscriptions/cloud[Elastic Cloud] and {subscriptions}[Elastic Stack/self-managed] for the breakdown of available features and their associated subscription tiers. For further details and subscription options, contact your Elastic sales representative or https://www.elastic.co/contact[contact us]. 
 
 [[bug-8.17.0]]
 [float]
@@ -126,8 +142,8 @@ Indices APIs::
 * Ensure class resource stream is closed in `ResourceUtils` {es-pull}116437[#116437]
 
 Inference::
-* [8.17] Add version prefix to Inference Service API path {es-pull}117366[#117366]
-* [8.17] Update sparse text embeddings API route for Inference Service {es-pull}118368[#118368]
+* Add version prefix to Inference Service API path {es-pull}117366[#117366]
+* Update sparse text embeddings API route for Inference Service {es-pull}118368[#118368]
 
 Infra/Core::
 * Support for unsigned 64 bit numbers in Cpu stats {es-pull}114681[#114681] (issue: {es-issue}112274[#112274])

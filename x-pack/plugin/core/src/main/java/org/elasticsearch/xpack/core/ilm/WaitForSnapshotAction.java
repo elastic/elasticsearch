@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -62,7 +61,7 @@ public class WaitForSnapshotAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey waitForSnapshotKey = new StepKey(phase, NAME, WaitForSnapshotStep.NAME);
-        return Collections.singletonList(new WaitForSnapshotStep(waitForSnapshotKey, nextStepKey, client, policy));
+        return List.of(new WaitForSnapshotStep(waitForSnapshotKey, nextStepKey, client, policy));
     }
 
     @Override

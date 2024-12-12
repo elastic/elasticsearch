@@ -46,7 +46,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -469,27 +468,25 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 ).canMatch()
             );
 
-            expectThrows(SearchContextMissingException.class, () -> {
-                ShardSearchContextId withoutCommitId = new ShardSearchContextId(contextId.getSessionId(), contextId.getId(), null);
-                sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-                assertFalse(
-                    searchService.canMatch(
-                        new ShardSearchRequest(
-                            OriginalIndices.NONE,
-                            searchRequest,
-                            shard.shardId(),
-                            0,
-                            1,
-                            AliasFilter.EMPTY,
-                            1f,
-                            -1,
-                            null,
-                            withoutCommitId,
-                            null
-                        )
-                    ).canMatch()
-                );
-            });
+            ShardSearchContextId withoutCommitId = new ShardSearchContextId(contextId.getSessionId(), contextId.getId(), null);
+            sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+            assertTrue(
+                searchService.canMatch(
+                    new ShardSearchRequest(
+                        OriginalIndices.NONE,
+                        searchRequest,
+                        shard.shardId(),
+                        0,
+                        1,
+                        AliasFilter.EMPTY,
+                        1f,
+                        -1,
+                        null,
+                        withoutCommitId,
+                        null
+                    )
+                ).canMatch()
+            );
         }
     }
 

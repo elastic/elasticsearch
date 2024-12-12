@@ -14,7 +14,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
 import java.util.Collections;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -31,27 +31,27 @@ import static org.hamcrest.Matchers.sameInstance;
 public class TransportVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        TransportVersion V_7_2_0 = TransportVersions.V_7_2_0;
-        TransportVersion V_8_0_0 = TransportVersions.V_8_0_0;
-        assertThat(V_7_2_0.before(V_8_0_0), is(true));
-        assertThat(V_7_2_0.before(V_7_2_0), is(false));
-        assertThat(V_8_0_0.before(V_7_2_0), is(false));
+        TransportVersion V_8_2_0 = TransportVersions.V_8_2_0;
+        TransportVersion V_8_16_0 = TransportVersions.V_8_16_0;
+        assertThat(V_8_2_0.before(V_8_16_0), is(true));
+        assertThat(V_8_2_0.before(V_8_2_0), is(false));
+        assertThat(V_8_16_0.before(V_8_2_0), is(false));
 
-        assertThat(V_7_2_0.onOrBefore(V_8_0_0), is(true));
-        assertThat(V_7_2_0.onOrBefore(V_7_2_0), is(true));
-        assertThat(V_8_0_0.onOrBefore(V_7_2_0), is(false));
+        assertThat(V_8_2_0.onOrBefore(V_8_16_0), is(true));
+        assertThat(V_8_2_0.onOrBefore(V_8_2_0), is(true));
+        assertThat(V_8_16_0.onOrBefore(V_8_2_0), is(false));
 
-        assertThat(V_7_2_0.after(V_8_0_0), is(false));
-        assertThat(V_7_2_0.after(V_7_2_0), is(false));
-        assertThat(V_8_0_0.after(V_7_2_0), is(true));
+        assertThat(V_8_2_0.after(V_8_16_0), is(false));
+        assertThat(V_8_2_0.after(V_8_2_0), is(false));
+        assertThat(V_8_16_0.after(V_8_2_0), is(true));
 
-        assertThat(V_7_2_0.onOrAfter(V_8_0_0), is(false));
-        assertThat(V_7_2_0.onOrAfter(V_7_2_0), is(true));
-        assertThat(V_8_0_0.onOrAfter(V_7_2_0), is(true));
+        assertThat(V_8_2_0.onOrAfter(V_8_16_0), is(false));
+        assertThat(V_8_2_0.onOrAfter(V_8_2_0), is(true));
+        assertThat(V_8_16_0.onOrAfter(V_8_2_0), is(true));
 
-        assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
-        assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
-        assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
+        assertThat(V_8_2_0, is(lessThan(V_8_16_0)));
+        assertThat(V_8_2_0.compareTo(V_8_2_0), is(0));
+        assertThat(V_8_16_0, is(greaterThan(V_8_2_0)));
     }
 
     public static class CorrectFakeVersion {
@@ -69,21 +69,20 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testStaticTransportVersionChecks() {
         assertThat(
-            TransportVersions.getAllVersionIds(CorrectFakeVersion.class),
+            TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
             equalTo(
-                Map.of(
-                    199,
-                    CorrectFakeVersion.V_0_00_01,
-                    2,
+                List.of(
                     CorrectFakeVersion.V_0_000_002,
-                    3,
                     CorrectFakeVersion.V_0_000_003,
-                    4,
-                    CorrectFakeVersion.V_0_000_004
+                    CorrectFakeVersion.V_0_000_004,
+                    CorrectFakeVersion.V_0_00_01
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersions.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> TransportVersions.collectAllVersionIdsDefinedInClass(DuplicatedIdFakeVersion.class)
+        );
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
@@ -186,7 +185,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(TransportVersions.getAllVersions()), is(TransportVersion.current()));
+        assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.current()));
     }
 
     public void testToReleaseVersion() {
@@ -210,7 +209,7 @@ public class TransportVersionTests extends ESTestCase {
     public void testDenseTransportVersions() {
         Set<Integer> missingVersions = new TreeSet<>();
         TransportVersion previous = null;
-        for (var tv : TransportVersions.getAllVersions()) {
+        for (var tv : TransportVersion.getAllVersions()) {
             if (tv.before(TransportVersions.V_8_16_0)) {
                 continue;
             }

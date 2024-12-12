@@ -169,12 +169,12 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.DATE_PERIOD,
                 equalTo(lhs.minus(rhs))
-            );
+            ).withoutEvaluator();
         }));
         suppliers.add(new TestCaseSupplier("Datetime - Duration", List.of(DataType.DATETIME, DataType.TIME_DURATION), () -> {
             long lhs = (Long) randomLiteral(DataType.DATETIME).value();
@@ -196,12 +196,12 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
-            );
+            ).withoutEvaluator();
         }));
 
         // exact math arithmetic exceptions
@@ -250,7 +250,12 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
             }
             return original.expectedType();
-        }, (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original);
+        }, (nullPosition, nullData, original) -> {
+            if (DataType.isTemporalAmount(nullData.type())) {
+                return equalTo("LiteralsEvaluator[lit=null]");
+            }
+            return original;
+        });
 
         suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             // Ensure we don't have an overflow

@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
+
 final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
     private final String sessionId;
     private final Configuration configuration;
@@ -159,6 +161,9 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     }
 
     List<ShardId> shardIds() {
+        if (Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
+            return List.of();
+        }
         return shardIds;
     }
 

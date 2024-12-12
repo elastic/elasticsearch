@@ -85,11 +85,11 @@ public class SemanticSparseVectorQueryRewriteInterceptor implements QueryRewrite
     }
 
     private static String getNestedFieldPath(String fieldName) {
-        return fieldName + SemanticTextField.INFERENCE_FIELD + SemanticTextField.CHUNKS_FIELD;
+        return String.join(".", fieldName, SemanticTextField.INFERENCE_FIELD, SemanticTextField.CHUNKS_FIELD);
     }
 
     private static String getNestedEmbeddingsField(String fieldName) {
-        return getNestedFieldPath(fieldName) + SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+        return String.join(".", getNestedFieldPath(fieldName), SemanticTextField.CHUNKED_EMBEDDINGS_FIELD);
     }
 
     @Override

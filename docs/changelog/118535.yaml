@@ -1,0 +1,5 @@
+pr: 118535
+summary: "[9.0] Clean up leftover reference of `include_type_name`"
+area: Indices APIs
+type: upgrade
+issues: []

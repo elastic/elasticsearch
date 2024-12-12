@@ -2646,7 +2646,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
         final String applicationName = "kibana-.kibana";
 

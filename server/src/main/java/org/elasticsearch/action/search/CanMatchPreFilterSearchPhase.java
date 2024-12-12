@@ -112,7 +112,7 @@ final class CanMatchPreFilterSearchPhase {
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        final SearchShardIterator[] naturalOrder = new SearchShardIterator[shardsIts.size()];
+        final SearchShardIterator[] naturalOrder = new SearchShardIterator[size];
         int i = 0;
         for (SearchShardIterator shardsIt : shardsIts) {
             naturalOrder[i++] = shardsIt;

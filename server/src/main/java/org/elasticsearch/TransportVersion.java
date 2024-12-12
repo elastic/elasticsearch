@@ -16,7 +16,14 @@ import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
@@ -56,8 +63,14 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return fromId(in.readVInt());
     }
 
+    /**
+     * Finds a {@code TransportVersion} by its id.
+     * If a transport version with the specified ID does not exist,
+     * this method creates and returns a new instance of {@code TransportVersion} with the specified ID.
+     * The new instance is not registered in {@code TransportVersion.getAllVersions}.
+     */
     public static TransportVersion fromId(int id) {
-        TransportVersion known = TransportVersions.VERSION_IDS.get(id);
+        TransportVersion known = VersionsHolder.ALL_VERSIONS_MAP.get(id);
         if (known != null) {
             return known;
         }
@@ -95,7 +108,14 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * This should be the transport version with the highest id.
      */
     public static TransportVersion current() {
-        return CurrentHolder.CURRENT;
+        return VersionsHolder.CURRENT;
+    }
+
+    /**
+     * Sorted list of all defined transport versions
+     */
+    public static List<TransportVersion> getAllVersions() {
+        return VersionsHolder.ALL_VERSIONS;
     }
 
     public static TransportVersion fromString(String str) {
@@ -139,16 +159,25 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return Integer.toString(id);
     }
 
-    private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent();
+    private static class VersionsHolder {
+        private static final List<TransportVersion> ALL_VERSIONS;
+        private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
+        private static final TransportVersion CURRENT;
 
-        // finds the pluggable current version
-        private static TransportVersion findCurrent() {
-            var version = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
-                .map(e -> e.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED))
-                .orElse(TransportVersions.LATEST_DEFINED);
-            assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
-            return version;
+        static {
+            Collection<TransportVersion> extendedVersions = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
+                .map(VersionExtension::getTransportVersions)
+                .orElse(Collections.emptyList());
+
+            if (extendedVersions.isEmpty()) {
+                ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
+            } else {
+                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
+            }
+
+            ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
+
+            CURRENT = ALL_VERSIONS.getLast();
         }
     }
 }

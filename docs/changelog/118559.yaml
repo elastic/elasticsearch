@@ -1,9 +1,9 @@
 pr: 118559
-summary: Add logsdb release highlight
+summary: Make logsdb general available
 area: Logs
 type: feature
 issues: []
 highlight:
-  title: Add logsdb release highlight
-  body: ""
+  title: Make logsdb general available
+  body: "The logsdb functionality has been GA-ed. Logsdb allows Elasticsearch to store logs more efficiently."
   notable: true

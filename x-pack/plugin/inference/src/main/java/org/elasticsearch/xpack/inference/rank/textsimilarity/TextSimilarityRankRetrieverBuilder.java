@@ -130,7 +130,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected TextSimilarityRankRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+    protected TextSimilarityRankRetrieverBuilder clone(
+        List<RetrieverSource> newChildRetrievers,
+        List<QueryBuilder> newPreFilterQueryBuilders
+    ) {
         return new TextSimilarityRankRetrieverBuilder(
             newChildRetrievers,
             inferenceId,
@@ -139,7 +142,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             rankWindowSize,
             minScore,
             retrieverName,
-            preFilterQueryBuilders
+            newPreFilterQueryBuilders
         );
     }
 

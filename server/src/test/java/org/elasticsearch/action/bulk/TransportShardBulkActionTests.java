@@ -123,7 +123,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         DocumentParsingProvider documentParsingProvider = mock();
         XContentMeteringParserDecorator parserDecorator = mock();
-        when(documentParsingProvider.newMeteringParserDecorator(any())).thenReturn(parserDecorator);
+        when(documentParsingProvider.newMeteringParserDecorator(any(IndexRequest.class))).thenReturn(parserDecorator);
         when(parserDecorator.decorate(any())).then(i -> i.getArgument(0));
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
@@ -190,7 +190,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
         assertThat(replicaRequest, equalTo(primaryRequest));
-        verify(documentParsingProvider).newMeteringParserDecorator(any());
+        verify(documentParsingProvider).newMeteringParserDecorator(any(IndexRequest.class));
         verify(parserDecorator).decorate(any());
 
         // Assert that the document count is still 1
@@ -660,7 +660,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
-        verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
+        verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any(IndexRequest.class));
     }
 
     @SuppressWarnings("unchecked")

@@ -58,6 +58,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecoratorSupplier;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -175,6 +176,8 @@ public final class IndexModule {
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
+    private final XContentMeteringParserDecoratorSupplier parserDecoratorSupplier;
+
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -195,8 +198,9 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final SlowLogFieldProvider slowLogFieldProvider,
         final MapperMetrics mapperMetrics,
-        final List<SearchOperationListener> searchOperationListeners
-    ) {
+        final List<SearchOperationListener> searchOperationListeners,
+        final         XContentMeteringParserDecoratorSupplier parserDecoratorSupplier
+        ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -209,6 +213,7 @@ public final class IndexModule {
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
         this.mapperMetrics = mapperMetrics;
+        this.parserDecoratorSupplier = parserDecoratorSupplier;
     }
 
     /**
@@ -528,6 +533,7 @@ public final class IndexModule {
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
+                parserDecoratorSupplier,
                 indicesFieldDataCache,
                 searchOperationListeners,
                 indexOperationListeners,

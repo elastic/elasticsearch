@@ -11,10 +11,10 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -108,9 +108,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                         config().getMapperService(),
                         DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
-                    ParsedDocument parsedDocument = index.parsedDoc();
-                    documentParsingReporter.onIndexingCompleted(parsedDocument);
-
+                    documentParsingReporter.onIndexingCompleted(index);
                     return result;
                 }
             });
@@ -125,7 +123,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
                 @Override
-                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
+                public XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
                     return new TestXContentMeteringParserDecorator(0L);
                 }
 
@@ -150,8 +148,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         }
 
         @Override
-        public void onIndexingCompleted(ParsedDocument parsedDocument) {
-            long delta = parsedDocument.getNormalizedSize();
+        public void onIndexingCompleted(Engine.Index index) {
+            long delta = index.parsedDoc().getNormalizedSize();
             if (delta > XContentMeteringParserDecorator.UNKNOWN_SIZE) {
                 COUNTER.addAndGet(delta);
             }

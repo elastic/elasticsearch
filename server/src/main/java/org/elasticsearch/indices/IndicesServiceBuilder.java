@@ -32,6 +32,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecoratorSupplier;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -45,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class IndicesServiceBuilder {
@@ -76,6 +79,7 @@ public class IndicesServiceBuilder {
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
+    XContentMeteringParserDecoratorSupplier parserDecoratorSupplier;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -185,6 +189,11 @@ public class IndicesServiceBuilder {
 
     public IndicesServiceBuilder searchOperationListeners(List<SearchOperationListener> searchOperationListener) {
         this.searchOperationListener = searchOperationListener;
+        return this;
+    }
+
+    public IndicesServiceBuilder parserDecoratorSupplier(XContentMeteringParserDecoratorSupplier parserDecoratorSupplier) {
+        this.parserDecoratorSupplier = parserDecoratorSupplier;
         return this;
     }
 

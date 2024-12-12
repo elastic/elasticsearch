@@ -129,9 +129,10 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadContext = new ThreadContext(Settings.EMPTY);
+        final var projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
-            threadContext,
-            SYSTEM_INDICES
+            SYSTEM_INDICES,
+            projectResolver
         );
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
 
@@ -148,7 +149,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             mock(ActionFilters.class),
             indexNameExpressionResolver,
             SYSTEM_INDICES,
-            TestProjectResolvers.usingRequestHeader(threadContext)
+            projectResolver
         );
     }
 

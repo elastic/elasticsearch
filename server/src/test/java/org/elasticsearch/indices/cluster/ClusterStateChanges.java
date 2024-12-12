@@ -333,6 +333,7 @@ public class ClusterStateChanges {
             threadPool,
             metadataUpdateSettingsService,
             actionFilters,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
             EmptySystemIndices.INSTANCE
         );

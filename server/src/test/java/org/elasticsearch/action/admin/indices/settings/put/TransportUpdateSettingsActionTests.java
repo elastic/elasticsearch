@@ -16,11 +16,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,14 +44,6 @@ import static org.mockito.Mockito.verify;
 
 public class TransportUpdateSettingsActionTests extends ESTestCase {
 
-    private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
-        .metadata(
-            Metadata.builder()
-                .put(IndexMetadata.builder(".my-system").system(true).settings(indexSettings(IndexVersion.current(), 1, 0)).build(), true)
-                .build()
-        )
-        .build();
-
     private static final String SYSTEM_INDEX_NAME = ".my-system";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
         List.of(
@@ -62,16 +55,18 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         )
     );
 
+    private final ProjectId projectId = randomProjectIdOrDefault();
+
     private TransportUpdateSettingsAction action;
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final var projectResolver = TestProjectResolvers.singleProject(projectId);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
-            threadContext,
-            SYSTEM_INDICES
+            SYSTEM_INDICES,
+            projectResolver
         );
         MetadataUpdateSettingsService metadataUpdateSettingsService = mock(MetadataUpdateSettingsService.class);
 
@@ -83,6 +78,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
             threadPool,
             metadataUpdateSettingsService,
             mock(ActionFilters.class),
+            projectResolver,
             indexNameExpressionResolver,
             SYSTEM_INDICES
         );
@@ -97,7 +93,17 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ActionListener<AcknowledgedResponse> mockListener = mock(ActionListener.class);
 
-        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .put(
+                        IndexMetadata.builder(".my-system").system(true).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
+                        true
+                    )
+                    .build()
+            )
+            .build();
+        action.masterOperation(mock(Task.class), request, clusterState, mockListener);
 
         ArgumentCaptor<Exception> exceptionArgumentCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(mockListener, times(0)).onResponse(any());

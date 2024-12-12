@@ -40,7 +40,6 @@ tasks.named("yamlRestTest").configure {
     '^cluster.desired_balance/10_basic/*',
     '^cluster.health/10_basic/cluster health with closed index', // closed index
     '^cluster.health/30_indices_options/cluster health with expand_wildcards', // closed index
-    '^cluster.state/20_filtering/*',
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
     // A lot of these data stream tests depend on rollover
@@ -69,13 +68,12 @@ tasks.named("yamlRestTest").configure {
     '^indices.blocks/*/*',
     '^indices.clear_cache/*/*',
     '^indices.clone/*/*',
-    '^indices.exists/20_read_only_index/*',
     '^indices.get/*/*',
     '^indices.get_alias/10_basic/Get alias against closed indices',
     '^indices.get_mapping/50_wildcard_expansion/*', // index close does not work
     '^indices.open/*/*',
     '^indices.open/*/*/*',
-    '^indices.put_settings/*/*',
+    '^indices.put_settings/10_basic/Test preserve_existing settings', // index close does not work
     '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
@@ -93,7 +91,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.stats/30_segments/*',
     '^indices.stats/60_field_usage/*',
     '^migration/*/*',
-    '^scroll/12_slices/*',
     '^search/80_indices_options/Closed index',
     '^search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added',
     '^search.highlight/10_unified/*',

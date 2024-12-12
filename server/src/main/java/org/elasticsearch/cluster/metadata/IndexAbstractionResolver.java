@@ -52,8 +52,7 @@ public class IndexAbstractionResolver {
                 indexAbstraction = index;
             }
 
-            // Always check to see if there's a selector on the index expression. We validate it here in line with the
-            // logic from SelectorResolver.
+            // Always check to see if there's a selector on the index expression
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
             String selectorString = expressionAndSelector.v2();
             if (indicesOptions.allowSelectors() == false && selectorString != null) {
@@ -172,7 +171,7 @@ public class IndexAbstractionResolver {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // complicated to support those options with aliases pointing to multiple indices...
             isVisible = isVisible && indicesOptions.ignoreAliases() == false;
-            if (selectorString != null && Regex.isMatchAllPattern(selectorString) == false) {
+            if (selectorString != null) {
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
                 if (IndexComponentSelector.FAILURES.equals(selector)) {

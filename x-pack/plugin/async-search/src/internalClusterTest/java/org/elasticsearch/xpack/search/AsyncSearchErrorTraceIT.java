@@ -9,15 +9,19 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -79,7 +83,13 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                 }
             }
             """);
-        getRestClient().performRequest(searchRequest);
+        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
+        String asyncExecutionId = (String) responseEntity.get("id");
+        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+            responseEntity = performRequestAndGetResponseEntity(request);
+        }
         assertFalse(hasStackTrace.get());
     }
 
@@ -99,7 +109,14 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "true");
-        getRestClient().performRequest(searchRequest);
+        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
+        String asyncExecutionId = (String) responseEntity.get("id");
+        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+        request.addParameter("error_trace", "true");
+        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+            responseEntity = performRequestAndGetResponseEntity(request);
+        }
         assertTrue(hasStackTrace.get());
     }
 
@@ -119,7 +136,20 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "false");
-        getRestClient().performRequest(searchRequest);
+        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
+        String asyncExecutionId = (String) responseEntity.get("id");
+        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+        request.addParameter("error_trace", "false");
+        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+            responseEntity = performRequestAndGetResponseEntity(request);
+        }
         assertFalse(hasStackTrace.get());
+    }
+
+    private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {
+        Response response = getRestClient().performRequest(r);
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        return XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(), false);
     }
 }

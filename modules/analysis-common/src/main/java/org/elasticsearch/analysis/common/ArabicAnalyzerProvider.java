@@ -22,7 +22,7 @@ public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arabic
     private final ArabicAnalyzer arabicAnalyzer;
 
     ArabicAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         arabicAnalyzer = new ArabicAnalyzer(
             Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

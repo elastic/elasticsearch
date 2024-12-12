@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -8,8 +6,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Mapper Murmur3 plugin allows to compute hashes of a field\'s values at index-time and to store them in the index.'
@@ -20,21 +18,11 @@ esplugin {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   testImplementation project(':modules:lang-painless')
-}
-
-if (buildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  clusterModules project(':modules:lang-painless')
 }
 
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'search'
   }
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
 }

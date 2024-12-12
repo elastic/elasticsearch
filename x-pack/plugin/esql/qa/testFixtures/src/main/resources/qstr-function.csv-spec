@@ -100,9 +100,8 @@ book_no:keyword | title:text
 7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
-
-matchMultivaluedTextField
-required_capability: match_function
+qstrWithMultivaluedTextField
+required_capability: qstr_function
 
 from employees 
 | where qstr("job_positions: (Tech Lead) AND job_positions:(Reporting Analyst)") 
@@ -118,8 +117,8 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10097          | Remzi              | Waschkowski    
 ;
 
-matchMultivaluedNumericField
-required_capability: match_function
+qstrWithMultivaluedNumericField
+required_capability: qstr_function
 
 from employees 
 | where qstr("salary_change: [14 TO *]") 
@@ -137,7 +136,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary_change:double
 ;
 
 testMultiValuedFieldWithConjunction
-required_capability: match_function
+required_capability: qstr_function
 
 from employees 
 | where (qstr("job_positions: (Data Scientist) OR job_positions:(Support Engineer)")) and gender == "F"

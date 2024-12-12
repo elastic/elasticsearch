@@ -130,7 +130,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             String chainedPath = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.chain.properties.chained.properties.search"
                 + ".properties.request.properties.body.enabled";
-            assertThat(source.getValue(chainedPath), is(false));
+            assertThat(source.getValue(chainedPath), nullValue());
         } else {
             String path = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
@@ -168,11 +168,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             XContentType.JSON
         );
 
-        // lets make sure the body fields are disabled
+        // let's make sure the body fields are disabled or, in the case of chained, the whole object is not indexed
         if (useChained) {
             String path = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.chain.properties.chained.properties.payload.enabled";
-            assertThat(source.getValue(path), is(false));
+            assertThat(source.getValue(path), nullValue());
         } else {
             String path = SINGLE_MAPPING_NAME + ".properties.result.properties.input.properties.payload.enabled";
             assertThat(source.getValue(path), is(false));

@@ -115,6 +115,11 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
+    protected boolean getShowDocCountError() {
+        return false;
+    }
+
+    @Override
     protected void setDocCountError(long docCountError) {}
 
     @Override

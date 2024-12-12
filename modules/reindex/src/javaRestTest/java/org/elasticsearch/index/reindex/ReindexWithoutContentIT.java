@@ -18,7 +18,6 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class ReindexWithoutContentIT extends ESRestTestCase {
-
     public void testReindexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(
             ResponseException.class,

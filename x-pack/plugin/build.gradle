@@ -1,6 +1,10 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -89,5 +93,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
   task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"unnecessary to test compatibility")
   task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
+  task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
 })
 

@@ -136,11 +136,11 @@ public abstract class LicensedFeature {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LicensedFeature that = (LicensedFeature) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) && Objects.equals(family, that.family);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, family);
     }
 }

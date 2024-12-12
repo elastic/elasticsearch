@@ -19,6 +19,8 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Releasables.assertOnce;
@@ -33,7 +35,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     private final TaskManager taskManager;
     private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
-    private final TransportActionStatsTracker statsTracker = new TransportActionStatsTracker();
+    @SuppressWarnings("unused") // only accessed via #STATS_TRACKER_HANDLE, lazy initialized because instances consume non-trivial heap
+    private TransportActionStatsTracker statsTracker;
+
+    private static final VarHandle STATS_TRACKER_HANDLE;
+
+    static {
+        try {
+            STATS_TRACKER_HANDLE = MethodHandles.lookup()
+                .findVarHandle(RequestHandlerRegistry.class, "statsTracker", TransportActionStatsTracker.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     public RequestHandlerRegistry(
         String action,
@@ -118,15 +132,34 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     }
 
     public void addRequestStats(int messageSize) {
-        statsTracker.addRequestStats(messageSize);
+        statsTracker().addRequestStats(messageSize);
     }
 
     @Override
     public void addResponseStats(int messageSize) {
-        statsTracker.addResponseStats(messageSize);
+        statsTracker().addResponseStats(messageSize);
     }
 
     public TransportActionStats getStats() {
+        var statsTracker = existingStatsTracker();
+        if (statsTracker == null) {
+            return TransportActionStats.EMPTY;
+        }
         return statsTracker.getStats();
+    }
+
+    private TransportActionStatsTracker statsTracker() {
+        var tracker = existingStatsTracker();
+        if (tracker == null) {
+            var newTracker = new TransportActionStatsTracker();
+            if ((tracker = (TransportActionStatsTracker) STATS_TRACKER_HANDLE.compareAndExchange(this, null, newTracker)) == null) {
+                tracker = newTracker;
+            }
+        }
+        return tracker;
+    }
+
+    private TransportActionStatsTracker existingStatsTracker() {
+        return (TransportActionStatsTracker) STATS_TRACKER_HANDLE.getAcquire(this);
     }
 }

@@ -181,7 +181,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testMatchAllQuery() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 100);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);
@@ -199,7 +199,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsQuery() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 100);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);
@@ -217,7 +217,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testHistogramAggregation() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 100);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);
@@ -235,7 +235,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testTermsAggregation() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 100);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);
@@ -253,7 +253,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     }
 
     public void testDateHistogramAggregation() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(100, 200);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 100);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);

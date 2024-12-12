@@ -17,19 +17,46 @@ import org.elasticsearch.logging.Logger;
 
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
-    protected final Policy serverPolicy;
-    protected final Map<String, Policy> pluginPolicies;
+    static class ModuleEntitlements {
+        public static final ModuleEntitlements NONE = new ModuleEntitlements(List.of());
+        private final IdentityHashMap<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType;
+
+        ModuleEntitlements(List<Entitlement> entitlements) {
+            this.entitlementsByType = entitlements.stream()
+                .collect(Collectors.toMap(Entitlement::getClass, e -> new ArrayList<>(List.of(e)), (a, b) -> {
+                    a.addAll(b);
+                    return a;
+                }, IdentityHashMap::new));
+        }
+
+        public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
+            return entitlementsByType.containsKey(entitlementClass);
+        }
+
+        public <E extends Entitlement> Stream<E> getEntitlements(Class<E> entitlementClass) {
+            return entitlementsByType.get(entitlementClass).stream().map(entitlementClass::cast);
+        }
+    }
+
+    final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new HashMap<>();
+
+    protected final Map<String, List<Entitlement>> serverEntitlements;
+    protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
@@ -51,30 +78,111 @@ public class PolicyManager {
     }
 
     public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
-        this.serverPolicy = Objects.requireNonNull(defaultPolicy);
-        this.pluginPolicies = Collections.unmodifiableMap(Objects.requireNonNull(pluginPolicies));
+        this.serverEntitlements = buildScopeEntitlementsMap(Objects.requireNonNull(defaultPolicy));
+        this.pluginsEntitlements = Objects.requireNonNull(pluginPolicies)
+            .entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
     }
 
-    public void checkFlagEntitlement(Class<?> callerClass, FlagEntitlementType type) {
+    private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
+        return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name, scope -> scope.entitlements));
+    }
+
+    public void checkExitVM(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, ExitVMEntitlement.class);
+    }
+
+    public void checkCreateClassLoader(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, CreateClassLoaderEntitlement.class);
+    }
+
+    private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
 
-        // TODO: real policy check. For now, we only allow our hardcoded System.exit policy for server.
-        // TODO: this will be checked using policies
-        if (requestingModule.isNamed()
-            && requestingModule.getName().equals("org.elasticsearch.server")
-            && type == FlagEntitlementType.SYSTEM_EXIT) {
-            logger.debug("Allowed: caller [{}] in module [{}] has entitlement [{}]", callerClass, requestingModule.getName(), type);
+        ModuleEntitlements entitlements = getEntitlementsOrThrow(callerClass, requestingModule);
+        if (entitlements.hasEntitlement(entitlementClass)) {
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: caller [%s], module [%s], type [%s]",
+                    callerClass,
+                    requestingModule.getName(),
+                    entitlementClass.getSimpleName()
+                )
+            );
             return;
         }
-
-        // TODO: plugins policy check using pluginResolver and pluginPolicies
         throw new NotEntitledException(
-            Strings.format("Missing entitlement [%s] for caller [%s] in module [%s]", type, callerClass, requestingModule.getName())
+            Strings.format(
+                "Missing entitlement: caller [%s], module [%s], type [%s]",
+                callerClass,
+                requestingModule.getName(),
+                entitlementClass.getSimpleName()
+            )
         );
+    }
+
+    ModuleEntitlements getEntitlementsOrThrow(Class<?> callerClass, Module requestingModule) {
+        ModuleEntitlements cachedEntitlement = moduleEntitlementsMap.get(requestingModule);
+        if (cachedEntitlement != null) {
+            if (cachedEntitlement == ModuleEntitlements.NONE) {
+                throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, requestingModule) + "[CACHED]");
+            }
+            return cachedEntitlement;
+        }
+
+        if (isServerModule(requestingModule)) {
+            var scopeName = requestingModule.getName();
+            return getModuleEntitlementsOrThrow(callerClass, requestingModule, serverEntitlements, scopeName);
+        }
+
+        // plugins
+        var pluginName = pluginResolver.apply(callerClass);
+        if (pluginName != null) {
+            var pluginEntitlements = pluginsEntitlements.get(pluginName);
+            if (pluginEntitlements != null) {
+                final String scopeName;
+                if (requestingModule.isNamed() == false) {
+                    scopeName = ALL_UNNAMED;
+                } else {
+                    scopeName = requestingModule.getName();
+                }
+                return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginEntitlements, scopeName);
+            }
+        }
+
+        moduleEntitlementsMap.put(requestingModule, ModuleEntitlements.NONE);
+        throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, requestingModule));
+    }
+
+    private static String buildModuleNoPolicyMessage(Class<?> callerClass, Module requestingModule) {
+        return Strings.format("Missing entitlement policy: caller [%s], module [%s]", callerClass, requestingModule.getName());
+    }
+
+    private ModuleEntitlements getModuleEntitlementsOrThrow(
+        Class<?> callerClass,
+        Module module,
+        Map<String, List<Entitlement>> scopeEntitlements,
+        String moduleName
+    ) {
+        var entitlements = scopeEntitlements.get(moduleName);
+        if (entitlements == null) {
+            // Module without entitlements - remember we don't have any
+            moduleEntitlementsMap.put(module, ModuleEntitlements.NONE);
+            throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, module));
+        }
+        // We have a policy for this module
+        var classEntitlements = new ModuleEntitlements(entitlements);
+        moduleEntitlementsMap.put(module, classEntitlements);
+        return classEntitlements;
+    }
+
+    private static boolean isServerModule(Module requestingModule) {
+        return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
     }
 
     private static Module requestingModule(Class<?> callerClass) {
@@ -102,15 +210,15 @@ public class PolicyManager {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (requestingModule == null) {
-            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
+            logger.debug("Entitlement trivially allowed: entire call stack is in composed of classes in system modules");
             return true;
         }
-        logger.trace("Not trivially allowed");
+        logger.trace("Entitlement not trivially allowed");
         return false;
     }
 
     @Override
     public String toString() {
-        return "PolicyManager{" + "serverPolicy=" + serverPolicy + ", pluginPolicies=" + pluginPolicies + '}';
+        return "PolicyManager{" + "serverEntitlements=" + serverEntitlements + ", pluginsEntitlements=" + pluginsEntitlements + '}';
     }
 }

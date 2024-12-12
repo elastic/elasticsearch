@@ -49,7 +49,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
         }
 
         return restChannel -> {
-            final String content = request.releasableContent().utf8ToString();
+            final String content = request.content().utf8ToString();
             client.execute(
                 PutPipelineAction.INSTANCE,
                 new PutPipelineRequest(id, content, request.getXContentType()),

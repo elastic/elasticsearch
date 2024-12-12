@@ -1114,11 +1114,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
-            assertThat(migratedEntities.removedIndexTemplateName, is("catch-all"));
-            assertThat(migratedEntities.migratedPolicies.size(), is(1));
-            assertThat(migratedEntities.migratedPolicies.get(0), is(lifecycleName));
-            assertThat(migratedEntities.migratedIndices.size(), is(2));
-            assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
+            assertThat(migratedEntities.removedIndexTemplateName(), is("catch-all"));
+            assertThat(migratedEntities.migratedPolicies().size(), is(1));
+            assertThat(migratedEntities.migratedPolicies().get(0), is(lifecycleName));
+            assertThat(migratedEntities.migratedIndices().size(), is(2));
+            assertThat(migratedEntities.migratedIndices(), hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             ClusterState newState = migratedEntitiesTuple.v1();
             assertThat(newState.metadata().getProject().templates().size(), is(1));
@@ -1140,11 +1140,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
-            assertThat(migratedEntities.removedIndexTemplateName, nullValue());
-            assertThat(migratedEntities.migratedPolicies.size(), is(1));
-            assertThat(migratedEntities.migratedPolicies.get(0), is(lifecycleName));
-            assertThat(migratedEntities.migratedIndices.size(), is(2));
-            assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
+            assertThat(migratedEntities.removedIndexTemplateName(), nullValue());
+            assertThat(migratedEntities.migratedPolicies().size(), is(1));
+            assertThat(migratedEntities.migratedPolicies().get(0), is(lifecycleName));
+            assertThat(migratedEntities.migratedIndices().size(), is(2));
+            assertThat(migratedEntities.migratedIndices(), hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             ClusterState newState = migratedEntitiesTuple.v1();
             assertThat(newState.metadata().getProject().templates().size(), is(2));
@@ -1166,10 +1166,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
-            assertThat(migratedEntities.migratedPolicies.size(), is(1));
-            assertThat(migratedEntities.migratedPolicies.get(0), is(lifecycleName));
-            assertThat(migratedEntities.migratedIndices.size(), is(2));
-            assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
+            assertThat(migratedEntities.migratedPolicies().size(), is(1));
+            assertThat(migratedEntities.migratedPolicies().get(0), is(lifecycleName));
+            assertThat(migratedEntities.migratedIndices().size(), is(2));
+            assertThat(migratedEntities.migratedIndices(), hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             IndexMetadata migratedIndex;
             migratedIndex = migratedEntitiesTuple.v1().metadata().getProject().index("indexWithWarmDataAttribute");
@@ -1240,9 +1240,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 null,
                 false
             );
-            assertThat(migratedState.v2().migratedIndices, empty());
-            assertThat(migratedState.v2().migratedPolicies, empty());
-            assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
+            assertThat(migratedState.v2().migratedIndices(), empty());
+            assertThat(migratedState.v2().migratedPolicies(), empty());
+            assertThat(migratedState.v2().removedIndexTemplateName(), nullValue());
         }
     }
 
@@ -1288,7 +1288,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             null,
             false
         );
-        assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
+        assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName(), nullValue());
         // the composable template still exists, however it was migrated to not use the custom require.data routing setting
         assertThat(migratedEntitiesTuple.v1().metadata().getProject().templatesV2().get(composableTemplateName), is(notNullValue()));
     }
@@ -1756,9 +1756,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
         MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = MetadataMigrateToDataTiersRoutingService
             .migrateIndexAndComponentTemplates(projectMetadataBuilder, projectMetadata, nodeAttrName);
-        assertThat(migratedTemplates.migratedLegacyTemplates, is(List.of("template-with-require-routing")));
-        assertThat(migratedTemplates.migratedComposableTemplates, is(List.of("composable-template-with-require-routing")));
-        assertThat(migratedTemplates.migratedComponentTemplates, is(List.of("component-with-require-and-include-routing")));
+        assertThat(migratedTemplates.migratedLegacyTemplates(), is(List.of("template-with-require-routing")));
+        assertThat(migratedTemplates.migratedComposableTemplates(), is(List.of("composable-template-with-require-routing")));
+        assertThat(migratedTemplates.migratedComponentTemplates(), is(List.of("component-with-require-and-include-routing")));
     }
 
     private String getWarmPhaseDef() {

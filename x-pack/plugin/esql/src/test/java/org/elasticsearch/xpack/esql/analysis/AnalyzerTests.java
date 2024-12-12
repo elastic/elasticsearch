@@ -268,10 +268,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectStar() {
-        assertProjection("""
-            from test
-            | keep *
-            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
+        assertProjection(
+            """
+                from test
+                | keep *
+                """,
+            "_meta_field",
+            "emp_no",
+            "first_name",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "last_name",
+            "long_noidx",
+            "salary"
+        );
     }
 
     public void testEscapedStar() {
@@ -304,9 +317,22 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNoProjection() {
-        assertProjection("""
-            from test
-            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
+        assertProjection(
+            """
+                from test
+                """,
+            "_meta_field",
+            "emp_no",
+            "first_name",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "last_name",
+            "long_noidx",
+            "salary"
+        );
         assertProjectionTypes(
             """
                 from test
@@ -315,6 +341,7 @@ public class AnalyzerTests extends ESTestCase {
             DataType.INTEGER,
             DataType.KEYWORD,
             DataType.TEXT,
+            DataType.DATETIME,
             DataType.TEXT,
             DataType.KEYWORD,
             DataType.INTEGER,
@@ -336,18 +363,57 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectWildcard() {
-        assertProjection("""
-            from test
-            | keep first_name, *, last_name
-            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
-        assertProjection("""
-            from test
-            | keep first_name, last_name, *
-            """, "first_name", "last_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
-        assertProjection("""
-            from test
-            | keep *, first_name, last_name
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "first_name", "last_name");
+        assertProjection(
+            """
+                from test
+                | keep first_name, *, last_name
+                """,
+            "first_name",
+            "_meta_field",
+            "emp_no",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary",
+            "last_name"
+        );
+        assertProjection(
+            """
+                from test
+                | keep first_name, last_name, *
+                """,
+            "first_name",
+            "last_name",
+            "_meta_field",
+            "emp_no",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary"
+        );
+        assertProjection(
+            """
+                from test
+                | keep *, first_name, last_name
+                """,
+            "_meta_field",
+            "emp_no",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary",
+            "first_name",
+            "last_name"
+        );
 
         var e = expectThrows(ParsingException.class, () -> analyze("""
             from test
@@ -370,22 +436,74 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *ob*, first_name, *name, first*
             """, "job", "job.raw", "first_name", "last_name");
-        assertProjection("""
-            from test
-            | keep first_name, *, *name
-            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
-        assertProjection("""
-            from test
-            | keep first*, *, last_name, first_name
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
-        assertProjection("""
-            from test
-            | keep first*, *, last_name, fir*
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
-        assertProjection("""
-            from test
-            | keep *, job*
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "long_noidx", "salary", "job", "job.raw");
+        assertProjection(
+            """
+                from test
+                | keep first_name, *, *name
+                """,
+            "first_name",
+            "_meta_field",
+            "emp_no",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary",
+            "last_name"
+        );
+        assertProjection(
+            """
+                from test
+                | keep first*, *, last_name, first_name
+                """,
+            "_meta_field",
+            "emp_no",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary",
+            "last_name",
+            "first_name"
+        );
+        assertProjection(
+            """
+                from test
+                | keep first*, *, last_name, fir*
+                """,
+            "_meta_field",
+            "emp_no",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary",
+            "last_name",
+            "first_name"
+        );
+        assertProjection(
+            """
+                from test
+                | keep *, job*
+                """,
+            "_meta_field",
+            "emp_no",
+            "first_name",
+            "gender",
+            "hire_date",
+            "languages",
+            "last_name",
+            "long_noidx",
+            "salary",
+            "job",
+            "job.raw"
+        );
     }
 
     public void testProjectThenDropName() {
@@ -417,21 +535,34 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
+            """, "_meta_field", "emp_no", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx", "salary");
     }
 
     public void testProjectDropNoStarPattern() {
         assertProjection("""
             from test
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
+            """, "_meta_field", "emp_no", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
-        assertProjection("""
-            from test
-            | keep *name, *, emp_no
-            """, "first_name", "last_name", "_meta_field", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "emp_no");
+        assertProjection(
+            """
+                from test
+                | keep *name, *, emp_no
+                """,
+            "first_name",
+            "last_name",
+            "_meta_field",
+            "gender",
+            "hire_date",
+            "job",
+            "job.raw",
+            "languages",
+            "long_noidx",
+            "salary",
+            "emp_no"
+        );
     }
 
     public void testProjectDropPatternAndKeepOthers() {
@@ -570,7 +701,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop *ala*
-            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx");
+            """, "_meta_field", "emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "languages", "last_name", "long_noidx");
     }
 
     public void testDropUnsupportedPattern() {
@@ -640,7 +771,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename emp_no as e, first_name as e
-            """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
+            """, "_meta_field", "e", "gender", "hire_date", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
     public void testRenameUnsupportedSubFieldAndResolved() {
@@ -1953,6 +2084,7 @@ public class AnalyzerTests extends ESTestCase {
                 .item(startsWith("emp_no{f}"))
                 .item(startsWith("first_name{f}"))
                 .item(startsWith("gender{f}"))
+                .item(startsWith("hire_date{f}"))
                 .item(startsWith("job{f}"))
                 .item(startsWith("job.raw{f}"))
                 /*

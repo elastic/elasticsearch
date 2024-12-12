@@ -31,6 +31,8 @@ public class InferenceFeatures implements FeatureSpecification {
         );
     }
 
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -38,7 +40,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX
+            SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX,
+            SEMANTIC_TEXT_HIGHLIGHTER
         );
     }
 }

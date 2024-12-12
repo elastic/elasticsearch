@@ -181,8 +181,8 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         Result actualResult = step.isConditionMet(index, clusterState);
 
         Result expectedResult = new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(1, 1));
-        assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+        assertEquals(expectedResult.complete(), actualResult.complete());
+        assertEquals(expectedResult.informationContext(), actualResult.informationContext());
     }
 
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
@@ -495,8 +495,8 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         AllocationRoutedStep step = createRandomInstance();
 
         Result actualResult = step.isConditionMet(index, clusterState);
-        assertFalse(actualResult.isComplete());
-        assertNull(actualResult.getInfomationContext());
+        assertFalse(actualResult.complete());
+        assertNull(actualResult.informationContext());
     }
 
     private void assertAllocateStatus(
@@ -537,7 +537,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
         Result actualResult = step.isConditionMet(index, clusterState);
-        assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+        assertEquals(expectedResult.complete(), actualResult.complete());
+        assertEquals(expectedResult.informationContext(), actualResult.informationContext());
     }
 }

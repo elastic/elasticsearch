@@ -268,16 +268,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE commands"));
     }
 
-    public void testMatchWithNonTextField() {
-        var query = """
-            FROM test
-            | WHERE id:"fox"
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("first argument of [id:\"fox\"] must be [string], found value [id] type [integer]"));
-    }
-
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();

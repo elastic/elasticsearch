@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -464,12 +465,14 @@ public class TransportBulkActionTests extends ESTestCase {
                     dsTemplateWithFailureStore,
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of(dsTemplateWithFailureStore + "-*"))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
                     dsTemplateWithoutFailureStore,
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of(dsTemplateWithoutFailureStore + "-*"))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(false)))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
                     indexTemplate,
                     ComposableIndexTemplate.builder().indexPatterns(List.of(indexTemplate + "-*")).build()
@@ -553,6 +556,38 @@ public class TransportBulkActionTests extends ESTestCase {
         assertTrue(failureStoreFailure.isFailed());
         assertEquals("failure-store-rollover-exception", failureStoreFailure.getFailure().getCause().getMessage());
         assertNull(bulkRequest.requests.get(2));
+    }
+
+    public void testFailureStoreFromTemplateResolution() {
+        Metadata metadata = Metadata.builder()
+            .indexTemplates(
+                Map.of(
+                    "my-index-template",
+                    ComposableIndexTemplate.builder().indexPatterns(List.of("my-index*")).build(),
+                    "my-enabled-fs-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-enabled*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+                        .build(),
+                    "my-disabled-fs-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-disabled*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(false)))
+                        .build(),
+                    "my-no-fs-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-no*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+            .build();
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-index", metadata), nullValue());
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-enabled-fs", metadata), equalTo(true));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-disabled-fs", metadata), equalTo(false));
+        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-no-fs", metadata), equalTo(false));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

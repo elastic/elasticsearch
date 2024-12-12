@@ -58,7 +58,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
         short quantizedSum = (short) random().nextInt(0, 4097);
         float normVmC = random().nextFloat(-1000f, 1000f);
         float vDotC = random().nextFloat(-1000f, 1000f);
-        ES816BinaryFlatVectorsScorer.BinaryQueryVector queryVector = new ES816BinaryFlatVectorsScorer.BinaryQueryVector(
+        ES816BinaryFlatRWVectorsScorer.BinaryQueryVector queryVector = new ES816BinaryFlatRWVectorsScorer.BinaryQueryVector(
             vector,
             new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, vl, width, normVmC, vDotC)
         );
@@ -123,7 +123,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             }
         };
 
-        ES816BinaryFlatVectorsScorer.BinarizedRandomVectorScorer scorer = new ES816BinaryFlatVectorsScorer.BinarizedRandomVectorScorer(
+        ES816BinaryFlatRWVectorsScorer.BinarizedRandomVectorScorer scorer = new ES816BinaryFlatRWVectorsScorer.BinarizedRandomVectorScorer(
             queryVector,
             targetVectors,
             similarityFunction
@@ -206,7 +206,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
         float vl = -57.883f;
         float width = 9.972266f;
         short quantizedSum = 795;
-        ES816BinaryFlatVectorsScorer.BinaryQueryVector queryVector = new ES816BinaryFlatVectorsScorer.BinaryQueryVector(
+        ES816BinaryFlatRWVectorsScorer.BinaryQueryVector queryVector = new ES816BinaryFlatRWVectorsScorer.BinaryQueryVector(
             vector,
             new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, vl, width, 0f, 0f)
         );
@@ -399,7 +399,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
 
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
 
-        ES816BinaryFlatVectorsScorer.BinarizedRandomVectorScorer scorer = new ES816BinaryFlatVectorsScorer.BinarizedRandomVectorScorer(
+        ES816BinaryFlatRWVectorsScorer.BinarizedRandomVectorScorer scorer = new ES816BinaryFlatRWVectorsScorer.BinarizedRandomVectorScorer(
             queryVector,
             targetVectors,
             similarityFunction
@@ -803,7 +803,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
         float normVmC = 9.766797f;
         float vDotC = 133.56123f;
         float cDotC = 132.20227f;
-        ES816BinaryFlatVectorsScorer.BinaryQueryVector queryVector = new ES816BinaryFlatVectorsScorer.BinaryQueryVector(
+        ES816BinaryFlatRWVectorsScorer.BinaryQueryVector queryVector = new ES816BinaryFlatRWVectorsScorer.BinaryQueryVector(
             vector,
             new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, vl, width, normVmC, vDotC)
         );
@@ -1737,7 +1737,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
 
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
-        ES816BinaryFlatVectorsScorer.BinarizedRandomVectorScorer scorer = new ES816BinaryFlatVectorsScorer.BinarizedRandomVectorScorer(
+        ES816BinaryFlatRWVectorsScorer.BinarizedRandomVectorScorer scorer = new ES816BinaryFlatRWVectorsScorer.BinarizedRandomVectorScorer(
             queryVector,
             targetVectors,
             similarityFunction

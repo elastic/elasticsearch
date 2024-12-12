@@ -1,0 +1,9 @@
+pr: 118559
+summary: Add logsdb release highlight
+area: Logs
+type: feature
+issues: []
+highlight:
+  title: Add logsdb release highlight
+  body: ""
+  notable: true

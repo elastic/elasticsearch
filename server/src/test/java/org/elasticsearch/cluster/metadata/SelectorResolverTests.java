@@ -17,9 +17,6 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.EnumSet;
-import java.util.List;
-
 import static org.elasticsearch.action.support.IndexComponentSelector.ALL_APPLICABLE;
 import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;

@@ -34,10 +34,6 @@ import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Test suite for Lucene indices backward compatibility with N-2 versions. The test suite creates a cluster in N-2 version, then upgrades it
- * to N-1 version and finally upgrades it to the current version. Test methods are executed after each upgrade.
- */
 @TestCaseOrdering(AbstractArchiveIndexCompatibilityTestCase.TestCaseOrdering.class)
 public abstract class AbstractArchiveIndexCompatibilityTestCase extends ESRestTestCase {
 

@@ -12,20 +12,13 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A simple object that allows a `message` field to be transferred to `XContent`.
  */
-public class SingleMessageFieldInfo implements ToXContentObject {
+public record SingleMessageFieldInfo(String message) implements ToXContentObject {
 
-    private final String message;
-
-    static final ParseField MESSAGE = new ParseField("message");
-
-    public SingleMessageFieldInfo(String message) {
-        this.message = message;
-    }
+    private static final ParseField MESSAGE = new ParseField("message");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -35,24 +28,4 @@ public class SingleMessageFieldInfo implements ToXContentObject {
         return builder;
     }
 
-    public String getMessage() {
-        return message;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SingleMessageFieldInfo that = (SingleMessageFieldInfo) o;
-        return Objects.equals(message, that.message);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(message);
-    }
 }

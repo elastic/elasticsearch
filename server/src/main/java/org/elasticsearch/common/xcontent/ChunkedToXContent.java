@@ -49,7 +49,6 @@ public interface ChunkedToXContent {
      */
     default Iterator<? extends ToXContent> toXContentChunked(RestApiVersion restApiVersion, ToXContent.Params params) {
         return switch (restApiVersion) {
-            case V_7 -> throw new AssertionError("v7 API not supported");
             case V_8 -> toXContentChunkedV8(params);
             case V_9 -> toXContentChunked(params);
         };

@@ -98,7 +98,17 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();
         final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(methodNameStartIndex);
 
-        final String targetClassName;
+        final String targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
+        if (targetClassName.isBlank()) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Checker method %s has no class name",
+                    checkerMethodName
+                )
+            );
+        }
+
         final List<String> targetParameterTypes;
         if (targetMethodIsStatic || targetMethodIsCtor) {
             if (checkerMethodArgumentTypes.length < 1 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false) {
@@ -111,7 +121,6 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 );
             }
 
-            targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(1).map(Type::getInternalName).toList();
         } else {
             if (checkerMethodArgumentTypes.length < 2
@@ -127,8 +136,6 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                     )
                 );
             }
-            var targetClassType = checkerMethodArgumentTypes[1];
-            targetClassName = targetClassType.getInternalName();
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
         boolean hasReceiver = (targetMethodIsStatic || targetMethodIsCtor) == false;

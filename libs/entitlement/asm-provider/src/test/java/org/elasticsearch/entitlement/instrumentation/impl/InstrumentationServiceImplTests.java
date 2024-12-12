@@ -73,7 +73,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             hasEntry(
                 equalTo(
                     new MethodKey(
-                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                        "org/example/TestTargetClass",
                         "instanceMethodNoArgs",
                         List.of(),
                         true
@@ -96,7 +96,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             hasEntry(
                 equalTo(
                     new MethodKey(
-                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                        "org/example/TestTargetClass",
                         "instanceMethodWithArgs",
                         List.of("I", "I"),
                         true
@@ -227,37 +227,29 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of("I", "java/lang/String"), false)));
     }
 
-    public void testParseCheckerMethodSignatureIncorrectName() {
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$staticMethod", new Type[] { Type.getType(Class.class) })
-        );
+    public void testParseCheckerMethodSignatureOneDollarSign() {
+        assertParseCheckerMethodSignatureThrows("check$method", new Type[]{Type.getType(Class.class)}, "has incorrect name format");
+    }
 
-        assertThat(exception.getMessage(), containsString("has incorrect name format"));
+    public void testParseCheckerMethodSignatureMissingClass() {
+        assertParseCheckerMethodSignatureThrows("check$$staticMethod", new Type[]{Type.getType(Class.class)}, "has incorrect name format");
+    }
+
+    public void testParseCheckerMethodSignatureBlankClass() {
+        assertParseCheckerMethodSignatureThrows("check$$$staticMethod", new Type[]{Type.getType(Class.class)}, "no class name");
     }
 
     public void testParseCheckerMethodSignatureStaticMethodIncorrectArgumentCount() {
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$ClassName$staticMethod", new Type[] {})
-        );
-        assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
+        assertParseCheckerMethodSignatureThrows("check$ClassName$staticMethod", new Type[]{}, "It must have a first argument of Class<?> type");
     }
 
     public void testParseCheckerMethodSignatureStaticMethodIncorrectArgumentType() {
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature(
-                "check$ClassName$$staticMethod",
-                new Type[] { Type.getType(String.class) }
-            )
-        );
-        assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
+        assertParseCheckerMethodSignatureThrows("check$ClassName$$staticMethod", new Type[]{Type.getType(String.class)}, "It must have a first argument of Class<?> type");
     }
 
     public void testParseCheckerMethodSignatureInstanceMethod() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$TestClass$instanceMethod",
+            "check$org_example_TestClass$instanceMethod",
             new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class) }
         );
 
@@ -265,7 +257,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             methodKey,
             equalTo(
                 new MethodKey(
-                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                    "org/example/TestClass",
                     "instanceMethod",
                     List.of(),
                     true
@@ -284,7 +276,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             methodKey,
             equalTo(
                 new MethodKey(
-                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                    "org/example/TestClass",
                     "instanceMethod",
                     List.of("I", "java/lang/String"),
                     true
@@ -294,29 +286,24 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes() {
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$org_example_TestClass$instanceMethod", new Type[] { Type.getType(String.class) })
-        );
-        assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
+        assertParseCheckerMethodSignatureThrows("check$org_example_TestClass$instanceMethod", new Type[]{Type.getType(String.class)}, "It must have a first argument of Class<?> type");
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentCount() {
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$org_example_TestClass$instanceMethod", new Type[] { Type.getType(Class.class) })
-        );
-        assertThat(exception.getMessage(), containsString("a second argument of the class containing the method to instrument"));
+        assertParseCheckerMethodSignatureThrows("check$org_example_TestClass$instanceMethod", new Type[]{Type.getType(Class.class)}, "a second argument of the class containing the method to instrument");
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes2() {
+        assertParseCheckerMethodSignatureThrows("check$org_example_TestClass$instanceMethod", new Type[]{Type.getType(Class.class), Type.getType("I")}, "a second argument of the class containing the method to instrument");
+    }
+
+    private static void assertParseCheckerMethodSignatureThrows(String methodName, Type[] methodArgs, String messageText) {
         var exception = assertThrows(
             IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature(
-                "check$org_example_TestClass$instanceMethod",
-                new Type[] { Type.getType(Class.class), Type.getType("I") }
-            )
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature(methodName, methodArgs)
         );
-        assertThat(exception.getMessage(), containsString("a second argument of the class containing the method to instrument"));
+
+        assertThat(exception.getMessage(), containsString(messageText));
     }
+
 }

@@ -153,7 +153,7 @@ For further details, refer to the {ml-docs}/ml-nlp-elser.html[ELSER model docume
 [[inference-example-elastic-reranker]]
 ==== Elastic Rerank via the `elasticsearch` service
 
-The following example shows how to create an {infer} endpoint called `my-elastic-rerank` to perform a `rerank` task type using the built-in  cross-encoder model.
+The following example shows how to create an {infer} endpoint called `my-elastic-rerank` to perform a `rerank` task type using the built-in {ml-docs}/ml-nlp-rerank.html[Elastic Rerank] cross-encoder model.
 
 The API request below will automatically download the Elastic Rerank model if it isn't already downloaded and then deploy the model.
 Once deployed, the model can be used for semantic re-ranking with a <<text-similarity-reranker-retriever-example-elastic-rerank,`text_similarity_reranker` retriever>>.

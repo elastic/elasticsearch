@@ -89,13 +89,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     }
 
     private void completeSuccessfulPersistentTask(ReindexDataStreamTask persistentTask) {
-        persistentTask.allReindexesCompleted();
-        threadPool.schedule(persistentTask::markAsCompleted, getTimeToLive(persistentTask), threadPool.generic());
+        persistentTask.allReindexesCompleted(threadPool, getTimeToLive(persistentTask));
     }
 
     private void completeFailedPersistentTask(ReindexDataStreamTask persistentTask, Exception e) {
-        persistentTask.taskFailed(e);
-        threadPool.schedule(() -> persistentTask.markAsFailed(e), getTimeToLive(persistentTask), threadPool.generic());
+        persistentTask.taskFailed(threadPool, getTimeToLive(persistentTask), e);
     }
 
     private TimeValue getTimeToLive(ReindexDataStreamTask reindexDataStreamTask) {

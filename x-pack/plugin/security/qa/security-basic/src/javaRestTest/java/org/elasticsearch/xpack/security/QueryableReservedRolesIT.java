@@ -45,7 +45,12 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.QueryRoleIT.assertQuery;
 import static org.elasticsearch.xpack.security.QueryRoleIT.waitForMigrationCompletion;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
 public class QueryableReservedRolesIT extends ESRestTestCase {

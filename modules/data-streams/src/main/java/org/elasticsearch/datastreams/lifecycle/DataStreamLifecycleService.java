@@ -49,6 +49,8 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -998,8 +1000,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
-        String rolloverTarget = rolloverRequest.getRolloverTarget();
-        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverTarget);
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpressionWithDefault(
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.indicesOptions()
+        );
+        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", resolvedRolloverTarget.resource());
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
@@ -1014,7 +1019,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.info(
                         "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
                             + "conditions {}. The new index is [{}]",
-                        rolloverTarget,
+                        resolvedRolloverTarget.resource(),
                         metConditions,
                         rolloverResponse.getNewIndex()
                     );
@@ -1024,7 +1029,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
+                DataStream dataStream = clusterService.state().metadata().dataStreams().get(resolvedRolloverTarget.resource());
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over

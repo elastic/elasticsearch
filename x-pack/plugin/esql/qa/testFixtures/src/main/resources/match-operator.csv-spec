@@ -147,7 +147,7 @@ matchWithDisjunctionIncludingConjunction
 required_capability: match_function
 
 from books
-| where author : "Vonnegut") or (author : "Marquez" and description : "realism")
+| where author : "Vonnegut" or (author : "Marquez" and description : "realism")
 | keep book_no;
 ignoreOrder:true
 

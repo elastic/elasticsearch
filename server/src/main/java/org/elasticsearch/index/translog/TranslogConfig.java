@@ -143,4 +143,12 @@ public final class TranslogConfig {
     public boolean fsync() {
         return fsync;
     }
+
+    /**
+     * @return true if the configuration allows the Translog files to exist.
+     */
+    public boolean hasTranslog() {
+        // Expect no translog files to exist for searchable snapshots
+        return false == indexSettings.getIndexMetadata().isSearchableSnapshot();
+    }
 }

@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceChunks;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -30,8 +30,8 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayTyp
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
@@ -121,7 +121,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<InferenceChunks>> listener
     ) {
         // Pass-through without actually performing chunking (result will have a single chunk per input)
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
@@ -273,14 +273,12 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
-    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        InferenceInputs inputs,
-        InferenceServiceResults inferenceResults
-    ) {
+    private static List<InferenceChunks> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return InferenceChunkedSparseEmbeddingResults.listOf(DocumentsOnlyInput.of(inputs).getInputs(), sparseEmbeddingResults);
+            var inputsAsList = DocumentsOnlyInput.of(inputs).getInputs();
+            return ChunkedInferenceEmbeddingSparse.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
-            return List.of(new ErrorChunkedInferenceResults(error.getException()));
+            return List.of(new ChunkedInferenceError(error.getException()));
         } else {
             String expectedClass = Strings.format("%s", SparseEmbeddingResults.class.getSimpleName());
             throw createInvalidChunkedResultException(expectedClass, inferenceResults.getWriteableName());

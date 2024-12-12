@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceChunks;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -35,6 +36,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
@@ -142,7 +144,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<InferenceChunks>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
@@ -167,16 +169,17 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
-            List<ChunkedInferenceServiceResults> results = new ArrayList<>();
+        private List<InferenceChunks> makeChunkedResults(List<String> input) {
+            List<InferenceChunks> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
                     tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 results.add(
-                    new InferenceChunkedSparseEmbeddingResults(
-                        List.of(new MlChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens))
+                    new ChunkedInferenceEmbeddingSparse(
+                        List.of(new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, input.get(i),
+                            new InferenceChunks.TextOffset(0, input.get(i).length())))
                     )
                 );
             }

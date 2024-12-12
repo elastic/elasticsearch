@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceChunks;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -37,6 +38,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
@@ -151,7 +153,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<InferenceChunks>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
@@ -176,9 +178,24 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new InferenceTextEmbeddingFloatResults(embeddings);
         }
 
-        private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input, int dimensions) {
+        private List<InferenceChunks> makeChunkedResults(List<String> input, int dimensions) {
             InferenceTextEmbeddingFloatResults nonChunkedResults = makeResults(input, dimensions);
-            return InferenceChunkedTextEmbeddingFloatResults.listOf(input, nonChunkedResults);
+
+            var results = new ArrayList<InferenceChunks>();
+            for (int i = 0; i < input.size(); i++) {
+                results.add(
+                    new ChunkedInferenceEmbeddingFloat(
+                        List.of(
+                            new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
+                                nonChunkedResults.embeddings().get(i).values(),
+                                input.get(i),
+                                new InferenceChunks.TextOffset(0, input.get(i).length())
+                            )
+                        )
+                    )
+                );
+            }
+            return results;
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {

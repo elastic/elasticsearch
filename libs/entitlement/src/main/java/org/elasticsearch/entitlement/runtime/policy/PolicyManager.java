@@ -18,7 +18,6 @@ import org.elasticsearch.logging.Logger;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -56,8 +55,8 @@ public class PolicyManager {
 
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new HashMap<>();
 
-    protected final Policy serverPolicy;
-    protected final Map<String, Policy> pluginPolicies;
+    protected final Map<String, List<Entitlement>> serverEntitlements;
+    protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
@@ -79,19 +78,16 @@ public class PolicyManager {
     }
 
     public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
-        this.serverPolicy = Objects.requireNonNull(defaultPolicy);
-        this.pluginPolicies = Collections.unmodifiableMap(Objects.requireNonNull(pluginPolicies));
+        this.serverEntitlements = buildScopeEntitlementsMap(Objects.requireNonNull(defaultPolicy));
+        this.pluginsEntitlements = Objects.requireNonNull(pluginPolicies)
+            .entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
     }
 
-    private static List<Entitlement> lookupEntitlementsForModule(Policy policy, String moduleName) {
-        for (int i = 0; i < policy.scopes.size(); ++i) {
-            var scope = policy.scopes.get(i);
-            if (scope.name.equals(moduleName)) {
-                return scope.entitlements;
-            }
-        }
-        return null;
+    private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
+        return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name, scope -> scope.entitlements));
     }
 
     public void checkExitVM(Class<?> callerClass) {
@@ -141,21 +137,21 @@ public class PolicyManager {
 
         if (isServerModule(requestingModule)) {
             var scopeName = requestingModule.getName();
-            return getModuleEntitlementsOrThrow(callerClass, requestingModule, serverPolicy, scopeName);
+            return getModuleEntitlementsOrThrow(callerClass, requestingModule, serverEntitlements, scopeName);
         }
 
         // plugins
         var pluginName = pluginResolver.apply(callerClass);
         if (pluginName != null) {
-            var pluginPolicy = pluginPolicies.get(pluginName);
-            if (pluginPolicy != null) {
+            var pluginEntitlements = pluginsEntitlements.get(pluginName);
+            if (pluginEntitlements != null) {
                 final String scopeName;
                 if (requestingModule.isNamed() == false) {
                     scopeName = ALL_UNNAMED;
                 } else {
                     scopeName = requestingModule.getName();
                 }
-                return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginPolicy, scopeName);
+                return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginEntitlements, scopeName);
             }
         }
 
@@ -167,25 +163,26 @@ public class PolicyManager {
         return Strings.format("Missing entitlement policy: caller [%s], module [%s]", callerClass, requestingModule.getName());
     }
 
-    private ModuleEntitlements getModuleEntitlementsOrThrow(Class<?> callerClass, Module module, Policy policy, String moduleName) {
-        var entitlements = lookupEntitlementsForModule(policy, moduleName);
+    private ModuleEntitlements getModuleEntitlementsOrThrow(
+        Class<?> callerClass,
+        Module module,
+        Map<String, List<Entitlement>> scopeEntitlements,
+        String moduleName
+    ) {
+        var entitlements = scopeEntitlements.get(moduleName);
         if (entitlements == null) {
             // Module without entitlements - remember we don't have any
             moduleEntitlementsMap.put(module, ModuleEntitlements.NONE);
             throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, module));
         }
         // We have a policy for this module
-        var classEntitlements = createClassEntitlements(entitlements);
+        var classEntitlements = new ModuleEntitlements(entitlements);
         moduleEntitlementsMap.put(module, classEntitlements);
         return classEntitlements;
     }
 
     private static boolean isServerModule(Module requestingModule) {
         return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
-    }
-
-    private ModuleEntitlements createClassEntitlements(List<Entitlement> entitlements) {
-        return new ModuleEntitlements(entitlements);
     }
 
     private static Module requestingModule(Class<?> callerClass) {
@@ -222,6 +219,6 @@ public class PolicyManager {
 
     @Override
     public String toString() {
-        return "PolicyManager{" + "serverPolicy=" + serverPolicy + ", pluginPolicies=" + pluginPolicies + '}';
+        return "PolicyManager{" + "serverEntitlements=" + serverEntitlements + ", pluginsEntitlements=" + pluginsEntitlements + '}';
     }
 }

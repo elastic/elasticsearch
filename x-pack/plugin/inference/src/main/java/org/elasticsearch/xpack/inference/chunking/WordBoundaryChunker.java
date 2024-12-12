@@ -104,10 +104,6 @@ public class WordBoundaryChunker implements Chunker {
             throw new IllegalArgumentException("Invalid chunking parameters, overlap [" + overlap + "] must be >= 0");
         }
 
-        if (input.isEmpty()) {
-            return List.of();
-        }
-
         var chunkPositions = new ArrayList<ChunkPosition>();
 
         // This position in the chunk is where the next overlapping chunk will start

@@ -71,7 +71,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 `_source`::
-(Optional, list) Set to `false` to disable source retrieval (default: `true`).
+(Optional, list) Set to `true` to enable source retrieval (default: `false`).
 You can also specify a comma-separated list of the fields you want to retrieve.
 
 `_source_excludes`::

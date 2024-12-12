@@ -13,3 +13,40 @@ Connected to 10.1.0.2 | 8f8f1cb60832d153f5b9ec6dc828b93f | b0db24720f15857091b3c
 Connected to 10.1.0.3 | 912b6dc13503165a15de43304bb77c78 | 75b0480188db8acc4d5cc666a51227eb2bc5b989cd8ca912609f33e0846eff57
 Disconnected          | ef70e46fd3bbc21e3e1f0b6815e750c0 | 04dfac3671b494ad53fcd152f7a14511bfb35747278aad8ce254a0d6e4ba4718
 ;
+
+
+hashOfConvertedType
+required_capability: hash_function
+
+FROM sample_data 
+| WHERE message != "Connection error"
+| EVAL input = event_duration::STRING, md5 = hash("md5", input), sha256 = hash("sha256", input) 
+| KEEP message, input, md5, sha256;
+ignoreOrder:true
+
+message:keyword       | input:keyword | md5:keyword                      | sha256:keyword
+Connected to 10.1.0.1 | 1756467       | c4fc1c57ee9b1d2b2023b70c8c167b54 | 8376a50a7ba7e6bd1bf9ad0c32d27d2f49fd0fa422573f98f239e21048b078f3
+Connected to 10.1.0.2 | 2764889       | 8e8cf005e11a7b5df1d9478a4715a444 | 1031f2bef8eaecbf47319505422300b27ea1f7c38b6717d41332325062f9a56a
+Connected to 10.1.0.3 | 3450233       | 09f2c64f5a55e9edf8ffbad336b561d8 | f77d7545769c4ecc85092f4f0b7ec8c20f467e4beb15fe67ca29f9aa8e9a6900
+Disconnected          | 1232382       | 6beac1485638d51e13c2c53990a2f611 | 9a03c1274a3ebb6c1cb85d170ce0a6fdb9d2232724e06b9f5e7cb9274af3cad6
+;
+
+
+hashOfNullInput
+required_capability: hash_function
+
+ROW input=null::STRING | EVAL md5 = hash("md5", input), sha256 = hash("sha256", input);
+
+input:keyword | md5:keyword | sha256:keyword
+null          | null        | null
+;
+
+
+hashWithNullAlgorithm
+required_capability: hash_function
+
+ROW input="input" | EVAL hash = hash(null, input);
+
+input:keyword | hash:keyword
+input         | null
+;

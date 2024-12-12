@@ -134,7 +134,7 @@ public class ShardChangesRestIT extends ESRestTestCase {
         final StringBuilder sb = new StringBuilder();
 
         for (int i = 0; i < numberOfDocuments; i++) {
-            sb.append(String.format("{ \"index\": { \"_id\": \"%d\" } }\n{ \"name\": \"%s\" }\n", i + 1, randomFrom(NAMES)));
+            sb.append(String.format(Locale.ROOT, "{ \"index\": { \"_id\": \"%d\" } }\n{ \"name\": \"%s\" }\n", i + 1, randomFrom(NAMES)));
         }
 
         final Request request = new Request("POST", "/" + indexName + "/_bulk");

@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -56,6 +55,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
@@ -209,10 +209,14 @@ class Elasticsearch {
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-            List<Tuple<Path, Boolean>> pluginData = pluginsLoader.allBundles()
-                .stream()
-                .map(bundle -> Tuple.tuple(bundle.getDir(), bundle.pluginDescriptor().isModular()))
-                .toList();
+            List<EntitlementBootstrap.PluginData> pluginData = Stream.concat(
+                pluginsLoader.moduleBundles()
+                    .stream()
+                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                pluginsLoader.pluginBundles()
+                    .stream()
+                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+            ).toList();
 
             EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
         } else {

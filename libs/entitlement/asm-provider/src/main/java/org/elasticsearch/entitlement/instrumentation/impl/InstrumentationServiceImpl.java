@@ -69,9 +69,19 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     private static final Type CLASS_TYPE = Type.getType(Class.class);
 
     static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
-        var classNameStartIndex = checkerMethodName.indexOf('$');
-        var classNameEndIndex = checkerMethodName.lastIndexOf('$');
+        boolean targetMethodIsStatic;
+        int classNameEndIndex = checkerMethodName.lastIndexOf("$$");
+        int methodNameStartIndex;
+        if (classNameEndIndex == -1) {
+            targetMethodIsStatic = false;
+            classNameEndIndex = checkerMethodName.lastIndexOf('$');
+            methodNameStartIndex = classNameEndIndex + 1;
+        } else {
+            targetMethodIsStatic = true;
+            methodNameStartIndex = classNameEndIndex + 2;
+        }
 
+        var classNameStartIndex = checkerMethodName.indexOf('$');
         if (classNameStartIndex == -1 || classNameStartIndex >= classNameEndIndex) {
             throw new IllegalArgumentException(
                 String.format(
@@ -84,15 +94,13 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             );
         }
 
-        // No "className" (check$$methodName) -> method is instance, and we'll get the class from the actual typed argument
-        final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
         // No "methodName" (check$package_ClassName$) -> method is ctor
         final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();
-        final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(classNameEndIndex + 1);
+        final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(methodNameStartIndex);
 
         final String targetClassName;
         final List<String> targetParameterTypes;
-        if (targetMethodIsStatic) {
+        if (targetMethodIsStatic || targetMethodIsCtor) {
             if (checkerMethodArgumentTypes.length < 1 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -123,6 +131,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             targetClassName = targetClassType.getInternalName();
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
-        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes);
+        boolean hasReceiver = (targetMethodIsStatic || targetMethodIsCtor) == false;
+        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes, hasReceiver);
     }
 }

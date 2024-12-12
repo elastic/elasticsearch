@@ -32,17 +32,17 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     static class TestTargetClass {}
 
     interface TestChecker {
-        void check$org_example_TestTargetClass$staticMethod(Class<?> clazz, int arg0, String arg1, Object arg2);
+        void check$org_example_TestTargetClass$$staticMethod(Class<?> clazz, int arg0, String arg1, Object arg2);
 
-        void check$$instanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
+        void check$org_example_TestTargetClass$instanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
 
-        void check$$instanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
+        void check$org_example_TestTargetClass$instanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
     }
 
     interface TestCheckerOverloads {
-        void check$org_example_TestTargetClass$staticMethodWithOverload(Class<?> clazz, int x, int y);
+        void check$org_example_TestTargetClass$$staticMethodWithOverload(Class<?> clazz, int x, int y);
 
-        void check$org_example_TestTargetClass$staticMethodWithOverload(Class<?> clazz, int x, String y);
+        void check$org_example_TestTargetClass$$staticMethodWithOverload(Class<?> clazz, int x, String y);
     }
 
     interface TestCheckerCtors {
@@ -58,11 +58,11 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             checkMethods,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"))),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"), false)),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
-                        "check$org_example_TestTargetClass$staticMethod",
+                        "check$org_example_TestTargetClass$$staticMethod",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;", "Ljava/lang/Object;")
                     )
                 )
@@ -75,13 +75,14 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     new MethodKey(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
                         "instanceMethodNoArgs",
-                        List.of()
+                        List.of(),
+                        true
                     )
                 ),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
-                        "check$$instanceMethodNoArgs",
+                        "check$org_example_TestTargetClass$instanceMethodNoArgs",
                         List.of(
                             "Ljava/lang/Class;",
                             "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
@@ -97,13 +98,14 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     new MethodKey(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
                         "instanceMethodWithArgs",
-                        List.of("I", "I")
+                        List.of("I", "I"),
+                        true
                     )
                 ),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
-                        "check$$instanceMethodWithArgs",
+                        "check$org_example_TestTargetClass$instanceMethodWithArgs",
                         List.of(
                             "Ljava/lang/Class;",
                             "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;",
@@ -123,11 +125,11 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             checkMethods,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "java/lang/String"))),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "java/lang/String"), false)),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
-                        "check$org_example_TestTargetClass$staticMethodWithOverload",
+                        "check$org_example_TestTargetClass$$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;")
                     )
                 )
@@ -136,11 +138,11 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             checkMethods,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "I"))),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "I"), false)),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
-                        "check$org_example_TestTargetClass$staticMethodWithOverload",
+                        "check$org_example_TestTargetClass$$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "I")
                     )
                 )
@@ -155,7 +157,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             checkMethods,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of("I", "java/lang/String"))),
+                equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of("I", "java/lang/String"), false)),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerCtors",
@@ -168,7 +170,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             checkMethods,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of())),
+                equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of(), false)),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerCtors",
@@ -182,29 +184,29 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     public void testParseCheckerMethodSignatureStaticMethod() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$org_example_TestClass$staticMethod",
+            "check$org_example_TestClass$$staticMethod",
             new Type[] { Type.getType(Class.class) }
         );
 
-        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "staticMethod", List.of())));
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "staticMethod", List.of(), false)));
     }
 
     public void testParseCheckerMethodSignatureStaticMethodWithArgs() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$org_example_TestClass$staticMethod",
+            "check$org_example_TestClass$$staticMethod",
             new Type[] { Type.getType(Class.class), Type.getType("I"), Type.getType(String.class) }
         );
 
-        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "staticMethod", List.of("I", "java/lang/String"))));
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "staticMethod", List.of("I", "java/lang/String"), false)));
     }
 
     public void testParseCheckerMethodSignatureStaticMethodInnerClass() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$org_example_TestClass$InnerClass$staticMethod",
+            "check$org_example_TestClass$InnerClass$$staticMethod",
             new Type[] { Type.getType(Class.class) }
         );
 
-        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass$InnerClass", "staticMethod", List.of())));
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass$InnerClass", "staticMethod", List.of(), false)));
     }
 
     public void testParseCheckerMethodSignatureCtor() {
@@ -213,7 +215,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             new Type[] { Type.getType(Class.class) }
         );
 
-        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of())));
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of(), false)));
     }
 
     public void testParseCheckerMethodSignatureCtorWithArgs() {
@@ -222,7 +224,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             new Type[] { Type.getType(Class.class), Type.getType("I"), Type.getType(String.class) }
         );
 
-        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of("I", "java/lang/String"))));
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of("I", "java/lang/String"), false)));
     }
 
     public void testParseCheckerMethodSignatureIncorrectName() {
@@ -246,7 +248,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         var exception = assertThrows(
             IllegalArgumentException.class,
             () -> InstrumentationServiceImpl.parseCheckerMethodSignature(
-                "check$ClassName$staticMethod",
+                "check$ClassName$$staticMethod",
                 new Type[] { Type.getType(String.class) }
             )
         );
@@ -255,7 +257,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     public void testParseCheckerMethodSignatureInstanceMethod() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$$instanceMethod",
+            "check$TestClass$instanceMethod",
             new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class) }
         );
 
@@ -265,7 +267,8 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                 new MethodKey(
                     "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
                     "instanceMethod",
-                    List.of()
+                    List.of(),
+                    true
                 )
             )
         );
@@ -273,7 +276,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     public void testParseCheckerMethodSignatureInstanceMethodWithArgs() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$$instanceMethod",
+            "check$org_example_TestClass$instanceMethod",
             new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class), Type.getType("I"), Type.getType(String.class) }
         );
 
@@ -283,7 +286,8 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                 new MethodKey(
                     "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
                     "instanceMethod",
-                    List.of("I", "java/lang/String")
+                    List.of("I", "java/lang/String"),
+                    true
                 )
             )
         );
@@ -292,7 +296,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes() {
         var exception = assertThrows(
             IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$$instanceMethod", new Type[] { Type.getType(String.class) })
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$org_example_TestClass$instanceMethod", new Type[] { Type.getType(String.class) })
         );
         assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
     }
@@ -300,7 +304,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentCount() {
         var exception = assertThrows(
             IllegalArgumentException.class,
-            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$$instanceMethod", new Type[] { Type.getType(Class.class) })
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$org_example_TestClass$instanceMethod", new Type[] { Type.getType(Class.class) })
         );
         assertThat(exception.getMessage(), containsString("a second argument of the class containing the method to instrument"));
     }
@@ -309,7 +313,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         var exception = assertThrows(
             IllegalArgumentException.class,
             () -> InstrumentationServiceImpl.parseCheckerMethodSignature(
-                "check$$instanceMethod",
+                "check$org_example_TestClass$instanceMethod",
                 new Type[] { Type.getType(Class.class), Type.getType("I") }
             )
         );

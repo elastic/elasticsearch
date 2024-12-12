@@ -15,6 +15,7 @@ import org.objectweb.asm.Type;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -26,15 +27,17 @@ class TestMethodUtils {
      */
     static MethodKey methodKeyForTarget(Method targetMethod) {
         Type actualType = Type.getMethodType(Type.getMethodDescriptor(targetMethod));
+        boolean hasReceiver = (Modifier.isStatic(targetMethod.getModifiers()) || targetMethod.getName().equals("<init>")) == false;
         return new MethodKey(
             Type.getInternalName(targetMethod.getDeclaringClass()),
             targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
+            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList(),
+            hasReceiver
         );
     }
 
     static MethodKey methodKeyForConstructor(Class<?> classToInstrument, List<String> params) {
-        return new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", params);
+        return new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", params, false);
     }
 
     static CheckMethod getCheckMethod(Class<?> clazz, String methodName, Class<?>... parameterTypes) throws NoSuchMethodException {

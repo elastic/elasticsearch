@@ -16,6 +16,8 @@ import java.util.List;
  *
  * @param className      the "internal name" of the class: includes the package info, but with periods replaced by slashes
  * @param methodName     the method name
- * @param parameterTypes a list of "internal names" for the parameter types
+ * @param parameterTypes a list of "internal names" for the parameter types that appear in the method's descriptor (not the receiver)
+ * @param hasReceiver    true if the target method is a nonstatic method, in which case the receiver ({@code this})
+ *                       passed as an argument to the check method; false for static methods and constructors.
  */
-public record MethodKey(String className, String methodName, List<String> parameterTypes) {}
+public record MethodKey(String className, String methodName, List<String> parameterTypes, boolean hasReceiver) {}

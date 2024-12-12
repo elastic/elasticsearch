@@ -19,6 +19,8 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,6 +30,8 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import java.util.stream.IntStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 
@@ -55,10 +59,7 @@ public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibili
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             assertTrue(getIndices(client()).isEmpty());
 
-            Path resourceFolder = Paths.get(
-                Objects.requireNonNull(getClass().getClassLoader().getResource("snapshot_v" + version)).toURI()
-            );
-            copyFolder(resourceFolder, Paths.get(repositoryPath));
+            copySnapshot(repositoryPath, version);
 
             registerRepository(
                 client(),
@@ -79,23 +80,33 @@ public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibili
         }
     }
 
-    private void copyFolder(Path source, Path target) throws IOException {
-        Files.walkFileTree(source, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Path targetDir = target.resolve(source.relativize(dir));
-                if (Files.exists(targetDir) == false) {
-                    Files.createDirectory(targetDir);
-                }
-                return FileVisitResult.CONTINUE;
-            }
+    private void copySnapshot(String repositoryPath, String version) throws IOException, URISyntaxException {
+        Path zipFilePath = Paths.get(
+            Objects.requireNonNull(getClass().getClassLoader().getResource("snapshot_v" + version + ".zip")).toURI()
+        );
+        unzip(zipFilePath,  Paths.get(repositoryPath));
+    }
 
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
-                return FileVisitResult.CONTINUE;
+    public static void unzip(Path zipFilePath, Path outputDir) throws IOException {
+        try (ZipInputStream zipIn = new ZipInputStream(Files.newInputStream(zipFilePath))) {
+            ZipEntry entry;
+            while ((entry = zipIn.getNextEntry()) != null) {
+                Path outputPath = outputDir.resolve(entry.getName());
+                if (entry.isDirectory()) {
+                    Files.createDirectories(outputPath);
+                } else {
+                    Files.createDirectories(outputPath.getParent());
+                    try (OutputStream out = Files.newOutputStream(outputPath)) {
+                        byte[] buffer = new byte[1024];
+                        int len;
+                        while ((len = zipIn.read(buffer)) > 0) {
+                            out.write(buffer, 0, len);
+                        }
+                    }
+                }
+                zipIn.closeEntry();
             }
-        });
+        }
     }
 
     private void addDocuments(RestClient client, String index, int numDocs) throws Exception {

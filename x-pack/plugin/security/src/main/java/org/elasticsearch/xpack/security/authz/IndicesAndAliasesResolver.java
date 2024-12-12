@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -220,7 +221,7 @@ class IndicesAndAliasesResolver {
             }
             String finalExpression = IndexNameExpressionResolver.resolveDateMathExpression(localExpression);
             if (selector != null) {
-                finalExpression = IndexNameExpressionResolver.combineSelectorExpression(finalExpression, selector);
+                finalExpression = ResolvedExpression.combineSelectorExpression(finalExpression, selector);
             }
             localIndices.add(finalExpression);
         }
@@ -329,7 +330,7 @@ class IndicesAndAliasesResolver {
                             indicesRequest.includeDataStreams()
                         )) {
                             resolvedIndicesBuilder.addLocal(
-                                IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, selectorString)
+                                ResolvedExpression.combineSelectorExpression(authorizedIndex, selectorString)
                             );
                         }
                     }

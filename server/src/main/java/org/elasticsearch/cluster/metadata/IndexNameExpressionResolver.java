@@ -893,11 +893,6 @@ public class IndexNameExpressionResolver {
         return SelectorResolver.splitSelectorExpression(expression, Tuple::new);
     }
 
-    public static String combineSelectorExpression(String baseExpression, @Nullable String selectorExpression) {
-        Objects.requireNonNull(baseExpression, "baseExpression is null");
-        return selectorExpression == null ? baseExpression : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
-    }
-
     /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */

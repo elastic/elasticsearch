@@ -221,34 +221,26 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     }
 
     public void testParseCheckerMethodSignatureOneDollarSign() {
-        assertParseCheckerMethodSignatureThrows("check$method", new Type[] { Type.getType(Class.class) }, "has incorrect name format");
+        assertParseCheckerMethodSignatureThrows("has incorrect name format", "check$method", Type.getType(Class.class));
     }
 
     public void testParseCheckerMethodSignatureMissingClass() {
-        assertParseCheckerMethodSignatureThrows(
-            "check$$staticMethod",
-            new Type[] { Type.getType(Class.class) },
-            "has incorrect name format"
-        );
+        assertParseCheckerMethodSignatureThrows("has incorrect name format", "check$$staticMethod", Type.getType(Class.class));
     }
 
     public void testParseCheckerMethodSignatureBlankClass() {
-        assertParseCheckerMethodSignatureThrows("check$$$staticMethod", new Type[] { Type.getType(Class.class) }, "no class name");
+        assertParseCheckerMethodSignatureThrows("no class name", "check$$$staticMethod", Type.getType(Class.class));
     }
 
     public void testParseCheckerMethodSignatureStaticMethodIncorrectArgumentCount() {
-        assertParseCheckerMethodSignatureThrows(
-            "check$ClassName$staticMethod",
-            new Type[] {},
-            "It must have a first argument of Class<?> type"
-        );
+        assertParseCheckerMethodSignatureThrows("It must have a first argument of Class<?> type", "check$ClassName$staticMethod");
     }
 
     public void testParseCheckerMethodSignatureStaticMethodIncorrectArgumentType() {
         assertParseCheckerMethodSignatureThrows(
+            "It must have a first argument of Class<?> type",
             "check$ClassName$$staticMethod",
-            new Type[] { Type.getType(String.class) },
-            "It must have a first argument of Class<?> type"
+            Type.getType(String.class)
         );
     }
 
@@ -272,29 +264,30 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes() {
         assertParseCheckerMethodSignatureThrows(
+            "It must have a first argument of Class<?> type",
             "check$org_example_TestClass$instanceMethod",
-            new Type[] { Type.getType(String.class) },
-            "It must have a first argument of Class<?> type"
+            Type.getType(String.class)
         );
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentCount() {
         assertParseCheckerMethodSignatureThrows(
+            "a second argument of the class containing the method to instrument",
             "check$org_example_TestClass$instanceMethod",
-            new Type[] { Type.getType(Class.class) },
-            "a second argument of the class containing the method to instrument"
+            Type.getType(Class.class)
         );
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes2() {
         assertParseCheckerMethodSignatureThrows(
+            "a second argument of the class containing the method to instrument",
             "check$org_example_TestClass$instanceMethod",
-            new Type[] { Type.getType(Class.class), Type.getType("I") },
-            "a second argument of the class containing the method to instrument"
+            Type.getType(Class.class),
+            Type.getType("I")
         );
     }
 
-    private static void assertParseCheckerMethodSignatureThrows(String methodName, Type[] methodArgs, String messageText) {
+    private static void assertParseCheckerMethodSignatureThrows(String messageText, String methodName, Type... methodArgs) {
         var exception = assertThrows(
             IllegalArgumentException.class,
             () -> InstrumentationServiceImpl.parseCheckerMethodSignature(methodName, methodArgs)

@@ -90,23 +90,19 @@ public class CancelReindexDataStreamTransportAction extends HandledTransportActi
             );
         } else {
             // Calling sendRemoveRequest results in the task (and its child tasks) being cancelled
-            persistentTasksService.sendRemoveRequest(
-                persistentTaskId,
-                TimeValue.MAX_VALUE,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                        // Calling unregister removes the task from the /_tasks list
-                        taskManager.unregister(runningTask);
-                        listener.onResponse(AcknowledgedResponse.TRUE);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
+            persistentTasksService.sendRemoveRequest(persistentTaskId, TimeValue.MAX_VALUE, new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                    // Calling unregister removes the task from the /_tasks list
+                    taskManager.unregister(runningTask);
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 

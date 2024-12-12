@@ -87,6 +87,8 @@ public class PlanExecutor {
             planningMetricsManager.publish(planningMetrics, false);
             listener.onFailure(ex);
         });
+        // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
+        // and all the metrics are properly updated
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
     }
 

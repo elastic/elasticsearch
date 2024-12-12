@@ -15,15 +15,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
+
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryInterceptionUtils.InferenceIndexInformationForField;
 
 public class SemanticSparseVectorQueryRewriteInterceptor implements QueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_sparse_vector_query_rewrite_interception_supported"
     );
-
-    private static final String NESTED_FIELD_PATH = ".inference.chunks";
-    private static final String NESTED_EMBEDDINGS_FIELD = NESTED_FIELD_PATH + ".embeddings";
 
     public SemanticSparseVectorQueryRewriteInterceptor() {}
 
@@ -32,34 +32,34 @@ public class SemanticSparseVectorQueryRewriteInterceptor implements QueryRewrite
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
         QueryBuilder rewritten = queryBuilder;
-        SemanticQueryInterceptionUtils.SemanticTextIndexInformationForField semanticTextIndexInformationForField =
-            SemanticQueryInterceptionUtils.resolveIndicesForField(sparseVectorQueryBuilder.getFieldName(), context.getResolvedIndices());
+        InferenceIndexInformationForField inferenceIndexInformationForField = SemanticQueryInterceptionUtils.resolveIndicesForField(
+            sparseVectorQueryBuilder.getFieldName(),
+            context.getResolvedIndices()
+        );
 
-        if (semanticTextIndexInformationForField == null || semanticTextIndexInformationForField.semanticMappedIndices().isEmpty()) {
-            // No semantic text fields, return original query
+        if (inferenceIndexInformationForField == null || inferenceIndexInformationForField.inferenceIndices().isEmpty()) {
+            // No inference fields, return original query
             return rewritten;
-        } else if (semanticTextIndexInformationForField.otherIndices().isEmpty() == false) {
-            // Combined semantic and sparse vector fields
+        } else if (inferenceIndexInformationForField.nonInferenceIndices().isEmpty() == false) {
+            // Combined inference and non inference fields
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            // sparse_vector fields should be passed in as their own clause
             boolQueryBuilder.should(
                 SemanticQueryInterceptionUtils.createSubQueryForIndices(
-                    semanticTextIndexInformationForField.otherIndices(),
+                    inferenceIndexInformationForField.nonInferenceIndices(),
                     SemanticQueryInterceptionUtils.createSubQueryForIndices(
-                        semanticTextIndexInformationForField.otherIndices(),
+                        inferenceIndexInformationForField.nonInferenceIndices(),
                         sparseVectorQueryBuilder
                     )
                 )
             );
-            // semantic text fields should be passed in as nested sub queries
+            // We always perform nested subqueries on semantic_text fields, to support
+            // sparse_vector queries using query vectors
             boolQueryBuilder.should(
                 SemanticQueryInterceptionUtils.createSubQueryForIndices(
-                    semanticTextIndexInformationForField.semanticMappedIndices(),
+                    inferenceIndexInformationForField.inferenceIndices(),
                     buildNestedQueryFromSparseVectorQuery(sparseVectorQueryBuilder)
                 )
-
             );
-
             rewritten = boolQueryBuilder;
         } else {
             // Only semantic text fields
@@ -85,11 +85,11 @@ public class SemanticSparseVectorQueryRewriteInterceptor implements QueryRewrite
     }
 
     private static String getNestedFieldPath(String fieldName) {
-        return fieldName + NESTED_FIELD_PATH;
+        return fieldName + SemanticTextField.INFERENCE_FIELD + SemanticTextField.CHUNKS_FIELD;
     }
 
     private static String getNestedEmbeddingsField(String fieldName) {
-        return fieldName + NESTED_EMBEDDINGS_FIELD;
+        return getNestedFieldPath(fieldName) + SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
     }
 
     @Override

@@ -21,10 +21,9 @@ import java.util.List;
 
 public class SemanticQueryInterceptionUtils {
 
-
     private SemanticQueryInterceptionUtils() {}
 
-    public static SemanticTextIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
+    public static InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
         if (resolvedIndices != null) {
             Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
             List<String> inferenceIndices = new ArrayList<>();
@@ -39,16 +38,9 @@ public class SemanticQueryInterceptionUtils {
                 }
             }
 
-            return new SemanticTextIndexInformationForField(inferenceIndices, nonInferenceIndices);
+            return new InferenceIndexInformationForField(inferenceIndices, nonInferenceIndices);
         }
         return null;
-    }
-
-    public static QueryBuilder createSemanticSubQueryForIndices(List<String> indices, String fieldName, String value) {
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, true));
-        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
-        return boolQueryBuilder;
     }
 
     public static QueryBuilder createSubQueryForIndices(List<String> indices, QueryBuilder queryBuilder) {
@@ -58,6 +50,5 @@ public class SemanticQueryInterceptionUtils {
         return boolQueryBuilder;
     }
 
-    public record SemanticTextIndexInformationForField(List<String> semanticMappedIndices, List<String> otherIndices) {}
-
+    public record InferenceIndexInformationForField(List<String> inferenceIndices, List<String> nonInferenceIndices) {}
 }

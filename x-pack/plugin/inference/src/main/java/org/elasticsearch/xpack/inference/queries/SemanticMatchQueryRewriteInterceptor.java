@@ -7,22 +7,18 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.elasticsearch.action.ResolvedIndices;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryInterceptionUtils.InferenceIndexInformationForField;
 
 public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterceptor {
 
@@ -37,41 +33,37 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
         QueryBuilder rewritten = queryBuilder;
-        ResolvedIndices resolvedIndices = context.getResolvedIndices();
-        if (resolvedIndices != null) {
-            Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-            List<String> inferenceIndices = new ArrayList<>();
-            List<String> nonInferenceIndices = new ArrayList<>();
-            for (IndexMetadata indexMetadata : indexMetadataCollection) {
-                String indexName = indexMetadata.getIndex().getName();
-                InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(matchQueryBuilder.fieldName());
-                if (inferenceFieldMetadata != null) {
-                    inferenceIndices.add(indexName);
-                } else {
-                    nonInferenceIndices.add(indexName);
-                }
-            }
+        InferenceIndexInformationForField inferenceIndexInformationForField = SemanticQueryInterceptionUtils.resolveIndicesForField(
+            matchQueryBuilder.fieldName(),
+            context.getResolvedIndices()
+        );
 
-            if (inferenceIndices.isEmpty()) {
-                return rewritten;
-            } else if (nonInferenceIndices.isEmpty() == false) {
-                BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-                for (String inferenceIndexName : inferenceIndices) {
-                    // Add a separate clause for each semantic query, because they may be using different inference endpoints
-                    // TODO - consolidate this to a single clause once the semantic query supports multiple inference endpoints
-                    boolQueryBuilder.should(
-                        createSemanticSubQuery(inferenceIndexName, matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value())
-                    );
-                }
-                boolQueryBuilder.should(createMatchSubQuery(nonInferenceIndices, matchQueryBuilder));
-                rewritten = boolQueryBuilder;
-            } else {
-                rewritten = new SemanticQueryBuilder(matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value(), false);
-            }
+        if (inferenceIndexInformationForField == null || inferenceIndexInformationForField.inferenceIndices().isEmpty()) {
+            // No inference fields, return original query
+            return rewritten;
+        } else if (inferenceIndexInformationForField.nonInferenceIndices().isEmpty() == false) {
+            // Combined inference and non inference fields
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            boolQueryBuilder.should(
+                createSemanticSubQuery(
+                    inferenceIndexInformationForField.inferenceIndices(),
+                    matchQueryBuilder.fieldName(),
+                    (String) matchQueryBuilder.value()
+                )
+            );
+            boolQueryBuilder.should(
+                SemanticQueryInterceptionUtils.createSubQueryForIndices(
+                    inferenceIndexInformationForField.nonInferenceIndices(),
+                    matchQueryBuilder
+                )
+            );
+            rewritten = boolQueryBuilder;
+        } else {
+            // Only inference fields
+            rewritten = new SemanticQueryBuilder(matchQueryBuilder.fieldName(), (String) matchQueryBuilder.value(), false);
         }
 
         return rewritten;
-
     }
 
     @Override
@@ -79,16 +71,9 @@ public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterce
         return MatchQueryBuilder.NAME;
     }
 
-    private QueryBuilder createSemanticSubQuery(String indexName, String fieldName, String value) {
+    private QueryBuilder createSemanticSubQuery(List<String> indices, String fieldName, String value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(new SemanticQueryBuilder(fieldName, value, true));
-        boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
-        return boolQueryBuilder;
-    }
-
-    private QueryBuilder createMatchSubQuery(List<String> indices, MatchQueryBuilder matchQueryBuilder) {
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(matchQueryBuilder);
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }

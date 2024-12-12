@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -213,12 +214,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
+        var lookupMapping = loadMapping("mapping-languages.json");
+        IndexResolution lookupResolution = IndexResolution.valid(
+            new EsIndex("language_code", lookupMapping, Map.of("language_code", IndexMode.LOOKUP))
+        );
+
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, lookupResolution, enrichResolution),
             TEST_VERIFIER
         );
 
@@ -5847,15 +5853,232 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     //
     // Lookup JOIN
     //
-    public void testLookupJoinPushDown() {
+
+    /**
+     * Filter on join keys should be pushed donw
+     * Expects
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *     | \_Filter[languages{f}#10 > 1[INTEGER]]
+     *     |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
         String query = """
               FROM test
-            | RENAME languages AS int
-            | LOOKUP JOIN int_number_names ON int
-            | WHERE int > 10
+            | RENAME languages AS language_code
+            | LOOKUP JOIN language_code ON language_code
+            | WHERE language_code > 1
             """;
         var plan = optimizedPlan(query);
-        System.out.println(plan);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        var join = as(limit.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        project = as(join.left(), Project.class);
+        var filter = as(project.child(), Filter.class);
+        // assert that the rename has been undone and
+        var op = as(filter.condition(), GreaterThan.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("languages"));
+
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var leftRel = as(filter.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Filter on on left side fields (outside the join key) should be pushed down
+     * Expects
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *     | \_Filter[emp_no{f}#7 > 1[INTEGER]]
+     *     |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLookupJoinPushDownFilterOnLeftSideField() {
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN language_code ON language_code
+            | WHERE emp_no > 1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var join = as(limit.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        project = as(join.left(), Project.class);
+        var filter = as(project.child(), Filter.class);
+        var op = as(filter.condition(), GreaterThan.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var leftRel = as(filter.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Filter works on the right side fields and thus cannot be pushed down
+     * Expects
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Filter[language_name{f}#19 == [45 6e 67 6c 69 73 68][KEYWORD]]
+     *     \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *       |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *       | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLookupJoinPushDownDisabledForLookupField() {
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN language_code ON language_code
+            | WHERE language_name == "English"
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var filter = as(limit.child(), Filter.class);
+        var op = as(filter.condition(), Equals.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("language_name"));
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("English")));
+
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        project = as(join.left(), Project.class);
+
+        var leftRel = as(project.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Split the conjunction into pushable and non pushable filters.
+     * Expects
+     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guage_code{r}#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Filter[language_name{f}#20 == [45 6e 67 6c 69 73 68][KEYWORD]]
+     *     \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#19]]
+     *       |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *       | \_Filter[emp_no{f}#8 > 1[INTEGER]]
+     *       |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN language_code ON language_code
+            | WHERE language_name == "English" AND emp_no > 1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        // filter kept in place, working on the right side
+        var filter = as(limit.child(), Filter.class);
+        EsqlBinaryComparison op = as(filter.condition(), Equals.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("language_name"));
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("English")));
+
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        project = as(join.left(), Project.class);
+        // filter pushed down
+        filter = as(project.child(), Filter.class);
+        op = as(filter.condition(), GreaterThan.class);
+        field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+
+        literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var leftRel = as(filter.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+
+    }
+
+    /**
+     * Disjunctions however keep the filter in place, even on pushable fields
+     * Expects
+     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guage_code{r}#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Filter[language_name{f}#20 == [45 6e 67 6c 69 73 68][KEYWORD] OR emp_no{f}#8 > 1[INTEGER]]
+     *     \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#19]]
+     *       |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN language_code ON language_code
+            | WHERE language_name == "English" OR emp_no > 1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var filter = as(limit.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        EsqlBinaryComparison op = as(or.left(), Equals.class);
+        // OR left side
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("language_name"));
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("English")));
+        // OR right side
+        op = as(or.right(), GreaterThan.class);
+        field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+        literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        project = as(join.left(), Project.class);
+
+        var leftRel = as(project.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
     }
 
     //

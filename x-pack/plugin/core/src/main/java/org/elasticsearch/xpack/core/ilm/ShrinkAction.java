@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
@@ -329,7 +328,7 @@ public class ShrinkAction implements LifecycleAction {
             allowWriteAfterShrinkStep
         );
 
-        return steps.filter(Objects::nonNull).collect(Collectors.toList());
+        return steps.filter(Objects::nonNull).toList();
     }
 
     @Override

@@ -205,7 +205,7 @@ public record SemanticTextField(
     }
 
     public static String getOffsetsFieldName(String fieldName) {
-        return getOffsetsFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
+        return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
     }
 
     record ParserContext(IndexVersion indexVersionCreated, String fieldName, XContentType xContentType) {}

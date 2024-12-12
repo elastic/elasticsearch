@@ -269,7 +269,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testInsufficientPrivilege() {
-        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)")
+        );
         logger.info("error", error);
         assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));

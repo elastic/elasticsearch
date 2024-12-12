@@ -20,11 +20,16 @@ import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 
 public class RestMigrationReindexAction extends BaseRestHandler {
+    public static final String MIGRATION_REINDEX_CAPABILITY = "migration_reindex";
 
     @Override
     public String getName() {
@@ -47,6 +52,15 @@ public class RestMigrationReindexAction extends BaseRestHandler {
             reindexRequest,
             new ReindexDataStreamRestToXContentListener(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        Set<String> capabilities = new HashSet<>();
+        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
+            capabilities.add(MIGRATION_REINDEX_CAPABILITY);
+        }
+        return Collections.unmodifiableSet(capabilities);
     }
 
     static class ReindexDataStreamRestToXContentListener extends RestBuilderListener<ReindexDataStreamResponse> {

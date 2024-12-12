@@ -6,6 +6,13 @@ setup:
 
 ---
 "Test Reindex With Unsupported Mode":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
   - do:
       catch: /illegal_argument_exception/
       migrate.reindex:
@@ -19,6 +26,13 @@ setup:
 
 ---
 "Test Reindex With Nonexistent Data Stream":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
   - do:
       catch: /resource_not_found_exception/
       migrate.reindex:
@@ -44,6 +58,13 @@ setup:
 
 ---
 "Test Reindex With Bad Data Stream Name":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
   - do:
       catch: /illegal_argument_exception/
       migrate.reindex:
@@ -57,6 +78,13 @@ setup:
 
 ---
 "Test Reindex With Existing Data Stream":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
   - do:
       indices.put_index_template:
         name: my-template1

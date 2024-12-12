@@ -30,8 +30,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -584,7 +582,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString(
                         "Revert this node to version ["
                             + (previousNodeVersion.major == Version.CURRENT.major
-                            ? Version.CURRENT.minimumCompatibilityVersion() : previousNodeVersion)
+                                ? Version.CURRENT.minimumCompatibilityVersion()
+                                : previousNodeVersion)
                             + "]"
                     )
                 )
@@ -639,18 +638,30 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testGetBestDowngradeVersion() {
-        assertThat(NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0")));
-        assertThat(NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.5")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.5")));
-        assertThat(NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.12")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.12")));
-        assertThat(NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.19.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.19.0")));
-        assertThat(NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.17.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0")));
-        assertThat(NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("7.17.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0")));
+        assertThat(
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.0")),
+            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+        );
+        assertThat(
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.5")),
+            Matchers.equalTo(BuildVersion.fromString("8.18.5"))
+        );
+        assertThat(
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.12")),
+            Matchers.equalTo(BuildVersion.fromString("8.18.12"))
+        );
+        assertThat(
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.19.0")),
+            Matchers.equalTo(BuildVersion.fromString("8.19.0"))
+        );
+        assertThat(
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.17.0")),
+            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+        );
+        assertThat(
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("7.17.0")),
+            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+        );
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

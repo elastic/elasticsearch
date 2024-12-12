@@ -264,11 +264,11 @@ public class MemoryMetricsService implements ClusterStateListener {
             clusterStateVersion = ClusterState.UNKNOWN_VERSION;
             return;
         }
-        this.totalIndices = event.state().metadata().getProject().indices().size();
+        this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
-            for (IndexMetadata indexMetadata : event.state().metadata().getProject()) {
+            for (IndexMetadata indexMetadata : event.state().metadata().indicesAllProjects()) {
                 for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
                     var shardMemoryMetrics = new ShardMemoryMetrics(
                         0L,
@@ -297,13 +297,13 @@ public class MemoryMetricsService implements ClusterStateListener {
 
             // index delete use case
             for (Index deletedIndex : event.indicesDeleted()) {
-                int numberOfShards = event.previousState().metadata().getProject().index(deletedIndex).getNumberOfShards();
+                int numberOfShards = event.previousState().metadata().indexMetadata(deletedIndex).getNumberOfShards();
                 for (int id = 0; id < numberOfShards; id++) {
                     shardMemoryMetrics.remove(new ShardId(deletedIndex, id));
                 }
             }
 
-            for (IndexMetadata indexMetadata : event.state().metadata().getProject()) {
+            for (IndexMetadata indexMetadata : event.state().metadata().indicesAllProjects()) {
                 final Index index = indexMetadata.getIndex();
                 for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
                     // index created use case, EXACT values will be sent by index node
@@ -313,8 +313,8 @@ public class MemoryMetricsService implements ClusterStateListener {
                     );
                 }
                 // index mapping update use case
-                final IndexMetadata oldIndexMetadata = event.previousState().metadata().getProject().index(index);
-                final IndexMetadata newIndexMetadata = event.state().metadata().getProject().index(index);
+                final IndexMetadata oldIndexMetadata = event.previousState().metadata().findIndex(index).orElse(null);
+                final IndexMetadata newIndexMetadata = event.state().metadata().findIndex(index).orElse(null);
 
                 if (oldIndexMetadata != null
                     && newIndexMetadata != null

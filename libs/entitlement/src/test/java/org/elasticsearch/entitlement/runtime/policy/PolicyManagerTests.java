@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
@@ -155,7 +156,7 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsReturnsEntitlementsForPluginModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
-        Path jar = creteMockPluginJar(home);
+        Path jar = createMockPluginJar(home);
 
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
@@ -197,6 +198,49 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(entitlementsAgain, sameInstance(cachedResult));
     }
 
+    public void testRequestingModuleFastPath() throws IOException, ClassNotFoundException {
+        var requestingModule = makeAModule();
+        var callerClass = Class.forName("q.B", false, requestingModule.getClassLoader());
+        assertEquals(requestingModule, PolicyManager.requestingModule(callerClass));
+    }
+
+    public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
+        var requestingModule = makeAModule();
+        var runtimeLibModule = makeAModule();
+        var ignorableModule = makeAModule();
+        var systemModule = Object.class.getModule();
+
+        assertRequestingModule("Skip one system frame", requestingModule, Stream.of(systemModule, requestingModule, ignorableModule));
+        assertRequestingModule(
+            "Skip multiple system frames",
+            requestingModule,
+            Stream.of(systemModule, systemModule, systemModule, requestingModule, ignorableModule)
+        );
+        assertRequestingModule(
+            "Skip runtime frames up to the first system frame",
+            requestingModule,
+            Stream.of(runtimeLibModule, runtimeLibModule, systemModule, requestingModule, ignorableModule)
+        );
+        assertThrows(
+            "Non-modular caller frames are not supported",
+            NullPointerException.class,
+            () -> PolicyManager.findRequestingModule(Stream.of(systemModule, null))
+        );
+    }
+
+    private static void assertRequestingModule(String message, Module expected, Stream<Module> stack) {
+        assertEquals(message, expected, PolicyManager.findRequestingModule(stack).orElse(null));
+    }
+
+    private static Module makeAModule() throws IOException, ClassNotFoundException {
+        final Path home = createTempDir();
+        Path jar = createMockPluginJar(home);
+        var layer = createLayerForJar(jar, "org.example.plugin");
+        var mockPluginClass = layer.findLoader("org.example.plugin").loadClass("q.B");
+
+        return mockPluginClass.getModule();
+    }
+
     private static Policy createEmptyTestServerPolicy() {
         return new Policy("server", List.of());
     }
@@ -219,7 +263,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
     }
 
-    private static Path creteMockPluginJar(Path home) throws IOException {
+    private static Path createMockPluginJar(Path home) throws IOException {
         Path jar = home.resolve("mock-plugin.jar");
 
         Map<String, CharSequence> sources = Map.ofEntries(

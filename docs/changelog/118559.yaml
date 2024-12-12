@@ -1,0 +1,11 @@
+pr: 118559
+summary: Make logsdb general available
+area: Logs
+type: feature
+issues: []
+highlight:
+  title: Make logsdb general available
+  body: >-
+    Logsdb has been GA-ed. Logsdb is a feature that allows Elasticsearch to store logs more efficiently.
+    Logsdb allows to reduce storage usage upto ~2.5 times compared to storing logs in Elasticsearch without Logsdb.
+  notable: true

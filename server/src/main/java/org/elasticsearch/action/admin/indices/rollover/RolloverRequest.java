@@ -16,8 +16,10 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -124,7 +126,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        // PRTODO: Ensure that only one selector was given for the operation
+        IndexComponentSelector selector = indicesOptions.selectorOptions().defaultSelector();
+        if (rolloverTarget != null) {
+            Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(rolloverTarget);
+            selector = indexAndSelector.v2() != null ? IndexComponentSelector.getByKey(indexAndSelector.v2()) : selector;
+        }
+        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
+            validationException = addValidationError(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException
+            );
+        }
 
         return validationException;
     }

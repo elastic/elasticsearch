@@ -267,5 +267,16 @@ public class RolloverRequestTests extends ESTestCase {
                 validationException.validationErrors().get(0)
             );
         }
+
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("alias-index::*", "new-index-name");
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNotNull(validationException);
+            assertEquals(1, validationException.validationErrors().size());
+            assertEquals(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException.validationErrors().get(0)
+            );
+        }
     }
 }

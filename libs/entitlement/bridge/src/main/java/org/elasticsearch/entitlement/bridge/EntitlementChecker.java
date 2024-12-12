@@ -12,7 +12,9 @@ package org.elasticsearch.entitlement.bridge;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 public interface EntitlementChecker {
@@ -31,4 +33,10 @@ public interface EntitlementChecker {
 
     // "setFactory" methods
     void check$$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection conn, SSLSocketFactory sf);
+
+    void check$javax_net_ssl_HttpsURLConnection$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf);
+
+    void check$javax_net_ssl_HttpsURLConnection$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv);
+
+    void check$javax_net_ssl_SSLContext$setDefault(Class<?> callerClass, SSLContext context);
 }

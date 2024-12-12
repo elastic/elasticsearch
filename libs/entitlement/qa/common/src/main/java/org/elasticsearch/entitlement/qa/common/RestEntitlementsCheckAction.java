@@ -19,10 +19,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,13 +48,39 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         static CheckAction serverAndPlugin(Runnable action) {
             return new CheckAction(action, false);
         }
+
+        static CheckAction alwaysDenied(Runnable action) {
+            return new CheckAction(action, true);
+        }
     }
 
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
         entry("system_exit", CheckAction.serverOnly(RestEntitlementsCheckAction::systemExit)),
         entry("create_classloader", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::createClassLoader)),
-        entry("set_https_connection_properties", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::setHttpsConnectionProperties))
+        entry("set_https_connection_properties", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::setHttpsConnectionProperties)),
+        entry("set_default_ssl_socket_factory", CheckAction.alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
+        entry("set_default_hostname_verifier", CheckAction.alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
+        entry("set_default_ssl_context", CheckAction.alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext))
     );
+
+    private static void setDefaultSSLContext() {
+        logger.info("Calling SSLContext.setDefault");
+        try {
+            SSLContext.setDefault(SSLContext.getDefault());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setDefaultHostnameVerifier() {
+        logger.info("Calling HttpsURLConnection.setDefaultHostnameVerifier");
+        HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> false);
+    }
+
+    private static void setDefaultSSLSocketFactory() {
+        logger.info("Calling HttpsURLConnection.setDefaultSSLSocketFactory");
+        HttpsURLConnection.setDefaultSSLSocketFactory(new TestSSLSocketFactory());
+    }
 
     @SuppressForbidden(reason = "Specifically testing System.exit")
     private static void systemExit() {

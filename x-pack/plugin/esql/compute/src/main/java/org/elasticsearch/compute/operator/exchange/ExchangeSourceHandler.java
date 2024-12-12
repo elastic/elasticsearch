@@ -317,9 +317,6 @@ public final class ExchangeSourceHandler {
      * @param drainingPages whether to discard pages already fetched in the exchange
      */
     public void finishEarly(boolean drainingPages, ActionListener<Void> listener) {
-        if (finishEarlyHandler != null) {
-            finishEarlyHandler.run();
-        }
         buffer.finish(drainingPages);
         if (remoteSinks.isEmpty()) {
             listener.onResponse(null);
@@ -329,6 +326,15 @@ public final class ExchangeSourceHandler {
             for (RemoteSink remoteSink : remoteSinks.values()) {
                 remoteSink.close(refs.acquire());
             }
+        }
+    }
+
+    /**
+     * Calls the handler signifying that the request has been completed prematurely.
+     */
+    public void onFinishEarly() {
+        if (finishEarlyHandler != null) {
+            finishEarlyHandler.run();
         }
     }
 

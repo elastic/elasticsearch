@@ -102,7 +102,7 @@ public final class ExchangeSinkHandler {
             buffer.finish(true);
             var subSource = source.get();
             if (subSource != null) {
-                subSource.finishEarly(true, ActionListener.noop());
+                subSource.finishEarly(false, ActionListener.noop());
             }
         }
         listeners.add(listener);

@@ -85,10 +85,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        DocumentParserContext ctx = new TestDocumentParserContext(
-            MappingLookup.fromMapping(mapping, indexSettings),
-            sourceToParse
-        ) {
+        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping, indexSettings), sourceToParse) {
             @Override
             public XContentParser parser() {
                 return parser;

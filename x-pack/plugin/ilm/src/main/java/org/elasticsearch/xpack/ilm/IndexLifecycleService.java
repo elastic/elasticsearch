@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -500,7 +499,7 @@ public class IndexLifecycleService
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
-            return Collections.emptySet();
+            return Set.of();
         }
 
         Set<String> indicesPreventingShutdown = state.metadata()

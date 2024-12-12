@@ -97,9 +97,9 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
             BytesRef stateBytes = stateBlock.getBytesRef(0, new BytesRef());
             try (StreamInput in = new BytesArray(stateBytes).streamInput()) {
                 BytesRef categorizerState = in.readBytesRef();
-                int[] ids = in.readIntArray();
-                ids = categorizeBlockHash.recategorize(categorizerState, ids);
-                return blockFactory.newIntArrayVector(ids, ids.length).asBlock();
+                try (IntVector ids = IntVector.readFrom(blockFactory, in)) {
+                    return categorizeBlockHash.recategorize(categorizerState, ids).asBlock();
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -136,15 +136,7 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
             BytesRef state;
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeBytesRef(categorizeBlockHash.serializeCategorizer());
-                // It's a bit inefficient to copy the IntVector's values into an int[]
-                // and discard the array soon after. IntVector should maybe expose the
-                // underlying array instead. TODO: investigate whether that's worth it
-                IntVector idsVector = (IntVector) keys[0].asVector();
-                int[] idsArray = new int[idsVector.getPositionCount()];
-                for (int i = 0; i < idsVector.getPositionCount(); i++) {
-                    idsArray[i] = idsVector.getInt(i);
-                }
-                out.writeIntArray(idsArray);
+                ((IntVector) keys[0].asVector()).writeTo(out);
                 state = out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new RuntimeException(e);

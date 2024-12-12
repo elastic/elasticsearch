@@ -53,11 +53,9 @@ public class CategorizeBlockHash extends BlockHash {
     );
     private static final int NULL_ORD = 0;
 
-    // TODO: this should probably also take an emitBatchSize
     private final int channel;
     private final AggregatorMode aggregatorMode;
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
-
     private final CategorizeEvaluator evaluator;
 
     /**
@@ -154,8 +152,7 @@ public class CategorizeBlockHash extends BlockHash {
             seenNull = true;
             return blockFactory.newConstantIntBlockWith(NULL_ORD, 1);
         }
-        int[] ids = recategorize(categorizerState.getBytesRef(0, new BytesRef()), null);
-        return blockFactory.newIntArrayVector(ids, ids.length).asBlock();
+        return recategorize(categorizerState.getBytesRef(0, new BytesRef()), null).asBlock();
     }
 
     /**
@@ -163,7 +160,7 @@ public class CategorizeBlockHash extends BlockHash {
      * If no IDs are provided, the IDs are the IDs in the categorizer's state in order.
      * (So 0...N-1 or 1...N, depending on whether null is present.)
      */
-    int[] recategorize(BytesRef bytes, int[] ids) {
+    IntVector recategorize(BytesRef bytes, IntVector ids) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
             if (in.readBoolean()) {
@@ -179,17 +176,19 @@ public class CategorizeBlockHash extends BlockHash {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        if (ids == null) {
-            ids = new int[idMap.size()];
-            int idOffset = idMap.containsKey(0) ? 0 : 1;
-            for (int i = 0; i < idMap.size(); i++) {
-                ids[i] = i + idOffset;
+        try (IntVector.Builder newIdsBuilder = blockFactory.newIntVectorBuilder(idMap.size())) {
+            if (ids == null) {
+                int idOffset = idMap.containsKey(0) ? 0 : 1;
+                for (int i = 0; i < idMap.size(); i++) {
+                    newIdsBuilder.appendInt(idMap.get(i + idOffset));
+                }
+            } else {
+                for (int i = 0; i < ids.getPositionCount(); i++) {
+                    newIdsBuilder.appendInt(idMap.get(ids.getInt(i)));
+                }
             }
+            return newIdsBuilder.build();
         }
-        for (int i = 0; i < ids.length; i++) {
-            ids[i] = idMap.get(ids[i]);
-        }
-        return ids;
     }
 
     /**

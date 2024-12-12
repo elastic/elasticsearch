@@ -86,11 +86,13 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
         Settings settingsBefore = sourceIndex.getSettings();
 
-        if (sourceIndex.getCreationVersion().isLegacyIndexVersion() == false) {
+        var hasOldVersion = ReindexDataStreamAction.getOldIndexVersionPredicate(clusterService.state().metadata());
+        if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
-                "Reindexing datastream index with non-legacy version, index [{}], version [{}]",
+                "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",
                 sourceIndexName,
-                sourceIndex.getCreationVersion()
+                sourceIndex.getCreationVersion(),
+                ReindexDataStreamAction.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE
             );
         }
 
@@ -109,7 +111,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
-        logger.info("Setting read only on source index [{}]", sourceIndexName);
+        logger.debug("Setting write block on source index [{}]", sourceIndexName);
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
         var updateSettingsRequest = new UpdateSettingsRequest(readOnlySettings, sourceIndexName);
         client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
@@ -141,7 +143,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             return;
         }
 
-        logger.info("Attempting to delete index [{}]", destIndexName);
+        logger.debug("Attempting to delete index [{}]", destIndexName);
         var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
         var errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", destIndexName);
@@ -149,7 +151,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     private void createIndex(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
-        logger.info("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
+        logger.debug("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
         // Create destination with subset of source index settings that can be added before reindex
         var settings = getPreSettings(sourceIndex);
@@ -173,6 +175,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             public void onFailure(Exception e) {
                 // If dest index already exists, just reindex into the existing one
                 if (e instanceof ResourceAlreadyExistsException || e.getCause() instanceof ResourceAlreadyExistsException) {
+                    logger.debug("Tried to create index [{}] but it already exists, proceeding with reindex", destIndexName);
                     listener.onResponse(null);
                 } else {
                     listener.onFailure(e);
@@ -182,7 +185,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {
-        logger.info("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
+        logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
@@ -192,7 +195,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     private void updateSettings(Settings settingsBefore, String destIndexName, ActionListener<AcknowledgedResponse> listener) {
-        logger.info("Adding settings from source index that could not be added before reindex");
+        logger.debug("Adding settings from source index that could not be added before reindex");
 
         Settings postSettings = getPostSettings(settingsBefore);
         if (postSettings.isEmpty()) {

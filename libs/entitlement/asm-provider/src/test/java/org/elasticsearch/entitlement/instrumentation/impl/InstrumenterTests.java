@@ -182,10 +182,7 @@ public class InstrumenterTests extends ESTestCase {
         public void checkSomeInstanceMethod(Class<?> callerClass, Testable that, int arg, String anotherArg) {
             checkSomeInstanceMethodCallCount++;
             assertSame(InstrumenterTests.class, callerClass);
-            assertThat(
-                that.getClass().getName(),
-                equalTo(TestClassToInstrument.class.getName())
-            );
+            assertThat(that.getClass().getName(), equalTo(TestClassToInstrument.class.getName()));
             assertEquals(123, arg);
             assertEquals("def", anotherArg);
             throwIfActive();
@@ -251,10 +248,9 @@ public class InstrumenterTests extends ESTestCase {
     public void testStaticMethodOverload() throws Exception {
         Method targetMethod1 = TestClassToInstrument.class.getMethod("someStaticMethod", int.class);
         Method targetMethod2 = TestClassToInstrument.class.getMethod("someStaticMethod", int.class, String.class);
-        var instrumenter = createInstrumenter(Map.of(
-                "checkSomeStaticMethod", targetMethod1,
-                "checkSomeStaticMethodOverload", targetMethod2
-        ));
+        var instrumenter = createInstrumenter(
+            Map.of("checkSomeStaticMethod", targetMethod1, "checkSomeStaticMethodOverload", targetMethod2)
+        );
         var loader = instrumentTestClass(instrumenter);
 
         assertStaticMethodThrows(loader, targetMethod1, 123);
@@ -281,10 +277,7 @@ public class InstrumenterTests extends ESTestCase {
     public void testConstructors() throws Exception {
         Constructor<?> ctor1 = TestClassToInstrument.class.getConstructor();
         Constructor<?> ctor2 = TestClassToInstrument.class.getConstructor(int.class);
-        var loader = instrumentTestClass(createInstrumenter(Map.of(
-                "checkCtor", ctor1,
-                "checkCtorOverload", ctor2
-        )));
+        var loader = instrumentTestClass(createInstrumenter(Map.of("checkCtor", ctor1, "checkCtorOverload", ctor2)));
 
         assertCtorThrows(loader, ctor1);
         assertCtorThrows(loader, ctor2, 123);
@@ -324,9 +317,9 @@ public class InstrumenterTests extends ESTestCase {
         logger.info("method key: {}", method.getName());
         String methodName = method instanceof Constructor<?> ? "<init>" : method.getName();
         return new MethodKey(
-                Type.getInternalName(method.getDeclaringClass()),
-                methodName,
-                Stream.of(method.getParameterTypes()).map(Type::getType).map(Type::getInternalName).toList()
+            Type.getInternalName(method.getDeclaringClass()),
+            methodName,
+            Stream.of(method.getParameterTypes()).map(Type::getType).map(Type::getInternalName).toList()
         );
     }
 
@@ -346,9 +339,9 @@ public class InstrumenterTests extends ESTestCase {
         System.arraycopy(targetParameterTypes, 0, checkParameterTypes, extraArgs, targetParameterTypes.length);
         var checkMethod = MockEntitlementChecker.class.getMethod(methodName, checkParameterTypes);
         return new CheckMethod(
-                Type.getInternalName(MockEntitlementChecker.class),
-                checkMethod.getName(),
-                Arrays.stream(Type.getArgumentTypes(checkMethod)).map(Type::getDescriptor).toList()
+            Type.getInternalName(MockEntitlementChecker.class),
+            checkMethod.getName(),
+            Arrays.stream(Type.getArgumentTypes(checkMethod)).map(Type::getDescriptor).toList()
         );
     }
 

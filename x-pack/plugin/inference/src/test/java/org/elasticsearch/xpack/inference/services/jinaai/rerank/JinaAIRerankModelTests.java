@@ -49,7 +49,7 @@ public class JinaAIRerankModelTests extends ESTestCase {
         return new JinaAIRerankModel(
             "id",
             "service",
-            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(randomAlphaOfLength(10), modelId, null)),
+            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(url, modelId, null)),
             new JinaAIRerankTaskSettings(topN, returnDocuments),
             new DefaultSecretSettings(randomSecureStringOfLength(8))
         );

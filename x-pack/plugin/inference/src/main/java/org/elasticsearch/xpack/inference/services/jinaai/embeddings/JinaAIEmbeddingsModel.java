@@ -119,14 +119,14 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
                 configurationMap.put(
                     TASK_TYPE_FIELD,
                     new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
-                        .setLabel("Input Type")
+                        .setLabel("Task")
                         .setOrder(1)
                         .setRequired(false)
                         .setSensitive(false)
-                        .setTooltip("Specifies the type of input passed to the model.")
+                        .setTooltip("Specifies the task type passed to the model.")
                         .setType(SettingsConfigurationFieldType.STRING)
                         .setOptions(
-                            Stream.of("classification", "clustering", "ingest", "search")
+                            Stream.of("retrieval.query", "retrieval.passage", "classification", "separation")
                                 .map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build())
                                 .toList()
                         )

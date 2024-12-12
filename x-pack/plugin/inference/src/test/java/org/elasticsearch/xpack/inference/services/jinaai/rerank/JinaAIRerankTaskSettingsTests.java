@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -109,5 +110,23 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
     @Override
     protected JinaAIRerankTaskSettings mutateInstance(JinaAIRerankTaskSettings instance) throws IOException {
         return randomValueOtherThan(instance, JinaAIRerankTaskSettingsTests::createRandom);
+    }
+
+    public static Map<String, Object> getTaskSettingsMapEmpty() {
+        return new HashMap<>();
+    }
+
+    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, Boolean returnDocuments) {
+        var map = new HashMap<String, Object>();
+
+        if (topNDocumentsOnly != null) {
+            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly.toString());
+        }
+
+        if (returnDocuments != null) {
+            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments.toString());
+        }
+
+        return map;
     }
 }

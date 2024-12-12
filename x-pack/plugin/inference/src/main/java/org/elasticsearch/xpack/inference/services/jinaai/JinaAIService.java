@@ -62,9 +62,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class JinaAIService extends SenderService {
-    public static final String NAME = "jinaai";
+    public static final String NAME = "JinaAI";
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
     // the JinaAI*RequestManager via the JinaAIActionCreator class
@@ -340,7 +340,7 @@ public class JinaAIService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return Set.of();
     }
 
     public static class Configuration {

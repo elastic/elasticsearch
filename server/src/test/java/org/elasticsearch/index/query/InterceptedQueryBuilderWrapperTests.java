@@ -56,16 +56,23 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
         QueryRewriteContext context = new QueryRewriteContext(null, client, null);
         context.setQueryRewriteInterceptor(myMatchInterceptor);
 
+        // Queries that are not intercepted behave normally
         TermQueryBuilder termQueryBuilder = new TermQueryBuilder("field", "value");
         QueryBuilder rewritten = termQueryBuilder.rewrite(context);
         assertTrue(rewritten instanceof TermQueryBuilder);
 
+        // Queries that should be intercepted are and the right thing happens
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("field", "value");
         rewritten = matchQueryBuilder.rewrite(context);
         assertTrue(rewritten instanceof InterceptedQueryBuilderWrapper);
         assertTrue(((InterceptedQueryBuilderWrapper) rewritten).queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder rewrittenMatchQueryBuilder = (MatchQueryBuilder) ((InterceptedQueryBuilderWrapper) rewritten).queryBuilder;
         assertEquals("intercepted", rewrittenMatchQueryBuilder.value());
+
+        // An additional rewrite on an already intercepted query returns the same query
+        QueryBuilder rewrittenAgain = rewritten.rewrite(context);
+        assertTrue(rewrittenAgain instanceof InterceptedQueryBuilderWrapper);
+        assertEquals(rewritten, rewrittenAgain);
     }
 
     private final QueryRewriteInterceptor myMatchInterceptor = new QueryRewriteInterceptor() {

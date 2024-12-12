@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 3;
+    static final int REGISTRY_VERSION = 4;
 
     // Connector indices constants
 

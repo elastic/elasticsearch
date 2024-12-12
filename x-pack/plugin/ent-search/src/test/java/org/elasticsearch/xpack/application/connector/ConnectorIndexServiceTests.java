@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -111,7 +110,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+        UpdateResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
@@ -130,7 +129,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+        UpdateResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
@@ -153,7 +152,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         // Delete all of them
         for (int i = 0; i < numConnectors; i++) {
             String connectorIdToDelete = connectorIds.get(i);
-            DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+            UpdateResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
             assertThat(resp.status(), equalTo(RestStatus.OK));
         }
 
@@ -880,13 +879,13 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
     }
 
-    private DeleteResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
+    private UpdateResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         connectorIndexService.deleteConnector(connectorId, deleteConnectorSyncJobs, new ActionListener<>() {
             @Override
-            public void onResponse(DeleteResponse deleteResponse) {
+            public void onResponse(UpdateResponse deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }

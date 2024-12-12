@@ -59,7 +59,7 @@ public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibili
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             assertTrue(getIndices(client()).isEmpty());
 
-            copySnapshot(repositoryPath, version);
+            copySnapshotFromResources(repositoryPath, version);
 
             registerRepository(
                 client(),
@@ -80,7 +80,7 @@ public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibili
         }
     }
 
-    private void copySnapshot(String repositoryPath, String version) throws IOException, URISyntaxException {
+    private void copySnapshotFromResources(String repositoryPath, String version) throws IOException, URISyntaxException {
         Path zipFilePath = Paths.get(
             Objects.requireNonNull(getClass().getClassLoader().getResource("snapshot_v" + version + ".zip")).toURI()
         );

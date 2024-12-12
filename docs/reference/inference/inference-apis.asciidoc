@@ -52,7 +52,7 @@ For more information about adaptive allocations and resources, refer to the {ml-
 [[default-enpoints]]
 === Default {infer} endpoints
 
-Your {es} deployment contains some preconfigured {infer} endpoints that makes it easier for you to use them when defining `semantic_text` fields or {infer} processors.
+Your {es} deployment contains preconfigured {infer} endpoints which makes them easier to use when defining `semantic_text` fields or using {infer} processors.
 The following list contains the default {infer} endpoints listed by `inference_id`:
 
 * `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)

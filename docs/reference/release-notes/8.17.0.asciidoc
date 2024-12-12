@@ -1,6 +1,11 @@
 [[release-notes-8.17.0]]
 == {es} version 8.17.0
 
+[IMPORTANT]
+====
+The 8.17.0 release contains a fix for a potential security vulnerability. See our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
 Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
 
 [[license-8.17.0]]

@@ -325,7 +325,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .build() },
                     null,
                     null,
-                    MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null,
                     null,
                     null,

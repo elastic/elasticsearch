@@ -6,6 +6,7 @@ issues: []
 highlight:
   title: Logsdb index mode is Generally Available
   body: >-
-    Logsdb index mode has been GA-ed. Logsdb mode enables Elasticsearch to store logs more efficiently.
+    Logsdb index mode has been GA-ed. Logsdb enables Elasticsearch to store logs more efficiently.
     Logsdb can reduce storage usage up to ~3 times compared to storing logs in Elasticsearch without Logsdb.
+    Refer to the <<logs-data-stream,documentation>> for further information.
   notable: true

@@ -309,9 +309,11 @@ public class IndexNameExpressionResolver {
                 || expressions.length == 0
                 || expressions.length == 1
                     && (SelectorResolver.selectorsValidatedAndMatchesPredicate(expressions[0], context, isMatchAll))) {
-                IndexComponentSelector selector = null;
+                IndexComponentSelector selector;
                 if (expressions != null && expressions.length == 1) {
                     selector = SelectorResolver.parseMatchAllToSelector(context, expressions[0]);
+                } else {
+                    selector = context.getOptions().selectorOptions().defaultSelector();
                 }
                 return WildcardExpressionResolver.resolveAll(context, selector);
             } else if (isNoneExpression(expressions)) {
@@ -345,7 +347,7 @@ public class IndexNameExpressionResolver {
             validateResourceExpression(context, baseExpression, expressions);
 
             // Check if it's wildcard
-            boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(originalExpression);
+            boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
             wildcardSeen |= isWildcard;
 
             if (isWildcard) {

@@ -741,7 +741,6 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "this PR")
     public void testValidation() throws Exception {
         final String rolloverTarget;
         final String sourceIndexName;

@@ -21,8 +21,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

@@ -23,6 +23,7 @@ import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -36,6 +37,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
@@ -170,8 +173,26 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         assert task instanceof CancellableTask;
         Metadata metadata = clusterState.metadata();
+
+        // Parse the rollover request's target since the expression it may contain a selector on it
+        ResolvedExpression resolvedTarget = SelectorResolver.parseExpressionWithDefault(
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.indicesOptions()
+        );
+        boolean targetFailureStore = resolvedTarget.selector() != null && resolvedTarget.selector().shouldIncludeFailures();
+        IndexComponentSelector rolloverSelector = targetFailureStore ? IndexComponentSelector.FAILURES : IndexComponentSelector.DATA;
+
+        // TODO: I don't feel _great_ about modifying the request, but I was surprised to see that we use almost nothing from index name
+        // expression resolver in the rollover operations. Instead, we pass the rollover request deep into the code to use the target
+        // expecting it to be a concrete abstraction name.
+        rolloverRequest.setRolloverTarget(resolvedTarget.resource());
+        rolloverRequest.setIndicesOptions(
+            IndicesOptions.builder(rolloverRequest.indicesOptions())
+                .selectorOptions(new IndicesOptions.SelectorOptions(rolloverSelector))
+                .build()
+        );
+
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
-        boolean targetFailureStore = false;
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
             clusterState,
             rolloverRequest.getRolloverTarget(),
@@ -499,7 +520,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                false
+                rolloverRequest.indicesOptions().selectorOptions().defaultSelector().shouldIncludeFailures()
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -550,7 +571,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     sourceIndexStats,
                     rolloverTask.autoShardingResult(),
-                    false
+                    rolloverRequest.indicesOptions().selectorOptions().defaultSelector().shouldIncludeFailures()
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

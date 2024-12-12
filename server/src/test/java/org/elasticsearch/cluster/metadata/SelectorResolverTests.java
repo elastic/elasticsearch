@@ -184,7 +184,7 @@ public class SelectorResolverTests extends ESTestCase {
     }
 
     private static ResolvedExpression resolve(Context context, String expression) {
-        return SelectorResolver.parseExpression(context, expression);
+        return SelectorResolver.parseExpression(expression, context.getOptions());
     }
 
     private static IndexComponentSelector resolveMatchAllToSelector(Context context, String matchAll) {

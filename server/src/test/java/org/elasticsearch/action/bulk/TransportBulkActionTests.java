@@ -130,9 +130,10 @@ public class TransportBulkActionTests extends ESTestCase {
 
         @Override
         void rollOver(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener) {
-            if (failDataStreamRolloverException != null && rolloverRequest.targetsFailureStore() == false) {
+            boolean isFailureStoreRollover = rolloverRequest.indicesOptions().selectorOptions().defaultSelector().shouldIncludeFailures();
+            if (failDataStreamRolloverException != null && isFailureStoreRollover == false) {
                 listener.onFailure(failDataStreamRolloverException);
-            } else if (failFailureStoreRolloverException != null && rolloverRequest.targetsFailureStore()) {
+            } else if (failFailureStoreRolloverException != null && isFailureStoreRollover) {
                 listener.onFailure(failFailureStoreRolloverException);
             } else {
                 listener.onResponse(

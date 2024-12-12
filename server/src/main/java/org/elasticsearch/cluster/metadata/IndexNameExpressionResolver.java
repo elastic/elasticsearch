@@ -334,7 +334,7 @@ public class IndexNameExpressionResolver {
             String baseExpression = isExclusion ? originalExpression.substring(1) : originalExpression;
 
             // Parse a potential selector from the expression
-            ResolvedExpression partiallyResolvedExpression = SelectorResolver.parseExpression(context, baseExpression);
+            ResolvedExpression partiallyResolvedExpression = SelectorResolver.parseExpression(baseExpression, context.getOptions());
             baseExpression = partiallyResolvedExpression.resource();
             IndexComponentSelector selector = partiallyResolvedExpression.selector() == null
                 ? context.options.selectorOptions().defaultSelector()
@@ -2091,16 +2091,38 @@ public class IndexNameExpressionResolver {
 
         /**
          * Parses an index expression for a selector suffix. If a suffix is present and supported by the index options, the
-         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the selector returned will
-         * be null. If suffixes are present but not supported by the index options, this will throw {@link IndexNotFoundException}. When
+         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the default selector will
+         * be returned. If suffixes are present but not supported by the index options, this will throw {@link IndexNotFoundException}. When
          * suffixes are not allowed by the context, the selector returned will be null.
-         * @param context Context object
+         * @param options IndicesOptions object
          * @param expression The expression to check for selectors
          * @return A resolved expression, optionally paired with a selector if present and supported.
          */
-        public static ResolvedExpression parseExpression(Context context, String expression) {
+        public static ResolvedExpression parseExpressionWithDefault(String expression, IndicesOptions options) {
             return parseAndTransformSelector(expression, (baseExpression, selector) -> {
-                if (context.options.allowSelectors()) {
+                if (options.allowSelectors()) {
+                    IndexComponentSelector resolvedSelector = selector != null ? selector : options.selectorOptions().defaultSelector();
+                    return new ResolvedExpression(baseExpression, resolvedSelector);
+                } else {
+                    // Ensure there is no selector if the API doesn't allow it.
+                    ensureNoSelectorsProvided(expression, selector);
+                    return new ResolvedExpression(baseExpression);
+                }
+            });
+        }
+
+        /**
+         * Parses an index expression for a selector suffix. If a suffix is present and supported by the index options, the
+         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the selector returned will
+         * be null. If suffixes are present but not supported by the index options, this will throw {@link IndexNotFoundException}. When
+         * suffixes are not allowed by the context, the selector returned will be null.
+         * @param options IndicesOptions object
+         * @param expression The expression to check for selectors
+         * @return A resolved expression, optionally paired with a selector if present and supported.
+         */
+        public static ResolvedExpression parseExpression(String expression, IndicesOptions options) {
+            return parseAndTransformSelector(expression, (baseExpression, selector) -> {
+                if (options.allowSelectors()) {
                     return new ResolvedExpression(baseExpression, selector);
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.

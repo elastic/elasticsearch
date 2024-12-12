@@ -29,6 +29,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Objects.requireNonNull;
+import static java.util.function.Predicate.not;
+
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
@@ -78,8 +81,8 @@ public class PolicyManager {
     }
 
     public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
-        this.serverEntitlements = buildScopeEntitlementsMap(Objects.requireNonNull(defaultPolicy));
-        this.pluginsEntitlements = Objects.requireNonNull(pluginPolicies)
+        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(defaultPolicy));
+        this.pluginsEntitlements = requireNonNull(pluginPolicies)
             .entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
@@ -185,7 +188,7 @@ public class PolicyManager {
         return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
     }
 
-    private static Module requestingModule(Class<?> callerClass) {
+    static Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
             Module callerModule = callerClass.getModule();
             if (systemModules.contains(callerModule) == false) {
@@ -193,19 +196,28 @@ public class PolicyManager {
                 return callerModule;
             }
         }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
-            + 1  // the instrumented method
-        ;
         Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(
-                s -> s.skip(framesToSkip)
-                    .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> systemModules.contains(m) == false)
-                    .findFirst()
-            );
+            .walk(s -> findRequestingModule(s.map(f -> moduleOf(f.getDeclaringClass()))));
         return module.orElse(null);
+    }
+
+    /**
+     * @throws NullPointerException if the requesting module is {@code null}
+     */
+    static Optional<Module> findRequestingModule(Stream<Module> modules) {
+        return modules.map(Objects::requireNonNull)
+            .dropWhile(not(systemModules::contains)) // Skip the entitlements runtime
+            .dropWhile(systemModules::contains)      // Skip trusted JDK classes
+            .findFirst();
+    }
+
+    private static Module moduleOf(Class<?> c) {
+        var result = c.getModule();
+        if (result == null) {
+            throw new NullPointerException("Entitlements system does not support non-modular class [" + c.getName() + "]");
+        } else {
+            return result;
+        }
     }
 
     private static boolean isTriviallyAllowed(Module requestingModule) {

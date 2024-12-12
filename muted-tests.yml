@@ -452,3 +452,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {grok.OverwriteName SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/118631
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {stats.ByStringAndLongWithAlias SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118632

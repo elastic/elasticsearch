@@ -23,6 +23,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -526,7 +527,7 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
-            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
+            BuildVersion bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion().toReleaseVersion()
@@ -1505,28 +1506,17 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Get a useful version string to direct a user's downgrade operation
      *
-     * <p>If a user is trying to install 8.0 but has incompatible indices, the user should
-     * downgrade to 7.17.x. We return 7.17.0, unless the user is trying to upgrade from
-     * a 7.17.x release, in which case we return the last installed version.
+     * <p>If a user is trying to install 9.0 (current major) but has incompatible indices, the user should
+     * downgrade to 8.18.x (last minor of the previous major). We return 8.18.0, unless the user is trying to upgrade from
+     * a 8.18.x release, in which case we return the last installed version.
      * @return Version to downgrade to
      */
     // visible for testing
-    static String getBestDowngradeVersion(String previousNodeVersion) {
-        // this method should only be called in the context of an upgrade to 8.x
-        assert Build.current().version().startsWith("9.") == false;
-        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+$");
-        Matcher matcher = pattern.matcher(previousNodeVersion);
-        if (matcher.matches()) {
-            try {
-                int minorVersion = Integer.parseInt(matcher.group(1));
-                if (minorVersion >= 17) {
-                    return previousNodeVersion;
-                }
-            } catch (NumberFormatException e) {
-                // continue and return default
-            }
+    static BuildVersion getBestDowngradeVersion(BuildVersion previousNodeVersion) {
+        if (previousNodeVersion.onOrAfterMinimumCompatible()) {
+            return previousNodeVersion;
         }
-        return "7.17.0";
+        return BuildVersion.fromVersionId(Version.CURRENT.minimumCompatibilityVersion().id);
     }
 
 }

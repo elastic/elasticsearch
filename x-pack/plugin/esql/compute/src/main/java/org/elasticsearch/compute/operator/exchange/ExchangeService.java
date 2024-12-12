@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -40,10 +42,11 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
@@ -293,7 +296,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Executor responseExecutor;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
-        final AtomicBoolean finished = new AtomicBoolean(false);
+        final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
 
         TransportRemoteSink(
             TransportService transportService,
@@ -318,13 +321,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 return;
             }
             // already finished
-            if (finished.get()) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+            SubscribableListener<Void> completionListener = completionListenerRef.get();
+            if (completionListener != null) {
+                completionListener.addListener(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
                 return;
             }
             doFetchPageAsync(false, ActionListener.wrap(r -> {
                 if (r.finished()) {
-                    finished.set(true);
+                    completionListenerRef.compareAndSet(null, SubscribableListener.newSucceeded(null));
                 }
                 listener.onResponse(r);
             }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
@@ -356,10 +360,19 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
         @Override
         public void close(ActionListener<Void> listener) {
-            if (finished.compareAndSet(false, true)) {
-                doFetchPageAsync(true, listener.delegateFailure((l, unused) -> l.onResponse(null)));
-            } else {
-                listener.onResponse(null);
+            final SubscribableListener<Void> candidate = new SubscribableListener<>();
+            final SubscribableListener<Void> actual = completionListenerRef.updateAndGet(
+                curr -> Objects.requireNonNullElse(curr, candidate)
+            );
+            actual.addListener(listener);
+            if (candidate == actual) {
+                doFetchPageAsync(true, ActionListener.wrap(r -> {
+                    final Page page = r.takePage();
+                    if (page != null) {
+                        page.releaseBlocks();
+                    }
+                    candidate.onResponse(null);
+                }, e -> candidate.onResponse(null)));
             }
         }
     }

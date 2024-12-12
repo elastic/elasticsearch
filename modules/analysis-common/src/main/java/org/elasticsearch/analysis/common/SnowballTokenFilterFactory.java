@@ -25,7 +25,7 @@ public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
     private String language;
 
     SnowballTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "English")));
     }
 

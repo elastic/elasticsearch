@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.util.Objects;
 import java.util.Set;
@@ -386,6 +387,7 @@ public class Constants {
         "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/inference",
         "cluster:monitor/xpack/inference/get",
+        "cluster:monitor/xpack/inference/unified",
         "cluster:monitor/xpack/inference/diagnostics/get",
         "cluster:monitor/xpack/inference/services/get",
         "cluster:monitor/xpack/info",
@@ -493,7 +495,6 @@ public class Constants {
         "indices:admin/block/add[s]",
         "indices:admin/cache/clear",
         "indices:admin/data_stream/lazy_rollover",
-        "indices:admin/data_stream/reindex",
         "indices:internal/admin/ccr/restore/file_chunk/get",
         "indices:internal/admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/put",
@@ -636,6 +637,8 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

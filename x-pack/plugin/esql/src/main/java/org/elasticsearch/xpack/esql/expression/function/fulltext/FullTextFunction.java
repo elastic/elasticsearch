@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -47,7 +46,16 @@ public abstract class FullTextFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        return resolveNonQueryParamTypes().and(resolveQueryParamType());
+        return resolveNonQueryParamTypes().and(resolveQueryParamType().and(checkParamCompatibility()));
+    }
+
+    /**
+     * Checks parameter specific compatibility, to be overriden by subclasses
+     *
+     * @return TypeResolution for param compatibility
+     */
+    protected TypeResolution checkParamCompatibility() {
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     /**
@@ -55,7 +63,7 @@ public abstract class FullTextFunction extends Function {
      *
      * @return type resolution for query parameter
      */
-    private TypeResolution resolveQueryParamType() {
+    protected TypeResolution resolveQueryParamType() {
         return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
     }
 
@@ -73,19 +81,17 @@ public abstract class FullTextFunction extends Function {
     }
 
     /**
-     * Returns the resulting query as a String
+     * Returns the resulting query as an object
      *
-     * @return query expression as a string
+     * @return query expression as an object
      */
-    public final String queryAsText() {
+    public Object queryAsObject() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }
 
-        throw new IllegalArgumentException(
-            format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
-        );
+        return queryAsObject;
     }
 
     /**

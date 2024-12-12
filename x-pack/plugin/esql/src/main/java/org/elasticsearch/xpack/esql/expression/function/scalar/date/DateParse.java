@@ -35,7 +35,6 @@ import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
@@ -131,12 +130,11 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId) throws IllegalArgumentException {
-        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter, zoneId));
+        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter));
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zone = UTC; // TODO session timezone?
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
             return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
@@ -146,7 +144,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         }
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(), zone);
+                DateFormatter formatter = toFormatter(format.fold());
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
@@ -156,7 +154,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, zone);
     }
 
-    private static DateFormatter toFormatter(Object format, ZoneId zone) {
+    private static DateFormatter toFormatter(Object format) {
         return forPattern(((BytesRef) format).utf8ToString());
     }
 

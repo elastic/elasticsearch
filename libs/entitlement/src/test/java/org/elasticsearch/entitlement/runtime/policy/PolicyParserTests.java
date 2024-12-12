@@ -64,4 +64,23 @@ public class PolicyParserTests extends ESTestCase {
             )
         );
     }
+
+    public void testParseSetHttpsConnectionProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - set_https_connection_properties
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml").parsePolicy();
+        Policy builtPolicy = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))
+        );
+        assertThat(
+            parsedPolicy.scopes,
+            contains(
+                both(transformedMatch((Scope scope) -> scope.name, equalTo("entitlement-module-name"))).and(
+                    transformedMatch(scope -> scope.entitlements, contains(instanceOf(SetHttpsConnectionPropertiesEntitlement.class)))
+                )
+            )
+        );
+    }
 }

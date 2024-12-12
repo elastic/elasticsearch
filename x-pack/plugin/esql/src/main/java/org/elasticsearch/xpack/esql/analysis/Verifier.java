@@ -780,14 +780,14 @@ public class Verifier {
         Set<Failure> failures
     ) {
         condition.forEachUp(Or.class, or -> {
-            boolean left = checkFullTextSearchInDisjunctions(or.left());
-            boolean right = checkFullTextSearchInDisjunctions(or.right());
+            boolean left = onlyFullTextFunctionsInExpression(or.left());
+            boolean right = onlyFullTextFunctionsInExpression(or.right());
             if (left ^ right) {
                 Holder<String> elementName = new Holder<>();
                 if (left) {
-                    or.right().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
-                } else {
                     or.left().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
+                } else {
+                    or.right().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
                 }
                 failures.add(
                     fail(
@@ -805,22 +805,22 @@ public class Verifier {
     /**
      * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
      *
-     * @param expression parent expression to add to the failure message
+     * @param expression expression to check
      * @return true if all children are full text functions or negations of full text functions, false otherwise
      */
-    private static boolean checkFullTextSearchInDisjunctions(Expression expression) {
+    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
         if (expression instanceof FullTextFunction) {
-            return false;
+            return true;
         } else if (expression instanceof Not || expression instanceof BinaryLogic) {
             for (Expression child : expression.children()) {
-                if (checkFullTextSearchInDisjunctions(child)) {
-                    return true;
+                if (onlyFullTextFunctionsInExpression(child) == false) {
+                    return false;
                 }
             }
-            return false;
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     /**

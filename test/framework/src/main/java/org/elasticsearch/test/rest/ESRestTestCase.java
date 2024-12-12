@@ -333,8 +333,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            var clientSettings = restClientSettings();
+            var adminSettings = restAdminSettings();
+            var hosts = clusterHosts.toArray(new HttpHost[0]);
+            client = buildClient(clientSettings, hosts);
+            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();

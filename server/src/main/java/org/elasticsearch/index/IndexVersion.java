@@ -123,8 +123,13 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
         return CurrentHolder.CURRENT;
     }
 
+    /**
+     * Returns whether this index version is supported by this node version out-of-the-box.
+     * This is used to distinguish between ordinary indices and archive indices that may be
+     * imported into the cluster in read-only mode, and with limited functionality.
+     */
     public boolean isLegacyIndexVersion() {
-        return before(IndexVersions.MINIMUM_COMPATIBLE);
+        return before(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }
 
     public static IndexVersion getMinimumCompatibleIndexVersion(int versionId) {

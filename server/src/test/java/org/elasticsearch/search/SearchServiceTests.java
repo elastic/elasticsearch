@@ -193,7 +193,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             mapping,
             Collections.singletonList(keywordFieldMapper),
-            Collections.emptyList()
+            Collections.emptyList(),
+            indexSettings
         );
         return new SearchExecutionContext(
             0,

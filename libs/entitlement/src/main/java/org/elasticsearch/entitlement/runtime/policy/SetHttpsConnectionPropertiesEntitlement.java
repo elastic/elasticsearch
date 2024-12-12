@@ -13,6 +13,6 @@ package org.elasticsearch.entitlement.runtime.policy;
  * An Entitlement to allow setting properties to a single Https connection after this has been created
  */
 public class SetHttpsConnectionPropertiesEntitlement implements Entitlement {
-    @ExternalEntitlement
+    @ExternalEntitlement(esModulesOnly = false)
     public SetHttpsConnectionPropertiesEntitlement() {}
 }

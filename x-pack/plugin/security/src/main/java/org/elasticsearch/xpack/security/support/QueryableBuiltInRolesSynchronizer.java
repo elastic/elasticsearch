@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -273,34 +272,23 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void doSyncBuiltinRoles(Map<String, String> indexedRolesDigests, QueryableBuiltInRoles roles, ActionListener<Void> listener) {
-        final Set<RoleDescriptor> rolesToUpsert = rolesToUpsert(roles, indexedRolesDigests);
-        final Set<String> rolesToDelete = rolesToDelete(roles, indexedRolesDigests);
+        final Set<RoleDescriptor> rolesToUpsert = QueryableBuiltInRolesUtils.determineRolesToUpsert(roles, indexedRolesDigests);
+        final Set<String> rolesToDelete = QueryableBuiltInRolesUtils.determineRolesToDelete(roles, indexedRolesDigests);
+
         assert Sets.intersection(rolesToUpsert.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()), rolesToDelete).isEmpty()
             : "The roles to upsert and delete should not have any common roles";
-        indexRoles(rolesToUpsert, ActionListener.wrap(onResponse -> {
-            if (rolesToDelete.isEmpty()) {
-                markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), listener);
-            } else {
-                deleteRoles(roles, rolesToDelete, indexedRolesDigests, listener);
-            }
-        }, listener::onFailure));
-    }
 
-    private static Set<String> rolesToDelete(QueryableBuiltInRoles roles, Map<String, String> indexedRolesDigests) {
-        return indexedRolesDigests == null ? Set.of() : Sets.difference(indexedRolesDigests.keySet(), roles.rolesDigest().keySet());
-    }
-
-    private static Set<RoleDescriptor> rolesToUpsert(QueryableBuiltInRoles roles, Map<String, String> indexedRolesDigests) {
-        final Set<RoleDescriptor> rolesToUpsert = new HashSet<>();
-        for (var role : roles.roleDescriptors()) {
-            final String roleDigest = roles.rolesDigest().get(role.getName());
-            if (indexedRolesDigests == null || indexedRolesDigests.containsKey(role.getName()) == false) {
-                rolesToUpsert.add(role);  // a new role to create
-            } else if (indexedRolesDigests.get(role.getName()).equals(roleDigest) == false) {
-                rolesToUpsert.add(role);  // an existing role that needs to be updated
-            }
+        if (rolesToUpsert.isEmpty() && rolesToDelete.isEmpty()) {
+            logger.debug("no built-in roles to sync to .security index");
+            listener.onResponse(null);
+            return;
         }
-        return rolesToUpsert;
+
+        indexRoles(rolesToUpsert, listener.delegateFailureAndWrap((l1, indexResponse) -> {
+            deleteRoles(roles, rolesToDelete, indexedRolesDigests, l1.delegateFailureAndWrap((l2, deleteResponse) -> {
+                markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), l2);
+            }));
+        }));
     }
 
     private void deleteRoles(
@@ -309,6 +297,10 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         Map<String, String> indexedRolesDigests,
         ActionListener<Void> listener
     ) {
+        if (rolesToDelete.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
         nativeRolesStore.deleteRoles(rolesToDelete, WriteRequest.RefreshPolicy.IMMEDIATE, false, ActionListener.wrap(deleteResponse -> {
             final Optional<Exception> deleteFailure = deleteResponse.getItems()
                 .stream()
@@ -324,6 +316,10 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void indexRoles(Collection<RoleDescriptor> rolesToUpsert, ActionListener<Void> listener) {
+        if (rolesToUpsert.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
         nativeRolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, rolesToUpsert, false, ActionListener.wrap(response -> {
             final Optional<Exception> indexFailure = response.getItems()
                 .stream()

@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -110,7 +110,7 @@ public class ILMHistoryItem implements ToXContentObject {
     }
 
     private static String exceptionToString(Exception exception) {
-        Params stacktraceParams = new MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+        Params stacktraceParams = new MapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
         String exceptionString;
         try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
             causeXContentBuilder.startObject();

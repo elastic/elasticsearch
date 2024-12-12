@@ -47,6 +47,10 @@ public class FoldContext {
         }
     }
 
+    /**
+     * Adapt this into a {@link CircuitBreaker} suitable for building bounded local
+     * DriverContext. Only methods used by BlockFactory are implemented.
+     */
     public CircuitBreaker circuitBreakerView(Source source) {
         return new CircuitBreaker() {
             @Override

@@ -2342,7 +2342,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) function.children().get(0);
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(function.children().get(1).fold(), equalTo("value"));
+        assertThat(function.children().get(1).fold(FoldContext.unbounded()), equalTo("value"));
     }
 
     public void testMatchOperatorFieldCasting() {
@@ -2352,6 +2352,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(), equalTo("value"));
+        assertThat(match.query().fold(FoldContext.unbounded()), equalTo("value"));
     }
 }

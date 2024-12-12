@@ -23,6 +23,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -111,6 +112,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             assertTrue("request must be failed or completed after clearing disruption", future.isDone());
             ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
+            EsqlTestUtils.assertEsqlFailure(e);
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }
     }

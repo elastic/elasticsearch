@@ -104,7 +104,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override

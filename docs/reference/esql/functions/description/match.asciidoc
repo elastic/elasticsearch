@@ -2,4 +2,4 @@
 
 *Description*
 
-Performs a match query on the specified field. Returns true if the provided query matches the row.
+Performs a <<query-dsl-match-query,match query>> on the specified field. Returns true if the provided query matches the row.

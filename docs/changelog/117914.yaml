@@ -1,0 +1,5 @@
+pr: 117914
+summary: Fix for propagating filters from compound to inner retrievers
+area: Ranking
+type: bug
+issues: []

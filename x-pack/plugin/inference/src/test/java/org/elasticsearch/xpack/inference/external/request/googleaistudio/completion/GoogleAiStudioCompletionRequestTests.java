@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.googleaistudio.comple
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModelTests;
 
@@ -72,7 +72,7 @@ public class GoogleAiStudioCompletionRequestTests extends ESTestCase {
         assertNull(request.getTruncationInfo());
     }
 
-    private static DocumentsOnlyInput listOf(String... input) {
-        return new DocumentsOnlyInput(List.of(input));
+    private static ChatCompletionInput listOf(String... input) {
+        return new ChatCompletionInput(List.of(input));
     }
 }

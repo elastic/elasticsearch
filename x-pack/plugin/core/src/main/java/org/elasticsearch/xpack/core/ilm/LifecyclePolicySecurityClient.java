@@ -21,16 +21,16 @@ import java.util.Map;
  * This class wraps a client and calls the client using the headers provided in
  * constructor. The intent is to abstract away the fact that there are headers
  * so {@link Step}s etc. can call this client as if it was a normal client.
- *
+ * <p>
  * Note: This client will not close the wrapped {@link Client} instance since
  * the intent is that the wrapped client is shared between multiple instances of
  * this class.
  */
 public class LifecyclePolicySecurityClient extends AbstractClient {
 
-    private Client client;
-    private Map<String, String> headers;
-    private String origin;
+    private final Client client;
+    private final Map<String, String> headers;
+    private final String origin;
 
     public LifecyclePolicySecurityClient(Client client, String origin, Map<String, String> headers) {
         super(client.settings(), client.threadPool());

@@ -93,16 +93,16 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     public List<Attribute> output() {
         if (lazyOutput == null) {
             lazyOutput = new ArrayList<>(left().output());
-            for (Attribute attr : addedFields) {
-                lazyOutput.add(attr);
-            }
+            var addedFieldsNames = addedFields.stream().map(Attribute::name).toList();
+            lazyOutput.removeIf(a -> addedFieldsNames.contains(a.name()));
+            lazyOutput.addAll(addedFields);
         }
         return lazyOutput;
     }
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, output());
+        state.add(false, addedFields);
         return this;
     }
 

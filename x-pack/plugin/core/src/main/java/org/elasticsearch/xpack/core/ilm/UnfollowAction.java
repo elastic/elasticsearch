@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Converts a CCR following index into a normal, standalone index, once the index is ready to be safely separated.
- *
+ * <p>
  * "Readiness" is composed of two conditions:
  * 1) The index must have {@link LifecycleSettings#LIFECYCLE_INDEXING_COMPLETE} set to {@code true}, which is
  *      done automatically by {@link RolloverAction} (or manually).

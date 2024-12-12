@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
@@ -123,7 +124,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
         if (Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
-            logger.trace("Indices empty after index resolution, also clearing shardIds [{}]", shardIds);
+            logger.trace(() -> format("Indices empty after index resolution, also clearing shardIds %s", shardIds));
             this.shardIds = Collections.emptyList();
         }
         return this;

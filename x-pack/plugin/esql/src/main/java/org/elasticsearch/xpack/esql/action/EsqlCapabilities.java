@@ -423,6 +423,10 @@ public class EsqlCapabilities {
         CATEGORIZE_V5,
 
         /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
+        /**
          * QSTR function
          */
         QSTR_FUNCTION,

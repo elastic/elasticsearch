@@ -127,12 +127,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
                 // update the join with the new left child
                 join = (Join) join.replaceLeft(left);
 
-                // keep the remaining filters in place, otherwise return the new join
-                if (scoped.commonFilters.size() > 0 || scoped.rightFilters.size() > 0) {
-                    plan = filter.with(join, Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters, scoped.rightFilters)));
-                } else {
-                    plan = join;
-                }
+                // keep the remaining filters in place, otherwise return the new join;
+                Expression remainingFilter = Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters, scoped.rightFilters));
+                plan = remainingFilter != null ? filter.with(join, remainingFilter) : join;
             }
         }
         // ignore the rest of the join

@@ -13,24 +13,24 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 // A bit of abuse of notation here, since we're extending this class to "inherit" its static methods.
 // Unfortunately, this is the way it has to be done, since the generated code invokes these methods statically.
-abstract class StExtentAggregator {
-    public static void combineIntermediate(StExtentState current, int minX, int maxX, int maxY, int minY) {
+abstract class SpatialExtentAggregator {
+    public static void combineIntermediate(SpatialExtentState current, int minX, int maxX, int maxY, int minY) {
         current.add(minX, maxX, maxY, minY);
     }
 
-    public static void combineIntermediate(StExtentGroupingState current, int groupId, int minX, int maxX, int maxY, int minY) {
+    public static void combineIntermediate(SpatialExtentGroupingState current, int groupId, int minX, int maxX, int maxY, int minY) {
         current.add(groupId, minX, maxX, maxY, minY);
     }
 
-    public static Block evaluateFinal(StExtentState state, DriverContext driverContext) {
+    public static Block evaluateFinal(SpatialExtentState state, DriverContext driverContext) {
         return state.toBlock(driverContext);
     }
 
-    public static Block evaluateFinal(StExtentGroupingState state, IntVector selected, DriverContext driverContext) {
+    public static Block evaluateFinal(SpatialExtentGroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(selected, driverContext);
     }
 
-    public static void combineStates(StExtentGroupingState current, int groupId, StExtentGroupingState inState, int inPosition) {
+    public static void combineStates(SpatialExtentGroupingState current, int groupId, SpatialExtentGroupingState inState, int inPosition) {
         current.add(groupId, inState, inPosition);
     }
 }

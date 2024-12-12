@@ -34,14 +34,14 @@ public final class SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction im
       new IntermediateStateDesc("maxY", ElementType.INT),
       new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentGroupingStateWrappedLongitudeState state;
+  private final SpatialExtentGroupingStateWrappedLongitudeState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      StExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
+                                                                    SpatialExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -210,7 +210,7 @@ public final class SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction im
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentGroupingStateWrappedLongitudeState inState = ((SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialStExtentGeoPointDocValuesAggregator.combineStates(state, groupId, inState, position);
   }

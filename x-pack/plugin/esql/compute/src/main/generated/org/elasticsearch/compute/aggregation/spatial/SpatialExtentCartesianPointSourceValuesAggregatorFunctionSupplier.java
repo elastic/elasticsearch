@@ -12,30 +12,30 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoPointSourceValuesAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentCartesianPointSourceValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
-  public SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier(List<Integer> channels) {
+  public SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public SpatialStExtentGeoPointSourceValuesAggregatorFunction aggregator(
+  public SpatialExtentCartesianPointSourceValuesAggregatorFunction aggregator(
       DriverContext driverContext) {
-    return SpatialStExtentGeoPointSourceValuesAggregatorFunction.create(driverContext, channels);
+    return SpatialExtentCartesianPointSourceValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction groupingAggregator(
+  public SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
-    return SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "spatial_st_extent_geo_point_source of valuess";
+    return "spatial_extent_cartesian_point_source of valuess";
   }
 }

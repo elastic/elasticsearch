@@ -65,7 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialStExtent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -2831,7 +2831,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
                 // Before optimization the aggregation does not use doc-values
-                assertAggregation(agg, "extent", SpatialStExtent.class, GEO_POINT, false);
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, false);
 
                 var exchange = as(agg.child(), ExchangeExec.class);
                 var fragment = as(exchange.child(), FragmentExec.class);
@@ -2843,11 +2843,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 limit = as(optimized, LimitExec.class);
                 agg = as(limit.child(), AggregateExec.class);
                 // Above the exchange (in coordinator) the aggregation is not using doc-values
-                assertAggregation(agg, "extent", SpatialStExtent.class, GEO_POINT, false);
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, false);
                 exchange = as(agg.child(), ExchangeExec.class);
                 agg = as(exchange.child(), AggregateExec.class);
                 // below the exchange (in data node) the aggregation is using doc-values
-                assertAggregation(agg, "extent", SpatialStExtent.class, GEO_POINT, withDocValues);
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, withDocValues);
                 assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
             }
         }

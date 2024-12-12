@@ -26,7 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunction} implementation for {@link SpatialExtentCartesianShapeAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialStExtentCartesianShapeAggregatorFunction implements AggregatorFunction {
+public final class SpatialExtentCartesianShapeAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("minX", ElementType.INT),
       new IntermediateStateDesc("maxX", ElementType.INT),
@@ -39,16 +39,16 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
 
   private final List<Integer> channels;
 
-  public SpatialStExtentCartesianShapeAggregatorFunction(DriverContext driverContext,
+  public SpatialExtentCartesianShapeAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, SpatialExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialStExtentCartesianShapeAggregatorFunction create(DriverContext driverContext,
+  public static SpatialExtentCartesianShapeAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new SpatialStExtentCartesianShapeAggregatorFunction(driverContext, channels, SpatialExtentCartesianShapeAggregator.initSingle());
+    return new SpatialExtentCartesianShapeAggregatorFunction(driverContext, channels, SpatialExtentCartesianShapeAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

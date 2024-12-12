@@ -24,20 +24,20 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialStExtentCartesianShapeAggregator extends StExtentAggregator {
-    public static StExtentState initSingle() {
-        return new StExtentState(PointType.CARTESIAN);
+class SpatialExtentCartesianShapeAggregator extends SpatialExtentAggregator {
+    public static SpatialExtentState initSingle() {
+        return new SpatialExtentState(PointType.CARTESIAN);
     }
 
-    public static StExtentGroupingState initGrouping() {
-        return new StExtentGroupingState(PointType.CARTESIAN);
+    public static SpatialExtentGroupingState initGrouping() {
+        return new SpatialExtentGroupingState(PointType.CARTESIAN);
     }
 
-    public static void combine(StExtentState current, BytesRef bytes) {
+    public static void combine(SpatialExtentState current, BytesRef bytes) {
         current.add(SpatialAggregationUtils.decode(bytes));
     }
 
-    public static void combine(StExtentGroupingState current, int groupId, BytesRef bytes) {
+    public static void combine(SpatialExtentGroupingState current, int groupId, BytesRef bytes) {
         current.add(groupId, SpatialAggregationUtils.decode(bytes));
     }
 }

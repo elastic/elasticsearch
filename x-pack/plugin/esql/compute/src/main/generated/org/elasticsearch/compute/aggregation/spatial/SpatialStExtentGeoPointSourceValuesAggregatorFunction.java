@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialStExtentGeoPointSourceValuesAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialExtentGeoPointSourceValuesAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction implements AggregatorFunction {
@@ -37,12 +37,12 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
 
   private final DriverContext driverContext;
 
-  private final StExtentStateWrappedLongitudeState state;
+  private final SpatialExtentStateWrappedLongitudeState state;
 
   private final List<Integer> channels;
 
   public SpatialStExtentGeoPointSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, StExtentStateWrappedLongitudeState state) {
+      List<Integer> channels, SpatialExtentStateWrappedLongitudeState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -50,7 +50,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
 
   public static SpatialStExtentGeoPointSourceValuesAggregatorFunction create(
       DriverContext driverContext, List<Integer> channels) {
-    return new SpatialStExtentGeoPointSourceValuesAggregatorFunction(driverContext, channels, SpatialStExtentGeoPointSourceValuesAggregator.initSingle());
+    return new SpatialStExtentGeoPointSourceValuesAggregatorFunction(driverContext, channels, SpatialExtentGeoPointSourceValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -92,7 +92,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
   private void addRawVector(BytesRefVector vector) {
     BytesRef scratch = new BytesRef();
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialStExtentGeoPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialExtentGeoPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
@@ -102,7 +102,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      SpatialStExtentGeoPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialExtentGeoPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
@@ -115,7 +115,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialStExtentGeoPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialExtentGeoPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -132,7 +132,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialStExtentGeoPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialExtentGeoPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -177,7 +177,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
     assert minY.getPositionCount() == 1;
-    SpatialStExtentGeoPointSourceValuesAggregator.combineIntermediate(state, minNegX.getInt(0), minPosX.getInt(0), maxNegX.getInt(0), maxPosX.getInt(0), maxY.getInt(0), minY.getInt(0));
+    SpatialExtentGeoPointSourceValuesAggregator.combineIntermediate(state, minNegX.getInt(0), minPosX.getInt(0), maxNegX.getInt(0), maxPosX.getInt(0), maxY.getInt(0), minY.getInt(0));
   }
 
   @Override
@@ -187,7 +187,7 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialStExtentGeoPointSourceValuesAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialExtentGeoPointSourceValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

@@ -21,18 +21,18 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 import java.nio.ByteOrder;
 
-final class StExtentGroupingState extends AbstractArrayState {
+final class SpatialExtentGroupingState extends AbstractArrayState {
     private final PointType pointType;
     private IntArray minXs;
     private IntArray maxXs;
     private IntArray maxYs;
     private IntArray minYs;
 
-    StExtentGroupingState(PointType pointType) {
+    SpatialExtentGroupingState(PointType pointType) {
         this(pointType, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    StExtentGroupingState(PointType pointType, BigArrays bigArrays) {
+    SpatialExtentGroupingState(PointType pointType, BigArrays bigArrays) {
         super(bigArrays);
         this.pointType = pointType;
         this.minXs = bigArrays.newIntArray(0, false);
@@ -139,7 +139,7 @@ final class StExtentGroupingState extends AbstractArrayState {
         }
     }
 
-    public void add(int groupId, StExtentGroupingState inState, int inPosition) {
+    public void add(int groupId, SpatialExtentGroupingState inState, int inPosition) {
         ensureCapacity(groupId);
         if (inState.hasValue(inPosition)) {
             add(

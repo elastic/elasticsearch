@@ -22,7 +22,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 import java.nio.ByteOrder;
 
-final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayState implements GroupingAggregatorState {
+final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArrayState implements GroupingAggregatorState {
     // Only geo points support longitude wrapping.
     private static final PointType POINT_TYPE = PointType.GEO;
     private IntArray minNegXs;
@@ -34,11 +34,11 @@ final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayStat
 
     private GeoPointEnvelopeVisitor geoPointVisitor = new GeoPointEnvelopeVisitor();
 
-    StExtentGroupingStateWrappedLongitudeState() {
+    SpatialExtentGroupingStateWrappedLongitudeState() {
         this(BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    StExtentGroupingStateWrappedLongitudeState(BigArrays bigArrays) {
+    SpatialExtentGroupingStateWrappedLongitudeState(BigArrays bigArrays) {
         super(bigArrays);
         this.minNegXs = bigArrays.newIntArray(0, false);
         this.minPosXs = bigArrays.newIntArray(0, false);
@@ -97,7 +97,7 @@ final class StExtentGroupingStateWrappedLongitudeState extends AbstractArrayStat
         }
     }
 
-    public void add(int groupId, StExtentGroupingStateWrappedLongitudeState inState, int inPosition) {
+    public void add(int groupId, SpatialExtentGroupingStateWrappedLongitudeState inState, int inPosition) {
         ensureCapacity(groupId);
         if (inState.hasValue(inPosition)) {
             add(

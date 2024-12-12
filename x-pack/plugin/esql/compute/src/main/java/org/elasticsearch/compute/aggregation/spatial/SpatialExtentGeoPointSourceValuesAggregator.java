@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * Computes the extent of a set of geo points. It is assumed that the geo points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentGeoPointDocValuesAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialExtentGeoPointDocValuesAggregator}.
  */
 @Aggregator(
     {
@@ -28,21 +28,21 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialStExtentGeoPointSourceValuesAggregator extends StExtentLongitudeWrappingAggregator {
+class SpatialExtentGeoPointSourceValuesAggregator extends SpatialExtentLongitudeWrappingAggregator {
     // TODO support non-longitude wrapped geo shapes.
-    public static StExtentStateWrappedLongitudeState initSingle() {
-        return new StExtentStateWrappedLongitudeState();
+    public static SpatialExtentStateWrappedLongitudeState initSingle() {
+        return new SpatialExtentStateWrappedLongitudeState();
     }
 
-    public static StExtentGroupingStateWrappedLongitudeState initGrouping() {
-        return new StExtentGroupingStateWrappedLongitudeState();
+    public static SpatialExtentGroupingStateWrappedLongitudeState initGrouping() {
+        return new SpatialExtentGroupingStateWrappedLongitudeState();
     }
 
-    public static void combine(StExtentStateWrappedLongitudeState current, BytesRef bytes) {
+    public static void combine(SpatialExtentStateWrappedLongitudeState current, BytesRef bytes) {
         current.add(SpatialAggregationUtils.decode(bytes));
     }
 
-    public static void combine(StExtentGroupingStateWrappedLongitudeState current, int groupId, BytesRef bytes) {
+    public static void combine(SpatialExtentGroupingStateWrappedLongitudeState current, int groupId, BytesRef bytes) {
         current.add(groupId, SpatialAggregationUtils.decode(bytes));
     }
 }

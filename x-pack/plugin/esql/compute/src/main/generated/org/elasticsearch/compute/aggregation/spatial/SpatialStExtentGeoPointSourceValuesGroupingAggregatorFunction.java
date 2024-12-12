@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialStExtentGeoPointSourceValuesAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentGeoPointSourceValuesAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -35,14 +35,14 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
       new IntermediateStateDesc("maxY", ElementType.INT),
       new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentGroupingStateWrappedLongitudeState state;
+  private final SpatialExtentGroupingStateWrappedLongitudeState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      StExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
+      SpatialExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -50,7 +50,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
 
   public static SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction(channels, SpatialStExtentGeoPointSourceValuesAggregator.initGrouping(), driverContext);
+    return new SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction(channels, SpatialExtentGeoPointSourceValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -114,7 +114,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialStExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        SpatialExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
       }
     }
   }
@@ -123,7 +123,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+      SpatialExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
@@ -143,7 +143,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          SpatialStExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+          SpatialExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
         }
       }
     }
@@ -159,7 +159,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        SpatialStExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        SpatialExtentGeoPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
   }
@@ -206,7 +206,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
     assert minNegX.getPositionCount() == minPosX.getPositionCount() && minNegX.getPositionCount() == maxNegX.getPositionCount() && minNegX.getPositionCount() == maxPosX.getPositionCount() && minNegX.getPositionCount() == maxY.getPositionCount() && minNegX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentGeoPointSourceValuesAggregator.combineIntermediate(state, groupId, minNegX.getInt(groupPosition + positionOffset), minPosX.getInt(groupPosition + positionOffset), maxNegX.getInt(groupPosition + positionOffset), maxPosX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
+      SpatialExtentGeoPointSourceValuesAggregator.combineIntermediate(state, groupId, minNegX.getInt(groupPosition + positionOffset), minPosX.getInt(groupPosition + positionOffset), maxNegX.getInt(groupPosition + positionOffset), maxPosX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -215,9 +215,9 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentGroupingStateWrappedLongitudeState inState = ((SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialStExtentGeoPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
+    SpatialExtentGeoPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -228,7 +228,7 @@ public final class SpatialStExtentGeoPointSourceValuesGroupingAggregatorFunction
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = SpatialStExtentGeoPointSourceValuesAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialExtentGeoPointSourceValuesAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

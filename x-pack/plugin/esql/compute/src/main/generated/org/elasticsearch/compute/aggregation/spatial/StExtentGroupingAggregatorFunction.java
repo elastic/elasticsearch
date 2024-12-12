@@ -25,21 +25,21 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link StExtentAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class StExtentGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("maxY", ElementType.DOUBLE)  );
 
-  private final StExtentGroupingState state;
+  private final SpatialExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StExtentGroupingAggregatorFunction(List<Integer> channels,
-                                            StExtentGroupingState state, DriverContext driverContext) {
+                                            SpatialExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -47,7 +47,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
 
   public static StExtentGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new StExtentGroupingAggregatorFunction(channels, StExtentAggregator.initGrouping(), driverContext);
+    return new StExtentGroupingAggregatorFunction(channels, SpatialExtentAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -111,7 +111,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        StExtentAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        SpatialExtentAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
       }
     }
   }
@@ -120,7 +120,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StExtentAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+      SpatialExtentAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
@@ -140,7 +140,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          StExtentAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+          SpatialExtentAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
         }
       }
     }
@@ -156,7 +156,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StExtentAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        SpatialExtentAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
   }
@@ -177,7 +177,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
     DoubleVector maxY = ((DoubleBlock) maxYUncast).asVector();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StExtentAggregator.combineIntermediate(state, groupId, maxY.getDouble(groupPosition + positionOffset));
+      SpatialExtentAggregator.combineIntermediate(state, groupId, maxY.getDouble(groupPosition + positionOffset));
     }
   }
 
@@ -186,9 +186,9 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentGroupingState inState = ((StExtentGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingState inState = ((StExtentGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    StExtentAggregator.combineStates(state, groupId, inState, position);
+    SpatialExtentAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -199,7 +199,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = StExtentAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialExtentAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

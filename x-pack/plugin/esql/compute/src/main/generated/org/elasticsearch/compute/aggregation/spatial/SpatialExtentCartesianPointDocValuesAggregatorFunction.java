@@ -9,24 +9,23 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialExtentCartesianShapeAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialExtentCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialStExtentCartesianShapeAggregatorFunction implements AggregatorFunction {
+public final class SpatialExtentCartesianPointDocValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("minX", ElementType.INT),
       new IntermediateStateDesc("maxX", ElementType.INT),
@@ -39,16 +38,16 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
 
   private final List<Integer> channels;
 
-  public SpatialStExtentCartesianShapeAggregatorFunction(DriverContext driverContext,
+  public SpatialExtentCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, SpatialExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialStExtentCartesianShapeAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SpatialStExtentCartesianShapeAggregatorFunction(driverContext, channels, SpatialExtentCartesianShapeAggregator.initSingle());
+  public static SpatialExtentCartesianPointDocValuesAggregatorFunction create(
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialExtentCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialExtentCartesianPointDocValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -68,8 +67,8 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
     }
     if (mask.allTrue()) {
       // No masking
-      BytesRefBlock block = page.getBlock(channels.get(0));
-      BytesRefVector vector = block.asVector();
+      LongBlock block = page.getBlock(channels.get(0));
+      LongVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
@@ -78,8 +77,8 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
       return;
     }
     // Some positions masked away, others kept
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
+    LongBlock block = page.getBlock(channels.get(0));
+    LongVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector, mask);
     } else {
@@ -87,25 +86,22 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
+  private void addRawVector(LongVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialExtentCartesianShapeAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialExtentCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
     }
   }
 
-  private void addRawVector(BytesRefVector vector, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
+  private void addRawVector(LongVector vector, BooleanVector mask) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      SpatialExtentCartesianShapeAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialExtentCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
+  private void addRawBlock(LongBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -113,13 +109,12 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialExtentCartesianShapeAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
       }
     }
   }
 
-  private void addRawBlock(BytesRefBlock block, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
+  private void addRawBlock(LongBlock block, BooleanVector mask) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -130,7 +125,7 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialExtentCartesianShapeAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -163,7 +158,7 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
     assert minY.getPositionCount() == 1;
-    SpatialExtentCartesianShapeAggregator.combineIntermediate(state, minX.getInt(0), maxX.getInt(0), maxY.getInt(0), minY.getInt(0));
+    SpatialExtentCartesianPointDocValuesAggregator.combineIntermediate(state, minX.getInt(0), maxX.getInt(0), maxY.getInt(0), minY.getInt(0));
   }
 
   @Override
@@ -173,7 +168,7 @@ public final class SpatialStExtentCartesianShapeAggregatorFunction implements Ag
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialExtentCartesianShapeAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialExtentCartesianPointDocValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

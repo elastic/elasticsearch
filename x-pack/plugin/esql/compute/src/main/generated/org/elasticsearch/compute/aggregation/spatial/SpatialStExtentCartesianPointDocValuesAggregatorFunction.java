@@ -22,7 +22,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialStExtentCartesianPointDocValuesAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialExtentCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction implements AggregatorFunction {
@@ -34,12 +34,12 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
 
   private final DriverContext driverContext;
 
-  private final StExtentState state;
+  private final SpatialExtentState state;
 
   private final List<Integer> channels;
 
   public SpatialStExtentCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, StExtentState state) {
+      List<Integer> channels, SpatialExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -47,7 +47,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
 
   public static SpatialStExtentCartesianPointDocValuesAggregatorFunction create(
       DriverContext driverContext, List<Integer> channels) {
-    return new SpatialStExtentCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialStExtentCartesianPointDocValuesAggregator.initSingle());
+    return new SpatialStExtentCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialExtentCartesianPointDocValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -88,7 +88,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
 
   private void addRawVector(LongVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialStExtentCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
+      SpatialExtentCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
     }
   }
 
@@ -97,7 +97,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      SpatialStExtentCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
+      SpatialExtentCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
     }
   }
 
@@ -109,7 +109,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialStExtentCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -125,7 +125,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialStExtentCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -158,7 +158,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
     assert minY.getPositionCount() == 1;
-    SpatialStExtentCartesianPointDocValuesAggregator.combineIntermediate(state, minX.getInt(0), maxX.getInt(0), maxY.getInt(0), minY.getInt(0));
+    SpatialExtentCartesianPointDocValuesAggregator.combineIntermediate(state, minX.getInt(0), maxX.getInt(0), maxY.getInt(0), minY.getInt(0));
   }
 
   @Override
@@ -168,7 +168,7 @@ public final class SpatialStExtentCartesianPointDocValuesAggregatorFunction impl
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialStExtentCartesianPointDocValuesAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialExtentCartesianPointDocValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

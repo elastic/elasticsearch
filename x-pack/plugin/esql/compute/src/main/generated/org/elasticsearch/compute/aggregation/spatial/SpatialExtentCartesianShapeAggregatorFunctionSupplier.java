@@ -15,26 +15,26 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentCartesianShapeAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialStExtentCartesianShapeAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SpatialExtentCartesianShapeAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
-  public SpatialStExtentCartesianShapeAggregatorFunctionSupplier(List<Integer> channels) {
+  public SpatialExtentCartesianShapeAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public SpatialStExtentCartesianShapeAggregatorFunction aggregator(DriverContext driverContext) {
-    return SpatialStExtentCartesianShapeAggregatorFunction.create(driverContext, channels);
+  public SpatialExtentCartesianShapeAggregatorFunction aggregator(DriverContext driverContext) {
+    return SpatialExtentCartesianShapeAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialStExtentCartesianShapeGroupingAggregatorFunction groupingAggregator(
+  public SpatialExtentCartesianShapeGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
-    return SpatialStExtentCartesianShapeGroupingAggregatorFunction.create(channels, driverContext);
+    return SpatialExtentCartesianShapeGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "spatial_st_extent_cartesian of shapes";
+    return "spatial_extent_cartesian of shapes";
   }
 }

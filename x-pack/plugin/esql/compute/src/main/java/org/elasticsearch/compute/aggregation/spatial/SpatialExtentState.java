@@ -17,7 +17,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 import java.nio.ByteOrder;
 
-final class StExtentState implements AggregatorState {
+final class SpatialExtentState implements AggregatorState {
     private final PointType pointType;
     private boolean seen = false;
     private int minX = Integer.MAX_VALUE;
@@ -25,7 +25,7 @@ final class StExtentState implements AggregatorState {
     private int maxY = Integer.MIN_VALUE;
     private int minY = Integer.MAX_VALUE;
 
-    StExtentState(PointType pointType) {
+    SpatialExtentState(PointType pointType) {
         this.pointType = pointType;
     }
 

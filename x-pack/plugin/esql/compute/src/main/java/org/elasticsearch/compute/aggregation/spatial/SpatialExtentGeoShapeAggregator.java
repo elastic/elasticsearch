@@ -7,13 +7,14 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 /**
- * Computes the extent of a set of geo points. It is assumed the points are encoded as longs.
- * This requires that the planner has planned that points are loaded from the index as doc-values.
+ * Computes the extent of a set of geo shapes. It is assumed that the geo shapes are encoded as WKB BytesRef.
+ * We do not currently support reading shape values or extents from doc values.
  */
 @Aggregator(
     {
@@ -25,21 +26,21 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialStExtentGeoPointDocValuesAggregator extends StExtentLongitudeWrappingAggregator {
+class SpatialExtentGeoShapeAggregator extends SpatialExtentLongitudeWrappingAggregator {
     // TODO support non-longitude wrapped geo shapes.
-    public static StExtentStateWrappedLongitudeState initSingle() {
-        return new StExtentStateWrappedLongitudeState();
+    public static SpatialExtentStateWrappedLongitudeState initSingle() {
+        return new SpatialExtentStateWrappedLongitudeState();
     }
 
-    public static StExtentGroupingStateWrappedLongitudeState initGrouping() {
-        return new StExtentGroupingStateWrappedLongitudeState();
+    public static SpatialExtentGroupingStateWrappedLongitudeState initGrouping() {
+        return new SpatialExtentGroupingStateWrappedLongitudeState();
     }
 
-    public static void combine(StExtentStateWrappedLongitudeState current, long encoded) {
-        current.add(encoded);
+    public static void combine(SpatialExtentStateWrappedLongitudeState current, BytesRef bytes) {
+        current.add(SpatialAggregationUtils.decode(bytes));
     }
 
-    public static void combine(StExtentGroupingStateWrappedLongitudeState current, int groupId, long encoded) {
-        current.add(groupId, encoded);
+    public static void combine(SpatialExtentGroupingStateWrappedLongitudeState current, int groupId, BytesRef bytes) {
+        current.add(groupId, SpatialAggregationUtils.decode(bytes));
     }
 }

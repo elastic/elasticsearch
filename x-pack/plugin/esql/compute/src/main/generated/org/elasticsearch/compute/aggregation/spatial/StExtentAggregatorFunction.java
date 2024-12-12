@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link StExtentAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialExtentAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class StExtentAggregatorFunction implements AggregatorFunction {
@@ -32,12 +32,12 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
 
   private final DriverContext driverContext;
 
-  private final StExtentState state;
+  private final SpatialExtentState state;
 
   private final List<Integer> channels;
 
   public StExtentAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StExtentState state) {
+      SpatialExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -45,7 +45,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
 
   public static StExtentAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new StExtentAggregatorFunction(driverContext, channels, StExtentAggregator.initSingle());
+    return new StExtentAggregatorFunction(driverContext, channels, SpatialExtentAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -87,7 +87,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
   private void addRawVector(BytesRefVector vector) {
     BytesRef scratch = new BytesRef();
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      StExtentAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialExtentAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
@@ -97,7 +97,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      StExtentAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialExtentAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
@@ -110,7 +110,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StExtentAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialExtentAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -127,7 +127,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StExtentAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialExtentAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -142,7 +142,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
     }
     DoubleVector maxY = ((DoubleBlock) maxYUncast).asVector();
     assert maxY.getPositionCount() == 1;
-    StExtentAggregator.combineIntermediate(state, maxY.getDouble(0));
+    SpatialExtentAggregator.combineIntermediate(state, maxY.getDouble(0));
   }
 
   @Override
@@ -152,7 +152,7 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = StExtentAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialExtentAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

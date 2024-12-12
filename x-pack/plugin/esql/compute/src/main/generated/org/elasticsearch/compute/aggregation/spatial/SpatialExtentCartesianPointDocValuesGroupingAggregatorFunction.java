@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("minX", ElementType.INT),
       new IntermediateStateDesc("maxX", ElementType.INT),
@@ -38,16 +38,16 @@ public final class SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunct
 
   private final DriverContext driverContext;
 
-  public SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
-                                                                          SpatialExtentGroupingState state, DriverContext driverContext) {
+  public SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
+      SpatialExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction create(
+  public static SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction(channels, SpatialExtentCartesianPointDocValuesAggregator.initGrouping(), driverContext);
+    return new SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction(channels, SpatialExtentCartesianPointDocValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -198,7 +198,7 @@ public final class SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunct
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    SpatialExtentGroupingState inState = ((SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingState inState = ((SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialExtentCartesianPointDocValuesAggregator.combineStates(state, groupId, inState, position);
   }

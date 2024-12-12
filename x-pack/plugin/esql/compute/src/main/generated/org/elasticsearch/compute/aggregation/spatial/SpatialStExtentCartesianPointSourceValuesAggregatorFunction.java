@@ -35,12 +35,12 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
 
   private final DriverContext driverContext;
 
-  private final StExtentState state;
+  private final SpatialExtentState state;
 
   private final List<Integer> channels;
 
   public SpatialStExtentCartesianPointSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, StExtentState state) {
+      List<Integer> channels, SpatialExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

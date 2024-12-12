@@ -12,7 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialStExtentCartesianPointDocValuesAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {

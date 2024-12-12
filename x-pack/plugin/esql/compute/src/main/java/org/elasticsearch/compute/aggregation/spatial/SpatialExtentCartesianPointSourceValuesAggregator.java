@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * Computes the extent of a set of cartesian points. It is assumed that the cartesian points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianPointDocValuesAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialExtentCartesianPointDocValuesAggregator}.
  */
 @Aggregator(
     {
@@ -26,20 +26,20 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialStExtentCartesianPointSourceValuesAggregator extends StExtentAggregator {
-    public static StExtentState initSingle() {
-        return new StExtentState(PointType.CARTESIAN);
+class SpatialExtentCartesianPointSourceValuesAggregator extends SpatialExtentAggregator {
+    public static SpatialExtentState initSingle() {
+        return new SpatialExtentState(PointType.CARTESIAN);
     }
 
-    public static StExtentGroupingState initGrouping() {
-        return new StExtentGroupingState(PointType.CARTESIAN);
+    public static SpatialExtentGroupingState initGrouping() {
+        return new SpatialExtentGroupingState(PointType.CARTESIAN);
     }
 
-    public static void combine(StExtentState current, BytesRef bytes) {
+    public static void combine(SpatialExtentState current, BytesRef bytes) {
         current.add(SpatialAggregationUtils.decode(bytes));
     }
 
-    public static void combine(StExtentGroupingState current, int groupId, BytesRef bytes) {
+    public static void combine(SpatialExtentGroupingState current, int groupId, BytesRef bytes) {
         current.add(groupId, SpatialAggregationUtils.decode(bytes));
     }
 }

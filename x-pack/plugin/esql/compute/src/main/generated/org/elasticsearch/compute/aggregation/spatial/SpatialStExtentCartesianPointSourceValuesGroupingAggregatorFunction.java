@@ -33,14 +33,14 @@ public final class SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFu
       new IntermediateStateDesc("maxY", ElementType.INT),
       new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentGroupingState state;
+  private final SpatialExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      StExtentGroupingState state, DriverContext driverContext) {
+                                                                             SpatialExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -203,7 +203,7 @@ public final class SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFu
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentGroupingState inState = ((SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingState inState = ((SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialStExtentCartesianPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
   }

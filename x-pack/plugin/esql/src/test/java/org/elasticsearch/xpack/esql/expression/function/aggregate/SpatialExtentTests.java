@@ -33,8 +33,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 @FunctionName("st_extent_agg")
-public class SpatialStExtentTests extends AbstractAggregationTestCase {
-    public SpatialStExtentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class SpatialExtentTests extends AbstractAggregationTestCase {
+    public SpatialExtentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -45,7 +45,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO),
             MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO)
-        ).flatMap(List::stream).map(SpatialStExtentTests::makeSupplier).toList();
+        ).flatMap(List::stream).map(SpatialExtentTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
         // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
@@ -54,7 +54,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new SpatialStExtent(source, args.get(0));
+        return new SpatialExtent(source, args.get(0));
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -80,7 +80,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
             Rectangle result = pointVisitor.getResult();
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "SpatialStExtent[field=Attribute[channel=0]]",
+                "SpatialExtent[field=Attribute[channel=0]]",
                 expectedType,
                 new WellKnownBinaryBytesRefMatcher<>(
                     RectangleMatcher.closeTo(

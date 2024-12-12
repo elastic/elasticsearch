@@ -36,12 +36,12 @@ public final class SpatialStExtentGeoPointDocValuesAggregatorFunction implements
 
   private final DriverContext driverContext;
 
-  private final StExtentStateWrappedLongitudeState state;
+  private final SpatialExtentStateWrappedLongitudeState state;
 
   private final List<Integer> channels;
 
   public SpatialStExtentGeoPointDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, StExtentStateWrappedLongitudeState state) {
+      List<Integer> channels, SpatialExtentStateWrappedLongitudeState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

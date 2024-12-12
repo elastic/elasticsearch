@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialStExtent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
@@ -78,7 +78,7 @@ final class AggregateMapper {
         Min.class,
         Percentile.class,
         SpatialCentroid.class,
-        SpatialStExtent.class,
+        SpatialExtent.class,
         StdDev.class,
         Sum.class,
         Values.class,
@@ -179,7 +179,7 @@ final class AggregateMapper {
         } else if (clazz == SpatialCentroid.class) {
             types = List.of("GeoPoint", "CartesianPoint");
             extraConfigs = SPATIAL_EXTRA_CONFIGS;
-        } else if (clazz == SpatialStExtent.class) {
+        } else if (clazz == SpatialExtent.class) {
             return Stream.concat(
                 combine(clazz, List.of("GeoPoint", "CartesianPoint"), SPATIAL_EXTRA_CONFIGS),
                 combine(clazz, List.of("GeoShape", "CartesianShape"), List.of(""))

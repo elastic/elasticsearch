@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialStExtentCartesianShapeAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentCartesianShapeAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -33,14 +33,14 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
       new IntermediateStateDesc("maxY", ElementType.INT),
       new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentGroupingState state;
+  private final SpatialExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentCartesianShapeGroupingAggregatorFunction(List<Integer> channels,
-      StExtentGroupingState state, DriverContext driverContext) {
+      SpatialExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -48,7 +48,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
 
   public static SpatialStExtentCartesianShapeGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialStExtentCartesianShapeGroupingAggregatorFunction(channels, SpatialStExtentCartesianShapeAggregator.initGrouping(), driverContext);
+    return new SpatialStExtentCartesianShapeGroupingAggregatorFunction(channels, SpatialExtentCartesianShapeAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -112,7 +112,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialStExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        SpatialExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
       }
     }
   }
@@ -121,7 +121,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+      SpatialExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
@@ -141,7 +141,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          SpatialStExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+          SpatialExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
         }
       }
     }
@@ -157,7 +157,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        SpatialStExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        SpatialExtentCartesianShapeAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
   }
@@ -194,7 +194,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
     assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentCartesianShapeAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
+      SpatialExtentCartesianShapeAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -203,9 +203,9 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentGroupingState inState = ((SpatialStExtentCartesianShapeGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingState inState = ((SpatialStExtentCartesianShapeGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialStExtentCartesianShapeAggregator.combineStates(state, groupId, inState, position);
+    SpatialExtentCartesianShapeAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -216,7 +216,7 @@ public final class SpatialStExtentCartesianShapeGroupingAggregatorFunction imple
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = SpatialStExtentCartesianShapeAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialExtentCartesianShapeAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

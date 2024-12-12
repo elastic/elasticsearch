@@ -13,9 +13,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 // A bit of abuse of notation here, since we're extending this class to "inherit" its static methods.
 // Unfortunately, this is the way it has to be done, since the generated code invokes these methods statically.
-abstract class StExtentLongitudeWrappingAggregator {
+abstract class SpatialExtentLongitudeWrappingAggregator {
     public static void combineIntermediate(
-        StExtentStateWrappedLongitudeState current,
+        SpatialExtentStateWrappedLongitudeState current,
         int minNegX,
         int minPosX,
         int maxNegX,
@@ -27,7 +27,7 @@ abstract class StExtentLongitudeWrappingAggregator {
     }
 
     public static void combineIntermediate(
-        StExtentGroupingStateWrappedLongitudeState current,
+        SpatialExtentGroupingStateWrappedLongitudeState current,
         int groupId,
         int minNegX,
         int minPosX,
@@ -39,18 +39,22 @@ abstract class StExtentLongitudeWrappingAggregator {
         current.add(groupId, minNegX, minPosX, maxNegX, maxPosX, maxY, minY);
     }
 
-    public static Block evaluateFinal(StExtentStateWrappedLongitudeState state, DriverContext driverContext) {
+    public static Block evaluateFinal(SpatialExtentStateWrappedLongitudeState state, DriverContext driverContext) {
         return state.toBlock(driverContext);
     }
 
-    public static Block evaluateFinal(StExtentGroupingStateWrappedLongitudeState state, IntVector selected, DriverContext driverContext) {
+    public static Block evaluateFinal(
+        SpatialExtentGroupingStateWrappedLongitudeState state,
+        IntVector selected,
+        DriverContext driverContext
+    ) {
         return state.toBlock(selected, driverContext);
     }
 
     public static void combineStates(
-        StExtentGroupingStateWrappedLongitudeState current,
+        SpatialExtentGroupingStateWrappedLongitudeState current,
         int groupId,
-        StExtentGroupingStateWrappedLongitudeState inState,
+        SpatialExtentGroupingStateWrappedLongitudeState inState,
         int inPosition
     ) {
         current.add(groupId, inState, inPosition);

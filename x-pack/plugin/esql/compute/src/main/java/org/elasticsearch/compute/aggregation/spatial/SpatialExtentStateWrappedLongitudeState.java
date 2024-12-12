@@ -17,7 +17,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 import java.nio.ByteOrder;
 
-final class StExtentStateWrappedLongitudeState implements AggregatorState {
+final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
     // Only geo points support longitude wrapping.
     private static final PointType POINT_TYPE = PointType.GEO;
     private boolean seen = false;

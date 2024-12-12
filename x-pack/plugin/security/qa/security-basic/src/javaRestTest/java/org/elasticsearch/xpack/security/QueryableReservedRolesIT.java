@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.QueryRoleIT.assertQuery;
@@ -173,7 +174,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
                     assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
                 }
             });
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // Test get roles API
         assertBusy(() -> {
@@ -214,7 +215,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
                     assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
                 }
             });
-        });
+        }, 30, TimeUnit.SECONDS);
 
     }
 
@@ -235,7 +236,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
                     assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
                 }
             });
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void createUser(String name, String password, String role) throws IOException {

@@ -114,7 +114,7 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_8_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

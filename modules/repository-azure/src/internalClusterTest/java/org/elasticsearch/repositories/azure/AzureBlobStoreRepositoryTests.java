@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -135,6 +136,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+            .put(AzureClientProvider.EVENT_LOOP_THREAD_COUNT.getKey(), randomIntBetween(1, 3))
+            .put(AzureClientProvider.MAX_OPEN_CONNECTIONS.getKey(), randomIntBetween(10, 30))
+            .put(AzureClientProvider.MAX_IDLE_TIME.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
+            .put(AzureClientProvider.OPEN_CONNECTION_TIMEOUT.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .setSecureSettings(secureSettings)
             .build();
     }

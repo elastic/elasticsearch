@@ -682,7 +682,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (streamFactory == null) {
                     for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
                         for (SparseFileTracker.Gap gap : gapsToFetch.v2().gaps()) {
-                            fetchExecutor.execute(gapsToFetch.v1().fillGapRunnable(gap, writer, null, regionsListener.acquire()));
+                            int offset = Math.toIntExact(gapsToFetch.v2().regionOffset());
+                            fetchExecutor.execute(gapsToFetch.v1().fillGapRunnable(offset, gap, writer, null, regionsListener.acquire()));
                         }
                     }
                 } else {
@@ -694,7 +695,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     ) {
                         ArrayList<Runnable> gapFillingTasks = new ArrayList<>();
                         for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
-                            int offset = (gapsToFetch.v1().regionKey.region() - firstRegion) * regionSize;
+                            int offset = Math.toIntExact(gapsToFetch.v2().regionOffset());
                             gapFillingTasks.addAll(
                                 gapsToFetch.v1()
                                     .gapFillingTasks(offset, writer, sequentialGapsListener, streamFactory, gapsToFetch.v2().gaps())

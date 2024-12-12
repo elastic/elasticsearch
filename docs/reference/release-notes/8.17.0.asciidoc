@@ -16,7 +16,7 @@ Starting with this release, the <<synthetic-source,synthetic `_source`>> feature
 
 If you are using these capabilities and do not have an Enterprise license, the change will result in increased storage requirements for new data, as the synthetic `_source` setting will be ignored. Existing indices that used synthetic `_source` will remain seamlessly accessible. 
 
-Refer to the subscription page for https://www.elastic.co/subscriptions/cloud[Elastic Cloud] and https://www.elastic.co/subscriptions[Elastic Stack/self-managed] for the breakdown of available features and their associated subscription tiers. For further details and subscription options, contact your Elastic sales representative or https://www.elastic.co/contact[contact us]. 
+Refer to the subscription page for https://www.elastic.co/subscriptions/cloud[Elastic Cloud] and {subscriptions}[Elastic Stack/self-managed] for the breakdown of available features and their associated subscription tiers. For further details and subscription options, contact your Elastic sales representative or https://www.elastic.co/contact[contact us]. 
 
 [[bug-8.17.0]]
 [float]

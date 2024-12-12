@@ -85,6 +85,23 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 10003          | 4                     | german                |                        8
 ;
 
+sortEvalBeforeLookup
+required_capability: join_lookup_v5
+
+FROM employees
+| SORT emp_no
+| EVAL language_code = (emp_no % 10) + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| LIMIT 3
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 3                     | Spanish
+10003          | 4                     | German
+;
+
 lookupIPFromRow
 required_capability: join_lookup_v5
 
@@ -324,21 +341,4 @@ count:long | type:keyword
 3          | Error
 3          | Success
 1          | Disconnected
-;
-
-sortEvalBeforeLookup
-required_capability: join_lookup_v5
-
-FROM employees
-| SORT emp_no
-| EVAL language_code = (emp_no % 10) + 1
-| LOOKUP JOIN languages_lookup ON language_code
-| KEEP emp_no, language_code, language_name
-| LIMIT 3
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10001          | 2                     | French
-10002          | 3                     | Spanish
-10003          | 4                     | German
 ;

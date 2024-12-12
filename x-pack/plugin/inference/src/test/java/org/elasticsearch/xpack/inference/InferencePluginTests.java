@@ -41,11 +41,10 @@ public class InferencePluginTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        // set default value for elasticInferenceServiceEnabled
-        setElasticInferenceServiceEnabled(true);
     }
 
     public void testElasticInferenceServiceSettingsPresent() throws Exception {
+        setElasticInferenceServiceEnabled(true); // enable elastic inference service
         boolean anyMatch = inferencePlugin.getSettings()
             .stream()
             .map(Setting::getKey)

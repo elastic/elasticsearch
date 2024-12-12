@@ -55,7 +55,7 @@ public class HttpClientManager implements Closeable {
 
     /**
      * The max number of connections a single route can lease.
-     * This configuration applies to each instance of HttpClientManager
+     * This configuration applies to each instance of HttpClientManager.
      */
     public static final Setting<Integer> MAX_ROUTE_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_route_connections",

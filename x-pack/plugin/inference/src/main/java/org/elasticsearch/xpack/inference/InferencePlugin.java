@@ -236,7 +236,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         inferenceServices.add(this::getInferenceServiceFactories);
 
         if (isElasticInferenceServiceEnabled()) {
-            // Create a new HTTPClientManager with its own configuration, including the connection pool.
+            // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
             var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
                 settings,
                 services.threadPool(),
@@ -391,7 +391,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
 
-        // Do not register Elastic Inference Service settings if the feature is disabled.
+        // Register Elastic Inference Service settings definitions if the corresponding feature flag is enabled.
         if (isElasticInferenceServiceEnabled()) {
             settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         }

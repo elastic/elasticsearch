@@ -53,6 +53,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
 
         final Function<UpdateSettingsClusterStateUpdateRequest.OnStaticSetting, UpdateSettingsClusterStateUpdateRequest> requestFactory =
             onStaticSetting -> new UpdateSettingsClusterStateUpdateRequest(
+                Metadata.DEFAULT_PROJECT_ID,
                 TEST_REQUEST_TIMEOUT,
                 TimeValue.ZERO,
                 Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build(),
@@ -134,6 +135,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
 
         final Function<Settings.Builder, UpdateSettingsClusterStateUpdateRequest> requestFactory =
             settings -> new UpdateSettingsClusterStateUpdateRequest(
+                Metadata.DEFAULT_PROJECT_ID,
                 TEST_REQUEST_TIMEOUT,
                 TimeValue.ZERO,
                 settings.build(),

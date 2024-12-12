@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +52,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
     private final MetadataUpdateSettingsService updateSettingsService;
     private final SystemIndices systemIndices;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateSettingsAction(
@@ -59,6 +61,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         ThreadPool threadPool,
         MetadataUpdateSettingsService updateSettingsService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
@@ -73,6 +76,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.projectResolver = projectResolver;
         this.systemIndices = systemIndices;
     }
 
@@ -126,6 +130,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
         updateSettingsService.updateSettings(
             new UpdateSettingsClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
                 requestSettings,

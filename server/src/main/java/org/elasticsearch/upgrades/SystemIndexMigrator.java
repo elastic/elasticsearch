@@ -37,6 +37,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -544,11 +545,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     /**
      * Makes the index readonly if it's not set as a readonly yet
      */
+    @FixForMultiProject(description = "Don't use default project id to update settings")
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
 
         metadataUpdateSettingsService.updateSettings(
             new UpdateSettingsClusterStateUpdateRequest(
+                Metadata.DEFAULT_PROJECT_ID,
                 MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                 TimeValue.ZERO,
                 readOnlySettings,

@@ -66,4 +66,12 @@ public class TestIndexNameExpressionResolver {
     public static IndexNameExpressionResolver newInstance(ThreadContext threadContext, SystemIndices systemIndices) {
         return new IndexNameExpressionResolver(threadContext, systemIndices, TestProjectResolvers.usingRequestHeader(threadContext));
     }
+
+    /**
+     * @return a new instance of a {@link IndexNameExpressionResolver} that has been created with a new {@link ThreadContext},
+     * the provided {@link SystemIndices} instance, and the provided {@link ProjectResolver}
+     */
+    public static IndexNameExpressionResolver newInstance(SystemIndices systemIndices, ProjectResolver projectResolver) {
+        return new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), systemIndices, projectResolver);
+    }
 }

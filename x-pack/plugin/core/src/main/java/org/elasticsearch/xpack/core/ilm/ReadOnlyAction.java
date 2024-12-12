@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -72,7 +71,7 @@ public class ReadOnlyAction implements LifecycleAction {
             client
         );
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, nextStepKey, client);
-        return Arrays.asList(checkNotWriteIndexStep, waitUntilTimeSeriesEndTimeStep, readOnlyStep);
+        return List.of(checkNotWriteIndexStep, waitUntilTimeSeriesEndTimeStep, readOnlyStep);
     }
 
     @Override

@@ -35,7 +35,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
     private final String prefix;
 
-    private record CheckAction(Runnable action, boolean isServerOnly) {
+    private record CheckAction(Runnable action, boolean deniedInPlugins) {
 
         static CheckAction serverOnly(Runnable action) {
             return new CheckAction(action, true);
@@ -48,7 +48,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
         entry("system_exit", CheckAction.serverOnly(RestEntitlementsCheckAction::systemExit)),
-        entry("create_classloader", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::createClassLoader))
+        entry("create_classloader", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::createClassLoader)),
+        entry("set_https_connection_properties", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::setHttpsConnectionProperties))
     );
 
     @SuppressForbidden(reason = "Specifically testing System.exit")
@@ -66,14 +67,20 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
+    private static void setHttpsConnectionProperties() {
+        logger.info("Calling setSSLSocketFactory");
+        var connection = new TestHttpsURLConnection();
+        connection.setSSLSocketFactory(new TestSSLSocketFactory());
+    }
+
     public RestEntitlementsCheckAction(String prefix) {
         this.prefix = prefix;
     }
 
-    public static Set<String> getServerAndPluginsCheckActions() {
+    public static Set<String> getCheckActionsAllowedInPlugins() {
         return checkActions.entrySet()
             .stream()
-            .filter(kv -> kv.getValue().isServerOnly() == false)
+            .filter(kv -> kv.getValue().deniedInPlugins() == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
     }

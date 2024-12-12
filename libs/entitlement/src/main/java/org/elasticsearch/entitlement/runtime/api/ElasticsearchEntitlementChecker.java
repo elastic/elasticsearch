@@ -15,6 +15,9 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
+
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
  * API methods for managing the checks.
@@ -61,5 +64,10 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         URLStreamHandlerFactory factory
     ) {
         policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection connection, SSLSocketFactory sf) {
+        policyManager.checkSetHttpsConnectionProperties(callerClass);
     }
 }

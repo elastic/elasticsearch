@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
@@ -91,6 +92,7 @@ import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
+import org.elasticsearch.xpack.ccr.rest.RestShardChangesAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
@@ -121,6 +123,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTING;
@@ -272,25 +276,24 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        return Arrays.asList(
-            // stats API
-            new RestFollowStatsAction(),
-            new RestCcrStatsAction(),
-            new RestFollowInfoAction(),
-            // follow APIs
-            new RestPutFollowAction(),
-            new RestResumeFollowAction(),
-            new RestPauseFollowAction(),
-            new RestUnfollowAction(),
-            // auto-follow APIs
-            new RestDeleteAutoFollowPatternAction(),
-            new RestPutAutoFollowPatternAction(),
-            new RestGetAutoFollowPatternAction(),
-            new RestPauseAutoFollowPatternAction(),
-            new RestResumeAutoFollowPatternAction(),
-            // forget follower API
-            new RestForgetFollowerAction()
-        );
+        return Stream.concat(
+            Stream.of(
+                new RestFollowStatsAction(),
+                new RestCcrStatsAction(),
+                new RestFollowInfoAction(),
+                new RestPutFollowAction(),
+                new RestResumeFollowAction(),
+                new RestPauseFollowAction(),
+                new RestUnfollowAction(),
+                new RestDeleteAutoFollowPatternAction(),
+                new RestPutAutoFollowPatternAction(),
+                new RestGetAutoFollowPatternAction(),
+                new RestPauseAutoFollowPatternAction(),
+                new RestResumeAutoFollowPatternAction(),
+                new RestForgetFollowerAction()
+            ),
+            Build.current().isSnapshot() ? Stream.of(new RestShardChangesAction()) : Stream.empty()
+        ).collect(Collectors.toList());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

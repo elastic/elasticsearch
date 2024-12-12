@@ -1212,6 +1212,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Generate a random string containing only alphanumeric characters.
+     * <b>The locale for the string is {@link Locale#ROOT}.</b>
      * @param length the length of the string to generate
      * @return the generated string
      */

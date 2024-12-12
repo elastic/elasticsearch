@@ -1,0 +1,6 @@
+pr: 118555
+summary: "[9.0] Remove unsupported value for the query param `wait_for_active_shards`\
+  \ in close API"
+area: Indices APIs
+type: upgrade
+issues: []

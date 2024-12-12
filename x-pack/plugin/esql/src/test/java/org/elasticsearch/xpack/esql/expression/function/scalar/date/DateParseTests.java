@@ -46,7 +46,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -59,7 +59,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("dd/MMM/yyyy:HH:mm:ss Z"), DataType.KEYWORD, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("12/Jul/2022:10:24:10 +0900"), DataType.KEYWORD, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1657589050000L)
                     )
@@ -72,7 +72,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -85,7 +85,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -98,7 +98,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -111,7 +111,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
 
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         is(nullValue())
                     ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
@@ -131,7 +131,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataType.KEYWORD, "second")
 
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         is(nullValue())
                     ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")

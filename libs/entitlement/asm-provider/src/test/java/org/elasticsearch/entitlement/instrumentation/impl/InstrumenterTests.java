@@ -389,7 +389,7 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     private void assertCtorThrows(TestLoader loader, Constructor<?> ctor, Object... args) {
-        Constructor testCtor = loader.getSameConstructor(ctor);
+        Constructor<?> testCtor = loader.getSameConstructor(ctor);
         TestEntitlementCheckerHolder.checkerInstance.isActive = true;
         expectThrows(TestException.class, () -> {
             try {

@@ -157,7 +157,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private static DateFormatter toFormatter(Object format, ZoneId zone) {
-        return forPattern(((BytesRef) format).utf8ToString()).withZone(zone);
+        return forPattern(((BytesRef) format).utf8ToString());
     }
 
     @Override

@@ -13,14 +13,17 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -48,19 +51,19 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "ku*")),
-            equalTo(newHashSet("kuku"))
+            equalTo(resolvedExpressionsSet("kuku"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "test*")),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXYY", "testYYY"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "testX*")),
-            equalTo(newHashSet("testXXX", "testXYY"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXYY"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "*")),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXYY", "testYYY", "kuku"))
         );
     }
 
@@ -81,7 +84,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "testX*")),
-            equalTo(newHashSet("testXXX", "testXXY", "testXYY"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXXY", "testXYY"))
         );
         context = new IndexNameExpressionResolver.Context(
             state,
@@ -90,7 +93,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "testX*")),
-            equalTo(newHashSet("testXYY"))
+            equalTo(resolvedExpressionsSet("testXYY"))
         );
         context = new IndexNameExpressionResolver.Context(
             state,
@@ -99,7 +102,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "testX*")),
-            equalTo(newHashSet("testXXX", "testXXY"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXXY"))
         );
     }
 
@@ -122,19 +125,19 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "test*X*")),
-            equalTo(newHashSet("testXXX", "testXXY", "testXYY"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXXY", "testXYY"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "test*X*Y")),
-            equalTo(newHashSet("testXXY", "testXYY"))
+            equalTo(resolvedExpressionsSet("testXXY", "testXYY"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "kuku*Y*")),
-            equalTo(newHashSet("kukuYYY"))
+            equalTo(resolvedExpressionsSet("kukuYYY"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "*Y*")),
-            equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY"))
+            equalTo(resolvedExpressionsSet("testXXY", "testXYY", "testYYY", "kukuYYY"))
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, "test*Y*X")).size(),
@@ -160,7 +163,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
         assertThat(
             newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+            equalTo(resolvedExpressionsSet("testXXX", "testXYY", "testYYY"))
         );
     }
 
@@ -202,7 +205,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             );
             assertThat(
                 newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-                equalTo(newHashSet("index-visible-alias"))
+                equalTo(resolvedExpressionsSet("index-visible-alias"))
             );
         }
     }
@@ -245,7 +248,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
             assertThat(
                 newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-                equalTo(newHashSet(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)))
+                equalTo(resolvedExpressionsSet(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)))
             );
         }
 
@@ -389,46 +392,53 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
 
         {
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 indicesAndAliasesContext,
                 "foo_a*"
             );
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index"));
+            assertThat(indices, containsInAnyOrder(new ResolvedExpression("foo_index"), new ResolvedExpression("bar_index")));
         }
         {
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 skipAliasesLenientContext,
                 "foo_a*"
             );
             assertEquals(0, indices.size());
         }
         {
-            Set<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Set<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 skipAliasesStrictContext,
                 "foo_a*"
             );
             assertThat(indices, empty());
         }
         {
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 indicesAndAliasesContext,
                 "foo*"
             );
-            assertThat(indices, containsInAnyOrder("foo_foo", "foo_index", "bar_index"));
+            assertThat(
+                indices,
+                containsInAnyOrder(
+                    new ResolvedExpression("foo_foo"),
+                    new ResolvedExpression("foo_index"),
+                    new ResolvedExpression("bar_index")
+                )
+            );
         }
         {
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 skipAliasesLenientContext,
                 "foo*"
             );
-            assertThat(indices, containsInAnyOrder("foo_foo", "foo_index"));
+            assertThat(indices, containsInAnyOrder(new ResolvedExpression("foo_foo"), new ResolvedExpression("foo_index")));
         }
         {
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 skipAliasesStrictContext,
                 "foo*"
             );
-            assertThat(indices, containsInAnyOrder("foo_foo", "foo_index"));
+            assertThat(indices, containsInAnyOrder(new ResolvedExpression("foo_foo"), new ResolvedExpression("foo_index")));
         }
     }
 
@@ -472,15 +482,22 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             );
 
             // data streams are not included but expression matches the data stream
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 indicesAndAliasesContext,
                 "foo_*"
             );
-            assertThat(indices, containsInAnyOrder("foo_index", "foo_foo", "bar_index"));
+            assertThat(
+                indices,
+                containsInAnyOrder(
+                    new ResolvedExpression("foo_index"),
+                    new ResolvedExpression("foo_foo"),
+                    new ResolvedExpression("bar_index")
+                )
+            );
 
             // data streams are not included and expression doesn't match the data steram
             indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(indicesAndAliasesContext, "bar_*");
-            assertThat(indices, containsInAnyOrder("bar_bar", "bar_index"));
+            assertThat(indices, containsInAnyOrder(new ResolvedExpression("bar_bar"), new ResolvedExpression("bar_index")));
         }
 
         {
@@ -506,18 +523,18 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             );
 
             // data stream's corresponding backing indices are resolved
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 indicesAliasesAndDataStreamsContext,
                 "foo_*"
             );
             assertThat(
                 indices,
                 containsInAnyOrder(
-                    "foo_index",
-                    "bar_index",
-                    "foo_foo",
-                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                    new ResolvedExpression("foo_index"),
+                    new ResolvedExpression("bar_index"),
+                    new ResolvedExpression("foo_foo"),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis))
                 )
             );
 
@@ -529,12 +546,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             assertThat(
                 indices,
                 containsInAnyOrder(
-                    "foo_index",
-                    "bar_index",
-                    "foo_foo",
-                    "bar_bar",
-                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                    new ResolvedExpression("foo_index"),
+                    new ResolvedExpression("bar_index"),
+                    new ResolvedExpression("foo_foo"),
+                    new ResolvedExpression("bar_bar"),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis))
                 )
             );
         }
@@ -563,18 +580,18 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             );
 
             // data stream's corresponding backing indices are resolved
-            Collection<String> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+            Collection<ResolvedExpression> indices = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
                 indicesAliasesDataStreamsAndHiddenIndices,
                 "foo_*"
             );
             assertThat(
                 indices,
                 containsInAnyOrder(
-                    "foo_index",
-                    "bar_index",
-                    "foo_foo",
-                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                    new ResolvedExpression("foo_index"),
+                    new ResolvedExpression("bar_index"),
+                    new ResolvedExpression("foo_foo"),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis))
                 )
             );
 
@@ -586,12 +603,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             assertThat(
                 indices,
                 containsInAnyOrder(
-                    "foo_index",
-                    "bar_index",
-                    "foo_foo",
-                    "bar_bar",
-                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                    new ResolvedExpression("foo_index"),
+                    new ResolvedExpression("bar_index"),
+                    new ResolvedExpression("foo_foo"),
+                    new ResolvedExpression("bar_bar"),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)),
+                    new ResolvedExpression(DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis))
                 )
             );
         }
@@ -623,17 +640,36 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             SystemIndexAccessLevel.NONE
         );
 
-        Collection<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
+        Collection<ResolvedExpression> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(
             indicesAndAliasesContext,
             "*"
         );
-        assertThat(matches, containsInAnyOrder("bar_bar", "foo_foo", "foo_index", "bar_index"));
+        assertThat(
+            matches,
+            containsInAnyOrder(
+                new ResolvedExpression("bar_bar"),
+                new ResolvedExpression("foo_foo"),
+                new ResolvedExpression("foo_index"),
+                new ResolvedExpression("bar_index")
+            )
+        );
         matches = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(onlyIndicesContext, "*");
-        assertThat(matches, containsInAnyOrder("bar_bar", "foo_foo", "foo_index", "bar_index"));
+        assertThat(
+            matches,
+            containsInAnyOrder(
+                new ResolvedExpression("bar_bar"),
+                new ResolvedExpression("foo_foo"),
+                new ResolvedExpression("foo_index"),
+                new ResolvedExpression("bar_index")
+            )
+        );
         matches = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(indicesAndAliasesContext, "foo*");
-        assertThat(matches, containsInAnyOrder("foo_foo", "foo_index", "bar_index"));
+        assertThat(
+            matches,
+            containsInAnyOrder(new ResolvedExpression("foo_foo"), new ResolvedExpression("foo_index"), new ResolvedExpression("bar_index"))
+        );
         matches = IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(onlyIndicesContext, "foo*");
-        assertThat(matches, containsInAnyOrder("foo_foo", "foo_index"));
+        assertThat(matches, containsInAnyOrder(new ResolvedExpression("foo_foo"), new ResolvedExpression("foo_index")));
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, boolean hidden) {
@@ -647,5 +683,9 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     private static void assertWildcardResolvesToEmpty(IndexNameExpressionResolver.Context context, String wildcardExpression) {
         assertThat(IndexNameExpressionResolver.WildcardExpressionResolver.matchWildcardToResources(context, wildcardExpression), empty());
+    }
+
+    private Set<ResolvedExpression> resolvedExpressionsSet(String... expressions) {
+        return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
     }
 }

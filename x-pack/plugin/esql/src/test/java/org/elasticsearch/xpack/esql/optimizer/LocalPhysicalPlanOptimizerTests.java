@@ -255,7 +255,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
 
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
     }
@@ -276,7 +276,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         Source source = new Source(2, 8, "salary > 1000");
         var exists = QueryBuilders.existsQuery("salary");
@@ -386,7 +386,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
         var expected = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
@@ -997,7 +997,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         assertThat(exchange.inBetweenAggs(), is(true));
         var localSource = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
+        assertThat(Expressions.names(localSource.output()), contains("$$c$count", "$$c$seen"));
     }
 
     /**
@@ -1152,7 +1152,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exg = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         assertThat(stat.query(), is(QueryBuilders.existsQuery("job")));
     }

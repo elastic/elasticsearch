@@ -356,15 +356,15 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "Total number of failed indexing operations",
                 "operations",
                 () -> List.of(
-//                    new LongWithAttributes(
-//                        Optional.ofNullable(stats.getOrRefresh())
-//                            .map(o -> o.getIndices())
-//                            .map(o -> o.getIndexing())
-//                            .map(o -> o.getTotal())
-//                            .map(o -> o.getIndexFailedCount())
-//                            .orElse(0L),
-//                        Map.of("es.indexing.indexing.failed.cause", "any")
-//                    ),
+                    new LongWithAttributes(
+                        Optional.ofNullable(stats.getOrRefresh())
+                            .map(o -> o.getIndices())
+                            .map(o -> o.getIndexing())
+                            .map(o -> o.getTotal())
+                            .map(o -> o.getIndexFailedCount())
+                            .orElse(0L),
+                        Map.of("es.indexing.indexing.failed.cause", "any")
+                    ),
                     new LongWithAttributes(
                         Optional.ofNullable(stats.getOrRefresh())
                             .map(o -> o.getIndices())
@@ -372,8 +372,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                             .map(o -> o.getTotal())
                             .map(o -> o.getIndexFailedWithVersionConflictCount())
                             .orElse(0L),
-//                        Map.of("es.indexing.indexing.failed.cause", "version_conflict")
-                            Map.of()
+                        Map.of("es.indexing.indexing.failed.cause", "version_conflict")
                     )
                 )
             )

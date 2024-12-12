@@ -27,13 +27,13 @@ public class RestCancelReindexDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_reindex_data_stream/{persistent_task_id}/_cancel"));
+        return List.of(new Route(POST, "/_migration/reindex/{index}/_cancel"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String persistentTaskId = request.param("persistent_task_id");
-        CancelReindexDataStreamAction.Request cancelTaskRequest = new CancelReindexDataStreamAction.Request(persistentTaskId);
+        String index = request.param("index");
+        CancelReindexDataStreamAction.Request cancelTaskRequest = new CancelReindexDataStreamAction.Request(index);
         return channel -> client.execute(CancelReindexDataStreamAction.INSTANCE, cancelTaskRequest, new RestToXContentListener<>(channel));
     }
 }

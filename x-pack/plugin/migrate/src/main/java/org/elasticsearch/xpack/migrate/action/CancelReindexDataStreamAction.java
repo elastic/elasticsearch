@@ -9,21 +9,17 @@ package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.TaskResult;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static java.util.Objects.requireNonNull;
-
-public class CancelReindexDataStreamAction extends ActionType<CancelReindexDataStreamAction.Response> {
+public class CancelReindexDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     public static final CancelReindexDataStreamAction INSTANCE = new CancelReindexDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/reindex_cancel";
@@ -32,70 +28,23 @@ public class CancelReindexDataStreamAction extends ActionType<CancelReindexDataS
         super(NAME);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-        private final TaskResult task;
+    public static class Request extends ActionRequest implements IndicesRequest {
+        private final String index;
 
-        public Response(TaskResult task) {
-            this.task = requireNonNull(task, "task is required");
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            task = in.readOptionalWriteable(TaskResult::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(task);
-        }
-
-        /**
-         * Get the actual result of the fetch.
-         */
-        public TaskResult getTask() {
-            return task;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            task.getTask().status().toXContent(builder, params);
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(task);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof Response && task.equals(((Response) other).task);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
-
-    }
-
-    public static class Request extends ActionRequest {
-        private final String persistentTaskId;
-
-        public Request(String persistentTaskId) {
+        public Request(String index) {
             super();
-            this.persistentTaskId = persistentTaskId;
+            this.index = index;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.persistentTaskId = in.readString();
+            this.index = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(persistentTaskId);
+            out.writeString(index);
         }
 
         @Override
@@ -108,24 +57,34 @@ public class CancelReindexDataStreamAction extends ActionType<CancelReindexDataS
             return true;
         }
 
-        public String getPersistentTaskId() {
-            return persistentTaskId;
+        public String getIndex() {
+            return index;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(persistentTaskId);
+            return Objects.hashCode(index);
         }
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Request && persistentTaskId.equals(((Request) other).persistentTaskId);
+            return other instanceof Request && index.equals(((Request) other).index);
         }
 
         public Request nodeRequest(String thisNodeId, long thisTaskId) {
-            Request copy = new Request(persistentTaskId);
+            Request copy = new Request(index);
             copy.setParentTask(thisNodeId, thisTaskId);
             return copy;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { index };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
     }
 }

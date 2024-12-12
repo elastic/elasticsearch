@@ -47,8 +47,8 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     private final String sessionId;
     private final Configuration configuration;
     private final String clusterAlias;
-    private final PhysicalPlan plan;
     private final Map<Index, AliasFilter> aliasFilters;
+    private final PhysicalPlan plan;
     private List<ShardId> shardIds;
     private String[] indices;
     private final IndicesOptions indicesOptions;

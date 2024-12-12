@@ -45,7 +45,7 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
-        description = "Calculate the extent over a field with spatial point geometry type.",
+        description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
         isAggregation = true,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
     )

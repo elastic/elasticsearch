@@ -13,10 +13,8 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 /**
- * Computes the extent of a set of geo shapes. It is assumed that the geo points are encoded as WKB BytesRef.
+ * Computes the extent of a set of geo shapes. It is assumed that the geo shapes are encoded as WKB BytesRef.
  * We do not currently support reading shape values or extents from doc values.
- * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentGeoPointSourceValuesAggregator}.
  */
 @Aggregator(
     {

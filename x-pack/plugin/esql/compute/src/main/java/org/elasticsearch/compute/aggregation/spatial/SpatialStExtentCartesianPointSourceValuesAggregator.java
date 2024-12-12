@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * Computes the extent of a set of cartesian points. It is assumed that the cartesian points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianPointSourceValuesAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianPointDocValuesAggregator}.
  */
 @Aggregator(
     {

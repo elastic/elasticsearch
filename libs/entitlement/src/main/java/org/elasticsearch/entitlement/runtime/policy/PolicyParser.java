@@ -42,6 +42,7 @@ public class PolicyParser {
 
     protected final XContentParser policyParser;
     protected final String policyName;
+    private final boolean isExternalPlugin;
 
     static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
         var entitlementClassName = entitlementClass.getSimpleName();
@@ -59,9 +60,10 @@ public class PolicyParser {
             .collect(Collectors.joining("_"));
     }
 
-    public PolicyParser(InputStream inputStream, String policyName) throws IOException {
+    public PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin) throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
         this.policyName = policyName;
+        this.isExternalPlugin = isExternalPlugin;
     }
 
     public Policy parsePolicy() {
@@ -126,6 +128,10 @@ public class PolicyParser {
         ExternalEntitlement entitlementMetadata = entitlementConstructor.getAnnotation(ExternalEntitlement.class);
         if (entitlementMetadata == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
+        }
+
+        if (entitlementMetadata.esModulesOnly() && isExternalPlugin) {
+            throw newPolicyParserException("entitlement type [" + entitlementType + "] is allowed only on modules");
         }
 
         Class<?>[] parameterTypes = entitlementConstructor.getParameterTypes();

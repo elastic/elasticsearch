@@ -13,12 +13,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -49,12 +51,21 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 public class SearchServiceTests extends IndexShardTestCase {
 
@@ -115,6 +126,39 @@ public class SearchServiceTests extends IndexShardTestCase {
             }
         };
         doTestCanMatch(searchRequest, sortField, true, null, false);
+    }
+
+    public void testMaybeWrapListenerForStackTrace() {
+        // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
+        SearchService service = mock(SearchService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        doReturn(new ThreadContext(Settings.EMPTY)).when(threadPool).getThreadContext();
+        doReturn(threadPool).when(service).getThreadPool();
+        doCallRealMethod().when(service).maybeWrapListenerForStackTrace(any());
+        service.getThreadPool().getThreadContext().putHeader("error_trace", "false");
+        AtomicBoolean isWrapped = new AtomicBoolean(false);
+        ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+                // noop - we only care about failure scenarios
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (isWrapped.get()) {
+                    assertThat(e.getStackTrace().length, is(0));
+                } else {
+                    assertThat(e.getStackTrace().length, is(not(0)));
+                }
+            }
+        };
+        Exception e = new Exception();
+        e.fillInStackTrace();
+        assertThat(e.getStackTrace().length, is(not(0)));
+        listener.onFailure(e);
+        listener = service.maybeWrapListenerForStackTrace(listener);
+        isWrapped.set(true);
+        listener.onFailure(e);
     }
 
     private void doTestCanMatch(

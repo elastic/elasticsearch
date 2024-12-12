@@ -519,7 +519,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @return the wrapped action listener
      */
     <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener) {
-        String header = threadPool.getThreadContext().getHeaderOrDefault("error_trace", "true");
+        String header = getThreadPool().getThreadContext().getHeaderOrDefault("error_trace", "true");
         if (header.equals("false")) {
             return listener.delegateResponse((l, e) -> {
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {

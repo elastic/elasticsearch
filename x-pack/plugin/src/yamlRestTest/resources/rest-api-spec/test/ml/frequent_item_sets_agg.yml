@@ -530,42 +530,6 @@ setup:
           }
 
 ---
-"Test deprecated frequent items":
-  - skip:
-      features:
-        - "allowed_warnings"
-
-  - do:
-      allowed_warnings:
-        - 'Deprecated field [frequent_items] used, expected [frequent_item_sets] instead'
-
-      search:
-        index: store
-        body: >
-          {
-            "size": 0,
-            "aggs": {
-              "fi": {
-                "frequent_items": {
-                  "minimum_set_size": 3,
-                  "minimum_support": 0.3,
-                  "fields": [
-                    {"field": "features"},
-                    {"field": "error_message"}
-                  ]
-                }
-              }
-            }
-          }
-  - length: { aggregations.fi.buckets: 4 }
-  - match: { aggregations.fi.buckets.0.doc_count: 5 }
-  - match: { aggregations.fi.buckets.0.support: 0.5 }
-  - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
-  - match: { aggregations.fi.buckets.1.doc_count: 4 }
-  - match: { aggregations.fi.buckets.1.support: 0.4 }
-  - match: { aggregations.fi.buckets.1.key.error_message: ["engine overheated"] }
-
----
 "Test frequent items on empty index":
   - do:
       search:

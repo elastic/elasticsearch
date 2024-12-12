@@ -54,7 +54,7 @@
     }
   ],
   "examples" : [
-    "FROM airports | WHERE country == \"India\" | STATS extent = ST_EXTENT_AGG(location)"
+    "FROM airports\n| WHERE country == \"India\"\n| STATS extent = ST_EXTENT_AGG(location)"
   ],
   "preview" : false,
   "snapshot_only" : false

@@ -535,7 +535,9 @@ BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
 stExtentMultipleGeoPoints
 required_capability: st_extent_agg
 // tag::st_extent_agg-airports[]
-FROM airports | WHERE country == "India" | STATS extent = ST_EXTENT_AGG(location)
+FROM airports
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location)
 // end::st_extent_agg-airports[]
 ;
 

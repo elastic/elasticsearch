@@ -122,7 +122,8 @@ public class PluginsLoader {
     private final List<PluginDescriptor> moduleDescriptors;
     private final List<PluginDescriptor> pluginDescriptors;
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
-    private final Set<PluginBundle> allBundles;
+    private final Set<PluginBundle> moduleBundles;
+    private final Set<PluginBundle> pluginBundles;
 
     /**
      * Constructs a new PluginsLoader
@@ -153,37 +154,36 @@ public class PluginsLoader {
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
         // load (elasticsearch) module layers
-        List<PluginDescriptor> moduleDescriptors;
+        final Set<PluginBundle> modules;
         if (modulesDirectory != null) {
             try {
-                Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                moduleDescriptors = modules.stream().map(PluginBundle::pluginDescriptor).toList();
+                modules = PluginsUtils.getModuleBundles(modulesDirectory);
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         } else {
-            moduleDescriptors = Collections.emptyList();
+            modules = Collections.emptySet();
         }
 
         // load plugin layers
-        List<PluginDescriptor> pluginDescriptors;
+        final Set<PluginBundle> plugins;
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    pluginDescriptors = plugins.stream().map(PluginBundle::pluginDescriptor).toList();
+                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
+
                     seenBundles.addAll(plugins);
                 } else {
-                    pluginDescriptors = Collections.emptyList();
+                    plugins = Collections.emptySet();
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         } else {
-            pluginDescriptors = Collections.emptyList();
+            plugins = Collections.emptySet();
         }
 
         Map<String, LoadedPluginLayer> loadedPluginLayers = new LinkedHashMap<>();
@@ -197,19 +197,15 @@ public class PluginsLoader {
             }
         }
 
-        return new PluginsLoader(moduleDescriptors, pluginDescriptors, loadedPluginLayers, Set.copyOf(seenBundles));
+        return new PluginsLoader(modules, plugins, loadedPluginLayers);
     }
 
-    PluginsLoader(
-        List<PluginDescriptor> moduleDescriptors,
-        List<PluginDescriptor> pluginDescriptors,
-        Map<String, LoadedPluginLayer> loadedPluginLayers,
-        Set<PluginBundle> allBundles
-    ) {
-        this.moduleDescriptors = moduleDescriptors;
-        this.pluginDescriptors = pluginDescriptors;
+    PluginsLoader(Set<PluginBundle> modules, Set<PluginBundle> plugins, Map<String, LoadedPluginLayer> loadedPluginLayers) {
+        this.moduleBundles = modules;
+        this.pluginBundles = plugins;
+        this.moduleDescriptors = modules.stream().map(PluginBundle::pluginDescriptor).toList();
+        this.pluginDescriptors = plugins.stream().map(PluginBundle::pluginDescriptor).toList();
         this.loadedPluginLayers = loadedPluginLayers;
-        this.allBundles = allBundles;
     }
 
     public List<PluginDescriptor> moduleDescriptors() {
@@ -224,8 +220,12 @@ public class PluginsLoader {
         return loadedPluginLayers.values().stream().map(Function.identity());
     }
 
-    public Set<PluginBundle> allBundles() {
-        return allBundles;
+    public Set<PluginBundle> moduleBundles() {
+        return moduleBundles;
+    }
+
+    public Set<PluginBundle> pluginBundles() {
+        return pluginBundles;
     }
 
     private static void loadPluginLayer(

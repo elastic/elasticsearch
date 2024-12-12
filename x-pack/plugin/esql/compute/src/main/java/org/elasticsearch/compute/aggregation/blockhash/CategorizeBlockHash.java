@@ -204,6 +204,7 @@ public class CategorizeBlockHash extends BlockHash {
     }
 
     BytesRef serializeCategorizer() {
+        // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeBoolean(seenNull);
             out.writeVInt(categorizer.getCategoryCount());

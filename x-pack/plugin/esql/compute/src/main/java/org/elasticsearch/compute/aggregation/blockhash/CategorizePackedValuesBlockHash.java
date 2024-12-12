@@ -134,6 +134,7 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
             // keys, with the category IDs replaced by the categorizer's internal state
             // together with the list of category IDs.
             BytesRef state;
+            // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeBytesRef(categorizeBlockHash.serializeCategorizer());
                 ((IntVector) keys[0].asVector()).writeTo(out);

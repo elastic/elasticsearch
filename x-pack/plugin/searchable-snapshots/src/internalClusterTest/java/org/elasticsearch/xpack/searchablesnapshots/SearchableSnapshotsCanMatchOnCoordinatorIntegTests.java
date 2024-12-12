@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -1332,18 +1330,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .getState()
             .metadata()
             .index(indexName);
-    }
-
-    private static void waitUntilRecoveryIsDone(String index) throws Exception {
-        assertBusy(() -> {
-            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
-            assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
-                for (RecoveryState recoveryState : value) {
-                    assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
-                }
-            }
-        });
     }
 
     private void waitUntilAllShardsAreUnassigned(Index index) throws Exception {

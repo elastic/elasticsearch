@@ -55,4 +55,20 @@ public class JinaAIRerankModelTests extends ESTestCase {
         );
     }
 
+    public static JinaAIRerankModel createModel(
+        String url,
+        String apiKey,
+        @Nullable String modelId,
+        @Nullable Integer topN,
+        Boolean returnDocuments
+    ) {
+        return new JinaAIRerankModel(
+            "id",
+            "service",
+            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(url, modelId, null)),
+            new JinaAIRerankTaskSettings(topN, returnDocuments),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
 }

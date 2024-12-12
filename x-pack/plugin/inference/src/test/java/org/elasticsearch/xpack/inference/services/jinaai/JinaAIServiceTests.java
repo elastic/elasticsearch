@@ -1211,6 +1211,68 @@ public class JinaAIServiceTests extends ESTestCase {
         }
     }
 
+    public void testInfer_Rerank_Get_Response_NoReturnDocuments_NoTopN() throws IOException {
+        String responseJson = """
+            {
+                "model": "model",
+                "results": [
+                    {
+                        "index": 2,
+                        "relevance_score": 0.98005307
+                    },
+                    {
+                        "index": 3,
+                        "relevance_score": 0.27904198
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", null, false);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                "query",
+                List.of("candidate1", "candidate2", "candidate3"),
+                false,
+                new HashMap<>(),
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            MatcherAssert.assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model")));
+
+        }
+    }
+
+    public void testInfer_Rerank_Get_Response_NoReturnDocuments_TopN() throws IOException {}
+
+    public void testInfer_Rerank_Get_Response_ReturnDocuments_NoTopN() throws IOException {}
+
+    public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {}
+
     public void testInfer_Embedding_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

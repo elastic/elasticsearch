@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.ParseField;
@@ -189,7 +190,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /**
      * @param clusterAlias to lookup skip_unavailable from
      * @return skip_unavailable setting (true/false)
-     * @throws org.elasticsearch.transport.NoSuchRemoteClusterException if clusterAlias is unknown to this node's RemoteClusterService
+     * @throws NoSuchRemoteClusterException if clusterAlias is unknown to this node's RemoteClusterService
      */
     public boolean isSkipUnavailable(String clusterAlias) {
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
@@ -279,8 +280,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isPartial;
     }
 
-    public void setPartial() {
+    /**
+     * Mark the query as having partial results.
+     */
+    public void markAsPartial() {
         isPartial = true;
+    }
+
+    /**
+     * Mark this cluster as having partial results.
+     */
+    public void markClusterAsPartial(String clusterAlias) {
+        swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(Cluster.Status.PARTIAL).build());
     }
 
     /**

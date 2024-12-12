@@ -29,9 +29,10 @@ final class ComputeResponse extends TransportResponse {
     public final int successfulShards;
     public final int skippedShards;
     public final int failedShards;
+    public final boolean isPartial;
 
     ComputeResponse(List<DriverProfile> profiles) {
-        this(profiles, null, null, null, null, null);
+        this(profiles, null, null, null, null, null, false);
     }
 
     ComputeResponse(
@@ -40,7 +41,8 @@ final class ComputeResponse extends TransportResponse {
         Integer totalShards,
         Integer successfulShards,
         Integer skippedShards,
-        Integer failedShards
+        Integer failedShards,
+        boolean isPartial
     ) {
         this.profiles = profiles;
         this.took = took;
@@ -48,6 +50,7 @@ final class ComputeResponse extends TransportResponse {
         this.successfulShards = successfulShards == null ? 0 : successfulShards.intValue();
         this.skippedShards = skippedShards == null ? 0 : skippedShards.intValue();
         this.failedShards = failedShards == null ? 0 : failedShards.intValue();
+        this.isPartial = isPartial;
     }
 
     ComputeResponse(StreamInput in) throws IOException {
@@ -74,6 +77,11 @@ final class ComputeResponse extends TransportResponse {
             this.skippedShards = 0;
             this.failedShards = 0;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.COMPUTE_RESPONSE_PARTIAL)) {
+            this.isPartial = in.readBoolean();
+        } else {
+            this.isPartial = false;
+        }
     }
 
     @Override
@@ -92,6 +100,9 @@ final class ComputeResponse extends TransportResponse {
             out.writeVInt(successfulShards);
             out.writeVInt(skippedShards);
             out.writeVInt(failedShards);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.COMPUTE_RESPONSE_PARTIAL)) {
+            out.writeBoolean(isPartial);
         }
     }
 
@@ -117,5 +128,9 @@ final class ComputeResponse extends TransportResponse {
 
     public int getFailedShards() {
         return failedShards;
+    }
+
+    public boolean isPartial() {
+        return isPartial;
     }
 }

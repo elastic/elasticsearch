@@ -119,7 +119,8 @@ final class ComputeListener implements Releasable {
                     cluster.getTotalShards(),
                     cluster.getSuccessfulShards(),
                     cluster.getSkippedShards(),
-                    cluster.getFailedShards()
+                    cluster.getFailedShards(),
+                    cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
                 );
             } else {
                 result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
@@ -135,10 +136,14 @@ final class ComputeListener implements Releasable {
 
     private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
-            // TODO: once PARTIAL status is supported (partial results work to come), modify this code as needed
             if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                 assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
-                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                EsqlExecutionInfo.Cluster.Status newStatus = v.getStatus();
+                // Do not update the status if it is already set to e.g. PARTIAL
+                if (newStatus == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    newStatus = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                }
+                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(newStatus)
                     /*
                      * Total and skipped shard counts are set early in execution (after can-match).
                      * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
@@ -244,15 +249,16 @@ final class ComputeListener implements Releasable {
 
     private void updateExecutionInfoWithRemoteResponse(String computeClusterAlias, ComputeResponse resp) {
         TimeValue tookOnCluster;
+        EsqlExecutionInfo.Cluster.Status resultStatus = resp.isPartial()
+            ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+            : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
         if (resp.getTook() != null) {
             TimeValue remoteExecutionTime = resp.getTook();
             TimeValue planningTookTime = esqlExecutionInfo.planningTookTime();
             tookOnCluster = new TimeValue(planningTookTime.nanos() + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
             esqlExecutionInfo.swapCluster(
                 computeClusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
-                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(resultStatus)
                     .setTook(tookOnCluster)
                     .setTotalShards(resp.getTotalShards())
                     .setSuccessfulShards(resp.getSuccessfulShards())
@@ -267,11 +273,7 @@ final class ComputeListener implements Releasable {
             tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
             esqlExecutionInfo.swapCluster(
                 computeClusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
-                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                    .setTook(tookOnCluster)
-                    .build()
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(resultStatus).setTook(tookOnCluster).build()
             );
         }
     }

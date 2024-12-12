@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -174,6 +176,8 @@ public class Driver implements Releasable, Describable {
         return driverContext;
     }
 
+    private static final Logger LOGGER = LogManager.getLogger(Driver.class);
+
     /**
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
@@ -239,6 +243,7 @@ public class Driver implements Releasable, Describable {
             for (int i = activeOperators.size() - 2; i >= 0; i--) {
                 Operator op = activeOperators.get(i);
                 if (op.isFinished() == false) {
+                    LOGGER.debug("Early terminated!");
                     throw new DriverEarlyTerminationException();
                 }
             }

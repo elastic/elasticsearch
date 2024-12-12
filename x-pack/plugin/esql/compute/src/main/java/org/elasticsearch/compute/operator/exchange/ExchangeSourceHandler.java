@@ -85,6 +85,7 @@ public final class ExchangeSourceHandler {
     }
 
     public void onFinishEarly(Runnable finishEarlyHandler) {
+        // TODO: not sure this is the best way but we need to know when the exchange source is finished early to set exec info
         this.finishEarlyHandler = finishEarlyHandler;
     }
 
@@ -320,6 +321,10 @@ public final class ExchangeSourceHandler {
             finishEarlyHandler.run();
         }
         buffer.finish(drainingPages);
+        if (remoteSinks.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
             for (RemoteSink remoteSink : remoteSinks.values()) {
                 remoteSink.close(refs.acquire());

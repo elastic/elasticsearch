@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -41,6 +42,7 @@ public final class ExchangeSinkHandler {
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
     private final BlockFactory blockFactory;
+    private final SetOnce<ExchangeSourceHandler> source = new SetOnce<>();
 
     public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
         this.blockFactory = blockFactory;
@@ -98,6 +100,10 @@ public final class ExchangeSinkHandler {
     public void fetchPageAsync(boolean sourceFinished, ActionListener<ExchangeResponse> listener) {
         if (sourceFinished) {
             buffer.finish(true);
+            var subSource = source.get();
+            if (subSource != null) {
+                subSource.finishEarly(true, ActionListener.noop());
+            }
         }
         listeners.add(listener);
         onChanged();
@@ -148,6 +154,10 @@ public final class ExchangeSinkHandler {
             onChanged();
             ActionListener.respondAndRelease(listener, response);
         }
+    }
+
+    public void setSource(ExchangeSourceHandler sub) {
+        source.set(sub);
     }
 
     /**

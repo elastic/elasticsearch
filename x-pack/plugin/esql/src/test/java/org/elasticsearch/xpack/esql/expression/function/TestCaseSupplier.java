@@ -278,6 +278,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
+            if (DataType.isRepresentable(expectedType) == false) {
+                testCase = testCase.withoutEvaluator();
+            }
             return testCase;
         });
     }
@@ -1438,7 +1441,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
-                data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type))
+                true
             );
         }
 

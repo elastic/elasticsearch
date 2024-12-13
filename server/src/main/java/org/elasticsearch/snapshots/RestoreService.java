@@ -361,6 +361,7 @@ public final class RestoreService implements ClusterStateApplier {
             metadataBuilder = Metadata.builder();
         }
 
+        // PRTODO: This does not yet support selectors, but the indices options allow selectors
         final String[] indicesInRequest = request.indices();
         List<String> requestIndices = new ArrayList<>(indicesInRequest.length);
         if (indicesInRequest.length == 0) {

@@ -1975,7 +1975,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("requires LOOKUP JOIN mode verification capability", EsqlCapabilities.Cap.JOIN_LOOKUP_VERIFY_MODE.isEnabled());
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 

@@ -545,6 +545,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V5(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN with index mode verification
+         */
+        JOIN_LOOKUP_VERIFY_MODE(JOIN_LOOKUP_V5.enabled),
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,

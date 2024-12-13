@@ -180,8 +180,8 @@ class EpochTime {
             Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
             long secondsAndMillis = fieldValues.remove(this);
 
-            // piggyback whether the formatter is in a "round up" mode or not via negative nanos
-            // ... which are not valid except in the context of our parser wanting to round up
+            // this flag indicates whether we were asked to round up and we defaulted to 999_999 nanos or nanos were given by the users
+            // specifically we do not wnat to confuse defaulted 999_999 nanos with user supplied 999_999 nanos
             boolean roundUp = fieldValues.remove(ROUNDED_SIGN_FIELD) != null;
 
             long seconds;
@@ -194,9 +194,12 @@ class EpochTime {
                 if (nanosOfMilli != null) {
                     if (roundUp) {
                         // these are not the nanos you think they are; these are "round up nanos" not the fractional part of the input
+                        // this is the case where we defaulted the value to 999_999 and the intention for rounding is that the value
+                        // moves closer to positive infinity
                         nanos += nanosOfMilli;
                     } else {
                         // aggregate fractional part of the input; subtract b/c `nanos < 0`
+                        // this is the case where the user has supplied a nanos value and we'll want to shift toward negative infinity
                         nanos -= nanosOfMilli;
                     }
                 }
@@ -291,25 +294,31 @@ class EpochTime {
         .toFormatter(Locale.ROOT);
 
     // we need an additional parser to detect the difference between user provided nanos and defaulted ones because of the necessity
-    // ... to parse the two differently in the round up case
+    // to parse the two differently in the round up case
     public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
         .toFormatter(Locale.ROOT);
 
     // we need an additional parser to detect the difference between user provided nanos and defaulted ones because of the necessity
-    // ... to parse the two differently in the round up case
-    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS_ROUNDING = new DateTimeFormatterBuilder().optionalStart()
-        .appendText(ROUNDED_SIGN_FIELD, Map.of(-2L, "~"))
-        .optionalEnd()
-        .append(MILLISECONDS_FORMATTER_BASE)
-        .parseDefaulting(EpochTime.ROUNDED_SIGN_FIELD, -2L)
-        .parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L)
-        .toFormatter(Locale.ROOT);
+    // to parse the two differently in the round up case
+    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS_ROUNDING = new DateTimeFormatterBuilder().append(
+        MILLISECONDS_FORMATTER_BASE
+    ).parseDefaulting(EpochTime.ROUNDED_SIGN_FIELD, -2L).parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L).toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
     private static final DateTimeFormatter MILLISECONDS_PARSER_ENDING_IN_PERIOD = new DateTimeFormatterBuilder().append(
         MILLISECONDS_FORMATTER_BASE
     ).appendLiteral('.').toFormatter(Locale.ROOT);
 
+    /*
+    We separately handle the rounded and non-rounded uses cases here with different parsers.  The reason is because of how we store and
+    handle negative milliseconds since the epoch.  If a user supplies nanoseconds as part of a negative millisecond since epoch value
+    then we need to round toward negative infinity.  However, in the case where nanos are not supplied, and we are requested to
+    round up we will default the value of nanos to 999_999 and need to delineate that this rounding was intended to push the value
+    toward positive infinity not negative infinity.  Differentiating these two cases during parsing requires a flag called out above
+    the ROUNDED_SIGN_FIELD flag.  In addition to this flag we need to know that we are in the "rounding up" state.  So any time we are
+    asked to round up we will force setting the ROUNDED_SIGN_FIELD flag and be able to detect that when parsing and
+    storing the time information and be able to make the correct decision to round toward positive infinity.
+     */
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
         new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER),

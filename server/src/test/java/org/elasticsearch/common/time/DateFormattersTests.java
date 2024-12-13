@@ -504,6 +504,51 @@ public class DateFormattersTests extends ESTestCase {
             );
             assertThat(e.getMessage().split(":")[0], is("failed to parse date field [-.200] with format [epoch_millis]"));
         }
+
+        // tilda was included in the parsers at one point for delineating negative and positive infinity rounding and we want to
+        // ensure it doesn't show up unexpectedly in the parser with its original "~" value
+        {
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("~-0.200", supplier, false, ZoneId.of("UTC"))
+            );
+            assertThat(e.getMessage().split(":")[0], is("failed to parse date field [~-0.200] with format [epoch_millis]"));
+        }
+        {
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("~0.200", supplier, false, ZoneId.of("UTC"))
+            );
+            assertThat(e.getMessage().split(":")[0], is("failed to parse date field [~0.200] with format [epoch_millis]"));
+        }
+        {
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("~-1", supplier, false, ZoneId.of("UTC"))
+            );
+            assertThat(e.getMessage().split(":")[0], is("failed to parse date field [~-1] with format [epoch_millis]"));
+        }
+        {
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("~1", supplier, false, ZoneId.of("UTC"))
+            );
+            assertThat(e.getMessage().split(":")[0], is("failed to parse date field [~1] with format [epoch_millis]"));
+        }
+        {
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("~-1.", supplier, false, ZoneId.of("UTC"))
+            );
+            assertThat(e.getMessage().split(":")[0], is("failed to parse date field [~-1.] with format [epoch_millis]"));
+        }
+        {
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> formatter.toDateMathParser().parse("~1.", supplier, false, ZoneId.of("UTC"))
+            );
+            assertThat(e.getMessage().split(":")[0], is("failed to parse date field [~1.] with format [epoch_millis]"));
+        }
     }
 
     /**

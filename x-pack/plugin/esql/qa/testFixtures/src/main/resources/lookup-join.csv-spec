@@ -402,14 +402,14 @@ left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:k
 left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
 ;
 
-lookupIPAndMessageFromRowWithShadowingKeep-Ignore
+lookupIPAndMessageFromRowWithShadowingKeep
 required_capability: join_lookup_v5
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
 | LOOKUP JOIN clientips_lookup ON client_ip
 | LOOKUP JOIN message_types_lookup ON message
-| KEEP left, client_ip, right, env, type
+| KEEP left, client_ip, message, right, env, type
 ;
 
 left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword

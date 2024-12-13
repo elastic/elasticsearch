@@ -299,7 +299,6 @@ public class EsqlSession {
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
-        // TODO: make a separate call for lookup indices
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();
@@ -308,12 +307,8 @@ public class EsqlSession {
             l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
         ).<ListenerResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
         // first resolve the lookup indices, then the main indices
-        // if (indices.size() > 1) {
-        // // Note: JOINs on more than one index are not yet supported
-        // listener.onFailure(new MappingException("More than one LOOKUP JOIN is not supported"));
-        // }
         for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, listenerResult) -> { preAnalyzeLookupIndices(lookupIndex, listenerResult, l); });
+            listener = listener.andThen((l, listenerResult) -> { preAnalyzeLookupIndex(lookupIndex, listenerResult, l); });
         }
         listener.<ListenerResult>andThen((l, listenerResult) -> {
             // resolve the main indices
@@ -356,7 +351,7 @@ public class EsqlSession {
         }).addListener(logicalPlanListener);
     }
 
-    private void preAnalyzeLookupIndices(TableInfo tableInfo, ListenerResult listenerResult, ActionListener<ListenerResult> listener) {
+    private void preAnalyzeLookupIndex(TableInfo tableInfo, ListenerResult listenerResult, ActionListener<ListenerResult> listener) {
         TableIdentifier table = tableInfo.id();
         Set<String> fieldNames = listenerResult.wildcardJoinIndices().contains(table.index())
             ? IndexResolver.ALL_FIELDS

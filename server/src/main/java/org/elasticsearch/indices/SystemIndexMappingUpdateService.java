@@ -99,7 +99,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         // if we're in a mixed-version cluster, exit
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+        if (state.nodes().isMixedVersionCluster()) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }

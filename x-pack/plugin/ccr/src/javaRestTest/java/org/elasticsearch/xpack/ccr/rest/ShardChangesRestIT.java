@@ -212,11 +212,11 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     private static String shardChangesEndpoint(final String indexName) {
-        return String.format(CCR_SHARD_CHANGES_ENDPOINT, indexName);
+        return String.format(Locale.ROOT, CCR_SHARD_CHANGES_ENDPOINT, indexName);
     }
 
     private static String bulkEndpoint(final String indexName) {
-        return String.format(BULK_INDEX_ENDPOINT, indexName);
+        return String.format(Locale.ROOT, BULK_INDEX_ENDPOINT, indexName);
     }
 
     private void assertResponseException(final ResponseException ex, final RestStatus restStatus, final String error) {

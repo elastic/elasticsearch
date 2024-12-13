@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -125,49 +124,6 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
         // verify that dest contains docs
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
-    }
-
-    public void testReindexIntoExistingIndex() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
-        // source index with docs
-        var numDocs = randomIntBetween(1, 100);
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
-        indexDocs(sourceIndex, numDocs);
-
-        // call reindex once to create dest index
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
-        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
-        assertEquals(numDocs, response.getNumCreated());
-
-        // Delete single document with id 0 (which must exist)
-        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest(response.getDestIndex()).id("0"));
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(1));
-        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
-
-        var destIndexUUID = getIndexUUID(response.getDestIndex());
-
-        // verify that dest contains one less doc
-        assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs - 1);
-
-        // repeat call to reindex with deleteDestIfExists=false
-        var response2 = client().execute(
-            ReindexDataStreamIndexAction.INSTANCE,
-            new ReindexDataStreamIndexAction.Request(sourceIndex, false)
-        ).actionGet();
-        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
-
-        // verify is the same dest index
-        assertEquals(destIndexUUID, getIndexUUID(response.getDestIndex()));
-
-        // verify only one doc added back
-        assertEquals(1, response2.getNumCreated());
-
-        // verify correct number of docs
-        assertHitCount(prepareSearch(response2.getDestIndex()).setSize(0), numDocs);
     }
 
     public void testSetSourceToReadOnly() throws Exception {

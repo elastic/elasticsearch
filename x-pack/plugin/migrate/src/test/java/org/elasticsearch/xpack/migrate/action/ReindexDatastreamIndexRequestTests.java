@@ -19,17 +19,11 @@ public class ReindexDatastreamIndexRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(20), randomBoolean());
+        return new Request(randomAlphaOfLength(20));
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        String sourceIndex = instance.getSourceIndex();
-        boolean deleteDestIfExists = instance.getDeleteDestIfExists();
-        switch (between(0, 1)) {
-            case 0 -> sourceIndex = randomValueOtherThan(sourceIndex, () -> randomAlphaOfLength(20));
-            case 1 -> deleteDestIfExists = deleteDestIfExists == false;
-        }
-        return new ReindexDataStreamIndexAction.Request(sourceIndex, deleteDestIfExists);
+        return new ReindexDataStreamIndexAction.Request(randomValueOtherThan(instance.getSourceIndex(), () -> randomAlphaOfLength(20)));
     }
 }

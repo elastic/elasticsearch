@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.migrate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -39,7 +38,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -96,17 +94,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
-        AtomicReference<BulkByScrollResponse> reindexResponse = new AtomicReference<>();
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l))
-            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(request.getDeleteDestIfExists(), destIndexName, l))
+            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l))
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
-            .andThenApply(r -> {
-                reindexResponse.set(r);
-                return r;
-            })
             .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l))
-            .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName, reindexResponse.get().getCreated()))
+            .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
 
@@ -137,12 +130,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         });
     }
 
-    private void deleteDestIfExists(boolean doDelete, String destIndexName, ActionListener<AcknowledgedResponse> listener) {
-        if (doDelete == false) {
-            listener.onResponse(null);
-            return;
-        }
-
+    private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("Attempting to delete index [{}]", destIndexName);
         var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
@@ -160,28 +148,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         Map<String, Object> mapping = sourceMapping != null ? sourceMapping.rawSourceAsMap() : Map.of();
         var createIndexRequest = new CreateIndexRequest(destIndexName).settings(settings).mapping(mapping);
 
-        client.admin().indices().create(createIndexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(CreateIndexResponse response) {
-                if (response.isAcknowledged()) {
-                    listener.onResponse(null);
-                } else {
-                    var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", destIndexName);
-                    listener.onFailure(new ElasticsearchException(errorMessage));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // If dest index already exists, just reindex into the existing one
-                if (e instanceof ResourceAlreadyExistsException || e.getCause() instanceof ResourceAlreadyExistsException) {
-                    logger.debug("Tried to create index [{}] but it already exists, proceeding with reindex", destIndexName);
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(e);
-                }
-            }
-        });
+        var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", destIndexName);
+        client.admin().indices().create(createIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {

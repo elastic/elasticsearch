@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -70,22 +71,23 @@ final class AggregateMapper {
 
     /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
     private static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
-        Count.class,
-        CountDistinct.class,
-        Max.class,
-        MedianAbsoluteDeviation.class,
-        Min.class,
-        Percentile.class,
-        SpatialCentroid.class,
-        StdDev.class,
-        Sum.class,
-        Values.class,
-        Top.class,
-        Rate.class,
+//        Count.class,
+//        CountDistinct.class,
+//        Max.class,
+//        MedianAbsoluteDeviation.class,
+//        Min.class,
+//        Percentile.class,
+//        SpatialCentroid.class,
+//        StdDev.class,
+//        Sum.class,
+//        Values.class,
+//        Top.class,
+//        Rate.class,
+        Last.class
 
         // internal function
-        FromPartial.class,
-        ToPartial.class
+//        FromPartial.class,
+//        ToPartial.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
@@ -177,6 +179,9 @@ final class AggregateMapper {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
+            types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
+        } else if (Last.class.isAssignableFrom(clazz)) {
+            // TODO validate this logic
             types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
         } else if (Rate.class.isAssignableFrom(clazz) || StdDev.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");

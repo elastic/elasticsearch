@@ -1,0 +1,18 @@
+simpleLast
+// tag::last[]
+FROM ul_logs
+//| STATS last_status = LAST(status, @timestamp)
+| STATS last_status = AVG(bytes_in)
+// end::last[]
+;
+
+last_status:keyword
+Error      
+;
+
+// nulls
+// various time dimensions
+// literals
+// lists?
+// various data types
+

@@ -28,6 +28,7 @@ public class AggregateWritables {
             StdDev.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,
+            Last.ENTRY,
             Values.ENTRY,
             // internal functions
             ToPartial.ENTRY,

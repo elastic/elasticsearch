@@ -5850,7 +5850,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     //
 
     /**
-     * Filter on join keys should be pushed donw
+     * Filter on join keys should be pushed down
      * Expects
      * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
@@ -5878,7 +5878,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         project = as(join.left(), Project.class);
         var filter = as(project.child(), Filter.class);
-        // assert that the rename has been undone and
+        // assert that the rename has been undone
         var op = as(filter.condition(), GreaterThan.class);
         var field = as(op.left(), FieldAttribute.class);
         assertThat(field.name(), equalTo("languages"));

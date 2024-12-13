@@ -40,6 +40,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -51,6 +52,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testNonExistentDataStream() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String nonExistentDataStreamName = randomAlphaOfLength(50);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
@@ -64,6 +66,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testAlreadyUpToDateDataStream() throws Exception {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String dataStreamName = randomAlphaOfLength(50).toLowerCase(Locale.ROOT);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
@@ -114,6 +117,23 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             assertThat(status.totalIndices(), equalTo(backingIndexCount));
             assertThat(status.totalIndicesToBeUpgraded(), equalTo(0));
         });
+        AcknowledgedResponse cancelResponse = client().execute(
+            CancelReindexDataStreamAction.INSTANCE,
+            new CancelReindexDataStreamAction.Request(dataStreamName)
+        ).actionGet();
+        assertNotNull(cancelResponse);
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(CancelReindexDataStreamAction.INSTANCE, new CancelReindexDataStreamAction.Request(dataStreamName))
+                .actionGet()
+        );
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(
+                new ActionType<GetMigrationReindexStatusAction.Response>(GetMigrationReindexStatusAction.NAME),
+                new GetMigrationReindexStatusAction.Request(dataStreamName)
+            ).actionGet()
+        );
     }
 
     private int createDataStream(String dataStreamName) {

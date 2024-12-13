@@ -36,6 +36,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -231,6 +232,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         for (RetrieverSource innerRetriever : innerRetrievers) {
             validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
+            if (innerRetriever.retriever() instanceof CompoundRetrieverBuilder<?> compoundChild) {
+                String errorMessage = String.format(
+                        Locale.ROOT,
+                        "[%s] requires [rank_window_size: %d] to be smaller than or equal to its sub retriever's %s [rank_window_size: %d]",
+                        this.getName(), rankWindowSize, compoundChild.getName(), compoundChild.rankWindowSize
+                );
+                validationException = addValidationError(errorMessage, validationException);
+            }
         }
         return validationException;
     }

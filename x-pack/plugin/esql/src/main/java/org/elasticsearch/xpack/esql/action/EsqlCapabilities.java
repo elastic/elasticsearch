@@ -189,6 +189,9 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
+        /** Support for function {@code ST_EXTENT}. */
+        ST_EXTENT_AGG,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */
@@ -368,6 +371,11 @@ public class EsqlCapabilities {
         DATE_TRUNC_DATE_NANOS(),
 
         /**
+         * Support date nanos values as the field argument to bucket
+         */
+        DATE_NANOS_BUCKET(),
+
+        /**
          * support aggregations on date nanos
          */
         DATE_NANOS_AGGREGATIONS(),
@@ -422,6 +430,10 @@ public class EsqlCapabilities {
          */
         CATEGORIZE_V5,
 
+        /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
         /**
          * QSTR function
          */
@@ -538,7 +550,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V4(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V5(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

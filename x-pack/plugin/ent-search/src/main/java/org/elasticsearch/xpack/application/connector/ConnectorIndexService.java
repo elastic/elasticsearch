@@ -237,22 +237,27 @@ public class ConnectorIndexService {
     public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<UpdateResponse> listener) {
 
         try {
-            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
-                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                    .id(connectorId)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(Map.of(Connector.IS_DELETED_FIELD.getPreferredName(), true))
-            );
-            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                    return;
-                }
-                if (shouldDeleteSyncJobs) {
-                    new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> updateResponse));
-                } else {
-                    l.onResponse(updateResponse);
-                }
+            // ensure that if connector is soft-deleted, deleting it again results in 404
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                )
+                    .doc(
+                        new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                            .id(connectorId)
+                            .source(Map.of(Connector.IS_DELETED_FIELD.getPreferredName(), true))
+                    );
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                        return;
+                    }
+                    if (shouldDeleteSyncJobs) {
+                        new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, ll.map(r -> updateResponse));
+                    } else {
+                        ll.onResponse(updateResponse);
+                    }
+                }));
             }));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -288,7 +293,6 @@ public class ConnectorIndexService {
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
-
             client.search(req, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {

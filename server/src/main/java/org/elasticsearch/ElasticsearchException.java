@@ -158,7 +158,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
-          readStackTrace(this, in);
+        readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
     }
@@ -177,8 +177,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public void addMetadata(String key, List<String> values) {
         // we need to enforce this otherwise bw comp doesn't work properly, as "es." was the previous criteria to split headers in two sets
-        if (key.startsWith("es.") == false)
-        {
+        if (key.startsWith("es.") == false) {
             throw new IllegalArgumentException("exception metadata must start with [es.], found [" + key + "] instead");
         }
         this.metadata.put(key, values);

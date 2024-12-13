@@ -768,9 +768,11 @@ public class Verifier {
     }
 
     /**
-     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     * Checks whether a condition contains a disjunction with a full text search.
+     * If it does, check that every element of the disjunction is a full text search or combinations (AND, OR, NOT) of them.
+     * If not, add a failure to the failures collection.
      *
-     * @param condition        condition to check for disjunctions
+     * @param condition        condition to check for disjunctions of full text searches
      * @param typeNameProvider provider for the type name to add in the failure message
      * @param failures         failures collection to add to
      */
@@ -779,27 +781,54 @@ public class Verifier {
         java.util.function.Function<FullTextFunction, String> typeNameProvider,
         Set<Failure> failures
     ) {
-        condition.forEachUp(Or.class, or -> {
-            boolean left = onlyFullTextFunctionsInExpression(or.left());
-            boolean right = onlyFullTextFunctionsInExpression(or.right());
-            if (left ^ right) {
-                Holder<String> elementName = new Holder<>();
-                if (left) {
-                    or.left().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
-                } else {
-                    or.right().forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
-                }
-                failures.add(
-                    fail(
-                        or,
-                        "Invalid condition [{}]. {} can be used as part of an OR condition, "
-                            + "but only if other full text functions are used as part of the condition",
-                        or.sourceText(),
-                        elementName.get()
-                    )
-                );
+        int failuresCount = failures.size();
+        condition.forEachDown(Or.class, or -> {
+            if (failures.size() > failuresCount) {
+                // Exit early if we already have a failures
+                return;
+            }
+            Expression left = or.left();
+            boolean leftHasFullText = left.anyMatch(FullTextFunction.class::isInstance);
+            boolean leftHasOnlyFullText = onlyFullTextFunctionsInExpression(left);
+            Expression right = or.right();
+            boolean rightHasFullText = right.anyMatch(FullTextFunction.class::isInstance);
+            boolean rightHasOnlyFullText = onlyFullTextFunctionsInExpression(right);
+
+            if (leftHasFullText && leftHasOnlyFullText == false) {
+                disjunctionFailure(or, left, typeNameProvider, failures);
+            } else if (rightHasFullText && rightHasOnlyFullText == false) {
+                disjunctionFailure(or, right, typeNameProvider, failures);
+            } else if (leftHasFullText ^ rightHasFullText) {
+                disjunctionFailure(or, leftHasFullText ? left : right, typeNameProvider, failures);
             }
         });
+    }
+
+    /**
+     * Add a disjunction failure to the failures collection.
+     * @param parentExpression parent expression to include in the failure
+     * @param expressionWithError expression that provoked the failure
+     * @param typeNameProvider provider for the type name to add in the failure message
+     * @param failures failures collection to add to
+     */
+    private static void disjunctionFailure(
+        Expression parentExpression,
+        Expression expressionWithError,
+        java.util.function.Function<FullTextFunction, String> typeNameProvider,
+        Set<Failure> failures
+    ) {
+        Holder<String> elementName = new Holder<>();
+        // Get first function name to add to the failure message
+        expressionWithError.forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
+        failures.add(
+            fail(
+                parentExpression,
+                "Invalid condition [{}]. {} can be used in an OR condition, "
+                    + "but only if just full text functions are used in the OR condition",
+                parentExpression.sourceText(),
+                elementName.get()
+            )
+        );
     }
 
     /**
@@ -811,13 +840,30 @@ public class Verifier {
     private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
         if (expression instanceof FullTextFunction) {
             return true;
-        } else if (expression instanceof Not || expression instanceof BinaryLogic) {
-            for (Expression child : expression.children()) {
-                if (onlyFullTextFunctionsInExpression(child) == false) {
-                    return false;
-                }
-            }
+        } else if (expression instanceof Not) {
+            return onlyFullTextFunctionsInExpression(expression.children().get(0));
+        } else if (expression instanceof BinaryLogic binaryLogic) {
+            return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks whether an expression contains a full text function as part of it
+     *
+     * @param expression expression to check
+     * @return true if the expression or any of its children is a full text function, false otherwise
+     */
+    private static boolean anyFullTextFunctionsInExpression(Expression expression) {
+        if (expression instanceof FullTextFunction) {
             return true;
+        }
+
+        for (Expression child : expression.children()) {
+            if (anyFullTextFunctionsInExpression(child)) {
+                return true;
+            }
         }
 
         return false;

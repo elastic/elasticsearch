@@ -1168,14 +1168,14 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFilter() throws Exception {
         assertEquals(
             "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
-                + "[:] operator can be used as part of an OR condition, "
-                + "but only if other full text functions are used as part of the condition",
+                + "[:] operator can be used in an OR condition, "
+                + "but only if just full text functions are used in the OR condition",
             error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. [:] operator can be used as part of an OR "
-                + "condition, but only if other full text functions are used as part of the condition",
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. [:] operator can be used in an OR "
+                + "condition, but only if just full text functions are used in the OR condition",
             error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
     }
@@ -1413,45 +1413,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
+        String expression = functionInvocation + " or length(first_name) > 12";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+        expression = "(" + functionInvocation + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+        expression = functionInvocation + " or (last_name is not null and first_name is null)";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+    }
+
+    private void checkdisjunctionError(String position, String expression, String functionName, String functionType) {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. "
-                    + "[{}] "
-                    + functionType
-                    + " can be used as part of an OR condition, but only if other full text functions are used as part of the condition",
-                functionInvocation,
-                functionName
+                "{}: Invalid condition [{}]. [{}] {} can be used in an OR condition, "
+                    + "but only if just full text functions are used in the OR condition",
+                position,
+                expression,
+                functionName,
+                functionType
             ),
-            error("from test | where " + functionInvocation + " or length(first_name) > 12")
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:20: Invalid condition [{} or first_name is not null]. "
-                    + "[{}] "
-                    + functionType
-                    + " can be used as part of an OR condition, but only if other full text functions are used as part of the condition",
-                functionInvocation,
-                functionName
-            ),
-            error(
-                "from test | where ("
-                    + functionInvocation
-                    + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
-            )
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [{} or (last_name is not null and first_name is null)]. "
-                    + "[{}] "
-                    + functionType
-                    + " can be used as part of an OR condition, but only if other full text functions are used as part of the condition",
-                functionInvocation,
-                functionName
-            ),
-            error("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)")
+            error("from test | where " + expression)
         );
     }
 
@@ -1465,35 +1446,23 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkWithFullTextFunctionsDisjunctions(String functionName, String functionInvocation, String functionType) {
+
+        String expression = functionInvocation + " or length(first_name) > 10";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+
+        expression = "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+
+        expression = "("
+            + functionInvocation
+            + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+
         passes("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
         passes("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
         passes("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
         passes("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
         passes("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
-
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [{} or length(first_name) > 10]. [{}] {} can be used as part of an OR condition, "
-                    + "but only if other full text functions are used as part of the condition",
-                functionInvocation,
-                functionName,
-                functionType
-            ),
-            error("from test | where " + functionInvocation + " or length(first_name) > 10")
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [{} or (match(last_name, \"Anneke\") and length(first_name) > 10)]."
-                    + " [{}] {} can be used as part of an OR condition, "
-                    + "but only if other full text functions are used as part of the condition",
-                functionInvocation,
-                functionName,
-                functionType
-            ),
-            error("from test | where " + functionInvocation + " or (match(last_name, \"Anneke\") and length(first_name) > 10)")
-        );
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {

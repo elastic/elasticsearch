@@ -215,8 +215,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(
             error.getMessage(),
             containsString(
-                "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. "
-                    + "[:] operator can't be used as part of an or condition"
+                "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. " + "[:] operator can't be used in an OR condition"
             )
         );
     }

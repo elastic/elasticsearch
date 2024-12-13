@@ -170,7 +170,7 @@ setup:
   - match: { error.reason: "Found 1 problem\nline 1:36: Unknown column [content], did you mean [count(*)]?" }
 
 ---
-"match with functions":
+"match with disjunctions":
   - do:
       catch: bad_request
       allowed_warnings_regex:
@@ -182,6 +182,19 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\.\\ \\[\\:\\]\\ operator.+/" }
+
+  - do:
+      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE content:"fox" OR to_upper(content) == "FOX"'
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\.\\ \\[\\:\\]\\ operator.+/" }
+
 
 ---
 "match within eval":

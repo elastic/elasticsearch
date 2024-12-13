@@ -93,9 +93,9 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     public List<Attribute> output() {
         if (lazyOutput == null) {
             lazyOutput = new ArrayList<>(left().output());
-            for (Attribute attr : addedFields) {
-                lazyOutput.add(attr);
-            }
+            var addedFieldsNames = addedFields.stream().map(Attribute::name).toList();
+            lazyOutput.removeIf(a -> addedFieldsNames.contains(a.name()));
+            lazyOutput.addAll(addedFields);
         }
         return lazyOutput;
     }
@@ -117,6 +117,21 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     protected AttributeSet computeReferences() {
         // TODO: same as above - once lazy materialization of both sides lands, this needs updating
         return Expressions.references(leftFields);
+    }
+
+    @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(leftFields);
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        // TODO: currently it's hard coded that we add all fields from the lookup index. But the output we "officially" get from the right
+        // hand side is inconsistent:
+        // - After logical optimization, there's a FragmentExec with an EsRelation on the right hand side with all the fields.
+        // - After local physical optimization, there's just an EsQueryExec here, with no fields other than _doc mentioned and we don't
+        // insert field extractions in the plan, either.
+        return AttributeSet.EMPTY;
     }
 
     @Override

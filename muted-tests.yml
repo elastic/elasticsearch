@@ -382,8 +382,11 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {scoring.QstrWithFieldAndScoringSortedEval}
+- class: "org.elasticsearch.xpack.esql.qa.mixed.MultilusterEsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/118460
+- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
+  method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117751
 - class: org.elasticsearch.search.ccs.CrossClusterIT
   method: testCancel
@@ -440,3 +443,27 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116694
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118548
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/10_reindex/Test Reindex With Existing Data Stream}
+  issue: https://github.com/elastic/elasticsearch/issues/118575
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/20_reindex_status/Test Reindex With Existing Data Stream}
+  issue: https://github.com/elastic/elasticsearch/issues/118576
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2AvailabilityZoneAttributeNoImdsIT
+  method: testAvailabilityZoneAttribute
+  issue: https://github.com/elastic/elasticsearch/issues/118564
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {grok.OverwriteName SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118631
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {stats.ByStringAndLongWithAlias SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118632
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {dissect.OverwriteNameWhere SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118633
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  method: testRetryPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/118514
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {grok.OverwriteNameWhere SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118638

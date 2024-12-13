@@ -20,7 +20,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -77,9 +77,7 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
             assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
-            listener.onResponse(
-                new CloseIndexResponse(true, true, Collections.singletonList(new CloseIndexResponse.IndexResult(indexMetadata.getIndex())))
-            );
+            listener.onResponse(new CloseIndexResponse(true, true, List.of(new CloseIndexResponse.IndexResult(indexMetadata.getIndex()))));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 

@@ -347,7 +347,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 10093          | 3                     | Spanish
 ;
 
-lookupMessageWithFilterOnRightSideField-Ignored
+lookupMessageWithFilterOnRightSideField-Ignore
 required_capability: join_lookup_v4
 
 FROM sample_data
@@ -376,7 +376,7 @@ count:long | type:keyword
 3          | Error
 ;
 
-lookupWithFieldOnJoinKey-Ignored
+lookupWithFieldOnJoinKey-Ignore
 required_capability: join_lookup_v4
 
 FROM employees

@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
@@ -223,6 +224,8 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
     public void testDeletingAndCreatingSecurityIndexTriggersSynchronization() throws Exception {
         deleteSecurityIndex();
 
+        assertBusy(this::assertSecurityIndexDeleted, 30, TimeUnit.SECONDS);
+
         // Creating a user will trigger .security index creation
         createUser("superman", "superman", "superuser");
 
@@ -261,6 +264,15 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         final Map<String, String> builtInRolesDigests = ObjectPath.createFromResponse(response)
             .evaluate("metadata.indices.\\.security-7." + QueryableBuiltInRolesSynchronizer.METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
         assertThat(builtInRolesDigests.keySet(), equalTo(builtInRoles));
+    }
+
+    private void assertSecurityIndexDeleted() throws IOException {
+        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        final Response response = adminClient().performRequest(request);
+        assertOK(response);
+        final Map<String, String> securityIndexMetadata = ObjectPath.createFromResponse(response)
+            .evaluate("metadata.indices.\\.security-7");
+        assertThat(securityIndexMetadata, is(nullValue()));
     }
 
     private void configureReservedRoles(List<String> reservedRoles) throws Exception {

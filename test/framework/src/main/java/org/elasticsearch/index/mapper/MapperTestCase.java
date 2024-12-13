@@ -64,6 +64,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1169,6 +1170,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         })).documentMapper();
         assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
+        assertThat(
+            syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), example::buildInput),
+            equalTo(example.expected())
+        );
+        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), example::buildInput), equalTo("{}"));
     }
 
     private void assertSyntheticSourceWithTranslogSnapshot(SyntheticSourceSupport support, boolean doIndexSort) throws IOException {
@@ -1292,7 +1298,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping(), SourceFieldMetrics.NOOP);
+                SourceLoader loader = mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP);
                 StoredFieldLoader storedFieldLoader = loader.requiredStoredFields().isEmpty()
                     ? StoredFieldLoader.empty()
                     : StoredFieldLoader.create(false, loader.requiredStoredFields());
@@ -1335,6 +1341,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.buildInput(b);
             b.endObject();
         }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+
+        assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "obj.field" }, null), b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+
+        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "obj.field" }), b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{}"));
     }
 
     public final void testSyntheticEmptyList() throws IOException {
@@ -1465,7 +1483,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 blockReaderSupport.syntheticSource
             );
         }
-        var sourceLoader = mapper.mappingLookup().newSourceLoader(SourceFieldMetrics.NOOP);
+        var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 
@@ -1592,7 +1610,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = getOnlyLeafReader(reader);
-                SourceLoader.SyntheticFieldLoader fieldLoader = mapper.mapping().getRoot().getMapper("field").syntheticFieldLoader();
+                SourceLoader.SyntheticFieldLoader fieldLoader = ((FieldMapper) mapper.mapping().getRoot().getMapper("field"))
+                    .syntheticFieldLoader();
                 /*
                  * null means "there are no values for this field, don't call me".
                  * Empty fields are common enough that we need to make sure this
@@ -1633,6 +1652,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.buildInput(b);
             b.endObject();
         }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+
+        assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "obj.field" }, null), b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{\"obj\":" + syntheticSourceExample.expected() + "}"));
+
+        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "obj.field" }), b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{\"obj\":{}}"));
+
+        assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "obj" }), b -> {
+            b.startObject("obj");
+            syntheticSourceExample.buildInput(b);
+            b.endObject();
+        }), equalTo("{}"));
     }
 
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {

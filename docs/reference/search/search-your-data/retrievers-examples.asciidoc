@@ -1,8 +1,7 @@
 [[retrievers-examples]]
+=== Retrievers examples
 
 Learn how to combine different retrievers in these hands-on examples.
-
-=== Retrievers examples
 
 [discrete]
 [[retrievers-examples-setup]]

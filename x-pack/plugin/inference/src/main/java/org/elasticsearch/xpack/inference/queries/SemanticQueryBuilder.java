@@ -65,7 +65,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         false,
         args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2])
     );
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
@@ -232,7 +231,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 List.of(query),
                 Map.of(),
                 InputType.SEARCH,
-                DEFAULT_TIMEOUT,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 false
             );
 

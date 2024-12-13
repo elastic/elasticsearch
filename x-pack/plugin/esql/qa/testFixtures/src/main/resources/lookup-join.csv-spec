@@ -3,13 +3,10 @@
 // Reuses the sample dataset and commands from enrich.csv-spec
 //
 
-<<<<<<< HEAD
 ###############################################
 # Tests with languages_lookup index
 ###############################################
 
-=======
->>>>>>> origin/main
 basicOnTheDataNode
 required_capability: join_lookup_v6
 

@@ -163,7 +163,7 @@ Grants the minimum privileges required to collect monitoring data for the {stack
 [[built-in-roles-reporting-user]] `reporting_user`::
 Grants the necessary privileges required to use {reporting} features in {kib},
 including generating and downloading reports. This role implicitly grants access
-to the reporting indices, with each user having access only to their own reports.
+to all Kibana reporting features, with each user having access only to their own reports.
 Note that reporting users should also be assigned additional roles that grant read access
 to the <<roles-indices-priv,indices>> that will be used to generate reports.
 

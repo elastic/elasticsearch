@@ -331,7 +331,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     "Grants the necessary privileges required to use reporting features in Kibana, "
-                        + "including generating and downloading reports. This role implicitly grants access to the reporting indices, "
+                        + "including generating and downloading reports. "
+                        + "This role implicitly grants access to all Kibana reporting features, "
                         + "with each user having access only to their own reports. Note that reporting users should also be assigned "
                         + "additional roles that grant read access to the indices that will be used to generate reports."
                 )

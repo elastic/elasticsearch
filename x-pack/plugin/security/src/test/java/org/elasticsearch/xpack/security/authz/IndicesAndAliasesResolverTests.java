@@ -2248,9 +2248,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     .ignoreThrottled(true)
                     .build()
             )
-            .selectorOptions(
-                new IndicesOptions.SelectorOptions(IndexComponentSelector.ALL_APPLICABLE)
-            )
+            .selectorOptions(new IndicesOptions.SelectorOptions(IndexComponentSelector.ALL_APPLICABLE))
             .build();
         {
             final User user = new User("data-stream-tester2", "data_stream_test2");

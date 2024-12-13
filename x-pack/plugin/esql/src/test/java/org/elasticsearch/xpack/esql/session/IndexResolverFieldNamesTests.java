@@ -1366,7 +1366,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     public void testLookupJoin() {
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
-            Set.of("languages", "language_code", "language_code.*", "languages.*"),
+            Set.of("languages", "languages.*", "language_code", "language_code.*"),
             Set.of("languages_lookup") // Since we have KEEP before the LOOKUP JOIN we need to wildcard the lookup index
         );
     }
@@ -1379,7 +1379,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | RENAME languages AS language_code
                 | LOOKUP JOIN languages_lookup ON language_code
                 | KEEP languages, language_code, language_name""",
-            Set.of("languages", "language_code", "language_name", "language_code.*", "languages.*", "language_name.*"),
+            Set.of("languages", "languages.*", "language_code", "language_code.*", "language_name", "language_name.*"),
             Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
         );
     }
@@ -1417,7 +1417,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | KEEP @timestamp, client_ip, event_duration, message
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | LOOKUP JOIN message_types_lookup ON message""",
-            Set.of("@timestamp", "client_ip", "event_duration", "message", "@timestamp.*", "client_ip.*", "event_duration.*", "message.*"),
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
             Set.of("clientips_lookup", "message_types_lookup") // Since the KEEP is before both JOINS we need to wildcard both indices
         );
     }
@@ -1432,14 +1432,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | LOOKUP JOIN message_types_lookup ON message""",
             Set.of(
                 "@timestamp",
-                "client_ip",
-                "event_duration",
-                "message",
-                "env",
                 "@timestamp.*",
+                "client_ip",
                 "client_ip.*",
+                "event_duration",
                 "event_duration.*",
+                "message",
                 "message.*",
+                "env",
                 "env.*"
             ),
             Set.of("message_types_lookup")  // Since the KEEP is before the second JOIN, we need to wildcard the second index
@@ -1456,16 +1456,16 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | KEEP @timestamp, client_ip, event_duration, message, env, type""",
             Set.of(
                 "@timestamp",
-                "client_ip",
-                "event_duration",
-                "message",
-                "env",
-                "type",
                 "@timestamp.*",
+                "client_ip",
                 "client_ip.*",
+                "event_duration",
                 "event_duration.*",
+                "message",
                 "message.*",
+                "env",
                 "env.*",
+                "type",
                 "type.*"
             ),
             Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
@@ -1480,7 +1480,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | LOOKUP JOIN message_types_lookup ON message
                 | KEEP *env*, *type*""",
-            Set.of("*env*", "*type*", "client_ip", "message", "client_ip.*", "message.*"),
+            Set.of("*env*", "*type*", "client_ip", "client_ip.*", "message", "message.*"),
             Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
         );
     }
@@ -1507,7 +1507,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | EVAL client_ip = message
                 | LOOKUP JOIN clientips_lookup ON client_ip""",
-            Set.of("@timestamp", "client_ip", "event_duration", "message", "@timestamp.*", "client_ip.*", "event_duration.*", "message.*"),
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
             Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
         );
     }
@@ -1523,14 +1523,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | LOOKUP JOIN clientips_lookup ON client_ip""",
             Set.of(
                 "@timestamp",
-                "client_ip",
-                "event_duration",
-                "message",
-                "env",
                 "@timestamp.*",
+                "client_ip",
                 "client_ip.*",
+                "event_duration",
                 "event_duration.*",
+                "message",
                 "message.*",
+                "env",
                 "env.*"
             ),
             Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
@@ -1548,14 +1548,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | KEEP @timestamp, client_ip, event_duration, message, env""",
             Set.of(
                 "@timestamp",
-                "client_ip",
-                "event_duration",
-                "message",
-                "env",
                 "@timestamp.*",
+                "client_ip",
                 "client_ip.*",
+                "event_duration",
                 "event_duration.*",
+                "message",
                 "message.*",
+                "env",
                 "env.*"
             ),
             Set.of()  // Since the KEEP is after both JOINs, we can use the global field names

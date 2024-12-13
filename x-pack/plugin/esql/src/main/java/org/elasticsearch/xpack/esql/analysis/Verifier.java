@@ -831,8 +831,8 @@ public class Verifier {
                 }
             }
 
-            if (join.right() instanceof EsRelation relation) {
-                if (join instanceof LookupJoin) {
+            if (join instanceof LookupJoin) {
+                join.right().forEachDown(EsRelation.class, relation -> {
                     var indicesWithModes = relation.index().indexNameWithModes();
                     if (indicesWithModes.size() != 1) {
                         failures.add(
@@ -853,7 +853,7 @@ public class Verifier {
                             )
                         );
                     }
-                }
+                });
             }
         }
     }

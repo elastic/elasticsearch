@@ -57,8 +57,8 @@ class BuildParameterExtensionSpec extends Specification {
         latch.await(10, TimeUnit.SECONDS)
 
         then:
-        futures.collect { it.state() }.any() { it == Future.State.FAILED } == false
 
+        futures.stream().anyMatch { it.isCancelled() || it.isDone() == false } == false
         where:
         getterName << [
             "getRuntimeJavaHome",

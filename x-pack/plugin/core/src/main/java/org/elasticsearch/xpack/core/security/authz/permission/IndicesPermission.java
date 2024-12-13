@@ -375,7 +375,8 @@ public final class IndicesPermission {
                 : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
             assert abstraction == null
                 || selector == null
-                || (IndexComponentSelector.FAILURES.equals(selector) == abstraction.isDataStreamRelated())
+                || IndexComponentSelector.FAILURES.equals(selector) == false
+                || abstraction.isDataStreamRelated()
                 : "Invalid index component selector ["
                     + selector.getKey()
                     + "] applied to abstraction of type ["

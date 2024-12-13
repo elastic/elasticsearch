@@ -98,7 +98,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm").forceLiteral(),
                     new TestCaseSupplier.TypedData(new BytesRef(input), inputType, "input")
                 ),
-                "HashEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=1]]",
+                "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(hash(algorithm, input)))
             );

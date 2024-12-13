@@ -132,7 +132,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
-        if (buildParams.getJavaToolChainSpec().isPresent()) {
+        if (buildParams.getJavaToolChainSpec().getOrNull() != null) {
             java.toolchain(buildParams.getJavaToolChainSpec().get());
         }
         java.setSourceCompatibility(buildParams.getMinimumRuntimeVersion());

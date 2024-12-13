@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
@@ -78,7 +77,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     @Override
     public void apply(Project project) {
         project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
 
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");

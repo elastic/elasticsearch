@@ -3143,18 +3143,6 @@ public class InternalEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
-    ) throws IOException {
-        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, -1);
-    }
-
-    @Override
-    public Translog.Snapshot newChangesSnapshot(
-        String source,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange,
-        boolean singleConsumer,
         boolean accessStats,
         long maxChunkSize
     ) throws IOException {

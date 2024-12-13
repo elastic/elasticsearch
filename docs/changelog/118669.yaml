@@ -1,0 +1,5 @@
+pr: 118669
+summary: "[Connector API] Support soft-deletes of connectors"
+area: Extract&Transform
+type: feature
+issues: []

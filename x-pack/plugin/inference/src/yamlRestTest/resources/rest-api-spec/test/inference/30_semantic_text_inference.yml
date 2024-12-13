@@ -289,6 +289,44 @@ setup:
   - length: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: 1 }
   - length: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text: 1 }
 
+---
+"Sparse vector results are indexed as nested chunks and searchable - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"sparse_field": ["you know, for testing", "now with chunks"]}
+          {"index":{}}
+          {"sparse_field": ["some more tests", "that include chunks"]}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            nested:
+              path: sparse_field.inference.chunks
+              query:
+                sparse_vector:
+                  field: sparse_field.inference.chunks.embeddings
+                  inference_id: sparse-inference-id
+                  query: "you know, for testing"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 2 }
+  - length: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field: 2 }
 
 ---
 "Dense vector results are indexed as nested chunks and searchable":
@@ -363,6 +401,47 @@ setup:
   - length: { hits.hits.1.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text: 1 }
 
 ---
+"Dense vector results are indexed as nested chunks and searchable - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"dense_field": ["you know, for testing", "now with chunks"]}
+          {"index":{}}
+          {"dense_field": ["some more tests", "that include chunks"]}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            nested:
+              path: dense_field.inference.chunks
+              query:
+                knn:
+                  field: dense_field.inference.chunks.embeddings
+                  query_vector_builder:
+                    text_embedding:
+                      model_id: dense-inference-id
+                      model_text: "you know, for testing"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 2 }
+  - length: { hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field: 2 }
+
+---
 "Reindex works for semantic_text fields":
   - requires:
       test_runner_features: [ capabilities ]
@@ -429,6 +508,77 @@ setup:
   - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
   - match: { _source.dense_field.inference.chunks.0.embeddings: $dense_field_embedding }
   - match: { _source.non_inference_field: "non inference test" }
+
+---
+"Reindex works for semantic_text fields - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      indices.create:
+        index: destination-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: test-index
+          dest:
+            index: destination-index
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: destination-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "inference test" }
+  - match: { _source.dense_field: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - do:
+      search:
+        index: destination-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
 
 ---
 "Fails for non-existent inference":
@@ -549,6 +699,50 @@ setup:
   - match: { _source.non_inference_field: "non inference test" }
 
 ---
+"Calculates embeddings for bulk operations - index - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      bulk:
+        body:
+          - '{"index": {"_index": "test-index", "_id": "doc_1"}}'
+          - '{"sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test"}'
+        refresh: true
+
+  - match: { errors: false }
+  - match: { items.0.index.result: "created" }
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "inference test" }
+  - match: { _source.dense_field: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+
+---
 "Update by query picks up new semantic_text fields":
   - requires:
       test_runner_features: [ capabilities ]
@@ -615,6 +809,82 @@ setup:
   - match: { _source.non_inference_field: "non inference test" }
 
 ---
+"Update by query picks up new semantic_text fields - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      indices.create:
+        index: mapping-update-index
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: mapping-update-index
+        id: doc_1
+        refresh: true
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      indices.put_mapping:
+        index: mapping-update-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+            non_inference_field:
+              type: text
+
+  - do:
+      update_by_query:
+        wait_for_completion: true
+        index: mapping-update-index
+
+  - match: { updated: 1 }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: mapping-update-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "inference test" }
+  - match: { _source.dense_field: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - do:
+      search:
+        index: mapping-update-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+
+---
 "Update by query works for scripts":
   - requires:
       test_runner_features: [ capabilities ]
@@ -655,6 +925,79 @@ setup:
   - match: { _source.dense_field.text: "another updated inference test" }
   - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
   - exists: _source.dense_field.inference.chunks.0.embeddings
+
+---
+"Update by query works for scripts - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        refresh: true
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+
+  - do:
+      update_by_query:
+        refresh: true
+        wait_for_completion: true
+        index: test-index
+        body: { "script": "ctx._source.sparse_field = 'updated inference test'; ctx._source.dense_field = 'another updated inference test'" }
+
+  - match: { updated: 1 }
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "updated inference test" }
+  - match: { _source.dense_field: "another updated inference test" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  # We can't directly check that the embeddings are different since there isn't a "does not match" assertion in the
+  # YAML test framework. Check that the start and end offsets change as expected as a proxy.
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 22 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 30 }
 
 ---
 "Calculates embeddings using the default ELSER 2 endpoint":
@@ -749,6 +1092,63 @@ setup:
   - match: { _source.level_1.dense_field.inference.chunks.0.text: "another inference test" }
 
 ---
+"Can be used inside an object field - inference metadata fields":
+  - requires:
+      cluster_features: "semantic_text.in_object_field_fix"
+      reason: Test targets semantic text with inference metadata fields
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      indices.create:
+        index: test-in-object-index
+        body:
+          mappings:
+            properties:
+              level_1:
+                properties:
+                  sparse_field:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+                  dense_field:
+                    type: semantic_text
+                    inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          level_1:
+            sparse_field: "inference test"
+            dense_field: "another inference test"
+        refresh: true
+
+  - do:
+      get:
+        index: test-in-object-index
+        id: doc_1
+
+  - match: { _source.level_1.sparse_field: "inference test" }
+  - match: { _source.level_1.dense_field: "another inference test" }
+
+  - do:
+      search:
+        index: test-in-object-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.level_1\\.sparse_field.inference.chunks.level_1\\.sparse_field: 1 }
+  - length: { hits.hits.0._source._inference_fields.level_1\\.dense_field.inference.chunks.level_1\\.dense_field: 1 }
+
+---
 "Deletes on bulk operation":
   - requires:
       cluster_features: semantic_text.delete_fix
@@ -807,3 +1207,60 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
   - match: { hits.hits.0._source.dense_field.text: "updated text" }
+
+---
+"Deletes on bulk operation - inference metadata fields":
+  - requires:
+      cluster_features: semantic_text.delete_fix
+      reason: Test targets semantic text with inference metadata fields
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index":{"_id": "1"}}
+          {"dense_field": ["you know, for testing", "now with chunks"]}
+          {"index":{"_id": "2"}}
+          {"dense_field": ["some more tests", "that include chunks"]}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: dense_field
+              query: "you know, for testing"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.dense_field: ["you know, for testing", "now with chunks"] }
+  - match: { hits.hits.1._source.dense_field: ["some more tests", "that include chunks"] }
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"delete":{ "_id": "2"}}
+          {"update":{"_id": "1"}}
+          {"doc":{"dense_field": "updated text"}}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: dense_field
+              query: "you know, for testing"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.dense_field: "updated text" }

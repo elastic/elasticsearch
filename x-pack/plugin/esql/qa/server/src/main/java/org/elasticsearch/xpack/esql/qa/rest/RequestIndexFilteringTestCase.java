@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 
@@ -220,13 +221,15 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), containsString("no such index [foo]"));
 
-        e = expectThrows(
-            ResponseException.class,
-            () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))
-        );
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(e.getMessage(), containsString("Unknown index [foo]"));
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V6.isEnabled()) {
+            e = expectThrows(
+                ResponseException.class,
+                () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))
+            );
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), containsString("verification_exception"));
+            assertThat(e.getMessage(), containsString("Unknown index [foo]"));
+        }
     }
 
     private static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {

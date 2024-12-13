@@ -1567,7 +1567,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testFullTextFunctionsDisjunctionWithFiltersPushdown() {
         String query = """
             from test
-            | where (first_name:"Anna" or first_name:"Anneke") and last_name:"first_name) > 5
+            | where (first_name:"Anna" or first_name:"Anneke") and length(last_name) > 5
             | sort emp_no
             """;
         var plan = plannerOptimizer.plan(query);

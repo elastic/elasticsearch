@@ -131,7 +131,7 @@ public class RestShardChangesAction extends BaseRestHandler {
                 throw new IllegalStateException("Timeout while waiting for shard stats or index UUID", te);
             }
         }).exceptionally(ex -> {
-            channel.sendResponse(new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, "Failed to process shard changes"));
+            channel.sendResponse(new RestResponse(RestStatus.BAD_REQUEST, "Failed to process shard changes for index [" + indexName + "]"));
             return null;
         });
     }

@@ -95,6 +95,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             public void cancel() {
                 if (isClosed.compareAndSet(false, true) && upstream != null) {
                     upstream.cancel();
+                    onCancel();
                 }
             }
         };

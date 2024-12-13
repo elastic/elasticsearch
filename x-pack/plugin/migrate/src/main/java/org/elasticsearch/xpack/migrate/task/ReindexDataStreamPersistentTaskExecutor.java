@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -77,7 +80,12 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
-                List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
+                DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
+                if (getOldIndexVersionPredicate(clusterService.state().metadata()).test(dataStream.getWriteIndex())) {
+                    // placeholder
+                    reindexClient.execute(RolloverAction.INSTANCE, new RolloverRequest(sourceDataStream, null)).actionGet();
+                }
+                List<Index> indices = dataStream.getIndices();
                 List<Index> indicesToBeReindexed = indices.stream()
                     .filter(getOldIndexVersionPredicate(clusterService.state().metadata()))
                     .toList();

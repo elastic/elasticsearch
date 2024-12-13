@@ -268,11 +268,11 @@ public class ComputeService {
         }
     }
 
-    private Set<String> selectConcreteIndices(Map<String, OriginalIndices> clusterToConcreteIndices, Set<String> indexesToIgnore) {
+    private Set<String> selectConcreteIndices(Map<String, OriginalIndices> clusterToConcreteIndices, Set<String> indicesToIgnore) {
         Set<String> concreteIndexNames = new HashSet<>();
         clusterToConcreteIndices.forEach((clusterAlias, concreteIndices) -> {
             for (String index : concreteIndices.indices()) {
-                if (indexesToIgnore.contains(index) == false) {
+                if (indicesToIgnore.contains(index) == false) {
                     concreteIndexNames.add(index);
                 }
             }
@@ -288,7 +288,8 @@ public class ComputeService {
             lookupJoinExec -> lookupJoinExec.lookup()
                 .forEachDown(
                     FragmentExec.class,
-                    frag -> frag.fragment().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
+                    frag -> frag.fragment()
+                        .forEachDown(EsRelation.class, esRelation -> lookupIndexNames.addAll(esRelation.index().concreteIndices()))
                 )
         );
         // When planning JOIN on the data node: "FragmentExec.fragment()->Join.right()->EsRelation.index()"
@@ -298,7 +299,8 @@ public class ComputeService {
             fragmentExec -> fragmentExec.fragment()
                 .forEachDown(
                     Join.class,
-                    join -> join.right().forEachDown(EsRelation.class, esRelation -> lookupIndexNames.add(esRelation.index().name()))
+                    join -> join.right()
+                        .forEachDown(EsRelation.class, esRelation -> lookupIndexNames.addAll(esRelation.index().concreteIndices()))
                 )
         );
         return lookupIndexNames;

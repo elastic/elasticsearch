@@ -1,0 +1,74 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [join_lookup_v5]
+      reason: "uses LOOKUP JOIN"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              key:
+                type: long
+              color:
+                type: keyword
+  - do:
+      indices.create:
+        index: test-lookup
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              key:
+                type: long
+              color:
+                type: keyword
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test-lookup
+                alias: test-lookup-alias
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "key": 1, "color": "red" }
+          - { "index": { } }
+          - { "key": 2, "color": "blue" }
+  - do:
+      bulk:
+        index: "test-lookup"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "key": 1, "color": "cyan" }
+          - { "index": { } }
+          - { "key": 2, "color": "yellow" }
+
+---
+alias:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT key | LOOKUP JOIN `test-lookup-alias` ON key | LIMIT 3'
+
+  - match: {columns.0.name: "key"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [1, "cyan"]}
+  - match: {values.1: [2, "yellow"]}

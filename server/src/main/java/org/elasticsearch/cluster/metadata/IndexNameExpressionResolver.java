@@ -1257,7 +1257,6 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array maps to all indices, false otherwise
      */
     public static boolean isAllIndices(Collection<String> aliasesOrIndices) {
-        // PRTODO: Unlike isAllIndicesExpression, this will not match _all::data as an all indices pattern
         return isAllIndices(aliasesOrIndices, Function.identity());
     }
 

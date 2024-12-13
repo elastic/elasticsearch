@@ -297,20 +297,20 @@ class IndicesAndAliasesResolver {
 
             // check for all and return list of authorized indices
             boolean isAllIndices;
-            String selectorString = null;
+            String allIndicesPatternSelector = null;
             if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
                 // Always parse selectors off to see if this targets all indices
                 List<Tuple<String, String>> selectedIndices = indicesList(indicesRequest.indices()).stream()
                     .map(IndexNameExpressionResolver::splitSelectorExpression)
                     .toList();
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(selectedIndices, Tuple::v1);
-                selectorString = selectedIndices.get(0).v2();
+                allIndicesPatternSelector = selectedIndices.getFirst().v2();
             } else {
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
             }
             if (isAllIndices) {
                 // First, if a selector is present, check to make sure that selectors are even allowed here
-                if (indicesOptions.allowSelectors() == false && selectorString != null) {
+                if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
                     String originalIndexExpression = indicesRequest.indices()[0];
                     throw new IllegalArgumentException(
                         "Index component selectors are not supported in this context but found selector in expression ["
@@ -322,7 +322,7 @@ class IndicesAndAliasesResolver {
                     for (String authorizedIndex : authorizedIndices.all().get()) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
-                            selectorString,
+                            allIndicesPatternSelector,
                             authorizedIndex,
                             indicesOptions,
                             metadata,
@@ -330,7 +330,7 @@ class IndicesAndAliasesResolver {
                             indicesRequest.includeDataStreams()
                         )) {
                             resolvedIndicesBuilder.addLocal(
-                                ResolvedExpression.combineSelectorExpression(authorizedIndex, selectorString)
+                                ResolvedExpression.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
                             );
                         }
                     }

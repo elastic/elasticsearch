@@ -58,13 +58,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             checkMethods,
             hasEntry(
-                equalTo(
-                    new MethodKey(
-                        "org/example/TestTargetClass",
-                        "staticMethod",
-                        List.of("I", "java/lang/String", "java/lang/Object")
-                    )
-                ),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"))),
                 equalTo(
                     new CheckMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",

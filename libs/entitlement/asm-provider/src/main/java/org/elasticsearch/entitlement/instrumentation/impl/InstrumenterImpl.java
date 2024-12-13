@@ -60,7 +60,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
         Type checkerClassType = Type.getType(checkerClass);
-        String handleClass = checkerClass + "Handle";
+        String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
         return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }

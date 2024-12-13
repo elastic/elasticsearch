@@ -41,8 +41,9 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             if (Expressions.isGuaranteedNull(in.value())) {
                 return Literal.of(in, null);
             }
-        } else if (e instanceof Alias == false
-            && e.nullable() == Nullability.TRUE
+        } else if (e instanceof Alias == false && e.nullable() == Nullability.TRUE
+        // Categorize function stays as a STATS grouping (It isn't moved to an early EVAL like other groupings),
+        // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof Categorize == false
             && Expressions.anyMatch(e.children(), Expressions::isGuaranteedNull)) {
                 return Literal.of(e, null);

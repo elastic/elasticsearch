@@ -11,34 +11,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.SkipUnavailableRule;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Assert;
 import org.junit.Rule;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -51,19 +38,6 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
     private static final String REMOTE2 = "cluster-b";
     private static final String LOCAL_INDEX = "logs-1";
     private static final String REMOTE_INDEX = "logs-2";
-
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE1, REMOTE2);
-    }
-
-    @Rule
-    public SkipUnavailableRule skipOverride = new SkipUnavailableRule(REMOTE1, REMOTE2);
 
     public void testLocalRemote() throws Exception {
         setupClusters();
@@ -93,11 +67,7 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
 
     }
 
-    private CCSTelemetrySnapshot getTelemetryFromQuery(String query) throws ExecutionException, InterruptedException {
-        return getTelemetryFromQuery(query, null);
-    }
-
-    private CCSTelemetrySnapshot getTelemetryFromQuery(String query, String client) throws ExecutionException, InterruptedException {
+    protected CCSTelemetrySnapshot getTelemetryFromQuery(String query, String client) throws ExecutionException, InterruptedException {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
@@ -106,7 +76,7 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
         return getTelemetryFromQuery(request, client);
     }
 
-    private CCSTelemetrySnapshot getTelemetryFromQuery(EsqlQueryRequest request, String client) throws ExecutionException,
+    protected CCSTelemetrySnapshot getTelemetryFromQuery(EsqlQueryRequest request, String client) throws ExecutionException,
         InterruptedException {
         // We want to send search to a specific node (we don't care which one) so that we could
         // collect the CCS telemetry from it later
@@ -116,7 +86,7 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
         if (client != null) {
             assertResponse(
                 cluster(LOCAL_CLUSTER).client(nodeName)
-                    .filterWithHeader(Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana"))
+                    .filterWithHeader(Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, client))
                     .execute(EsqlQueryAction.INSTANCE, request),
                 Assert::assertNotNull
             );
@@ -127,12 +97,44 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
         return getTelemetrySnapshot(nodeName);
     }
 
+    protected CCSTelemetrySnapshot getTelemetryFromFailedQuery(String query) throws Exception {
+        // We want to send search to a specific node (we don't care which one) so that we could
+        // collect the CCS telemetry from it later
+        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        request.query(query);
+        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        request.columnar(randomBoolean());
+        request.includeCCSMetadata(randomBoolean());
+
+        ExecutionException ee = expectThrows(
+            ExecutionException.class,
+            cluster(LOCAL_CLUSTER).client(nodeName).execute(EsqlQueryAction.INSTANCE, request)::get
+        );
+        assertNotNull(ee.getCause());
+
+        return getTelemetrySnapshot(nodeName);
+    }
+
     private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {
         var usage = cluster(LOCAL_CLUSTER).getInstance(UsageService.class, nodeName);
         return usage.getEsqlUsageHolder().getCCSTelemetrySnapshot();
     }
 
-    Map<String, Object> setupClusters() {
+    @Override
+    protected boolean reuseClusters() {
+        return false;
+    }
+
+    @Override
+    protected List<String> remoteClusterAlias() {
+        return List.of(REMOTE1, REMOTE2);
+    }
+
+    @Rule
+    public SkipUnavailableRule skipOverride = new SkipUnavailableRule(REMOTE1, REMOTE2);
+
+    protected Map<String, Object> setupClusters() {
         int numShardsLocal = randomIntBetween(1, 5);
         populateLocalIndices(LOCAL_INDEX, numShardsLocal);
 
@@ -186,22 +188,9 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
         return plugins;
-    }
-
-    public static class InternalExchangePlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting(
-                    ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueSeconds(30),
-                    Setting.Property.NodeScope
-                )
-            );
-        }
     }
 
     @Override
@@ -209,42 +198,5 @@ public class CrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase
         var map = skipOverride.getMap();
         LOGGER.info("Using skip_unavailable map: [{}]", map);
         return map;
-    }
-
-    /**
-     * Annotation to mark specific cluster in a test as not to be skipped when unavailable
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.METHOD)
-    @interface SkipOverride {
-        String[] aliases();
-    }
-
-    /**
-     * Test rule to process skip annotations
-     */
-    static class SkipUnavailableRule implements TestRule {
-        private final Map<String, Boolean> skipMap;
-
-        SkipUnavailableRule(String... clusterAliases) {
-            this.skipMap = Arrays.stream(clusterAliases).collect(Collectors.toMap(Function.identity(), alias -> true));
-        }
-
-        public Map<String, Boolean> getMap() {
-            return skipMap;
-        }
-
-        @Override
-        public Statement apply(Statement base, Description description) {
-            // Check for annotation named "SkipOverride" and set the overrides accordingly
-            var aliases = description.getAnnotation(SkipOverride.class);
-            if (aliases != null) {
-                for (String alias : aliases.aliases()) {
-                    skipMap.put(alias, false);
-                }
-            }
-            return base;
-        }
-
     }
 }

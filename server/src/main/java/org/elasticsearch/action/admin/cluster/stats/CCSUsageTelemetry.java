@@ -47,6 +47,7 @@ public class CCSUsageTelemetry {
         TIMEOUT("timeout"),
         CORRUPTION("corruption"),
         SECURITY("security"),
+        LICENSE("license"),
         // May be helpful if there's a lot of other reasons, and it may be hard to calculate the unknowns for some clients.
         UNKNOWN("other");
 

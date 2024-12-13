@@ -299,7 +299,7 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlSessionCCSUtils.checkForCcsLicense(indices, indicesExpressionGrouper, verifier.licenseState());
+        EsqlSessionCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
 
         // TODO: make a separate call for lookup indices
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(

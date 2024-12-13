@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -142,6 +143,9 @@ public class CCSUsage {
             }
             if (ExceptionsHelper.unwrapCorruption(e) != null) {
                 return Result.CORRUPTION;
+            }
+            if (ExceptionsHelper.unwrap(e, ElasticsearchStatusException.class) != null) {
+                return Result.LICENSE;
             }
             // This is kind of last resort check - if we still don't know the reason but all shard failures are remote,
             // we assume it's remote's fault somehow.

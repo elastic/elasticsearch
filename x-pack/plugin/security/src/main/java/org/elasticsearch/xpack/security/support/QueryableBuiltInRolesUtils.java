@@ -65,6 +65,7 @@ public final class QueryableBuiltInRolesUtils {
      * @return the set of roles to delete
      */
     public static Set<String> determineRolesToDelete(final QueryableBuiltInRoles roles, final Map<String, String> indexedRolesDigests) {
+        assert roles != null;
         if (indexedRolesDigests == null) {
             // nothing indexed, nothing to delete
             return Set.of();
@@ -81,6 +82,7 @@ public final class QueryableBuiltInRolesUtils {
         final QueryableBuiltInRoles roles,
         final Map<String, String> indexedRolesDigests
     ) {
+        assert roles != null;
         final Set<RoleDescriptor> rolesToUpsert = new HashSet<>();
         for (RoleDescriptor role : roles.roleDescriptors()) {
             final String roleDigest = roles.rolesDigest().get(role.getName());

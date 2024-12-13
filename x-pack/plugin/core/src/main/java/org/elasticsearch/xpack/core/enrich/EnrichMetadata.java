@@ -84,7 +84,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Project
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_5_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

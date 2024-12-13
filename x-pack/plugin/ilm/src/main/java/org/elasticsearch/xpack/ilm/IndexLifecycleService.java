@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -527,7 +526,7 @@ public class IndexLifecycleService
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
-            return Collections.emptySet();
+            return Set.of();
         }
 
         // Returning a set of strings will cause weird behavior with multiple projects

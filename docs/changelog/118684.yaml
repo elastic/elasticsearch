@@ -1,5 +1,9 @@
 pr: 118684
-summary: In this release we've introduced an image based on the hardened Wolfi image to provide secure containers to our self-managed customers, help with compliance regulations, and improve our supply chain security posture.
+summary: Provide Wolfi based docker image
+details: |-
+    In this release we've introduced an image based on the hardened link:https://github.com/wolfi-dev/[Wolfi] 
+    image to provide secure containers to our self-managed customers, help with compliance regulations, 
+    and improve our supply chain security posture.
 area: Packaging
 type: enhancement
 issues: []

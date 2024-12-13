@@ -325,8 +325,22 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.total.relation: eq }
+
   - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 21 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.start_offset: 22 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.end_offset: 37 }
+
   - length: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field: 2 }
+  - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 15 }
+  - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.embeddings
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.start_offset: 16 }
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.end_offset: 35 }
 
 ---
 "Dense vector results are indexed as nested chunks and searchable":
@@ -438,8 +452,22 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.total.relation: eq }
+
   - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 2 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 21 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.1.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.1.start_offset: 22 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.1.end_offset: 37 }
+
   - length: { hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field: 2 }
+  - exists: hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 15 }
+  - exists: hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field.1.embeddings
+  - match: { hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field.1.start_offset: 16 }
+  - match: { hits.hits.1._source._inference_fields.dense_field.inference.chunks.dense_field.1.end_offset: 35 }
 
 ---
 "Reindex works for semantic_text fields":
@@ -575,10 +603,16 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
+
   - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
   - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+
   - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
   - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
 ---
 "Fails for non-existent inference":
@@ -737,10 +771,16 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
+
   - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
   - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+
   - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
   - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
 ---
 "Update by query picks up new semantic_text fields":

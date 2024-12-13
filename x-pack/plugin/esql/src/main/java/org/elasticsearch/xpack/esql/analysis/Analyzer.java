@@ -118,6 +118,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -1243,7 +1244,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
+            return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {

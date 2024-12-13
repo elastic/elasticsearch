@@ -285,7 +285,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String indexName,
         String mappingFileName,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution lookupResolution,
+        Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         SearchStats stats
     ) {

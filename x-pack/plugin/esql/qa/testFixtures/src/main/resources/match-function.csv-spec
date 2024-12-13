@@ -158,6 +158,20 @@ book_no:keyword
 4814
 ;
 
+matchWithMoreComplexDisjunctionAndConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match(author, "Vonnegut") and match(description, "charming")) or (match(author, "Marquez") and match(description, "realism"))
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+6970
+4814
+;
+
 matchWithDisjunctionIncludingConjunction
 required_capability: match_function
 required_capability: full_text_functions_disjunctions

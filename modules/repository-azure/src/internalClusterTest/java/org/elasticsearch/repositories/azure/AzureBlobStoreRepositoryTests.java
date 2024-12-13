@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +43,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -54,6 +56,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -76,6 +79,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     protected static final String DEFAULT_ACCOUNT_NAME = "account";
     protected static final Predicate<String> LIST_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+\\?.+").asMatchPredicate();
     protected static final Predicate<String> GET_BLOB_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+/.+").asMatchPredicate();
+    private static final AtomicInteger MAX_CONNECTION_SETTING = new AtomicInteger(-1);
+    private static final AtomicInteger EVENT_LOOP_THREAD_COUNT_SETTING = new AtomicInteger(-1);
 
     @Override
     protected String repositoryType() {
@@ -133,11 +138,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
+
+        // The first node configured sets these for all nodes
+        MAX_CONNECTION_SETTING.compareAndSet(-1, randomIntBetween(10, 30));
+        EVENT_LOOP_THREAD_COUNT_SETTING.compareAndSet(-1, randomIntBetween(1, 3));
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
-            .put(AzureClientProvider.EVENT_LOOP_THREAD_COUNT.getKey(), randomIntBetween(1, 3))
-            .put(AzureClientProvider.MAX_OPEN_CONNECTIONS.getKey(), randomIntBetween(10, 30))
+            .put(AzureClientProvider.EVENT_LOOP_THREAD_COUNT.getKey(), EVENT_LOOP_THREAD_COUNT_SETTING.get())
+            .put(AzureClientProvider.MAX_OPEN_CONNECTIONS.getKey(), MAX_CONNECTION_SETTING.get())
             .put(AzureClientProvider.MAX_IDLE_TIME.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .put(AzureClientProvider.OPEN_CONNECTION_TIMEOUT.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
             .setSecureSettings(secureSettings)
@@ -265,6 +274,16 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         private boolean isPutBlockList(String request) {
             return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request);
         }
+    }
+
+    public void testSettingsTakeEffect() {
+        AzureClientProvider azureClientProvider = internalCluster().getInstance(AzureClientProvider.class);
+        assertEquals(MAX_CONNECTION_SETTING.get(), azureClientProvider.getConnectionProvider().maxConnections());
+        ThreadPool nodeThreadPool = internalCluster().getInstance(ThreadPool.class);
+        assertEquals(
+            EVENT_LOOP_THREAD_COUNT_SETTING.get(),
+            ((EsThreadPoolExecutor) nodeThreadPool.executor(AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME)).getMaximumPoolSize()
+        );
     }
 
     public void testLargeBlobCountDeletion() throws Exception {

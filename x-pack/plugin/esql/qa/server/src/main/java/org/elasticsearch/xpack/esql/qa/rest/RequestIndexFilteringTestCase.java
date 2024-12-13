@@ -219,6 +219,14 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), containsString("no such index [foo]"));
+
+        e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))
+        );
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("verification_exception"));
+        assertThat(e.getMessage(), containsString("Unknown index [foo]"));
     }
 
     private static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {

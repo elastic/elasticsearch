@@ -151,7 +151,6 @@ setup:
 
   - match: { index_name: content-search-2-test }
 
-
 ---
 "Update Managed Connector Index Name - Bad Prefix":
   - do:

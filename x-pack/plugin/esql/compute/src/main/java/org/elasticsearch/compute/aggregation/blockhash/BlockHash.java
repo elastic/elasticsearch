@@ -91,6 +91,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
+     * <p>
+     *     Keys must be in the same order as the IDs returned by {@link #nonEmpty()}.
+     * </p>
      */
     public abstract Block[] getKeys();
 
@@ -100,6 +103,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
      * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
      * know if there actually were any {@code true} or {@code false} values received.
+     * <p>
+     *     IDs must be in the same order as the keys returned by {@link #getKeys()}.
+     * </p>
      */
     public abstract IntVector nonEmpty();
 
@@ -174,15 +180,16 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         List<GroupSpec> groups,
         AggregatorMode aggregatorMode,
         BlockFactory blockFactory,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        int emitBatchSize
     ) {
-        if (groups.size() != 1) {
-            throw new IllegalArgumentException("only a single CATEGORIZE group can used");
+        if (groups.size() == 1) {
+            return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
+        } else {
+            assert groups.get(0).isCategorize();
+            assert groups.subList(1, groups.size()).stream().noneMatch(GroupSpec::isCategorize);
+            return new CategorizePackedValuesBlockHash(groups, blockFactory, aggregatorMode, analysisRegistry, emitBatchSize);
         }
-
-        return aggregatorMode.isInputPartial()
-            ? new CategorizedIntermediateBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial())
-            : new CategorizeRawBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial(), analysisRegistry);
     }
 
     /**

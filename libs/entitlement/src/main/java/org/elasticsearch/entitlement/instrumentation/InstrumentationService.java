@@ -10,19 +10,13 @@
 package org.elasticsearch.entitlement.instrumentation;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.Map;
 
 /**
  * The SPI service entry point for instrumentation.
  */
 public interface InstrumentationService {
-    Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods);
+    Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods);
 
-    /**
-     * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
-     */
-    MethodKey methodKeyForTarget(Method targetMethod);
-
-    Map<MethodKey, CheckerMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException, IOException;
+    Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException, IOException;
 }

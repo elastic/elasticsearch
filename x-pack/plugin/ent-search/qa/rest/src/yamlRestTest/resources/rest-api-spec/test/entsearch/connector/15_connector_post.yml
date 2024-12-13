@@ -102,6 +102,7 @@ setup:
           is_native: false
           service_type: super-connector
 
+
 ---
 'Create Connector - Invalid Managed Connector Index Prefix':
   - do:

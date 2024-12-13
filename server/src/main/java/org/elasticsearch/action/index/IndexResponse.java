@@ -46,7 +46,7 @@ public class IndexResponse extends DocWriteResponse {
         } else {
             executedPipelines = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             failureStoreStatus = IndexDocFailureStoreStatus.read(in);
         } else {
             failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
@@ -60,7 +60,7 @@ public class IndexResponse extends DocWriteResponse {
         } else {
             executedPipelines = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             failureStoreStatus = IndexDocFailureStoreStatus.read(in);
         } else {
             failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
@@ -126,7 +126,7 @@ public class IndexResponse extends DocWriteResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             failureStoreStatus.writeTo(out);
         }
     }
@@ -137,7 +137,7 @@ public class IndexResponse extends DocWriteResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             failureStoreStatus.writeTo(out);
         }
     }

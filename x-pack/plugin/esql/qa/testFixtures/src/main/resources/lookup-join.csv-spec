@@ -49,6 +49,85 @@ emp_no:integer | language_code:integer | language_name:keyword
 10003          | 4                     | German
 ;
 
+FilterLookupFieldOnTheDataNode
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
+FilterLookupFieldOnTheCoordinator
+required_capability: join_lookup_v5
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10005          | 1                     | English
+;
+
+FilterJoinKeyOnTheDataNode
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code == 1
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
+FilterJoinKeyOnTheCoordinator
+required_capability: join_lookup_v5
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code == 1
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10005          | 1                     | English
+;
+
+FilterOnTheDataNodeThenFilterOnTheCoordinator
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+| WHERE language_code == 1
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
 subsequentEvalOnTheDataNode
 required_capability: join_lookup_v5
 

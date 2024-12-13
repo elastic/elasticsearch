@@ -21,13 +21,9 @@ import org.elasticsearch.test.cluster.util.Version;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
@@ -61,13 +57,7 @@ public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibili
 
             copySnapshotFromResources(repositoryPath, version);
 
-            registerRepository(
-                client(),
-                repository,
-                FsRepository.TYPE,
-                true,
-                Settings.builder().put("location", repositoryPath).build()
-            );
+            registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
 
             restoreSnapshot(client(), repository, snapshot, index);
             assertTrue(getIndices(client()).contains(index));
@@ -84,7 +74,7 @@ public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibili
         Path zipFilePath = Paths.get(
             Objects.requireNonNull(getClass().getClassLoader().getResource("snapshot_v" + version + ".zip")).toURI()
         );
-        unzip(zipFilePath,  Paths.get(repositoryPath));
+        unzip(zipFilePath, Paths.get(repositoryPath));
     }
 
     public static void unzip(Path zipFilePath, Path outputDir) throws IOException {

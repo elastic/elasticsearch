@@ -108,6 +108,7 @@ public abstract class AbstractArchiveIndexCompatibilityTestCase extends ESRestTe
         assertThat("Failed to retrieve cluster version", version, notNullValue());
         return version;
     }
+
     /**
      * Execute the test suite with the parameters provided by the {@link #parameters()} in version order.
      */

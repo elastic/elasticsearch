@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceChunks;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -37,9 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -178,8 +175,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 }
                 results.add(
                     new ChunkedInferenceEmbeddingSparse(
-                        List.of(new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, input.get(i),
-                            new InferenceChunks.TextOffset(0, input.get(i).length())))
+                        List.of(
+                            new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
+                                tokens,
+                                input.get(i),
+                                new InferenceChunks.TextOffset(0, input.get(i).length())
+                            )
+                        )
                     )
                 );
             }

@@ -37,7 +37,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -282,11 +282,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (InferenceChunks result : results) {
                             var request = requestsIterator.next();
                             var acc = inferenceResults.get(request.index);
-                            if (result instanceof ErrorChunkedInferenceResults error) {
+                            if (result instanceof ChunkedInferenceError error) {
                                 acc.addFailure(
                                     new ElasticsearchException(
                                         "Exception when running inference id [{}] on field [{}]",
-                                        error.getException(),
+                                        error.exception(),
                                         inferenceProvider.model.getInferenceEntityId(),
                                         request.field
                                     )

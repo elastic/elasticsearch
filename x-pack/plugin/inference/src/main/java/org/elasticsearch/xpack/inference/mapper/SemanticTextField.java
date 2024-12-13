@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceChunks;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -307,7 +306,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     }
 
     /**
-     * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
+     * Converts the provided {@link InferenceChunks} into a list of {@link Chunk}.
      */
     public static List<Chunk> toSemanticTextFieldChunks(List<InferenceChunks> results, XContentType contentType) throws IOException {
         List<Chunk> chunks = new ArrayList<>();

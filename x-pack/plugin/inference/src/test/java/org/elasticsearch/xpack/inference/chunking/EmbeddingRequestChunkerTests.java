@@ -12,8 +12,8 @@ import org.elasticsearch.inference.InferenceChunks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -504,9 +504,9 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var listener = new ActionListener<List<InferenceChunks>>() {
 
             @Override
-            public void onResponse(List<InferenceChunks> chunkedInferenceServiceResults) {
-                assertThat(chunkedInferenceServiceResults.get(0), instanceOf(ChunkedInferenceError.class));
-                var error = (ChunkedInferenceError) chunkedInferenceServiceResults.get(0);
+            public void onResponse(List<InferenceChunks> chunkedResults) {
+                assertThat(chunkedResults.get(0), instanceOf(ChunkedInferenceError.class));
+                var error = (ChunkedInferenceError) chunkedResults.get(0);
                 failureMessage.set(error.exception().getMessage());
             }
 

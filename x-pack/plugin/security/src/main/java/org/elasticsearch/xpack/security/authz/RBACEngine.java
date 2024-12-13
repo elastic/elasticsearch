@@ -319,6 +319,10 @@ public class RBACEngine implements AuthorizationEngine {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
             listener.onResponse(role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED);
+        } else if (action.equals(SearchTransportService.FREE_CONTEXT_ACTION_NAME)) {
+            // Bwc logic, we read a ScrollFreeContextRequest where we used to read a different request request that had indices set
+            // TODO: remove this once compatibility with any version that sends FREE_CONTEXT_ACTION_NAME ends
+            listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
         } else if (request instanceof IndicesRequest == false) {
             if (isScrollRelatedAction(action)) {
                 // scroll is special

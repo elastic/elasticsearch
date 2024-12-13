@@ -1,0 +1,10 @@
+pr: 116689
+summary: Deprecate `_source.mode` in mappings
+area: Mapping
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate `_source.mode` in mappings
+  area: Mapping
+  details: Configuring `_source.mode` in mappings is deprecated and will be removed in future versions. Use `index.mapping.source.mode` index setting instead.
+  impact: Use `index.mapping.source.mode` index setting instead

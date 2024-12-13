@@ -57,7 +57,7 @@
     unfair. -->
   <module name="LineLength">
     <property name="max" value="140" />
-    <property name="ignorePattern" value="^(?:(?:package|import) .*| *\* *https?://[^ ]+)$" />
+    <property name="ignorePattern" value="^(?:(?:package|import) .*| *\*.*https?://.*)$" />
   </module>
 
   <module name="TreeWalker">

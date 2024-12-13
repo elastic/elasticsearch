@@ -57,6 +57,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "First of the columns to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date_nanos",
+          "optional" : true,
+          "description" : "The rest of the columns to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "double",
           "optional" : false,
           "description" : "First of the columns to evaluate."

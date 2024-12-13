@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
@@ -26,6 +25,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.FileOperations;
@@ -77,7 +77,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     @Override
     public void apply(Project project) {
         project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
 
         final Path compatRestResourcesDir = Path.of("restResources").resolve("compat");
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
@@ -244,10 +244,11 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         yamlRestCompatTestTask.configure(testTask -> {
             testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
+            FileCollection outputFileCollection = yamlCompatTestSourceSet.getOutput();
             testTask.setTestClassesDirs(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
             );
-            testTask.onlyIf("Compatibility tests are available", t -> yamlCompatTestSourceSet.getOutput().isEmpty() == false);
+            testTask.onlyIf("Compatibility tests are available", t -> outputFileCollection.isEmpty() == false);
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests

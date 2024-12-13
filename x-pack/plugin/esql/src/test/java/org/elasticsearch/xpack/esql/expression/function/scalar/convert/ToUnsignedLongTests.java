@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -58,11 +59,12 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
         );
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
+            TestCaseSupplier.dateCases(),
             DataType.UNSIGNED_LONG,
-            instant -> BigInteger.valueOf(instant.toEpochMilli()),
+            instant -> BigInteger.valueOf(((Instant) instant).toEpochMilli()),
             List.of()
         );
         // random strings that don't look like an unsigned_long

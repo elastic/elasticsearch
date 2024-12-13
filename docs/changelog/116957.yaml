@@ -1,0 +1,5 @@
+pr: 116957
+summary: Propagate scoring function through random sampler
+area: Machine Learning
+type: bug
+issues: [ 110134 ]

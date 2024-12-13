@@ -38,10 +38,6 @@ public abstract class MetricsAggregator extends AggregatorBase {
 
     @Override
     public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-            results[ordIdx] = buildAggregation(owningBucketOrds.get(ordIdx));
-        }
-        return results;
+        return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> buildAggregation(owningBucketOrds.get(ordIdx)));
     }
 }

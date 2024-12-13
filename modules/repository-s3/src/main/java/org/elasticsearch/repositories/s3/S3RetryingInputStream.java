@@ -327,6 +327,8 @@ class S3RetryingInputStream extends InputStream {
         return Map.of(
             "repo_type",
             S3Repository.TYPE,
+            "repo_name",
+            blobStore.getRepositoryMetadata().name(),
             "operation",
             Operation.GET_OBJECT.getKey(),
             "purpose",

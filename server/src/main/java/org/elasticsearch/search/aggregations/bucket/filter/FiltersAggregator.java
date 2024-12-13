@@ -215,15 +215,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             filters.size() + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
-                    return new InternalFilters.InternalBucket(
-                        filters.get(offsetInOwningOrd).key(),
-                        docCount,
-                        subAggregationResults,
-                        keyed,
-                        keyedBucket
-                    );
+                    return new InternalFilters.InternalBucket(filters.get(offsetInOwningOrd).key(), docCount, subAggregationResults);
                 }
-                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed, keyedBucket);
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults);
             },
             buckets -> new InternalFilters(name, buckets, keyed, keyedBucket, metadata())
         );
@@ -234,12 +228,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs);
             buckets.add(bucket);
         }
 
         if (otherBucketKey != null) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs);
             buckets.add(bucket);
         }
 

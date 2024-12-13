@@ -10,15 +10,14 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -33,7 +32,6 @@ testClusters.configureEach {
   module ':modules:rest-root'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 dependencies {
@@ -42,6 +40,10 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:parent-join')
+  clusterModules project(":modules:rest-root")
 }
 
 restResources {

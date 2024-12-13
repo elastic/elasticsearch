@@ -10,7 +10,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
@@ -44,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.9.1"
+  id "com.netflix.nebula.ospackage-base" version "11.10.0"
 }
 
 ['deb', 'rpm'].each { type ->
@@ -196,7 +195,7 @@ def commonPackageConfig(String type, String architecture) {
     configurationFile '/etc/elasticsearch/users_roles'
     from("${packagingFiles}") {
       dirPermissions {
-        unix(02750)
+        unix(0750)
       }
       into('/etc')
       permissionGroup 'elasticsearch'
@@ -209,7 +208,7 @@ def commonPackageConfig(String type, String architecture) {
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
       dirPermissions {
-        unix(02750)
+        unix(0750)
       }
       setgid = true
       filePermissions {
@@ -261,7 +260,7 @@ def commonPackageConfig(String type, String architecture) {
 
     // ========= empty dirs =========
     // NOTE: these are created under packagingFiles as empty, but the permissions are set here
-    Closure copyEmptyDir = { path, u, g, mode ->
+    Closure copyEmptyDir = { path, u, g, gid, mode ->
       File file = new File(path)
       into(file.parent) {
         from "${packagingFiles}/${file.parent}"
@@ -273,12 +272,12 @@ def commonPackageConfig(String type, String architecture) {
         dirPermissions {
           unix(mode)
         }
-        setgid (mode == 02750)
+        setgid(gid)
       }
     }
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
+    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', false, 0755)
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch-oss')
@@ -335,7 +334,6 @@ Closure commonDebConfig(String architecture) {
 
     // versions found on oldest supported distro, centos-6
     requires('bash', '4.1', GREATER | EQUAL)
-    requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'
     requires 'adduser'
 

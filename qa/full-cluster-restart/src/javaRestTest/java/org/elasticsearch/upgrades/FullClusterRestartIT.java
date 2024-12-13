@@ -261,6 +261,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature("gte_v8.2.0"));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -298,6 +299,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature("gte_v8.2.0"));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {

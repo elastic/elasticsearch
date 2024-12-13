@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -579,7 +580,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-a";
-        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", 10L));
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new BlobStoreActionStats(10, 13)));
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
             super(
@@ -606,7 +607,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-b";
-        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", 20L));
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new BlobStoreActionStats(20, 25)));
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
             super(

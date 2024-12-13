@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -111,7 +113,9 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -137,6 +141,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
@@ -144,6 +149,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -216,7 +222,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                defaultLookupResolution(),
+                enrichResolution
+            ),
             TEST_VERIFIER
         );
 
@@ -1206,6 +1218,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[CATEGORIZE(first_name{f}#18) AS cat],[SUM(salary{f}#22,true[BOOLEAN]) AS s, cat{r}#10]]
+     *   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testCombineProjectionWithCategorizeGrouping() {
+        var plan = plan("""
+            from test
+            | eval k = first_name, k1 = k
+            | stats s = sum(salary) by cat = CATEGORIZE(k1)
+            | keep s, cat
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.child(), instanceOf(EsRelation.class));
+
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "cat"));
+        assertThat(Expressions.names(agg.groupings()), contains("cat"));
+
+        var categorizeAlias = as(agg.groupings().get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var categorizeField = as(categorize.field(), FieldAttribute.class);
+        assertThat(categorizeField.name(), is("first_name"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
      * \_Aggregate[[first_name{f}#16],[SUM(emp_no{f}#15) AS s, first_name{f}#16 AS f]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
@@ -1261,6 +1300,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
             new PushDownAndCombineLimits().rule(anotherLimit)
         );
+    }
+
+    public void testPushdownLimitsPastLeftJoin() {
+        var leftChild = emptySource();
+        var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);
+        assertNotEquals(leftChild, rightChild);
+
+        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
+        var join = switch (randomIntBetween(0, 2)) {
+            case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig);
+            case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
+            default -> throw new IllegalArgumentException();
+        };
+
+        var limit = new Limit(EMPTY, L(10), join);
+
+        var optimizedPlan = new PushDownAndCombineLimits().rule(limit);
+
+        assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
     }
 
     public void testMultipleCombineLimits() {
@@ -2141,7 +2200,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         mvExpand = as(topN.child(), MvExpand.class);
         var limit = as(mvExpand.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(7300));
-        as(limit.child(), Row.class);
+        as(limit.child(), LocalRelation.class);
     }
 
     /**
@@ -2286,7 +2345,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var expand = as(plan, MvExpand.class);
         assertThat(expand.limit(), equalTo(1000));
         var topN = as(expand.child(), TopN.class);
-        var row = as(topN.child(), Row.class);
+        var row = as(topN.child(), LocalRelation.class);
     }
 
     /**
@@ -2327,7 +2386,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(expand.limit(), equalTo(1000));
         var limit2 = as(expand.child(), Limit.class);
         assertThat(limit2.limit().fold(), is(1000));
-        var row = as(limit2.child(), Row.class);
+        var row = as(limit2.child(), LocalRelation.class);
     }
 
     private static List<String> orderNames(TopN topN) {
@@ -2563,7 +2622,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testRLikeWrongPattern() {
         String query = "from test | where first_name rlike \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
-        String error = "line 1:20: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+        String error = "line 1:19: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[invalid range: from (95) cannot be > to (93)]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
@@ -2571,7 +2630,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testLikeWrongPattern() {
         String query = "from test | where first_name like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
-        String error = "line 1:20: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+        String error = "line 1:19: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[Invalid sequence - escape character is not followed by special wildcard char]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
@@ -3545,7 +3604,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filterProp = ((GreaterThan) filter.condition()).left();
         assertTrue(expand.expanded().semanticEquals(filterProp));
         assertFalse(expand.target().semanticEquals(filterProp));
-        var row = as(expand.child(), Row.class);
+        var row = as(expand.child(), LocalRelation.class);
     }
 
     /**
@@ -3564,7 +3623,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("a"));
-        var row = as(agg.child(), Row.class);
+        var row = as(agg.child(), LocalRelation.class);
     }
 
     /**
@@ -3583,7 +3642,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("a", "b"));
-        var row = as(agg.child(), Row.class);
+        var row = as(agg.child(), LocalRelation.class);
     }
 
     /**
@@ -3907,6 +3966,39 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(1));
         assertThat(eval.fields().get(0).toAttribute(), is(ref));
         assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[CATEGORIZE(CATEGORIZE(CONCAT(first_name, "abc")){r$}#18) AS CATEGORIZE(CONCAT(first_name, "abc"))],[CO
+     * UNT(salary{f}#13,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#3]]
+     *   \_Eval[[CONCAT(first_name{f}#9,[61 62 63][KEYWORD]) AS CATEGORIZE(CONCAT(first_name, "abc"))]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testNestedExpressionsInGroupsWithCategorize() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary) by CATEGORIZE(CONCAT(first_name, "abc"))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var categorizeAlias = as(groupings.get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var aggs = agg.aggregates();
+        assertThat(aggs.get(1), is(categorizeAlias.toAttribute()));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), Concat.class);
+
+        assertThat(evalFieldAlias.name(), is("CATEGORIZE(CONCAT(first_name, \"abc\"))"));
+        assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
+        assertThat(categorizeAlias.source(), is(evalFieldAlias.source()));
     }
 
     /**
@@ -4754,7 +4846,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         e.forEachUp(node -> {
             if (node.children().size() == 0) {
-                result.set(result.get() || Expressions.isNull(node));
+                result.set(result.get() || Expressions.isGuaranteedNull(node));
             }
         });
 
@@ -4809,6 +4901,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
         assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
+    }
+
+    public void testPlanSanityCheckWithBinaryPlans() throws Exception {
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var join = as(limit.child(), Join.class);
+
+        var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+
+        var joinWithInvalidRightPlan = join.replaceChildren(join.left(), join.left());
+        e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidRightPlan));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
     // https://github.com/elastic/elasticsearch/issues/104995
@@ -5624,6 +5736,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
         String query = """
               FROM test
@@ -5650,7 +5763,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(left.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 
-        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
@@ -5703,6 +5816,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupStats() {
         String query = """
               FROM test
@@ -5738,7 +5852,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(left.output().toString(), containsString("int{r}"));
         as(left.child(), EsRelation.class);
 
-        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));

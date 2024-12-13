@@ -14,11 +14,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -142,27 +142,15 @@ public final class Utils {
         latch.await();
     }
 
-    public static class TestInferencePlugin extends InferencePlugin {
-        public TestInferencePlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-            return List.of(
-                TestSparseInferenceServiceExtension.TestInferenceService::new,
-                TestDenseInferenceServiceExtension.TestInferenceService::new
-            );
-        }
-    }
-
     public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
+        when(mockConfigs.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         var mockModel = mock(Model.class);
         when(mockModel.getConfigurations()).thenReturn(mockConfigs);
+        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         return mockModel;
     }

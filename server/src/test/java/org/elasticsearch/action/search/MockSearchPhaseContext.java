@@ -146,16 +146,11 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     @Override
     protected void executePhaseOnShard(
         SearchShardIterator shardIt,
-        SearchShardTarget shard,
+        Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
         onShardResult(new SearchPhaseResult() {
         }, shardIt);
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        Assert.fail("should not be called");
     }
 
     @Override

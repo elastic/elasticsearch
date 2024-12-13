@@ -263,11 +263,12 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];
         }
-        logger.warn("--> No matching rollup name for path [%s]", endpoint);
+        logger.warn("--> No matching rollup name for path [{}]", endpoint);
         return null;
     }
 
     public void testRollupIndex() throws Exception {
+        assumeTrue("Downsample got many stability improvements in 8.10.0", oldClusterHasFeature("gte_v8.10.0"));
         if (isRunningAgainstOldCluster()) {
             createIlmPolicy();
             createIndex();

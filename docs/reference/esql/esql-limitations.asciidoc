@@ -25,6 +25,9 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `alias`
 * `boolean`
 * `date`
+* `date_nanos` (Tech Preview)
+** The following functions don't yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
+** You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `ip`
 * `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
@@ -50,7 +53,6 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `position`
 ** `aggregate_metric_double`
 * Date/time
-** `date_nanos`
 ** `date_range`
 * Other types
 ** `binary`

@@ -1,0 +1,5 @@
+pr: 117297
+summary: Fix CCS exchange when multi cluster aliases point to same cluster
+area: ES|QL
+type: bug
+issues: []

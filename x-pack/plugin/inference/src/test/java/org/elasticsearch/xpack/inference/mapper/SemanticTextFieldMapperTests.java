@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
@@ -61,6 +61,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
@@ -107,6 +108,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         return "cannot have nested fields when index is in [index.mode=time_series]";
+    }
+
+    @Override
+    protected void metaMapping(XContentBuilder b) throws IOException {
+        super.metaMapping(b);
+        b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
     }
 
     @Override
@@ -166,10 +173,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        final XContentBuilder expectedMapping = fieldMapping(this::metaMapping);
 
         MapperService mapperService = createMapperService(fieldMapping);
         DocumentMapper mapper = mapperService.documentMapper();
-        assertEquals(Strings.toString(fieldMapping), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
 
@@ -208,10 +216,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             final XContentBuilder fieldMapping = fieldMapping(
                 b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
+            final XContentBuilder expectedMapping = fieldMapping(
+                b -> b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID)
+                    .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
+            );
             final MapperService mapperService = createMapperService(fieldMapping);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
-            assertSerialization.accept(fieldMapping, mapperService);
+            assertSerialization.accept(expectedMapping, mapperService);
         }
         {
             final XContentBuilder fieldMapping = fieldMapping(
@@ -1098,7 +1111,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
 
-        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, null);
+        return new ESToParentBlockJoinQuery(
+            new SparseVectorQueryWrapper(fieldName, queryBuilder.build()),
+            parentFilter,
+            ScoreMode.Total,
+            null
+        );
     }
 
     private static void assertChildLeafNestedDocument(
@@ -1118,7 +1136,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void assertSparseFeatures(LuceneDocument doc, String fieldName, int expectedCount) {
         int count = 0;
         for (IndexableField field : doc.getFields()) {
-            if (field instanceof FeatureField featureField) {
+            if (field instanceof XFeatureField featureField) {
                 assertThat(featureField.name(), equalTo(fieldName));
                 ++count;
             }

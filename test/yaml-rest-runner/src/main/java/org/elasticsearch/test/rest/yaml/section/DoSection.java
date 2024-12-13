@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
@@ -494,6 +495,8 @@ public class DoSection implements ExecutableSection {
                 warnings.remove();
             }
         }
+
+        unexpected.removeIf(s -> s.endsWith(SourceFieldMapper.DEPRECATION_WARNING + "\""));
 
         if (unexpected.isEmpty() == false
             || unmatched.isEmpty() == false

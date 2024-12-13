@@ -40,7 +40,7 @@ public enum TextFormat implements MediaType {
         @Override
         public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
             boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-            return new TextFormatter(esqlResponse).format(hasHeader(request), dropNullColumns);
+            return new TextFormatter(esqlResponse, dropNullColumns).format(hasHeader(request));
         }
 
         @Override
@@ -291,7 +291,7 @@ public enum TextFormat implements MediaType {
         boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
         return Iterators.concat(
             // if the header is requested return the info
-            hasHeader(request) && esqlResponse.columns().size() > 0
+            hasHeader(request) && esqlResponse.columns().isEmpty() == false
                 ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
                 : Collections.emptyIterator(),
             Iterators.map(
@@ -323,9 +323,7 @@ public enum TextFormat implements MediaType {
     <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter, boolean[] dropColumns)
         throws IOException {
         boolean firstColumn = true;
-        int i = -1;
-        while (row.hasNext()) {
-            i++;
+        for (int i = 0; row.hasNext(); i++) {
             if (dropColumns[i]) {
                 row.next();
                 continue;

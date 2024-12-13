@@ -30,13 +30,15 @@ public class TextFormatter {
     private final EsqlQueryResponse response;
     private final int[] width;
     private final Function<Object, String> FORMATTER = Objects::toString;
+    private final boolean[] dropColumns;
 
     /**
      * Create a new {@linkplain TextFormatter} for formatting responses.
      */
-    public TextFormatter(EsqlQueryResponse response) {
+    public TextFormatter(EsqlQueryResponse response, boolean dropNullColumns) {
         this.response = response;
         var columns = response.columns();
+        this.dropColumns = dropNullColumns ? response.nullColumns() : new boolean[columns.size()];
         // Figure out the column widths:
         // 1. Start with the widths of the column names
         width = new int[columns.size()];
@@ -60,19 +62,16 @@ public class TextFormatter {
     /**
      * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
      */
-    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader, boolean dropNullColumns) {
-        boolean[] dropColumns = dropNullColumns ? response.nullColumns() : new boolean[response.columns().size()];
+    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader) {
         return Iterators.concat(
             // The header lines
-            includeHeader && response.columns().size() > 0
-                ? Iterators.single(writer -> formatHeader(writer, dropColumns))
-                : Collections.emptyIterator(),
+            includeHeader && response.columns().isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
             // Now format the results.
-            formatResults(dropColumns)
+            formatResults()
         );
     }
 
-    private void formatHeader(Writer writer, boolean[] dropColumns) throws IOException {
+    private void formatHeader(Writer writer) throws IOException {
         for (int i = 0; i < width.length; i++) {
             if (dropColumns[i]) {
                 continue;
@@ -103,7 +102,7 @@ public class TextFormatter {
         writer.append('\n');
     }
 
-    private Iterator<CheckedConsumer<Writer, IOException>> formatResults(boolean[] dropColumns) {
+    private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
         return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();

@@ -85,8 +85,6 @@ public class TextFormatterTests extends ESTestCase {
         new EsqlExecutionInfo(randomBoolean())
     );
 
-    TextFormatter formatter = new TextFormatter(esqlResponse);
-
     /**
      * Tests for {@link TextFormatter#format} with header, values
      * of exactly the minimum column size, column names of exactly
@@ -95,7 +93,7 @@ public class TextFormatterTests extends ESTestCase {
      * column size.
      */
     public void testFormatWithHeader() {
-        String[] result = getTextBodyContent(formatter.format(true, false)).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(esqlResponse, false).format(true)).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
@@ -124,7 +122,7 @@ public class TextFormatterTests extends ESTestCase {
      * truncation of long columns.
      */
     public void testFormatWithDropNullColumns() {
-        String[] result = getTextBodyContent(formatter.format(true, true)).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(esqlResponse, true).format(true)).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|superduperwidename!!!|      baz      |"
@@ -189,7 +187,7 @@ public class TextFormatterTests extends ESTestCase {
             new EsqlExecutionInfo(randomBoolean())
         );
 
-        String[] result = getTextBodyContent(new TextFormatter(response).format(false, false)).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(response, false).format(false)).split("\n");
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
@@ -228,8 +226,9 @@ public class TextFormatterTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         new EsqlExecutionInfo(randomBoolean())
-                    )
-                ).format(false, false)
+                    ),
+                    false
+                ).format(false)
             )
         );
     }

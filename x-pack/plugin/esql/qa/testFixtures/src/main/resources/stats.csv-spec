@@ -564,7 +564,7 @@ c:long | gender:keyword | trunk_worked_seconds:long
  0     | null           | 200000000
 ;
 
-byStringAndLongWithAlias
+byStringAndLongWithAlias#[skip:-8.12.99]
 FROM employees
 | EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
 | RENAME  gender as g, trunk_worked_seconds as tws

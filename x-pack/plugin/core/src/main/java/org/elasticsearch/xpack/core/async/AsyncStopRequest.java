@@ -14,6 +14,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Request for TransportEsqlAsyncStopAction action.
+ */
 public class AsyncStopRequest extends ActionRequest {
     private final String id;
 

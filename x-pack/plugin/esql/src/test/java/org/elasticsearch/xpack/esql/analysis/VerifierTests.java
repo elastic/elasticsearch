@@ -1981,11 +1981,11 @@ public class VerifierTests extends ESTestCase {
         query("FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code");
 
         assertEquals(
-            "1:69: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [STANDARD]",
+            "1:69: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
             error("FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages")
         );
         assertEquals(
-            "1:24: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [STANDARD]",
+            "1:24: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
             error("FROM test | LOOKUP JOIN test ON languages")
         );
     }

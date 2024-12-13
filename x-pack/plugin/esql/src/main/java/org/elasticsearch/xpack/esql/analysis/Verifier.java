@@ -832,7 +832,7 @@ public class Verifier {
             }
 
             if (join.right() instanceof EsRelation relation) {
-                if (join instanceof LookupJoin lookup) {
+                if (join instanceof LookupJoin) {
                     var indicesWithModes = relation.index().indexNameWithModes();
                     if (indicesWithModes.size() != 1) {
                         failures.add(
@@ -843,17 +843,16 @@ public class Verifier {
                                 indicesWithModes.size()
                             )
                         );
-                    } else if (relation.indexMode() != IndexMode.LOOKUP
-                        || indicesWithModes.values().iterator().next() != IndexMode.LOOKUP) {
-                            failures.add(
-                                fail(
-                                    relation,
-                                    "LOOKUP JOIN index [{}] must have LOOKUP mode, has mode [{}]",
-                                    relation.sourceText(),
-                                    relation.indexMode()
-                                )
-                            );
-                        }
+                    } else if (indicesWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                        failures.add(
+                            fail(
+                                relation,
+                                "LOOKUP JOIN index [{}] must have LOOKUP mode, has mode [{}]",
+                                relation.sourceText(),
+                                indicesWithModes.values().iterator().next()
+                            )
+                        );
+                    }
                 }
             }
         }

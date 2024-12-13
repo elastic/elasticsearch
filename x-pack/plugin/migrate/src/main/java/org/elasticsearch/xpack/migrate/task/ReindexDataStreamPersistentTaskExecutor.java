@@ -29,8 +29,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.getOldIndexVersionPredicate;
 
@@ -82,45 +85,80 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
                 if (getOldIndexVersionPredicate(clusterService.state().metadata()).test(dataStream.getWriteIndex())) {
-                    // placeholder
-                    reindexClient.execute(RolloverAction.INSTANCE, new RolloverRequest(sourceDataStream, null)).actionGet();
-                }
-                List<Index> indices = dataStream.getIndices();
-                List<Index> indicesToBeReindexed = indices.stream()
-                    .filter(getOldIndexVersionPredicate(clusterService.state().metadata()))
-                    .toList();
-                reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
-                CountDownActionListener listener = new CountDownActionListener(
-                    indicesToBeReindexed.size() + 1,
-                    ActionListener.wrap(response1 -> {
-                        completeSuccessfulPersistentTask(reindexDataStreamTask);
-                    }, exception -> { completeFailedPersistentTask(reindexDataStreamTask, exception); })
-                );
-                // TODO: put all these on a queue, only process N from queue at a time
-                for (Index index : indicesToBeReindexed) {
-                    reindexDataStreamTask.incrementInProgressIndicesCount();
                     reindexClient.execute(
-                        ReindexDataStreamIndexAction.INSTANCE,
-                        new ReindexDataStreamIndexAction.Request(index.getName()),
-                        ActionListener.wrap(response1 -> {
-                            updateDataStream(sourceDataStream, index.getName(), response1.getDestIndex(), ActionListener.wrap(unused -> {
-                                reindexDataStreamTask.reindexSucceeded();
-                                listener.onResponse(null);
-                            }, exception -> {
-                                reindexDataStreamTask.reindexFailed(index.getName(), exception);
-                                listener.onResponse(null);
-                            }), reindexClient);
-                        }, exception -> {
-                            reindexDataStreamTask.reindexFailed(index.getName(), exception);
-                            listener.onResponse(null);
-                        })
+                        RolloverAction.INSTANCE,
+                        new RolloverRequest(sourceDataStream, null),
+                        ActionListener.wrap(
+                            rolloverResponse -> reindexIndices(dataStream, reindexDataStreamTask, reindexClient, sourceDataStream),
+                            e -> completeFailedPersistentTask(reindexDataStreamTask, e)
+                        )
                     );
+                } else {
+                    reindexIndices(dataStream, reindexDataStreamTask, reindexClient, sourceDataStream);
                 }
-                listener.onResponse(null);
             } else {
                 completeFailedPersistentTask(reindexDataStreamTask, new ElasticsearchException("data stream does not exist"));
             }
         }, exception -> completeFailedPersistentTask(reindexDataStreamTask, exception)));
+    }
+
+    private void reindexIndices(
+        DataStream dataStream,
+        ReindexDataStreamTask reindexDataStreamTask,
+        ExecuteWithHeadersClient reindexClient,
+        String sourceDataStream
+    ) {
+        List<Index> indices = dataStream.getIndices();
+        List<Index> indicesToBeReindexed = indices.stream()
+            .filter(getOldIndexVersionPredicate(clusterService.state().metadata()))
+            .filter(index -> index.getName().equals(dataStream.getWriteIndex().getName()) == false)
+            .toList();
+        reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
+        CountDownActionListener listener = new CountDownActionListener(indicesToBeReindexed.size() + 1, ActionListener.wrap(response1 -> {
+            completeSuccessfulPersistentTask(reindexDataStreamTask);
+        }, exception -> { completeFailedPersistentTask(reindexDataStreamTask, exception); }));
+        List<Index> indicesRemaining = Collections.synchronizedList(new ArrayList<>(indicesToBeReindexed));
+        final int maxConcurrentIndices = 5;
+        for (int i = 0; i < maxConcurrentIndices; i++) {
+            maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener);
+        }
+        listener.onResponse(null);
+    }
+
+    private void maybeProcessNextIndex(
+        List<Index> indicesRemaining,
+        ReindexDataStreamTask reindexDataStreamTask,
+        ExecuteWithHeadersClient reindexClient,
+        String sourceDataStream,
+        CountDownActionListener listener
+    ) {
+        if (indicesRemaining.isEmpty()) {
+            return;
+        }
+        Index index;
+        try {
+            index = indicesRemaining.removeFirst();
+        } catch (NoSuchElementException e) {
+            return;
+        }
+        reindexDataStreamTask.incrementInProgressIndicesCount();
+        reindexClient.execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(index.getName()),
+            ActionListener.wrap(response1 -> {
+                updateDataStream(sourceDataStream, index.getName(), response1.getDestIndex(), ActionListener.wrap(unused -> {
+                    reindexDataStreamTask.reindexSucceeded();
+                    listener.onResponse(null);
+                    maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener);
+                }, exception -> {
+                    reindexDataStreamTask.reindexFailed(index.getName(), exception);
+                    listener.onResponse(null);
+                }), reindexClient);
+            }, exception -> {
+                reindexDataStreamTask.reindexFailed(index.getName(), exception);
+                listener.onResponse(null);
+            })
+        );
     }
 
     private void updateDataStream(

@@ -130,9 +130,6 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         } finally {
             page.releaseBlocks();
         }
-
-        // TODO: randomize values? May give wrong results
-        // TODO: assert the categorizer state after adding pages.
     }
 
     public void testCategorizeRawMultivalue() {

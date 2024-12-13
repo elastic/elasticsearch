@@ -27,6 +27,6 @@ public class EnrichFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_5_0;
+        return TransportVersions.ZERO;
     }
 }

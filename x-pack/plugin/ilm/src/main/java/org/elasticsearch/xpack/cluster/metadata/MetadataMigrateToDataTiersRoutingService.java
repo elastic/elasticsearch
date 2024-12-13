@@ -267,7 +267,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
     ) {
         IndexLifecycleMetadata currentLifecycleMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (currentLifecycleMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         List<String> migratedPolicies = new ArrayList<>();
@@ -882,7 +882,6 @@ public final class MetadataMigrateToDataTiersRoutingService {
             this.migratedPolicies = Collections.unmodifiableList(migratedPolicies);
             this.migratedTemplates = migratedTemplates;
         }
-
     }
 
     /**

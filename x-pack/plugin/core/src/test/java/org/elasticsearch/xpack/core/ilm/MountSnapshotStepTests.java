@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.client.NoOpClient;
@@ -195,7 +196,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME }
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                null
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 randomStepKey(),
@@ -318,7 +320,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexNameSnippet,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME }
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                null
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 randomStepKey(),
@@ -359,7 +362,10 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME, ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() }
+                new String[] {
+                    LifecycleSettings.LIFECYCLE_NAME,
+                    ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() },
+                null
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
@@ -373,7 +379,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         }
     }
 
-    public void testDoNotIgnoreTotalShardsPerNodeIfSet() throws Exception {
+    public void testDoNotIgnoreTotalShardsPerNodeAndReplicasIfSet() throws Exception {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         Map<String, String> ilmCustom = new HashMap<>();
@@ -393,6 +399,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
+        final Integer totalShardsPerNode = randomTotalShardsPerNode(false);
+
         try (var threadPool = createThreadPool()) {
             final var client = getRestoreSnapshotRequestAssertingClient(
                 threadPool,
@@ -401,7 +409,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME }
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                totalShardsPerNode
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
@@ -409,7 +418,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                randomTotalShardsPerNode(false)
+                totalShardsPerNode
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -437,7 +446,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String indexName,
         String restoredIndexPrefix,
         String expectedSnapshotIndexName,
-        String[] expectedIgnoredIndexSettings
+        String[] expectedIgnoredIndexSettings,
+        @Nullable Integer totalShardsPerNode
     ) {
         return new NoOpClient(threadPool) {
             @Override
@@ -459,6 +469,19 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 assertThat(mountSearchableSnapshotRequest.ignoreIndexSettings(), is(expectedIgnoredIndexSettings));
                 assertThat(mountSearchableSnapshotRequest.mountedIndexName(), is(restoredIndexPrefix + indexName));
                 assertThat(mountSearchableSnapshotRequest.snapshotIndexName(), is(expectedSnapshotIndexName));
+
+                if (totalShardsPerNode != null) {
+                    Integer totalShardsPerNodeSettingValue = ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(
+                        mountSearchableSnapshotRequest.indexSettings()
+                    );
+                    assertThat(totalShardsPerNodeSettingValue, is(totalShardsPerNode));
+                } else {
+                    assertThat(
+                        mountSearchableSnapshotRequest.indexSettings()
+                            .hasValue(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()),
+                        is(false)
+                    );
+                }
 
                 // invoke the awaiting listener with a very generic 'response', just to fulfill the contract
                 listener.onResponse((Response) new RestoreSnapshotResponse((RestoreInfo) null));

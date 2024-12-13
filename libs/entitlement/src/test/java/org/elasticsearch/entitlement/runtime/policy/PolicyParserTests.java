@@ -66,10 +66,10 @@ public class PolicyParserTests extends ESTestCase {
             List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))
         );
         assertThat(
-            parsedPolicy.scopes,
+            parsedPolicy.scopes(),
             contains(
-                both(transformedMatch((Scope scope) -> scope.name, equalTo("entitlement-module-name"))).and(
-                    transformedMatch(scope -> scope.entitlements, contains(instanceOf(CreateClassLoaderEntitlement.class)))
+                both(transformedMatch((Scope scope) -> scope.name(), equalTo("entitlement-module-name"))).and(
+                    transformedMatch(scope -> scope.entitlements(), contains(instanceOf(CreateClassLoaderEntitlement.class)))
                 )
             )
         );

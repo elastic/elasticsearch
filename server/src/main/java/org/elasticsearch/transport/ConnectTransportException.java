@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -39,6 +40,16 @@ public class ConnectTransportException extends ActionTransportException {
         if (in.getTransportVersion().before(TransportVersions.V_8_1_0)) {
             in.readOptionalWriteable(DiscoveryNode::new);
         }
+    }
+
+    /**
+     * The ES REST API is a gateway to a single or multiple clusters. If there is an error connecting to other servers, then we should
+     * return a retryable 502 BAD_GATEWAY error, instead of the parent class' non-retryable 500 INTERNAL_SERVER_ERROR response code.
+     * @return a {@link RestStatus#BAD_GATEWAY} code
+     */
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_GATEWAY;
     }
 
     @Override

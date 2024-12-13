@@ -269,8 +269,9 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 .filter(e -> e.getValue() == false)
                 .map(e -> "privilege [" + e.getKey() + "] is missing")
                 .collect(Collectors.joining(", "));
-            String message = "user [" + user.principal() + "] doesn't have "
-            // TODO: "Enrich lookup" doesn't make sense for LOOKUP JOIN (?)
+            String message = "user ["
+                + user.principal()
+                + "] doesn't have "
                 + "sufficient privileges to perform enrich lookup: "
                 + detailed;
             l.onFailure(Exceptions.authorizationError(message));

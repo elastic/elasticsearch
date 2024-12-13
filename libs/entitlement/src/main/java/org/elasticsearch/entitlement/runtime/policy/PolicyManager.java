@@ -98,6 +98,10 @@ public class PolicyManager {
         checkEntitlementPresent(callerClass, CreateClassLoaderEntitlement.class);
     }
 
+    public void checkSetHttpsConnectionProperties(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, SetHttpsConnectionPropertiesEntitlement.class);
+    }
+
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {

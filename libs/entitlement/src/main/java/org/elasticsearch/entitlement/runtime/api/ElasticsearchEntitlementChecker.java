@@ -15,6 +15,11 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
  * API methods for managing the checks.
@@ -61,5 +66,29 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         URLStreamHandlerFactory factory
     ) {
         policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection connection, SSLSocketFactory sf) {
+        policyManager.checkSetHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
+        throw alwaysDeny();
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
+        throw alwaysDeny();
+    }
+
+    @Override
+    public void check$javax_net_ssl_SSLContext$setDefault(Class<?> callerClass, SSLContext context) {
+        throw alwaysDeny();
+    }
+
+    private static NotEntitledException alwaysDeny() {
+        return new NotEntitledException("This action is always denied");
     }
 }

@@ -12,10 +12,15 @@ package org.elasticsearch.entitlement.bridge;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+
 public interface EntitlementChecker {
     void check$java_lang_System$exit(Class<?> callerClass, int status);
 
-    // URLClassLoader ctor
+    // URLClassLoader constructors
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent);
@@ -25,4 +30,13 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    // "setFactory" methods
+    void check$$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection conn, SSLSocketFactory sf);
+
+    void check$javax_net_ssl_HttpsURLConnection$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf);
+
+    void check$javax_net_ssl_HttpsURLConnection$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv);
+
+    void check$javax_net_ssl_SSLContext$setDefault(Class<?> callerClass, SSLContext context);
 }

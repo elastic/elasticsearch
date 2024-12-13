@@ -1,0 +1,10 @@
+language_code:integer,language_name:keyword,country:keyword
+1,English,Canada
+1,English,
+1,,United Kingdom
+1,English,United States of America
+2,German,[Germany,Austria]
+2,German,Switzerland
+2,German,
+4,Quenya,
+5,,Atlantis

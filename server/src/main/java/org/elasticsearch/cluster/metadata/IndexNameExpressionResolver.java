@@ -66,6 +66,7 @@ import java.util.function.Predicate;
  * Note: This class is performance sensitive, so we pay extra attention on the data structure usage and we avoid streams and iterators
  * when possible in favor of the classic for-i loops.
  */
+@SuppressWarnings("ForLoopReplaceableByForEach")
 public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 

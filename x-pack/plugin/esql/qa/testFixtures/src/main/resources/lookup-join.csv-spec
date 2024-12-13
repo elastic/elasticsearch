@@ -424,7 +424,7 @@ count:long | type:keyword
 // 
 
 lookupWithFilterOnLeftSideField
-required_capability: join_lookup_v4
+required_capability: join_lookup_v5
 
 FROM employees
 | EVAL language_code = languages
@@ -441,7 +441,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 lookupMessageWithFilterOnRightSideField-Ignore
-required_capability: join_lookup_v4
+required_capability: join_lookup_v5
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -457,7 +457,7 @@ FROM sample_data
 ;
 
 lookupWithFieldAndRightSideAfterStats
-required_capability: join_lookup_v4
+required_capability: join_lookup_v5
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -470,7 +470,7 @@ count:long | type:keyword
 ;
 
 lookupWithFieldOnJoinKey-Ignore
-required_capability: join_lookup_v4
+required_capability: join_lookup_v5
 
 FROM employees
 | EVAL language_code = languages

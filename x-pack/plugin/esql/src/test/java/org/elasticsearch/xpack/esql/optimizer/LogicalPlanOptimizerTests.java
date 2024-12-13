@@ -5905,12 +5905,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
-     * \_Limit[1000[INTEGER]]
      *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
      *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *     | \_Filter[languages{f}#10 > 1[INTEGER]]
-     *     |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     | \_Limit[1000[INTEGER]]
+     *     |  \_Filter[languages{f}#10 > 1[INTEGER]]
+     *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
@@ -5923,12 +5923,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = optimizedPlan(query);
 
         var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
-        var join = as(limit.child(), Join.class);
+        var join = as(project.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         project = as(join.left(), Project.class);
-        var filter = as(project.child(), Filter.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        var filter = as(limit.child(), Filter.class);
         // assert that the rename has been undone
         var op = as(filter.condition(), GreaterThan.class);
         var field = as(op.left(), FieldAttribute.class);
@@ -5946,12 +5946,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
-     * \_Limit[1000[INTEGER]]
      *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
      *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *     | \_Filter[emp_no{f}#7 > 1[INTEGER]]
-     *     |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     | \_Limit[1000[INTEGER]]
+     *     |  \_Filter[emp_no{f}#7 > 1[INTEGER]]
+     *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
@@ -5965,13 +5965,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = optimizedPlan(query);
 
         var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
-
-        var join = as(limit.child(), Join.class);
+        var join = as(project.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         project = as(join.left(), Project.class);
-        var filter = as(project.child(), Filter.class);
+
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        var filter = as(limit.child(), Filter.class);
         var op = as(filter.condition(), GreaterThan.class);
         var field = as(op.left(), FieldAttribute.class);
         assertThat(field.name(), equalTo("emp_no"));

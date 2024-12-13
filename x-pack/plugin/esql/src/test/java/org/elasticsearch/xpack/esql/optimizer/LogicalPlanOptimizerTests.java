@@ -1321,7 +1321,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = new Limit(EMPTY, L(10), join);
 
-        var optimizedPlan = new PushDownAndCombineLimits().rule(limit);
+        var optimizedPlan = new PushDownAndCombineLimits().rule(limit, logicalOptimizerCtx);
 
         assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
     }

@@ -29,21 +29,21 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
      */
     public void checkPlan(P p, Failures failures) {
         if (p instanceof BinaryPlan binaryPlan) {
-            checkMissing(p, binaryPlan.leftReferences(), binaryPlan.left().outputSet(), "missing references from left hand side", failures);
-            checkMissing(
+            checkMissingBinary(
                 p,
+                binaryPlan.leftReferences(),
+                binaryPlan.left().outputSet(),
                 binaryPlan.rightReferences(),
                 binaryPlan.right().outputSet(),
-                "missing references from right hand side",
                 failures
             );
         } else if (p instanceof BinaryExec binaryExec) {
-            checkMissing(p, binaryExec.leftReferences(), binaryExec.left().outputSet(), "missing references from left hand side", failures);
-            checkMissing(
+            checkMissingBinary(
                 p,
+                binaryExec.leftReferences(),
+                binaryExec.left().outputSet(),
                 binaryExec.rightReferences(),
                 binaryExec.right().outputSet(),
-                "missing references from right hand side",
                 failures
             );
         } else {
@@ -59,6 +59,18 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
                 );
             }
         }
+    }
+
+    private void checkMissingBinary(
+        P plan,
+        AttributeSet leftReferences,
+        AttributeSet leftInput,
+        AttributeSet rightReferences,
+        AttributeSet rightInput,
+        Failures failures
+    ) {
+        checkMissing(plan, leftReferences, leftInput, "missing references from left hand side", failures);
+        checkMissing(plan, rightReferences, rightInput, "missing references from right hand side", failures);
     }
 
     private void checkMissing(P plan, AttributeSet references, AttributeSet input, String detailErrorMessage, Failures failures) {

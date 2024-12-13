@@ -30,14 +30,16 @@ public class TextFormatter {
     private final EsqlQueryResponse response;
     private final int[] width;
     private final Function<Object, String> FORMATTER = Objects::toString;
+    private final boolean includeHeader;
     private final boolean[] dropColumns;
 
     /**
-     * Create a new {@linkplain TextFormatter} for formatting responses.
+     * Create a new {@linkplain TextFormatter} for formatting responses
      */
-    public TextFormatter(EsqlQueryResponse response, boolean dropNullColumns) {
+    public TextFormatter(EsqlQueryResponse response, boolean includeHeader, boolean dropNullColumns) {
         this.response = response;
         var columns = response.columns();
+        this.includeHeader = includeHeader;
         this.dropColumns = dropNullColumns ? response.nullColumns() : new boolean[columns.size()];
         // Figure out the column widths:
         // 1. Start with the widths of the column names
@@ -60,9 +62,9 @@ public class TextFormatter {
     }
 
     /**
-     * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
+     * Format the provided {@linkplain EsqlQueryResponse}
      */
-    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader) {
+    public Iterator<CheckedConsumer<Writer, IOException>> format() {
         return Iterators.concat(
             // The header lines
             includeHeader && response.columns().isEmpty() == false ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),

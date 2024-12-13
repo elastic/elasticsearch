@@ -40,7 +40,7 @@ public enum TextFormat implements MediaType {
         @Override
         public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
             boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-            return new TextFormatter(esqlResponse, dropNullColumns).format(hasHeader(request));
+            return new TextFormatter(esqlResponse, hasHeader(request), dropNullColumns).format();
         }
 
         @Override

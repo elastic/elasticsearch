@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
@@ -123,9 +124,15 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
     public void testNoFormat() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> getResponseMediaType(new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(), createTestInstance(false))
+            () -> getResponseMediaType(emptyRequest(), createTestInstance(false))
         );
         assertEquals(e.getMessage(), "Invalid request content type: Accept=[null], Content-Type=[null], format=[null]");
+    }
+
+    public void testNoContentType() {
+        RestRequest fakeRestRequest = emptyRequest();
+        assertThat(getResponseMediaType(fakeRestRequest, CSV), is(CSV));
+        assertThat(getResponseMediaType(fakeRestRequest, JSON), is(JSON));
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {
@@ -138,6 +145,10 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
             Map.of("Content-Type", Collections.singletonList("application/json"))
         ).withParams(params).build();
+    }
+
+    private static RestRequest emptyRequest() {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
     }
 
     protected EsqlQueryRequest createTestInstance(boolean columnar) {

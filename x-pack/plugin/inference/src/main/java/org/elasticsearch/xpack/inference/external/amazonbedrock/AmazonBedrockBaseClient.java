@@ -12,11 +12,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 
 public abstract class AmazonBedrockBaseClient implements AmazonBedrockClient {
     protected final Integer modelKeysAndRegionHashcode;
     protected Clock clock = Clock.systemUTC();
+    protected volatile Instant expiryTimestamp;
 
     protected AmazonBedrockBaseClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         Objects.requireNonNull(model);
@@ -31,6 +33,11 @@ public abstract class AmazonBedrockBaseClient implements AmazonBedrockClient {
 
     public final void setClock(Clock clock) {
         this.clock = clock;
+    }
+
+    // used for testing
+    Instant getExpiryTimestamp() {
+        return this.expiryTimestamp;
     }
 
     abstract void close();

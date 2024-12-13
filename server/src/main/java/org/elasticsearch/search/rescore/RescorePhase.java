@@ -43,13 +43,14 @@ public class RescorePhase {
         if (context.size() == 0 || context.rescore() == null || context.rescore().isEmpty()) {
             return;
         }
-        assert validateSort(context.sort()) : "invalid sort";
+        if (validateSort(context.sort()) == false) {
+            throw new IllegalStateException("Cannot use [sort] option in conjunction with [rescore], missing a validate?");
+        }
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
         }
-        // Populate FieldDoc#score using the primary sort field (_score) to ensure compatibility
-        // with top docs rescoring.
+        // Populate FieldDoc#score using the primary sort field (_score) to ensure compatibility with top docs rescoring
         Arrays.stream(topDocs.scoreDocs).forEach(t -> {
             if (t instanceof FieldDoc fieldDoc) {
                 fieldDoc.score = (float) fieldDoc.fields[0];

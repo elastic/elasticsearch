@@ -234,9 +234,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
             if (innerRetriever.retriever() instanceof CompoundRetrieverBuilder<?> compoundChild) {
                 String errorMessage = String.format(
-                        Locale.ROOT,
-                        "[%s] requires [rank_window_size: %d] to be smaller than or equal to its sub retriever's %s [rank_window_size: %d]",
-                        this.getName(), rankWindowSize, compoundChild.getName(), compoundChild.rankWindowSize
+                    Locale.ROOT,
+                    "[%s] requires [rank_window_size: %d] to be smaller than or equal to its sub retriever's %s [rank_window_size: %d]",
+                    this.getName(),
+                    rankWindowSize,
+                    compoundChild.getName(),
+                    compoundChild.rankWindowSize
                 );
                 validationException = addValidationError(errorMessage, validationException);
             }

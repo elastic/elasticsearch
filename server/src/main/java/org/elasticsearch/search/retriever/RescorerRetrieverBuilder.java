@@ -107,6 +107,16 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder source) {
+        /**
+         * The re-scorer is passed downstream because this query operates only on
+         * the top documents retrieved by the child retriever.
+         *
+         * - If the sub-retriever is a {@link CompoundRetrieverBuilder}, only the top
+         *   documents are re-scored since they are already determined at this stage.
+         * - For other retrievers that do not require a rewrite, the re-scorer's window
+         *   size is applied per shard. As a result, more documents are re-scored
+         *   compared to the final top documents produced by these retrievers in isolation.
+         */
         for (var rescorer : rescorers) {
             source.addRescorer(rescorer);
         }

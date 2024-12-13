@@ -1855,7 +1855,7 @@ public class IndexNameExpressionResolver {
             Metadata metadata,
             IndexComponentSelector selector
         ) {
-            if (selector.shouldIncludeData() == false) {
+            if (selector != null && selector.shouldIncludeData() == false) {
                 return Strings.EMPTY_ARRAY;
             }
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {

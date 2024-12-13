@@ -164,15 +164,35 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("testYYY"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-            state,
-            IndicesOptions.lenientExpandOpen(),
-            SystemIndexAccessLevel.NONE
-        );
-        assertThat(
-            newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context, ALL_APPLICABLE)),
-            equalTo(resolvedExpressionsSet("testXXX", "testXYY", "testYYY"))
-        );
+        {
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                IndicesOptions.lenientExpandOpen(),
+                SystemIndexAccessLevel.NONE
+            );
+            assertThat(
+                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context, ALL_APPLICABLE)),
+                equalTo(resolvedExpressionsSet("testXXX", "testXYY", "testYYY"))
+            );
+        }
+
+        {
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                IndicesOptions.builder(IndicesOptions.lenientExpandOpen())
+                    .gatekeeperOptions(
+                        IndicesOptions.GatekeeperOptions.builder(IndicesOptions.lenientExpandOpen().gatekeeperOptions())
+                            .allowSelectors(false)
+                            .build()
+                    )
+                    .build(),
+                SystemIndexAccessLevel.NONE
+            );
+            assertThat(
+                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context, null)),
+                equalTo(resolvedExpressionsNoSelectorSet("testXXX", "testXYY", "testYYY"))
+            );
+        }
     }
 
     public void testAllAliases() {
@@ -867,5 +887,9 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     private Set<ResolvedExpression> resolvedExpressionsSet(String... expressions) {
         return Arrays.stream(expressions).map(e -> new ResolvedExpression(e, DATA)).collect(Collectors.toSet());
+    }
+
+    private Set<ResolvedExpression> resolvedExpressionsNoSelectorSet(String... expressions) {
+        return Arrays.stream(expressions).map(e -> new ResolvedExpression(e)).collect(Collectors.toSet());
     }
 }

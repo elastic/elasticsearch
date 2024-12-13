@@ -82,7 +82,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosedAllowSelectors();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);

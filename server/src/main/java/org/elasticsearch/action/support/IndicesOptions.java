@@ -789,8 +789,26 @@ public record IndicesOptions(
         )
         .selectorOptions(SelectorOptions.DATA)
         .build();
-    // PRTODO: Most users of these options will probably want to not support selectors
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(false)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(false)
+                .allowClosedIndices(false)
+                .allowSelectors(false)
+                .ignoreThrottled(false)
+        )
+        .selectorOptions(SelectorOptions.DATA)
+        .build();
+    public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             WildcardOptions.builder()
@@ -1460,6 +1478,14 @@ public record IndicesOptions(
      */
     public static IndicesOptions strictSingleIndexNoExpandForbidClosed() {
         return STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+    }
+
+    /**
+     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
+     * throws error if any of the aliases resolves to multiple indices
+     */
+    public static IndicesOptions strictSingleIndexNoExpandForbidClosedAllowSelectors() {
+        return STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
     }
 
     /**

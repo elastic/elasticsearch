@@ -81,13 +81,15 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
     }
 
     private static Stream<Map.Entry<String, Object>> errorAttributes(@Nullable Throwable t) {
-        return switch (t) {
-            case null -> Stream.of(entry("status_code", 200));
-            case ElasticsearchStatusException ese -> Stream.<Map.Entry<String, Object>>builder()
+        if (t == null) {
+            return Stream.of(entry("status_code", 200));
+        } else if (t instanceof ElasticsearchStatusException ese) {
+            return Stream.<Map.Entry<String, Object>>builder()
                 .add(entry("status_code", ese.status().getStatus()))
                 .add(entry("error.type", String.valueOf(ese.status().getStatus())))
                 .build();
-            default -> Stream.of(entry("error.type", t.getClass().getSimpleName()));
-        };
+        } else {
+            return Stream.of(entry("error.type", t.getClass().getSimpleName()));
+        }
     }
 }

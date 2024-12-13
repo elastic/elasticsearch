@@ -1,5 +1,5 @@
 pr: 117851
-summary: Tier_preference and `creation_date` fields in monitoring template
+summary: Addition of `tier_preference`, `creation_date` and `version` fields in Elasticsearch monitoring template
 area: Monitoring
 type: enhancement
 issues: []

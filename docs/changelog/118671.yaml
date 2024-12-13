@@ -6,7 +6,6 @@ issues: []
 breaking:
   title: Adjust `random_score` default field to `_seq_no` field
   area: Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: When providing a 'seed' parameter to a 'random_score' function in the 'function_score' query but NOT providing a 'field', the default 'field' is switched from '_id' to '_seq_no'.
+  impact: The random scoring and ordering may change when providing a 'seed' and not providing a 'field' to a 'random_score' function. 
   notable: false

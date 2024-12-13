@@ -442,6 +442,11 @@ If the child retriever already specifies any filters, then this top-level filter
 [[text-similarity-reranker-retriever-example-elastic-rerank]]
 ==== Example: Elastic Rerank
 
+[TIP]
+====
+Refer to this https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/12-semantic-reranking-elastic-rerank.ipynb[Python notebook] for an end-to-end example using Elastic Rerank.
+====
+
 This example demonstrates how to deploy the {ml-docs}/ml-nlp-rerank.html[Elastic Rerank] model and use it to re-rank search results using the `text_similarity_reranker` retriever.
 
 Follow these steps:

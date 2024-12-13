@@ -86,7 +86,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         return plan;
     }
 
-    private record ScopedFilter(List<Expression> leftFilters, List<Expression> rightFilters, List<Expression> commonFilters) {}
+    private record ScopedFilter(List<Expression> commonFilters, List<Expression> leftFilters, List<Expression> rightFilters) {}
 
     // split the filter condition in 3 parts:
     // 1. filter scoped to the left
@@ -100,11 +100,11 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         AttributeSet leftOutput = left.outputSet();
         AttributeSet rightOutput = right.outputSet();
 
-        // first remove things that left scoped only
+        // first remove things that are left scoped only
         rest.removeIf(f -> f.references().subsetOf(leftOutput) && leftFilters.add(f));
         // followed by right scoped only
         rest.removeIf(f -> f.references().subsetOf(rightOutput) && rightFilters.add(f));
-        return new ScopedFilter(leftFilters, rightFilters, rest);
+        return new ScopedFilter(rest, leftFilters, rightFilters);
     }
 
     private static LogicalPlan pushDownPastJoin(Filter filter, Join join) {

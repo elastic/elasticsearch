@@ -53,7 +53,6 @@ public abstract class BaseRestHandler implements RestHandler {
         true,
         Property.NodeScope
     );
-    private static final String ERROR_TRACE_DEFAULT = String.valueOf(RestController.ERROR_TRACE_DEFAULT);
 
     private final LongAdder usageCount = new LongAdder();
 
@@ -275,7 +274,10 @@ public abstract class BaseRestHandler implements RestHandler {
     protected static void setErrorTraceTransportHeader(RestRequest r, ThreadContext c) {
         // set whether data nodes should send back stack trace based on the `error_trace` query parameter
         if (c != null) {
-            c.putHeader("error_trace", r.param("error_trace", ERROR_TRACE_DEFAULT));
+            if (r.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
+                // We only set it if error_trace is true (defaults to false) to avoid sending useless bytes
+                c.putHeader("error_trace", "true");
+            }
         }
     }
 }

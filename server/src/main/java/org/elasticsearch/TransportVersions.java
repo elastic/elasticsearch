@@ -138,6 +138,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES = def(8_805_00_0);
     public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
     public static final TransportVersion SEMANTIC_QUERY_LENIENT = def(8_807_00_0);
+    public static final TransportVersion ERROR_TRACE_IN_TRANSPORT_HEADER = def(8_808_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

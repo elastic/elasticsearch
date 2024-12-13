@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -134,7 +135,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         doReturn(new ThreadContext(Settings.EMPTY)).when(threadPool).getThreadContext();
         doReturn(threadPool).when(service).getThreadPool();
-        doCallRealMethod().when(service).maybeWrapListenerForStackTrace(any());
+        doCallRealMethod().when(service).maybeWrapListenerForStackTrace(any(), any());
         service.getThreadPool().getThreadContext().putHeader("error_trace", "false");
         AtomicBoolean isWrapped = new AtomicBoolean(false);
         ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
@@ -156,7 +157,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = service.maybeWrapListenerForStackTrace(listener);
+        listener = service.maybeWrapListenerForStackTrace(listener, TransportVersion.current());
         isWrapped.set(true);
         listener.onFailure(e);
     }

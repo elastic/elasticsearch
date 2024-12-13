@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -153,6 +154,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
@@ -514,12 +516,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * default to {@code true} to maintain the same behavior as before the change,
      * due to older nodes not being able to specify whether it needs stack traces.
      *
-     * @param <T> the type of the response
-     * @param listener the action listener to be wrapped
+     * @param <T>            the type of the response
+     * @param listener       the action listener to be wrapped
+     * @param version        channel version of the request
      * @return the wrapped action listener
      */
-    <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener) {
-        String header = getThreadPool().getThreadContext().getHeaderOrDefault("error_trace", "true");
+    <T> ActionListener<T> maybeWrapListenerForStackTrace(ActionListener<T> listener, TransportVersion version) {
+        String header = "true";
+        if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER)) {
+            header = getThreadPool().getThreadContext().getHeaderOrDefault("error_trace", "false");
+        }
         if (header.equals("false")) {
             return listener.delegateResponse((l, e) -> {
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, err -> {
@@ -533,7 +539,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener);
+        listener = maybeWrapListenerForStackTrace(listener, request.getChannelVersion());
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
@@ -571,7 +577,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        ActionListener<SearchPhaseResult> finalListener = maybeWrapListenerForStackTrace(listener);
+        ActionListener<SearchPhaseResult> finalListener = maybeWrapListenerForStackTrace(listener, request.getChannelVersion());
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
@@ -764,7 +770,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener);
+        listener = maybeWrapListenerForStackTrace(listener, request.getShardSearchRequest().getChannelVersion());
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
@@ -808,9 +814,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeQueryPhase(
         InternalScrollSearchRequest request,
         SearchShardTask task,
-        ActionListener<ScrollQuerySearchResult> listener
+        ActionListener<ScrollQuerySearchResult> listener,
+        TransportVersion version
     ) {
-        listener = maybeWrapListenerForStackTrace(listener);
+        listener = maybeWrapListenerForStackTrace(listener, version);
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
         final Releasable markAsUsed;
         try {
@@ -846,8 +853,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * It is the responsibility of the caller to ensure that the ref count is correctly decremented
      * when the object is no longer needed.
      */
-    public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
-        listener = maybeWrapListenerForStackTrace(listener);
+    public void executeQueryPhase(
+        QuerySearchRequest request,
+        SearchShardTask task,
+        ActionListener<QuerySearchResult> listener,
+        TransportVersion version
+    ) {
+        listener = maybeWrapListenerForStackTrace(listener, version);
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));

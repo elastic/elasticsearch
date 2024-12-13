@@ -373,9 +373,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             createIndices(indicesToAutoCreate, refs, indicesExceptions);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, refs, dataStreamExceptions);
-            // PRTODO: Failure store rollovers have been disabled because they previously were being done using indices options.
-            // They will need to use the naming scheme going forward.
-            // rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, refs, failureStoreExceptions);
+            rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, refs, failureStoreExceptions);
         }
     }
 

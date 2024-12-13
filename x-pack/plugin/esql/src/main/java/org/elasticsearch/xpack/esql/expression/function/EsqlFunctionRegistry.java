@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
@@ -353,6 +354,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
+                def(SpatialExtent.class, SpatialExtent::new, "st_extent_agg"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),

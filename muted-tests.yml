@@ -461,3 +461,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/118514
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {grok.OverwriteNameWhere SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118638

@@ -972,6 +972,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             var name = ua.name();
+            if (name.endsWith(".keyword")) {
+                return List.of(new FieldAttribute(ua.source(), name, new EsField(name, KEYWORD, Map.of(), true)));
+            } else if (name.endsWith(".long")) {
+                return List.of(new FieldAttribute(ua.source(), name, new EsField(name, LONG, Map.of(), true)));
+            }else if (name.endsWith(".double")) {
+                return List.of(new FieldAttribute(ua.source(), name, new EsField(name, DOUBLE, Map.of(), true)));
+            }
             UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
             matches = singletonList(unresolved);
         }

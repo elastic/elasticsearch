@@ -22,6 +22,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.DoubleScriptFieldType;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
@@ -213,7 +216,34 @@ public class QueryRewriteContext {
      * @see QueryRewriteContext#setMapUnmappedFieldAsString(boolean)
      */
     public MappedFieldType getFieldType(String name) {
-        return failIfFieldMappingNotFound(name, fieldType(name));
+        return getFieldType(name, UnmappedType.KEYWORD);
+    }
+
+    public MappedFieldType getFieldType(String name, UnmappedType unmappedType) {
+        var fieldType = fieldType(name);
+        if (unmappedType != null && fieldType == null) {
+            switch (unmappedType) {
+                case KEYWORD:
+                    fieldType = KeywordScriptFieldType.sourceOnly(name).asMappedFieldTypes().findFirst().get();
+                    break;
+                case LONG:
+                    fieldType = LongScriptFieldType.sourceOnly(name).asMappedFieldTypes().findFirst().get();
+                    break;
+                case DOUBLE:
+                    fieldType = DoubleScriptFieldType.sourceOnly(name).asMappedFieldTypes().findFirst().get();
+                    break;
+                default:
+                    throw new UnsupportedOperationException("unmapped type [" + unmappedType + "] not supported");
+            }
+        }
+
+        return failIfFieldMappingNotFound(name, fieldType);
+    }
+
+    public enum UnmappedType {
+        KEYWORD,
+        LONG,
+        DOUBLE
     }
 
     protected MappedFieldType fieldType(String name) {
@@ -221,6 +251,7 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
+        // TODO: first check mapped fields and then runtime fields?
         MappedFieldType fieldType = runtimeMappings.get(name);
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }

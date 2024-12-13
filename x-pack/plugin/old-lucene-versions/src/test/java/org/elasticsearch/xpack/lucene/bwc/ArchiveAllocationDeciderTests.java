@@ -38,13 +38,13 @@ public class ArchiveAllocationDeciderTests extends ESTestCase {
     }
 
     public void testLicenseCheckIgnoredOnPreviousMinor() {
-        checkCanAllocate(IndexVersions.MINIMUM_COMPATIBLE, false, Decision.Type.YES);
-        checkCanAllocate(IndexVersions.MINIMUM_COMPATIBLE, true, Decision.Type.YES);
+        checkCanAllocate(IndexVersions.MINIMUM_READONLY_COMPATIBLE, false, Decision.Type.YES);
+        checkCanAllocate(IndexVersions.MINIMUM_READONLY_COMPATIBLE, true, Decision.Type.YES);
     }
 
     public void testLicenseCheckOnOldVersion() {
         final IndexVersion version = new IndexVersion(
-            randomIntBetween(2_00_00_00, IndexVersions.MINIMUM_COMPATIBLE.id() - 1),
+            randomIntBetween(2_00_00_00, IndexVersions.MINIMUM_READONLY_COMPATIBLE.id() - 1),
             Version.fromBits(randomIntBetween(1, Version.MIN_SUPPORTED_MAJOR - 1), randomIntBetween(1, 10), randomIntBetween(1, 10))
         );
         checkCanAllocate(version, false, Decision.Type.NO);

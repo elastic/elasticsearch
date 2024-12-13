@@ -773,3 +773,48 @@ count:long | client_ip:keyword | message:keyword       | env:keyword | type:keyw
 1          | 172.21.2.162      | Connected to 10.1.0.3 | QA          | Success
 1          | 172.21.3.15       | Connected to 10.1.0.1 | Production  | Success
 ;
+
+lookupIPAndMessageFromIndexChainedEvalKeep
+required_capability: join_lookup_v6
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| EVAL message = CONCAT(env, " environment")
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:keyword | event_duration:long | message:keyword         | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Production environment  | Production
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Production environment  | Production
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Production environment  | Production
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Production environment  | Production
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Development environment | Development
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | QA environment          | null
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA environment          | null
+;
+
+lookupIPAndMessageFromIndexChainedRenameKeep
+required_capability: join_lookup_v6
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| RENAME env AS message
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:keyword | event_duration:long | message:keyword | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Production      | null
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Production      | null
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Production      | null
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Production      | null
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Development     | null
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | QA              | null
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA              | null
+;
+

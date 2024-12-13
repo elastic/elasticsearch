@@ -56,11 +56,11 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         ToXContentObject {
 
     static final String TEXT_FIELD = "text";
-    public static final String INFERENCE_FIELD = "inference";
+    static final String INFERENCE_FIELD = "inference";
     static final String INFERENCE_ID_FIELD = "inference_id";
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
-    public static final String CHUNKS_FIELD = "chunks";
-    public static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
+    static final String CHUNKS_FIELD = "chunks";
+    static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
     public static final String CHUNKED_TEXT_FIELD = "text";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String TASK_TYPE_FIELD = "task_type";

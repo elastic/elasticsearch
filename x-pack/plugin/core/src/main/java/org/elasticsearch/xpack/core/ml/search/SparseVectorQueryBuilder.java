@@ -90,15 +90,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
         this.weightedTokensSupplier = null;
 
-        if (queryVectors == null ^ inferenceId == null == false) {
+        if (queryVectors == null ^ query == null == false) {
             throw new IllegalArgumentException(
-                "["
-                    + NAME
-                    + "] requires one of ["
-                    + QUERY_VECTOR_FIELD.getPreferredName()
-                    + "] or ["
-                    + INFERENCE_ID_FIELD.getPreferredName()
-                    + "]"
+                "[" + NAME + "] requires one of [" + QUERY_VECTOR_FIELD.getPreferredName() + "] or [" + QUERY_FIELD.getPreferredName() + "]"
             );
         }
         if (inferenceId != null && query == null) {
@@ -184,7 +178,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             }
             builder.endObject();
         } else {
-            builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+            if (inferenceId != null) {
+                builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+            }
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
         builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
@@ -236,6 +232,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 shouldPruneTokens,
                 tokenPruningConfig
             );
+        } else if (inferenceId == null) {
+            // Edge case, where inference_id was not specified in the request,
+            // but we did not intercept this and rewrite to a query o field with
+            // pre-configured inference. So we trap here and output a nicer error message.
+            throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
         // TODO move this to xpack core and use inference APIs

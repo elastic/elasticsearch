@@ -268,9 +268,9 @@ setup:
   - match: { hits.hits.0._score: 0.25 }
 
 ---
-"Test sparse_vector requires one of inference_id or query_vector":
+"Test sparse_vector requires one of query or query_vector":
   - do:
-      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[query\]/
       search:
         index: index-with-sparse-vector
         body:
@@ -281,16 +281,30 @@ setup:
   - match: { status: 400 }
 
 ---
-"Test sparse_vector only allows one of inference_id or query_vector":
+"Test sparse_vector requires an inference ID to be specified on sparse_vector fields":
   - do:
-      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      catch: /inference_id required to perform vector search on query string/
       search:
         index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: text
-              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector only allows one of query or query_vector":
+  - do:
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[query\]/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
               query_vector:
                 the: 1.0
                 comforter: 1.0

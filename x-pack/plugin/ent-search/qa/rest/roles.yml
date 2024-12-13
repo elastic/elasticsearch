@@ -2,7 +2,6 @@ admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
-    - manage_connector
     - manage
     - monitor
   indices:
@@ -19,7 +18,6 @@ user:
   cluster:
     - post_behavioral_analytics_event
     - manage_api_key
-    - monitor_connector
     - read_connector_secrets
     - write_connector_secrets
   indices:

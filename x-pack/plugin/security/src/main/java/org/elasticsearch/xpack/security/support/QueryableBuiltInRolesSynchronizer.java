@@ -390,7 +390,12 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         final Map<String, String> newRolesDigests,
         final ActionListener<Void> listener
     ) {
-        final Index concreteSecurityIndex = resolveSecurityIndexMetadata(clusterService.state().metadata()).getIndex();
+        final IndexMetadata securityIndexMetadata = resolveSecurityIndexMetadata(clusterService.state().metadata());
+        if (securityIndexMetadata == null) {
+            listener.onFailure(new IndexNotFoundException(SECURITY_MAIN_ALIAS));
+            return;
+        }
+        final Index concreteSecurityIndex = securityIndexMetadata.getIndex();
         markRolesAsSyncedTaskQueue.submitTask(
             "mark built-in roles as synced task",
             new MarkRolesAsSyncedTask(listener.delegateFailureAndWrap((l, response) -> {

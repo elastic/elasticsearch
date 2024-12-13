@@ -174,7 +174,7 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.mixed.MultilusterEsqlSpecIT"
+- class: "org.elasticsearch.xpack.esql.qa.mixed.MultiClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/118460
 - class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
@@ -302,6 +302,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/118517
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/116521
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
+  method: testPlanSanityCheckWithBinaryPlans
+  issue: https://github.com/elastic/elasticsearch/issues/118656
 
 # Examples:
 #

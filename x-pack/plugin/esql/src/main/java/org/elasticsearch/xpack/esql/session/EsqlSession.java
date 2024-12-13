@@ -299,6 +299,9 @@ public class EsqlSession {
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
+
+        EsqlSessionCCSUtils.checkForCcsLicense(indices, indicesExpressionGrouper, verifier.licenseState());
+
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();

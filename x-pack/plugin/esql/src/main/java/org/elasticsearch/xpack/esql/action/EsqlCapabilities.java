@@ -189,6 +189,9 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
+        /** Support for function {@code ST_EXTENT}. */
+        ST_EXTENT_AGG,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */
@@ -419,6 +422,10 @@ public class EsqlCapabilities {
          */
         CATEGORIZE_V5,
 
+        /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
         /**
          * QSTR function
          */

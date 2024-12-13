@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
@@ -101,7 +102,11 @@ public final class EsqlExpressionTranslators {
     );
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
+        if (e instanceof TranslationAware ta) {
+            return ta.asQuery(handler);
+        }
         Query translation = null;
+
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, handler);
             if (translation != null) {

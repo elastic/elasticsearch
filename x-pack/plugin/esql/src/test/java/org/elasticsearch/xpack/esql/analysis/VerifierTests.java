@@ -1456,11 +1456,11 @@ public class VerifierTests extends ESTestCase {
             + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)";
         checkdisjunctionError("1:19", expression, functionName, functionType);
 
-        passes("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
-        passes("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
-        passes("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
-        passes("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
-        passes("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
+        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
+        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
+        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {

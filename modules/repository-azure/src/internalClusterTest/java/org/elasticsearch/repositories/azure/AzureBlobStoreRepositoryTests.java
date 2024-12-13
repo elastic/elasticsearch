@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -282,7 +281,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         ThreadPool nodeThreadPool = internalCluster().getInstance(ThreadPool.class);
         assertEquals(
             EVENT_LOOP_THREAD_COUNT_SETTING.get(),
-            ((EsThreadPoolExecutor) nodeThreadPool.executor(AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME)).getMaximumPoolSize()
+            nodeThreadPool.info(AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME).getMax()
         );
     }
 

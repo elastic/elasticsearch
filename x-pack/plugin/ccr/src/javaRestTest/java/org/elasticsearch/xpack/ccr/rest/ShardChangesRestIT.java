@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -26,8 +27,9 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public class ShardChangesRestIT extends ESRestTestCase {
-    private static final String SHARD_CHANGES_ENDPOINT = "/{index}/ccr/shard_changes";
     private static final String[] NAMES = { "skywalker", "leia", "obi-wan", "yoda", "chewbacca", "r2-d2", "c-3po", "darth-vader" };
+    private static final String CCR_SHARD_CHANGES_ENDPOINT = "/%s/ccr/shard_changes";
+    private static final String BULK_INDEX_ENDPOINT = "/%s/_bulk";
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -40,8 +42,12 @@ public class ShardChangesRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testShardChangesNoOperation() throws IOException {
+    @Before
+    public void assumeSnapshotBuild() {
         assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
+    }
+
+    public void testShardChangesNoOperation() throws IOException {
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -60,7 +66,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesDefaultParams() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -86,7 +91,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesWithAllParameters() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -110,7 +114,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesMultipleRequests() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -140,7 +143,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesInvalidFromSeqNo() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
         assertTrue(indexExists(indexName));
@@ -152,7 +154,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesInvalidMaxOperationsCount() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
         assertTrue(indexExists(indexName));
@@ -164,7 +165,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesInvalidPollTimeout() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
         assertTrue(indexExists(indexName));
@@ -175,7 +175,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesInvalidMaxBatchSize() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
         assertTrue(indexExists(indexName));
@@ -191,7 +190,6 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     public void testShardChangesMissingIndex() throws IOException {
-        assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         assertFalse(indexExists(indexName));
 
@@ -214,11 +212,11 @@ public class ShardChangesRestIT extends ESRestTestCase {
     }
 
     private static String shardChangesEndpoint(final String indexName) {
-        return String.format("/%s/ccr/shard_changes", indexName);
+        return String.format(CCR_SHARD_CHANGES_ENDPOINT, indexName);
     }
 
     private static String bulkEndpoint(final String indexName) {
-        return String.format("/%s/_bulk", indexName);
+        return String.format(BULK_INDEX_ENDPOINT, indexName);
     }
 
     private void assertResponseException(final ResponseException ex, final RestStatus restStatus, final String error) {

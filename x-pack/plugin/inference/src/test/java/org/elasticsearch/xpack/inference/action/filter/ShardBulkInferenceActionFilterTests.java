@@ -123,7 +123,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new BulkItemRequest[0]
         );
         request.setInferenceFieldMap(
-            Map.of("foo", new InferenceFieldMetadata("foo", "bar", generateRandomStringArray(5, 10, false, false)))
+            Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false)))
         );
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);

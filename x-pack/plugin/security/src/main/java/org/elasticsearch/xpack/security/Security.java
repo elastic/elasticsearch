@@ -1217,7 +1217,6 @@ public class Security extends Plugin
                     nativeRolesStore,
                     reservedRolesStore,
                     fileRolesStore.get(),
-                    systemIndices.getMainIndexManager(),
                     threadPool
                 )
             );

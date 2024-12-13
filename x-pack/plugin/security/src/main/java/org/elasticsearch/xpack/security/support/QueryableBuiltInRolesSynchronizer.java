@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -50,12 +49,14 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesUtils.determineRolesToDelete;
+import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesUtils.determineRolesToUpsert;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
@@ -129,6 +130,17 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
 
     private volatile boolean securityIndexDeleted = false;
 
+    /**
+     * Constructs a new built-in roles synchronizer.
+     *
+     * @param clusterService the cluster service to register as a listener
+     * @param featureService the feature service to check if the cluster has the queryable built-in roles feature
+     * @param rolesProviderFactory the factory to create the built-in roles provider
+     * @param nativeRolesStore the native roles store to sync the built-in roles to
+     * @param reservedRolesStore the reserved roles store to fetch the built-in roles from
+     * @param fileRolesStore the file roles store to fetch the built-in roles from
+     * @param threadPool the thread pool
+     */
     public QueryableBuiltInRolesSynchronizer(
         ClusterService clusterService,
         FeatureService featureService,
@@ -136,7 +148,6 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         NativeRolesStore nativeRolesStore,
         ReservedRolesStore reservedRolesStore,
         FileRolesStore fileRolesStore,
-        SecurityIndexManager securityIndex,
         ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
@@ -167,7 +178,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         logger.debug("Built-in roles changed, attempting to sync to .security index");
         final ClusterState state = clusterService.state();
         if (shouldSyncBuiltInRoles(state)) {
-            syncBuiltInRoles(roles, state);
+            syncBuiltInRoles(roles);
         }
     }
 
@@ -184,11 +195,11 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
         if (shouldSyncBuiltInRoles(state)) {
             final QueryableBuiltInRoles roles = rolesProvider.getRoles();
-            syncBuiltInRoles(roles, state);
+            syncBuiltInRoles(roles);
         }
     }
 
-    private void syncBuiltInRoles(QueryableBuiltInRoles roles, ClusterState clusterState) {
+    private void syncBuiltInRoles(final QueryableBuiltInRoles roles) {
         if (synchronizationInProgress.compareAndSet(false, true)) {
             final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
             if (roles.rolesDigest().equals(indexedRolesDigests)) {
@@ -199,13 +210,31 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 logger.info("Successfully synced [" + roles.roleDescriptors().size() + "] built-in roles to .security index");
                 synchronizationInProgress.set(false);
             }, e -> {
-                if (isExpectedFailure(e)) {
-                    logger.info("Failed to sync built-in roles to .security index", e);
-                } else {
-                    logger.warn("Failed to sync built-in roles to .security index due to unexpected exception", e);
-                }
+                handleException(e);
                 synchronizationInProgress.set(false);
             })));
+        }
+    }
+
+    private static void handleException(Exception e) {
+        if (e instanceof BulkRolesResponseException bulkException) {
+            final boolean isBulkDeleteFailure = bulkException instanceof BulkDeleteRolesResponseException;
+            for (final Map.Entry<String, Exception> bulkFailure : bulkException.getFailures().entrySet()) {
+                final String logMessage = Strings.format(
+                    "Failed to [%s] built-in role [%s]",
+                    isBulkDeleteFailure ? "delete" : "create/update",
+                    bulkFailure.getKey()
+                );
+                if (isExpectedFailure(bulkFailure.getValue())) {
+                    logger.info(logMessage, bulkFailure.getValue());
+                } else {
+                    logger.warn(logMessage, bulkFailure.getKey(), bulkFailure.getValue());
+                }
+            }
+        } else if (isExpectedFailure(e)) {
+            logger.info("Failed to sync built-in roles to .security index", e);
+        } else {
+            logger.warn("Failed to sync built-in roles to .security index due to unexpected exception", e);
         }
     }
 
@@ -219,21 +248,20 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
      * @param e to check
      * @return {@code true} if the exception is expected and should not be logged as an error
      */
-    private boolean isExpectedFailure(final Exception e) {
+    private static boolean isExpectedFailure(final Exception e) {
         final Throwable cause = ExceptionsHelper.unwrapCause(e);
-        return ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)
-            || TransportActions.isShardNotAvailableException(e)
-            || e instanceof IndexClosedException
-            || e instanceof IndexPrimaryShardNotAllocatedException
-            || e instanceof NotMasterException
+        return ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause)
+            || TransportActions.isShardNotAvailableException(cause)
+            || cause instanceof IndexClosedException
+            || cause instanceof IndexPrimaryShardNotAllocatedException
+            || cause instanceof NotMasterException
             || cause instanceof ResourceAlreadyExistsException
             || cause instanceof VersionConflictEngineException
             || cause instanceof DocumentMissingException
-            || (cause instanceof ElasticsearchException
-                && "Failed to mark built-in roles as synced. The expected roles digests have changed.".equals(cause.getMessage()));
+            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException;
     }
 
-    private boolean shouldSyncBuiltInRoles(ClusterState state) {
+    private boolean shouldSyncBuiltInRoles(final ClusterState state) {
         if (false == state.nodes().isLocalNodeElectedMaster()) {
             logger.trace("Local node is not the master, skipping built-in roles synchronization");
             return false;
@@ -271,82 +299,79 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         return true;
     }
 
-    private void doSyncBuiltinRoles(Map<String, String> indexedRolesDigests, QueryableBuiltInRoles roles, ActionListener<Void> listener) {
-        final Set<RoleDescriptor> rolesToUpsert = QueryableBuiltInRolesUtils.determineRolesToUpsert(roles, indexedRolesDigests);
-        final Set<String> rolesToDelete = QueryableBuiltInRolesUtils.determineRolesToDelete(roles, indexedRolesDigests);
+    private void doSyncBuiltinRoles(
+        final Map<String, String> indexedRolesDigests,
+        final QueryableBuiltInRoles roles,
+        final ActionListener<Void> listener
+    ) {
+        final Set<RoleDescriptor> rolesToUpsert = determineRolesToUpsert(roles, indexedRolesDigests);
+        final Set<String> rolesToDelete = determineRolesToDelete(roles, indexedRolesDigests);
 
-        assert Sets.intersection(rolesToUpsert.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()), rolesToDelete).isEmpty()
+        assert Sets.intersection(rolesToUpsert.stream().map(RoleDescriptor::getName).collect(toSet()), rolesToDelete).isEmpty()
             : "The roles to upsert and delete should not have any common roles";
 
         if (rolesToUpsert.isEmpty() && rolesToDelete.isEmpty()) {
-            logger.debug("no built-in roles to sync to .security index");
+            logger.debug("No changes to built-in roles to sync to .security index");
             listener.onResponse(null);
             return;
         }
 
         indexRoles(rolesToUpsert, listener.delegateFailureAndWrap((l1, indexResponse) -> {
-            deleteRoles(roles, rolesToDelete, indexedRolesDigests, l1.delegateFailureAndWrap((l2, deleteResponse) -> {
+            deleteRoles(rolesToDelete, l1.delegateFailureAndWrap((l2, deleteResponse) -> {
                 markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), l2);
             }));
         }));
     }
 
-    private void deleteRoles(
-        QueryableBuiltInRoles roles,
-        Set<String> rolesToDelete,
-        Map<String, String> indexedRolesDigests,
-        ActionListener<Void> listener
-    ) {
+    private void deleteRoles(final Set<String> rolesToDelete, final ActionListener<Void> listener) {
         if (rolesToDelete.isEmpty()) {
             listener.onResponse(null);
             return;
         }
         nativeRolesStore.deleteRoles(rolesToDelete, WriteRequest.RefreshPolicy.IMMEDIATE, false, ActionListener.wrap(deleteResponse -> {
-            final Optional<Exception> deleteFailure = deleteResponse.getItems()
+            final Map<String, Exception> deleteFailure = deleteResponse.getItems()
                 .stream()
                 .filter(BulkRolesResponse.Item::isFailed)
-                .map(BulkRolesResponse.Item::getCause)
-                .findAny();
-            if (deleteFailure.isPresent()) {
-                listener.onFailure(deleteFailure.get());
+                .collect(toMap(BulkRolesResponse.Item::getRoleName, BulkRolesResponse.Item::getCause));
+            if (deleteFailure.isEmpty()) {
+                listener.onResponse(null);
             } else {
-                markRolesAsSynced(indexedRolesDigests, roles.rolesDigest(), listener);
+                listener.onFailure(new BulkDeleteRolesResponseException(deleteFailure));
             }
         }, listener::onFailure));
     }
 
-    private void indexRoles(Collection<RoleDescriptor> rolesToUpsert, ActionListener<Void> listener) {
+    private void indexRoles(final Collection<RoleDescriptor> rolesToUpsert, final ActionListener<Void> listener) {
         if (rolesToUpsert.isEmpty()) {
             listener.onResponse(null);
             return;
         }
         nativeRolesStore.putRoles(WriteRequest.RefreshPolicy.IMMEDIATE, rolesToUpsert, false, ActionListener.wrap(response -> {
-            final Optional<Exception> indexFailure = response.getItems()
+            final Map<String, Exception> indexFailures = response.getItems()
                 .stream()
                 .filter(BulkRolesResponse.Item::isFailed)
-                .map(BulkRolesResponse.Item::getCause)
-                .findAny();
-            if (indexFailure.isPresent()) {
-                listener.onFailure(indexFailure.get());
-            } else {
+                .collect(toMap(BulkRolesResponse.Item::getRoleName, BulkRolesResponse.Item::getCause));
+            if (indexFailures.isEmpty()) {
                 listener.onResponse(null);
+            } else {
+                listener.onFailure(new BulkIndexRolesResponseException(indexFailures));
             }
         }, listener::onFailure));
     }
 
-    private boolean isSecurityIndexDeleted(ClusterChangedEvent event) {
+    private boolean isSecurityIndexDeleted(final ClusterChangedEvent event) {
         final IndexMetadata previousSecurityIndexMetadata = resolveSecurityIndexMetadata(event.previousState().metadata());
         final IndexMetadata currentSecurityIndexMetadata = resolveSecurityIndexMetadata(event.state().metadata());
         return previousSecurityIndexMetadata != null && currentSecurityIndexMetadata == null;
     }
 
-    private boolean isSecurityIndexCreatedOrRecovered(ClusterChangedEvent event) {
+    private boolean isSecurityIndexCreatedOrRecovered(final ClusterChangedEvent event) {
         final IndexMetadata previousSecurityIndexMetadata = resolveSecurityIndexMetadata(event.previousState().metadata());
         final IndexMetadata currentSecurityIndexMetadata = resolveSecurityIndexMetadata(event.state().metadata());
         return previousSecurityIndexMetadata == null && currentSecurityIndexMetadata != null;
     }
 
-    private boolean isSecurityIndexClosed(ClusterState state) {
+    private boolean isSecurityIndexClosed(final ClusterState state) {
         final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
         return indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE;
     }
@@ -361,9 +386,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
      * .security index or if they are equal to the new roles digests.
      */
     private void markRolesAsSynced(
-        Map<String, String> expectedRolesDigests,
-        Map<String, String> newRolesDigests,
-        ActionListener<Void> listener
+        final Map<String, String> expectedRolesDigests,
+        final Map<String, String> newRolesDigests,
+        final ActionListener<Void> listener
     ) {
         final Index concreteSecurityIndex = resolveSecurityIndexMetadata(clusterService.state().metadata()).getIndex();
         markRolesAsSyncedTaskQueue.submitTask(
@@ -379,7 +404,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                         )
                     );
                     l.onFailure(
-                        new ElasticsearchException("Failed to mark built-in roles as synced. The expected roles digests have changed.")
+                        new FailedToMarkBuiltInRolesAsSyncedException(
+                            "Failed to mark built-in roles as synced. The expected role digests have changed."
+                        )
                     );
                 } else {
                     l.onResponse(null);
@@ -389,7 +416,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         );
     }
 
-    private Map<String, String> readIndexedBuiltInRolesDigests(ClusterState state) {
+    private Map<String, String> readIndexedBuiltInRolesDigests(final ClusterState state) {
         final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
         if (indexMetadata == null) {
             return null;
@@ -454,6 +481,47 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static class BulkDeleteRolesResponseException extends BulkRolesResponseException {
+
+        BulkDeleteRolesResponseException(Map<String, Exception> failures) {
+            super("Failed to bulk delete built-in roles", failures);
+        }
+
+    }
+
+    private static class BulkIndexRolesResponseException extends BulkRolesResponseException {
+
+        BulkIndexRolesResponseException(Map<String, Exception> failures) {
+            super("Failed to bulk create/update built-in roles", failures);
+        }
+
+    }
+
+    private abstract static class BulkRolesResponseException extends RuntimeException {
+
+        private final Map<String, Exception> failures;
+
+        BulkRolesResponseException(String message, Map<String, Exception> failures) {
+            super(message);
+            assert failures != null && failures.isEmpty() == false;
+            this.failures = failures;
+            failures.values().forEach(this::addSuppressed);
+        }
+
+        Map<String, Exception> getFailures() {
+            return failures;
+        }
+
+    }
+
+    private static class FailedToMarkBuiltInRolesAsSyncedException extends RuntimeException {
+
+        FailedToMarkBuiltInRolesAsSyncedException(String message) {
+            super(message);
+        }
+
     }
 
 }

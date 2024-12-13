@@ -1384,6 +1384,19 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoinKeepWildcard() {
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP languages
+                | RENAME languages AS language_code
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP language*""",
+            Set.of("language*", "languages", "languages.*", "language_code", "language_code.*"),
+            Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
+        );
+    }
+
     public void testMultiLookupJoin() {
         assertFieldNames(
             """
@@ -1455,6 +1468,19 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 "env.*",
                 "type.*"
             ),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testMultiLookupJoinKeepAfterWildcard() {
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | KEEP *env*, *type*""",
+            Set.of("*env*", "*type*", "client_ip", "message", "client_ip.*", "message.*"),
             Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
         );
     }

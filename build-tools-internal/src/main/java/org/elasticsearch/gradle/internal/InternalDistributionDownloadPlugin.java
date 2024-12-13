@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
@@ -49,7 +48,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
 
         DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
@@ -61,7 +60,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         );
         registerInternalDistributionResolutions(
             DistributionDownloadPlugin.getRegistrationsContainer(project),
-            buildParams.getBwcVersionsProperty()
+            buildParams.getBwcVersionsProvider()
         );
     }
 

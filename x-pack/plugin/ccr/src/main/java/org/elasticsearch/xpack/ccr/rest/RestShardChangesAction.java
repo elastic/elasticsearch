@@ -19,7 +19,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -120,7 +119,7 @@ public class RestShardChangesAction extends BaseRestHandler {
                 client.execute(ShardChangesAction.INSTANCE, shardChangesRequest, new RestActionListener<>(channel) {
                     @Override
                     protected void processResponse(final ShardChangesAction.Response response) {
-                        shardChangesResponseToXContent(channel, response, indexName, shardId);
+                        channel.sendResponse(new RestResponse(RestStatus.OK, shardChangesResponseToXContent(response, indexName, shardId)));
                     }
                 });
 
@@ -171,15 +170,13 @@ public class RestShardChangesAction extends BaseRestHandler {
     }
 
     /**
-     * Converts the response to XContent JSOn format and sends it as a response through the channel.
+     * Converts the response to XContent JSOn format.
      *
-     * @param channel The REST channel for sending the response.
      * @param response The ShardChangesAction response.
      * @param indexName The name of the index.
      * @param shardId The ShardId.
      */
-    private static void shardChangesResponseToXContent(
-        final RestChannel channel,
+    private static XContentBuilder shardChangesResponseToXContent(
         final ShardChangesAction.Response response,
         final String indexName,
         final ShardId shardId
@@ -200,12 +197,19 @@ public class RestShardChangesAction extends BaseRestHandler {
             }
             builder.endObject();
 
-            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+            return builder;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
+    /**
+     * Converts the operations from a ShardChangesAction response to XContent JSON format.
+     *
+     * @param response The ShardChangesAction response containing the operations to be converted.
+     * @param builder The XContentBuilder to which the converted operations will be added.
+     * @throws IOException If an error occurs while writing to the XContentBuilder.
+     */
     private static void operationsToXContent(final ShardChangesAction.Response response, final XContentBuilder builder) throws IOException {
         builder.field("number_of_operations", response.getOperations().length);
         builder.field("operations");
@@ -259,7 +263,7 @@ public class RestShardChangesAction extends BaseRestHandler {
     ) {
         return supplyAsyncTask(
             () -> Arrays.stream(client.admin().indices().prepareStats(indexName).clear().get(SHARD_STATS_TIMEOUT).getShards())
-                .max(Comparator.comparingLong(s -> s.getCommitStats().getGeneration()))
+                .max(Comparator.comparingLong(shardStats -> shardStats.getCommitStats().getGeneration()))
                 .orElseThrow(() -> new ElasticsearchException("Unable to retrieve shard stats for index: " + indexName)),
             executorService,
             "Error while retrieving shard stats for index [" + indexName + "]"

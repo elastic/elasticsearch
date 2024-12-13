@@ -12,7 +12,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,7 +23,6 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 public class ShardChangesRestIT extends ESRestTestCase {
     private static final String[] NAMES = { "skywalker", "leia", "obi-wan", "yoda", "chewbacca", "r2-d2", "c-3po", "darth-vader" };
@@ -58,10 +56,8 @@ public class ShardChangesRestIT extends ESRestTestCase {
                 .build()
         );
         assertTrue(indexExists(indexName));
-        final TimeValue pollTimeout = new TimeValue(10, TimeUnit.SECONDS);
 
         final Request shardChangesRequest = new Request("GET", shardChangesEndpoint(indexName));
-        shardChangesRequest.addParameter("poll_timeout", pollTimeout.getSeconds() + "s");
         assertOK(client().performRequest(shardChangesRequest));
     }
 
@@ -164,7 +160,7 @@ public class ShardChangesRestIT extends ESRestTestCase {
         assertResponseException(ex, RestStatus.BAD_REQUEST, "Validation Failed: 1: maxOperationCount [-1] cannot be lower than 0");
     }
 
-    public void testShardChangesInvalidPollTimeout() throws IOException {
+    public void testShardChangesNegativePollTimeout() throws IOException {
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
         assertTrue(indexExists(indexName));

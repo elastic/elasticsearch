@@ -63,7 +63,7 @@ public class Term extends FullTextFunction implements Validatable {
         this(source, field, termQuery, null);
     }
 
-    private Term(Source source, Expression field, Expression termQuery, QueryBuilder queryBuilder) {
+    public Term(Source source, Expression field, Expression termQuery, QueryBuilder queryBuilder) {
         super(source, termQuery, List.of(field, termQuery), queryBuilder);
         this.field = field;
     }

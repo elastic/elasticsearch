@@ -49,7 +49,7 @@ public class Kql extends FullTextFunction {
         super(source, queryString, List.of(queryString), null);
     }
 
-    private Kql(Source source, Expression queryString, QueryBuilder queryBuilder) {
+    public Kql(Source source, Expression queryString, QueryBuilder queryBuilder) {
         super(source, queryString, List.of(queryString), queryBuilder);
     }
 

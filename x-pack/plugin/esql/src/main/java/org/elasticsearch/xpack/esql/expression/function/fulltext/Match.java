@@ -116,7 +116,7 @@ public class Match extends FullTextFunction implements Validatable {
         this(source, field, matchQuery, null);
     }
 
-    private Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
         super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
         this.field = field;
     }

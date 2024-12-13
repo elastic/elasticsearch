@@ -55,7 +55,7 @@ public class QueryString extends FullTextFunction {
         super(source, queryString, List.of(queryString), null);
     }
 
-    private QueryString(Source source, Expression queryString, QueryBuilder queryBuilder) {
+    public QueryString(Source source, Expression queryString, QueryBuilder queryBuilder) {
         super(source, queryString, List.of(queryString), queryBuilder);
     }
 

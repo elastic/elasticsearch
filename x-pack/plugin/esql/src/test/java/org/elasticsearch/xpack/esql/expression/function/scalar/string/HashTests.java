@@ -67,7 +67,11 @@ public class HashTests extends AbstractScalarFunctionTestCase {
             createTestCase(algorithm, DataType.KEYWORD, DataType.KEYWORD),
             createTestCase(algorithm, DataType.KEYWORD, DataType.TEXT),
             createTestCase(algorithm, DataType.TEXT, DataType.KEYWORD),
-            createTestCase(algorithm, DataType.TEXT, DataType.TEXT)
+            createTestCase(algorithm, DataType.TEXT, DataType.TEXT),
+            createLiteralTestCase(algorithm, DataType.KEYWORD, DataType.KEYWORD),
+            createLiteralTestCase(algorithm, DataType.KEYWORD, DataType.TEXT),
+            createLiteralTestCase(algorithm, DataType.TEXT, DataType.KEYWORD),
+            createLiteralTestCase(algorithm, DataType.TEXT, DataType.KEYWORD)
         );
     }
 
@@ -86,11 +90,26 @@ public class HashTests extends AbstractScalarFunctionTestCase {
         });
     }
 
-    private static String hash(String alg, String input) {
+    private static TestCaseSupplier createLiteralTestCase(String algorithm, DataType algorithmType, DataType inputType) {
+        return new TestCaseSupplier(algorithm, List.of(algorithmType, inputType), () -> {
+            var input = randomAlphaOfLength(10);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm").forceLiteral(),
+                    new TestCaseSupplier.TypedData(new BytesRef(input), inputType, "input")
+                ),
+                "HashEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef(hash(algorithm, input)))
+            );
+        });
+    }
+
+    private static String hash(String algorithm, String input) {
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance(alg).digest(input.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(input.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalArgumentException("Unknown algorithm: " + alg);
+            throw new IllegalArgumentException("Unknown algorithm: " + algorithm);
         }
     }
 
@@ -99,13 +118,13 @@ public class HashTests extends AbstractScalarFunctionTestCase {
         return new Hash(source, args.get(0), args.get(1));
     }
 
-    public void testInvalidAlgLiteral() {
+    public void testInvalidAlgorithmLiteral() {
         Source source = new Source(0, 0, "hast(\"invalid\", input)");
         DriverContext driverContext = driverContext();
         InvalidArgumentException e = expectThrows(
             InvalidArgumentException.class,
             () -> evaluator(
-                new Hash(source, new Literal(source, new BytesRef("invalid"), DataType.KEYWORD), field("str", DataType.KEYWORD))
+                new Hash(source, new Literal(source, new BytesRef("invalid"), DataType.KEYWORD), field("input", DataType.KEYWORD))
             ).get(driverContext)
         );
         assertThat(e.getMessage(), startsWith("invalid algorithm for [hast(\"invalid\", input)]: invalid MessageDigest not available"));

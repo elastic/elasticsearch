@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.security.MessageDigest;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -30,7 +29,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final MessageDigest algorithm;
+  private final Hash.HashFunction algorithm;
 
   private final EvalOperator.ExpressionEvaluator input;
 
@@ -39,7 +38,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
   private Warnings warnings;
 
   public HashConstantEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      MessageDigest algorithm, EvalOperator.ExpressionEvaluator input,
+      Hash.HashFunction algorithm, EvalOperator.ExpressionEvaluator input,
       DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
@@ -117,12 +116,12 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final Function<DriverContext, MessageDigest> algorithm;
+    private final Function<DriverContext, Hash.HashFunction> algorithm;
 
     private final EvalOperator.ExpressionEvaluator.Factory input;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        Function<DriverContext, MessageDigest> algorithm,
+        Function<DriverContext, Hash.HashFunction> algorithm,
         EvalOperator.ExpressionEvaluator.Factory input) {
       this.source = source;
       this.scratch = scratch;

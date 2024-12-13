@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -107,10 +109,10 @@ public class Hash extends EsqlScalarFunction {
     @Evaluator(extraName = "Constant")
     static BytesRef processConstant(
         @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
-        @Fixed(build = true) MessageDigest algorithm,
+        @Fixed(build = true) HashFunction algorithm,
         BytesRef input
     ) {
-        return hash(scratch, algorithm, input);
+        return hash(scratch, algorithm.digest, input);
     }
 
     private static BytesRef hash(BreakingBytesRefBuilder scratch, MessageDigest algorithm, BytesRef input) {
@@ -140,11 +142,22 @@ public class Hash extends EsqlScalarFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (algorithm.foldable()) {
             try {
-                var md = MessageDigest.getInstance(((BytesRef) algorithm.fold()).utf8ToString());
+                // hash function is created here in order to validate the algorithm is valid before evaluator is created
+                var hf = HashFunction.create((BytesRef) algorithm.fold());
                 return new HashConstantEvaluator.Factory(
                     source(),
                     context -> new BreakingBytesRefBuilder(context.breaker(), "hash"),
-                    context -> md,
+                    new Function<>() {
+                        @Override
+                        public HashFunction apply(DriverContext context) {
+                            return hf.copy();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return hf.toString();
+                        }
+                    },
                     toEvaluator.apply(input)
                 );
             } catch (NoSuchAlgorithmException e) {
@@ -168,5 +181,28 @@ public class Hash extends EsqlScalarFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Hash::new, children().get(0), children().get(1));
+    }
+
+    public record HashFunction(String algorithm, MessageDigest digest) {
+
+        public static HashFunction create(BytesRef literal) throws NoSuchAlgorithmException {
+            var algorithm = literal.utf8ToString();
+            var digest = MessageDigest.getInstance(algorithm);
+            return new HashFunction(algorithm, digest);
+        }
+
+        public HashFunction copy() {
+            try {
+                return new HashFunction(algorithm, MessageDigest.getInstance(algorithm));
+            } catch (NoSuchAlgorithmException e) {
+                assert false : "Algorithm should be valid at this point";
+                throw new IllegalStateException(e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return algorithm;
+        }
     }
 }

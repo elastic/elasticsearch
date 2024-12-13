@@ -1459,6 +1459,83 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testMultiLookupJoinSameIndex() {
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of("*"), // With no KEEP we should keep all fields
+            Set.of() // since global field names are wildcarded, we don't need to wildcard any indices
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepBefore() {
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, client_ip, event_duration, message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of("@timestamp", "client_ip", "event_duration", "message", "@timestamp.*", "client_ip.*", "event_duration.*", "message.*"),
+            Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepBetween() {
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip""",
+            Set.of(
+                "@timestamp",
+                "client_ip",
+                "event_duration",
+                "message",
+                "env",
+                "@timestamp.*",
+                "client_ip.*",
+                "event_duration.*",
+                "message.*",
+                "env.*"
+            ),
+            Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
+        );
+    }
+
+    public void testMultiLookupJoinSameIndexKeepAfter() {
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL client_ip = message
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, client_ip, event_duration, message, env""",
+            Set.of(
+                "@timestamp",
+                "client_ip",
+                "event_duration",
+                "message",
+                "env",
+                "@timestamp.*",
+                "client_ip.*",
+                "event_duration.*",
+                "message.*",
+                "env.*"
+            ),
+            Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         EsqlSession.ListenerResult listenerResult = new EsqlSession.ListenerResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, listenerResult).fieldNames();

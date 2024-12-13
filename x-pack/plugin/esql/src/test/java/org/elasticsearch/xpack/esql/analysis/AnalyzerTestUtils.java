@@ -115,11 +115,6 @@ public final class AnalyzerTestUtils {
         return IndexResolution.valid(test);
     }
 
-    public static IndexResolution loadMapping(String resource, String indexName, IndexMode mode) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, mode));
-        return IndexResolution.valid(test);
-    }
-
     public static IndexResolution analyzerDefaultMapping() {
         return loadMapping("mapping-basic.json", "test");
     }

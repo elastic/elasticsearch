@@ -13,10 +13,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,6 +35,7 @@ import java.util.function.Predicate;
 
 public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.ReindexDataStreamResponse> {
     public static final FeatureFlag REINDEX_DATA_STREAM_FEATURE_FLAG = new FeatureFlag("reindex_data_stream");
+    public static final String TASK_ID_PREFIX = "reindex-data-stream-";
 
     public static final ReindexDataStreamAction INSTANCE = new ReindexDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/reindex";
@@ -38,8 +43,22 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
     public static final ParseField SOURCE_FIELD = new ParseField("source");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
+    /*
+     * The version before which we do not support writes in the _next_ major version of Elasticsearch. For example, Elasticsearch 10.x will
+     * not support writing to indices created before version 9.0.0.
+     */
+    private static final IndexVersion MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE = IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
+
     public ReindexDataStreamAction() {
         super(NAME);
+    }
+
+    /*
+     * This predicate allows through only indices that were created with a previous lucene version, meaning that they need to be reindexed
+     * in order to be writable in the _next_ lucene version.
+     */
+    public static Predicate<Index> getOldIndexVersionPredicate(Metadata metadata) {
+        return index -> metadata.index(index).getCreationVersion().onOrBefore(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
     }
 
     public enum Mode {

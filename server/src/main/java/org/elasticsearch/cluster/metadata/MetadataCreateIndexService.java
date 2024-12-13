@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -137,7 +138,12 @@ public class MetadataCreateIndexService {
 
     @FunctionalInterface
     interface ClusterBlocksTransformer {
-        void apply(ClusterBlocks.Builder clusterBlocks, IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion);
+        void apply(
+            ClusterBlocks.Builder clusterBlocks,
+            ProjectId projectId,
+            IndexMetadata indexMetadata,
+            TransportVersion minClusterTransportVersion
+        );
     }
 
     private final Settings settings;
@@ -571,7 +577,7 @@ public class MetadataCreateIndexService {
                 blocksTransformerUponIndexCreation,
                 allocationService.getShardRoutingRoleStrategy()
             );
-            assert assertHasRefreshBlock(indexMetadata, updated, updated.getMinTransportVersion());
+            assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()), updated.getMinTransportVersion());
             if (request.performReroute()) {
                 updated = allocationService.reroute(
                     updated,
@@ -1375,9 +1381,9 @@ public class MetadataCreateIndexService {
         }
 
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-        blocksBuilder.updateBlocks(indexMetadata);
+        blocksBuilder.updateBlocks(projectId, indexMetadata);
         if (blocksTransformer != null) {
-            blocksTransformer.apply(blocksBuilder, indexMetadata, currentState.getMinTransportVersion());
+            blocksTransformer.apply(blocksBuilder, projectId, indexMetadata, currentState.getMinTransportVersion());
         }
 
         var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable(projectId))
@@ -1683,7 +1689,7 @@ public class MetadataCreateIndexService {
             );
         }
         // ensure index is read-only
-        if (clusterBlocks.indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
+        if (clusterBlocks.indexBlocked(projectMetadata.id(), ClusterBlockLevel.WRITE, sourceIndex) == false) {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
@@ -1829,14 +1835,14 @@ public class MetadataCreateIndexService {
 
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
         if (useRefreshBlock(settings) == false) {
-            return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {};
+            return (clusterBlocks, projectId, indexMetadata, minClusterTransportVersion) -> {};
         }
         logger.debug("applying refresh block on index creation");
-        return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {
+        return (clusterBlocks, projectId, indexMetadata, minClusterTransportVersion) -> {
             if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
                 // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
                 // started or a configurable delay is elapsed.
-                clusterBlocks.addIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+                clusterBlocks.addIndexBlock(projectId, indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
         };
     }
@@ -1848,8 +1854,9 @@ public class MetadataCreateIndexService {
             && minClusterTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
     }
 
-    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ClusterState clusterState, TransportVersion minTransportVersion) {
-        var hasRefreshBlock = clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state, TransportVersion minTransportVersion) {
+        var hasRefreshBlock = state.blocks()
+            .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
         if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata, minTransportVersion) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {

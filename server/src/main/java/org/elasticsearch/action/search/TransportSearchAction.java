@@ -222,7 +222,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, OriginalIndices> res = Maps.newMapWithExpectedSize(indices.length);
         var blocks = projectState.blocks();
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
-        boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
+        boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices(projectState.projectId()).isEmpty() == false;
         // Get a distinct set of index abstraction names present from the resolved expressions to help with the reverse resolution from
         // concrete index to the expression that produced it.
         Set<String> indicesAndAliasesResources = indicesAndAliases.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
@@ -1409,12 +1409,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private static boolean hasReadOnlyIndices(String[] indices, ProjectState projectState) {
         var blocks = projectState.blocks();
-        if (blocks.global().isEmpty() && blocks.indices().isEmpty()) {
+        if (blocks.global().isEmpty() && blocks.indices(projectState.projectId()).isEmpty()) {
             // short circuit optimization because block check below is relatively expensive for many indices
             return false;
         }
         for (String index : indices) {
-            ClusterBlockException writeBlock = blocks.indexBlockedException(ClusterBlockLevel.WRITE, index);
+            ClusterBlockException writeBlock = blocks.indexBlockedException(projectState.projectId(), ClusterBlockLevel.WRITE, index);
             if (writeBlock != null) {
                 return true;
             }

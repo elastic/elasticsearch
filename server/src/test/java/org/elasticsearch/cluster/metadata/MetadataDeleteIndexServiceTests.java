@@ -150,7 +150,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(after.metadata().getProject(projectId).indices().get(indexName), nullValue());
         assertThat(after.metadata().getProject(projectId).hasIndex(index), equalTo(false));
         assertNull(after.routingTable(projectId).index(indexName));
-        assertNull(after.blocks().indices().get(indexName));
+        assertNull(after.blocks().indices(projectId).get(indexName));
 
         // Make sure we actually attempted to reroute
         verify(allocationService).reroute(any(ClusterState.class), any(String.class), any());

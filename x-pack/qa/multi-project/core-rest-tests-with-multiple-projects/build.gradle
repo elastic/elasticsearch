@@ -40,6 +40,7 @@ tasks.named("yamlRestTest").configure {
     '^cluster.desired_balance/10_basic/*',
     '^cluster.health/10_basic/cluster health with closed index', // closed index
     '^cluster.health/30_indices_options/cluster health with expand_wildcards', // closed index
+    '^cluster.state/20_filtering/*', // add index blocks needs to be project aware
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
     '^data_stream/lifecycle/*/*',

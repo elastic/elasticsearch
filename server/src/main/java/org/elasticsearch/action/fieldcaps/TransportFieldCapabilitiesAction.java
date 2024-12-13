@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -166,7 +167,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return;
         }
 
-        checkIndexBlocks(clusterState, concreteIndices);
+        checkIndexBlocks(projectResolver.getProjectState(clusterState), concreteIndices);
         final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
@@ -317,9 +318,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         );
     }
 
-    private static void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
-        var blocks = clusterState.blocks();
-        if (blocks.global().isEmpty() && blocks.indices().isEmpty()) {
+    private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
+        var blocks = projectState.blocks();
+        if (blocks.global().isEmpty() && blocks.indices(projectState.projectId()).isEmpty()) {
             // short circuit optimization because block check below is relatively expensive for many indices
             return;
         }

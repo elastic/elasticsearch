@@ -1512,6 +1512,7 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testShouldPreFilterSearchShardsWithReadOnly() {
+        final ProjectId projectId = randomProjectIdOrDefault();
         int numIndices = randomIntBetween(2, 10);
         int numReadOnly = randomIntBetween(1, numIndices);
         String[] indices = new String[numIndices];
@@ -1520,13 +1521,12 @@ public class TransportSearchActionTests extends ESTestCase {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
-                    blocksBuilder.addIndexBlock(indices[i], IndexMetadata.INDEX_WRITE_BLOCK);
+                    blocksBuilder.addIndexBlock(projectId, indices[i], IndexMetadata.INDEX_WRITE_BLOCK);
                 } else {
-                    blocksBuilder.addIndexBlock(indices[i], IndexMetadata.INDEX_READ_ONLY_BLOCK);
+                    blocksBuilder.addIndexBlock(projectId, indices[i], IndexMetadata.INDEX_READ_ONLY_BLOCK);
                 }
             }
         }
-        final ProjectId projectId = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .blocks(blocksBuilder)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())

@@ -410,9 +410,8 @@ public class DiskThresholdMonitor {
                 if (indicesOnReplaceSourceOrTarget.contains(index)) {
                     continue;
                 }
-                @FixForMultiProject(description = "Blocks need to be project aware")
-                var indexName = index.getName();
-                if (state.getBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)) {
+                var projectId = state.metadata().projectFor(index).id();
+                if (state.getBlocks().hasIndexBlock(projectId, index.getName(), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)) {
                     indicesToAutoRelease.add(index);
                 }
             }
@@ -429,9 +428,8 @@ public class DiskThresholdMonitor {
             }
 
             indicesToMarkReadOnly.removeIf(index -> {
-                @FixForMultiProject(description = "Need to make blocks project aware")
                 final String indexName = index.getName();
-                return state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, indexName);
+                return state.getBlocks().indexBlocked(state.metadata().projectFor(index).id(), ClusterBlockLevel.WRITE, indexName);
             });
             logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
             if (indicesToMarkReadOnly.isEmpty() == false) {
@@ -520,6 +518,7 @@ public class DiskThresholdMonitor {
             checkFinished();
         });
         final ClusterState state = clusterStateSupplier.get();
+        @FixForMultiProject(description = "loop through blocks from all projects")
         final Set<String> indicesToRelease = state.getBlocks()
             .indices()
             .keySet()

@@ -137,7 +137,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
-        projectId = randomFrom(new ProjectId(randomUUID()), Metadata.DEFAULT_PROJECT_ID);
+        projectId = randomProjectIdOrDefault();
         request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "test", "test");
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         searchExecutionContext = SearchExecutionContextHelper.createSimple(
@@ -164,7 +164,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata))
             .build();
     }
 
@@ -1224,7 +1224,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
+        assertThat(
+            updatedClusterState.blocks().getIndexBlockWithId(projectId, "test", INDEX_READ_ONLY_BLOCK.id()),
+            is(INDEX_READ_ONLY_BLOCK)
+        );
         assertThat(updatedClusterState.routingTable(projectId).index("test"), is(notNullValue()));
 
         assertThat(updatedClusterState.routingTable(projectId).allShards("test"), iterableWithSize(1));
@@ -1690,6 +1693,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         var blocks = ClusterBlocks.builder().blocks(ClusterState.EMPTY_STATE.blocks());
         applier.apply(
             blocks,
+            projectId,
             IndexMetadata.builder("test")
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
@@ -1698,7 +1702,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             minTransportVersion
         );
         assertThat(
-            blocks.hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK),
+            blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
             is(isStateless && useRefreshBlock && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
         );
     }

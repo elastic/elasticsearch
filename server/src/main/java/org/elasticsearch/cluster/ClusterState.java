@@ -54,6 +54,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -710,6 +711,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         @FixForMultiProject // Do we need this to be a param?
         final boolean multiProject = outerParams.paramAsBoolean("multi-project", false);
+        final ProjectId singleProjectId;
+        if (multiProject == false) {
+            if (metadata.projects().size() == 1) {
+                singleProjectId = metadata.projects().keySet().iterator().next();
+            } else {
+                throw new Metadata.MultiProjectPendingException("There are multiple projects " + metadata.projects().keySet());
+            }
+        } else {
+            singleProjectId = null;
+        }
 
         return Iterators.concat(
 
@@ -733,31 +744,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             })),
 
             // blocks
-            chunkedSection(metrics.contains(Metric.BLOCKS), (builder, params) -> {
-                builder.startObject("blocks");
-                if (blocks().global().isEmpty() == false) {
-                    builder.startObject("global");
-                    for (ClusterBlock block : blocks().global()) {
-                        block.toXContent(builder, params);
-                    }
-                    builder.endObject();
-                }
-                if (blocks().indices().isEmpty() == false) {
-                    builder.startObject("indices");
-                }
-                return builder;
-            }, blocks.indices().entrySet().iterator(), entry -> Iterators.single((builder, params) -> {
-                builder.startObject(entry.getKey());
-                for (ClusterBlock block : entry.getValue()) {
-                    block.toXContent(builder, params);
-                }
-                return builder.endObject();
-            }), (builder, params) -> {
-                if (blocks().indices().isEmpty() == false) {
-                    builder.endObject();
-                }
-                return builder.endObject();
-            }),
+            metrics.contains(Metric.BLOCKS) ? blocksXContent(multiProject, singleProjectId) : Collections.emptyIterator(),
 
             // nodes
             chunkedSection(
@@ -840,6 +827,98 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 ? ChunkedToXContent.builder(outerParams)
                     .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
                 : Collections.emptyIterator()
+        );
+    }
+
+    private Iterator<ToXContent> blocksXContent(boolean multiProject, ProjectId singleProjectId) {
+        if (multiProject) {
+            assert singleProjectId == null : "expect null project-id, but got " + singleProjectId;
+            return blocksXContentMultiProjects();
+        } else {
+            assert singleProjectId != null;
+            return blocksXContentSingleProject(singleProjectId);
+        }
+    }
+
+    private Iterator<ToXContent> blocksXContentMultiProjects() {
+        final ToXContent before = (builder, params) -> {
+            builder.startObject("blocks");
+            if (blocks().global().isEmpty() == false) {
+                builder.startObject("global");
+                for (ClusterBlock block : blocks().global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            if (blocks().noIndexBlockAllProjects() == false) {
+                builder.startArray("projects");
+            }
+            return builder;
+        };
+        final ToXContent after = (builder, params) -> {
+            if (blocks().noIndexBlockAllProjects() == false) {
+                builder.endArray();
+            }
+            return builder.endObject();
+        };
+        return chunkedSection(
+            true,
+            before,
+            Iterators.map(metadata().projects().keySet().iterator(), projectId -> new Tuple<>(projectId, blocks().indices(projectId))),
+            ClusterState::projectBlocksXContent,
+            after
+        );
+    }
+
+    private Iterator<ToXContent> blocksXContentSingleProject(ProjectId singleProjectId) {
+        final ToXContent before = (builder, params) -> {
+            builder.startObject("blocks");
+            if (blocks().global().isEmpty() == false) {
+                builder.startObject("global");
+                for (ClusterBlock block : blocks().global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            if (blocks().indices(singleProjectId).isEmpty() == false) {
+                builder.startObject("indices");
+            }
+            return builder;
+        };
+        final ToXContent after = (builder, params) -> {
+            if (blocks().indices(singleProjectId).isEmpty() == false) {
+                builder.endObject();
+            }
+            return builder.endObject();
+        };
+        return chunkedSection(
+            true,
+            before,
+            blocks().indices(singleProjectId).entrySet().iterator(),
+            entry -> Iterators.single((builder, params) -> {
+                builder.startObject(entry.getKey());
+                for (ClusterBlock block : entry.getValue()) {
+                    block.toXContent(builder, params);
+                }
+                return builder.endObject();
+            }),
+            after
+        );
+    }
+
+    private static Iterator<ToXContent> projectBlocksXContent(Tuple<ProjectId, Map<String, Set<ClusterBlock>>> entry) {
+        return chunkedSection(
+            entry.v2().isEmpty() == false,
+            (builder, params) -> builder.startObject().field("id", entry.v1()).startObject("indices"),
+            entry.v2().entrySet().iterator(),
+            e -> Iterators.single((builder, params) -> {
+                builder.startObject(e.getKey());
+                for (ClusterBlock block : e.getValue()) {
+                    block.toXContent(builder, params);
+                }
+                return builder.endObject();
+            }),
+            (builder, params) -> builder.endObject().endObject()
         );
     }
 
@@ -1122,7 +1201,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
                     ? previous.clusterFeatures
                     : new ClusterFeatures(nodeFeatures),
-                blocks,
+                metadata != null ? blocks.initializeProjects(metadata.projects().keySet()) : blocks,
                 customs.build(),
                 fromDiff,
                 routingNodes

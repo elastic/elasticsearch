@@ -108,7 +108,7 @@ public class ProjectStateObserverTests extends ESTestCase {
             observer.waitForNextChange(new ProjectStateObserver.Listener() {
                 @Override
                 public void onProjectStateChange(ProjectState projectState) {
-                    Assert.fail("Project not should exist");
+                    Assert.fail("Project should not exist");
                 }
 
                 @Override

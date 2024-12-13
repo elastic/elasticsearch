@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
- import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
@@ -46,9 +45,8 @@ public final class ExceptionsHelper {
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
     public static RuntimeException convertToRuntime(Exception e) {
-        if (e instanceof RuntimeException)
-        {
-             return (RuntimeException) e;
+        if (e instanceof RuntimeException) {
+            return (RuntimeException) e;
         }
         return new ElasticsearchException(e);
     }

@@ -26,8 +26,8 @@ public class ElasticsearchStatusException extends ElasticsearchException {
      * Build the exception with a specific status and cause.
      */
     public ElasticsearchStatusException(String msg, RestStatus status, Throwable cause, Object... args) {
-         super(msg, cause, args);
-          this.status = status;
+        super(msg, cause, args);
+        this.status = status;
     }
 
     /**
@@ -47,12 +47,12 @@ public class ElasticsearchStatusException extends ElasticsearchException {
 
     @Override
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
-         super.writeTo(out, nestedExceptionsWriter);
+        super.writeTo(out, nestedExceptionsWriter);
         RestStatus.writeTo(out, status);
     }
 
     @Override
     public final RestStatus status() {
-         return status;
+        return status;
     }
 }

@@ -467,3 +467,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {grok.OverwriteNameWhere SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/118638
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {dissect.OverwriteName SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118667
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {stats.ByDateAndKeywordAndIntWithAlias SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/118668

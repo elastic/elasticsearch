@@ -4911,8 +4911,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var join = as(limit.child(), Join.class);
+        var join = as(project.child(), Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));

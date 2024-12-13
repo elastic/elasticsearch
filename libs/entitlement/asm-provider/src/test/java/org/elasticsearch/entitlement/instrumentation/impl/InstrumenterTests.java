@@ -337,9 +337,9 @@ public class InstrumenterTests extends ESTestCase {
         var classToInstrument = TestClassToInstrument.class;
 
         Map<MethodKey, CheckMethod> checkMethods = Map.of(
-            new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of(), false),
+            new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of()),
             getCheckMethod(MockEntitlementChecker.class, "checkCtor", Class.class),
-            new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of("I"), false),
+            new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of("I")),
             getCheckMethod(MockEntitlementChecker.class, "checkCtor", Class.class, int.class)
         );
 

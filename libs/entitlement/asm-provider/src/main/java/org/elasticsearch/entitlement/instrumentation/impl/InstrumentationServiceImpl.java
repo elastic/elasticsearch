@@ -133,6 +133,6 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
         boolean hasReceiver = (targetMethodIsStatic || targetMethodIsCtor) == false;
-        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes, hasReceiver);
+        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes);
     }
 }

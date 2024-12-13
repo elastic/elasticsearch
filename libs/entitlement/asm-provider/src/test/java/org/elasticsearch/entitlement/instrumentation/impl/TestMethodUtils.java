@@ -31,13 +31,12 @@ class TestMethodUtils {
         return new MethodKey(
             Type.getInternalName(targetMethod.getDeclaringClass()),
             targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList(),
-            hasReceiver
+            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
         );
     }
 
     static MethodKey methodKeyForConstructor(Class<?> classToInstrument, List<String> params) {
-        return new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", params, false);
+        return new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", params);
     }
 
     static CheckMethod getCheckMethod(Class<?> clazz, String methodName, Class<?>... parameterTypes) throws NoSuchMethodException {

@@ -172,8 +172,7 @@ public class InstrumenterImpl implements Instrumenter {
                 var key = new MethodKey(
                     className,
                     name,
-                    Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList(),
-                    hasReceiver
+                    Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList()
                 );
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {

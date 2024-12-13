@@ -14,19 +14,19 @@ fi
 NEW_COMMIT_MESSAGE="[CI] Auto commit changes from spotless"
 PREVIOUS_COMMIT_MESSAGE="$(git log -1 --pretty=%B)"
 
-if [[ "$NEW_COMMIT_MESSAGE" == "$PREVIOUS_COMMIT_MESSAGE" ]]; then
-  echo "Changes found after running spotless"
-  echo "CI already attempted to commit these changes, but the file(s) seem to have changed again."
-  echo "Please review and fix manually."
-  exit 1
-fi
-
 echo "--- Running spotless"
 .ci/scripts/run-gradle.sh spotlessApply
 
 if git diff --exit-code; then
   echo "No changes found after running spotless. Don't need to auto commit."
   exit 0
+fi
+
+if [[ "$NEW_COMMIT_MESSAGE" == "$PREVIOUS_COMMIT_MESSAGE" ]]; then
+  echo "Changes found after running spotless"
+  echo "CI already attempted to commit these changes, but the file(s) seem to have changed again."
+  echo "Please review and fix manually."
+  exit 1
 fi
 
 git config --global user.name elasticsearchmachine

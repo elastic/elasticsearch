@@ -290,46 +290,44 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
     }
 
     private void doTestMountWithoutSnapshotIndexNameInState(String prefix) throws Exception {
-        {
-            String indexNameSnippet = randomAlphaOfLength(10);
-            String indexName = prefix + indexNameSnippet;
-            String policyName = "test-ilm-policy";
-            Map<String, String> ilmCustom = new HashMap<>();
-            String snapshotName = indexName + "-" + policyName;
-            ilmCustom.put("snapshot_name", snapshotName);
-            String repository = "repository";
-            ilmCustom.put("snapshot_repository", repository);
+        String indexNameSnippet = randomAlphaOfLength(10);
+        String indexName = prefix + indexNameSnippet;
+        String policyName = "test-ilm-policy";
+        Map<String, String> ilmCustom = new HashMap<>();
+        String snapshotName = indexName + "-" + policyName;
+        ilmCustom.put("snapshot_name", snapshotName);
+        String repository = "repository";
+        ilmCustom.put("snapshot_repository", repository);
 
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5));
-            IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
 
-            try (var threadPool = createThreadPool()) {
-                final var client = getRestoreSnapshotRequestAssertingClient(
-                    threadPool,
-                    repository,
-                    snapshotName,
-                    indexName,
-                    RESTORED_INDEX_PREFIX,
-                    indexNameSnippet,
-                    new String[] { LifecycleSettings.LIFECYCLE_NAME }
-                );
-                MountSnapshotStep step = new MountSnapshotStep(
-                    randomStepKey(),
-                    randomStepKey(),
-                    client,
-                    RESTORED_INDEX_PREFIX,
-                    randomStorageType()
-                );
-                performActionAndWait(step, indexMetadata, clusterState, null);
-            }
+        try (var threadPool = createThreadPool()) {
+            final var client = getRestoreSnapshotRequestAssertingClient(
+                threadPool,
+                repository,
+                snapshotName,
+                indexName,
+                RESTORED_INDEX_PREFIX,
+                indexNameSnippet,
+                new String[] { LifecycleSettings.LIFECYCLE_NAME }
+            );
+            MountSnapshotStep step = new MountSnapshotStep(
+                randomStepKey(),
+                randomStepKey(),
+                client,
+                RESTORED_INDEX_PREFIX,
+                randomStorageType()
+            );
+            performActionAndWait(step, indexMetadata, clusterState, null);
         }
     }
 

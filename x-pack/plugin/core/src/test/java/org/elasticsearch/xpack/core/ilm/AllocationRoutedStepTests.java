@@ -27,7 +27,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.buildUnassignedInfo;
@@ -109,7 +108,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testRequireConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> requires = Map.of(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
@@ -187,7 +186,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> excludes = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> excludes = Map.of(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
@@ -218,7 +217,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testIncludeConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> includes = Map.of(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());

@@ -408,6 +408,10 @@ public class EsqlCapabilities {
         CATEGORIZE_V5,
 
         /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
+        /**
          * QSTR function
          */
         QSTR_FUNCTION,
@@ -523,7 +527,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V4(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V5(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

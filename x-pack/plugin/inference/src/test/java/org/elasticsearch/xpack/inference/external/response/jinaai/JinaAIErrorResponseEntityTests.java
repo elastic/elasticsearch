@@ -20,7 +20,6 @@ import static org.mockito.Mockito.mock;
 
 public class JinaAIErrorResponseEntityTests extends ESTestCase {
     public void testFromResponse() {
-        // TODO(JoanFM): Check it works with real response
         String message = "\"input\" length 2049 is larger than the largest allowed size 2048";
         String escapedMessage = message.replace("\\", "\\\\").replace("\"", "\\\"");
         String responseJson = Strings.format("""

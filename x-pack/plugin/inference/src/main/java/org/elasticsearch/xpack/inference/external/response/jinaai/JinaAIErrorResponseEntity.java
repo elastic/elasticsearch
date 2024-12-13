@@ -40,7 +40,6 @@ public class JinaAIErrorResponseEntity implements ErrorMessage {
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
         ) {
             var responseMap = jsonParser.map();
-            // TODO(JoanFM): Check if it should be detail
             var message = (String) responseMap.get("detail");
             if (message != null) {
                 return new JinaAIErrorResponseEntity(message);

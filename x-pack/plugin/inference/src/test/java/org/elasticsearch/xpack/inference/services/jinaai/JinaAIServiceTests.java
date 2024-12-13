@@ -83,7 +83,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-// TODO(JoanFM): Add tests with Rerank
 public class JinaAIServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
@@ -1221,7 +1220,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         "relevance_score": 0.98005307
                     },
                     {
-                        "index": 3,
+                        "index": 1,
                         "relevance_score": 0.27904198
                     },
                     {
@@ -1252,8 +1251,54 @@ public class JinaAIServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT);
+            var resultAsMap = result.asMap();
+            Object rerankObject = resultAsMap.get("rerank");
 
-            MatcherAssert.assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
+            assert rerankObject instanceof List;
+
+            List<?> rerankList = (List<?>) rerankObject;
+
+            for (Object item : rerankList) {
+                assert item instanceof Map;
+            }
+
+            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
+            Object firstRerankDocObj = rerankList.get(0);
+            assert firstRerankDocObj instanceof Map;
+            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
+            Object firstItemObj = firstRerankDoc.get("ranked_doc");
+            assert firstItemObj instanceof Map;
+            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
+            assert !firstItem.containsKey("text");
+            assert firstItem.containsKey("index");
+            assert firstItem.containsKey("relevance_score");
+            assert firstItem.get("index").equals(2);
+            assert firstItem.get("relevance_score").equals(0.98005307F);
+
+            Object secondRerankDocObj = rerankList.get(1);
+            assert secondRerankDocObj instanceof Map;
+            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
+            Object secondItemObj = secondRerankDoc.get("ranked_doc");
+            assert secondItemObj instanceof Map;
+            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
+            assert !secondItem.containsKey("text");
+            assert secondItem.containsKey("index");
+            assert secondItem.containsKey("relevance_score");
+            assert secondItem.get("index").equals(1);
+            assert secondItem.get("relevance_score").equals(0.27904198F);
+
+            Object thirdRerankDocObj = rerankList.get(2);
+            assert thirdRerankDocObj instanceof Map;
+            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
+            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
+            assert thirdItemObj instanceof Map;
+            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
+            assert !thirdItem.containsKey("text");
+            assert thirdItem.containsKey("index");
+            assert thirdItem.containsKey("relevance_score");
+            assert thirdItem.get("index").equals(0);
+            assert thirdItem.get("relevance_score").equals(0.10194652F);
+
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
@@ -1262,16 +1307,390 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "query",
+                        "query",
+                        "documents",
+                        List.of("candidate1", "candidate2", "candidate3"),
+                        "model",
+                        "modelId",
+                        "return_documents",
+                        false
+                    )
+                )
+            );
 
         }
     }
 
-    public void testInfer_Rerank_Get_Response_NoReturnDocuments_TopN() throws IOException {}
+    public void testInfer_Rerank_Get_Response_NoReturnDocuments_TopN() throws IOException {
+        String responseJson = """
+            {
+                "model": "model",
+                "results": [
+                    {
+                        "index": 2,
+                        "relevance_score": 0.98005307
+                    },
+                    {
+                        "index": 1,
+                        "relevance_score": 0.27904198
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-    public void testInfer_Rerank_Get_Response_ReturnDocuments_NoTopN() throws IOException {}
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", 3, false);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                "query",
+                List.of("candidate1", "candidate2", "candidate3", "candidate4"),
+                false,
+                new HashMap<>(),
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
-    public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {}
+            var result = listener.actionGet(TIMEOUT);
+            var resultAsMap = result.asMap();
+            Object rerankObject = resultAsMap.get("rerank");
+
+            assert rerankObject instanceof List;
+
+            List<?> rerankList = (List<?>) rerankObject;
+
+            for (Object item : rerankList) {
+                assert item instanceof Map;
+            }
+
+            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
+            Object firstRerankDocObj = rerankList.get(0);
+            assert firstRerankDocObj instanceof Map;
+            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
+            Object firstItemObj = firstRerankDoc.get("ranked_doc");
+            assert firstItemObj instanceof Map;
+            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
+            assert !firstItem.containsKey("text");
+            assert firstItem.containsKey("index");
+            assert firstItem.containsKey("relevance_score");
+            assert firstItem.get("index").equals(2);
+            assert firstItem.get("relevance_score").equals(0.98005307F);
+
+            Object secondRerankDocObj = rerankList.get(1);
+            assert secondRerankDocObj instanceof Map;
+            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
+            Object secondItemObj = secondRerankDoc.get("ranked_doc");
+            assert secondItemObj instanceof Map;
+            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
+            assert !secondItem.containsKey("text");
+            assert secondItem.containsKey("index");
+            assert secondItem.containsKey("relevance_score");
+            assert secondItem.get("index").equals(1);
+            assert secondItem.get("relevance_score").equals(0.27904198F);
+
+            Object thirdRerankDocObj = rerankList.get(2);
+            assert thirdRerankDocObj instanceof Map;
+            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
+            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
+            assert thirdItemObj instanceof Map;
+            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
+            assert !thirdItem.containsKey("text");
+            assert thirdItem.containsKey("index");
+            assert thirdItem.containsKey("relevance_score");
+            assert thirdItem.get("index").equals(0);
+            assert thirdItem.get("relevance_score").equals(0.10194652F);
+
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "query",
+                        "query",
+                        "documents",
+                        List.of("candidate1", "candidate2", "candidate3", "candidate4"),
+                        "model",
+                        "modelId",
+                        "return_documents",
+                        false,
+                        "top_n",
+                        3
+                    )
+                )
+            );
+
+        }
+
+    }
+
+    public void testInfer_Rerank_Get_Response_ReturnDocumentsNull_NoTopN() throws IOException {
+        String responseJson = """
+            {
+                "model": "modelId",
+                "results": [
+                    {
+                        "index": 2,
+                        "relevance_score": 0.98005307,
+                        "document": {
+                            "text": "candidate3"
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "relevance_score": 0.27904198,
+                        "document": {
+                            "text": "candidate2"
+                        }
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.10194652,
+                        "document": {
+                            "text": "candidate1"
+                        }
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", null, null);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                "query",
+                List.of("candidate1", "candidate2", "candidate3"),
+                false,
+                new HashMap<>(),
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+            var resultAsMap = result.asMap();
+            Object rerankObject = resultAsMap.get("rerank");
+
+            assert rerankObject instanceof List;
+
+            List<?> rerankList = (List<?>) rerankObject;
+
+            for (Object item : rerankList) {
+                assert item instanceof Map;
+            }
+
+            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
+            Object firstRerankDocObj = rerankList.get(0);
+            assert firstRerankDocObj instanceof Map;
+            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
+            Object firstItemObj = firstRerankDoc.get("ranked_doc");
+            assert firstItemObj instanceof Map;
+            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
+            assert firstItem.containsKey("text");
+            assert firstItem.containsKey("index");
+            assert firstItem.containsKey("relevance_score");
+            assert firstItem.get("text").equals("candidate3");
+            assert firstItem.get("relevance_score").equals(0.98005307F);
+
+            Object secondRerankDocObj = rerankList.get(1);
+            assert secondRerankDocObj instanceof Map;
+            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
+            Object secondItemObj = secondRerankDoc.get("ranked_doc");
+            assert secondItemObj instanceof Map;
+            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
+            assert secondItem.containsKey("text");
+            assert secondItem.containsKey("index");
+            assert secondItem.containsKey("relevance_score");
+            assert secondItem.get("text").equals("candidate2");
+            assert secondItem.get("index").equals(1);
+            assert secondItem.get("relevance_score").equals(0.27904198F);
+
+            Object thirdRerankDocObj = rerankList.get(2);
+            assert thirdRerankDocObj instanceof Map;
+            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
+            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
+            assert thirdItemObj instanceof Map;
+            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
+            assert thirdItem.containsKey("text");
+            assert thirdItem.containsKey("index");
+            assert thirdItem.containsKey("relevance_score");
+            assert thirdItem.get("text").equals("candidate1");
+            assert thirdItem.get("index").equals(0);
+            assert thirdItem.get("relevance_score").equals(0.10194652F);
+
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("query", "query", "documents", List.of("candidate1", "candidate2", "candidate3"), "model", "modelId"))
+            );
+
+        }
+
+    }
+
+    public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {
+        String responseJson = """
+            {
+                "model": "modelId",
+                "results": [
+                    {
+                        "index": 2,
+                        "relevance_score": 0.98005307,
+                        "document": {
+                            "text": "candidate3"
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "relevance_score": 0.27904198,
+                        "document": {
+                            "text": "candidate2"
+                        }
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.10194652,
+                        "document": {
+                            "text": "candidate1"
+                        }
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", 3, true);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                "query",
+                List.of("candidate1", "candidate2", "candidate3", "candidate4"),
+                false,
+                new HashMap<>(),
+                null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+            var resultAsMap = result.asMap();
+            Object rerankObject = resultAsMap.get("rerank");
+
+            assert rerankObject instanceof List;
+
+            List<?> rerankList = (List<?>) rerankObject;
+
+            for (Object item : rerankList) {
+                assert item instanceof Map;
+            }
+
+            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
+            Object firstRerankDocObj = rerankList.get(0);
+            assert firstRerankDocObj instanceof Map;
+            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
+            Object firstItemObj = firstRerankDoc.get("ranked_doc");
+            assert firstItemObj instanceof Map;
+            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
+            assert firstItem.containsKey("text");
+            assert firstItem.containsKey("index");
+            assert firstItem.containsKey("relevance_score");
+            assert firstItem.get("text").equals("candidate3");
+            assert firstItem.get("relevance_score").equals(0.98005307F);
+
+            Object secondRerankDocObj = rerankList.get(1);
+            assert secondRerankDocObj instanceof Map;
+            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
+            Object secondItemObj = secondRerankDoc.get("ranked_doc");
+            assert secondItemObj instanceof Map;
+            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
+            assert secondItem.containsKey("text");
+            assert secondItem.containsKey("index");
+            assert secondItem.containsKey("relevance_score");
+            assert secondItem.get("text").equals("candidate2");
+            assert secondItem.get("index").equals(1);
+            assert secondItem.get("relevance_score").equals(0.27904198F);
+
+            Object thirdRerankDocObj = rerankList.get(2);
+            assert thirdRerankDocObj instanceof Map;
+            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
+            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
+            assert thirdItemObj instanceof Map;
+            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
+            assert thirdItem.containsKey("text");
+            assert thirdItem.containsKey("index");
+            assert thirdItem.containsKey("relevance_score");
+            assert thirdItem.get("text").equals("candidate1");
+            assert thirdItem.get("index").equals(0);
+            assert thirdItem.get("relevance_score").equals(0.10194652F);
+
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "query",
+                        "query",
+                        "documents",
+                        List.of("candidate1", "candidate2", "candidate3", "candidate4"),
+                        "model",
+                        "modelId",
+                        "return_documents",
+                        true,
+                        "top_n",
+                        3
+                    )
+                )
+            );
+
+        }
+
+    }
 
     public void testInfer_Embedding_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -1290,7 +1709,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 new JinaAIEmbeddingsTaskSettings((InputType) null),
                 1024,
                 1024,
-                "model",
+                "jina-clip-v2",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1317,7 +1736,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "jina-clip-v2")));
         }
     }
 
@@ -1329,7 +1748,7 @@ public class JinaAIServiceTests extends ESTestCase {
             createRandomChunkingSettings(),
             1024,
             1024,
-            "model"
+            "jina-clip-v2"
         );
 
         test_Embedding_ChunkedInfer_BatchesCalls(model);
@@ -1343,7 +1762,7 @@ public class JinaAIServiceTests extends ESTestCase {
             null,
             1024,
             1024,
-            "model"
+            "jina-clip-v2"
         );
 
         test_Embedding_ChunkedInfer_BatchesCalls(model);
@@ -1399,7 +1818,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("foo", "bar"), "model", "model")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("foo", "bar"), "model", "jina-clip-v2")));
         }
     }
 

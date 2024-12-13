@@ -120,7 +120,6 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
-        // TODO(JoanFM): Check if it should be message or detail.
         String escapedErrorMessage = errorMessage != null ? errorMessage.replace("\\", "\\\\").replace("\"", "\\\"") : errorMessage;
 
         String responseJson = Strings.format("""

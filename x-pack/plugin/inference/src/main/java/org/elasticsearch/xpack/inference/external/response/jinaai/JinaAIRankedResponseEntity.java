@@ -72,13 +72,7 @@ public class JinaAIRankedResponseEntity {
      *             "relevance_score": 0.10194652
      *         }
      *     ],
-     *     "meta": {
-     *         "api_version": {
-     *             "version": "1"
-     *         },
-     *         "billed_units": {
-     *             "search_units": 1
-     *         }
+     *     "usage": {"total_tokens": 15}
      *     }
      *
      * @param response the http response from JinaAI

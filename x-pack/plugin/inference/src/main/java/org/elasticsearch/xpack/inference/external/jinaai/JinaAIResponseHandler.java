@@ -44,7 +44,6 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
 
     @Override
     public boolean canHandleStreamingResponses() {
-        // TODO (JoanFM): Check this usage
         return false;
     }
 

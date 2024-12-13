@@ -41,6 +41,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     private final MountSearchableSnapshotRequest.Storage storageType;
     @Nullable
     private final Integer totalShardsPerNode;
+    private final int replicas;
 
     public MountSnapshotStep(
         StepKey key,
@@ -48,7 +49,8 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         Client client,
         String restoredIndexPrefix,
         MountSearchableSnapshotRequest.Storage storageType,
-        @Nullable Integer totalShardsPerNode
+        @Nullable Integer totalShardsPerNode,
+        int replicas
     ) {
         super(key, nextStepKey, client);
         this.restoredIndexPrefix = restoredIndexPrefix;
@@ -57,16 +59,10 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             throw new IllegalArgumentException("[" + SearchableSnapshotAction.TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
-    }
 
-    public MountSnapshotStep(
-        StepKey key,
-        StepKey nextStepKey,
-        Client client,
-        String restoredIndexPrefix,
-        MountSearchableSnapshotRequest.Storage storageType
-    ) {
-        this(key, nextStepKey, client, restoredIndexPrefix, storageType, null);
+        // this isn't directly settable by the user, so validation by assertion is sufficient
+        assert replicas >= 0 : "number of replicas must be gte zero, but was [" + replicas + "]";
+        this.replicas = replicas;
     }
 
     @Override
@@ -85,6 +81,10 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     @Nullable
     public Integer getTotalShardsPerNode() {
         return totalShardsPerNode;
+    }
+
+    public int getReplicas() {
+        return replicas;
     }
 
     @Override
@@ -162,10 +162,12 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         final Settings.Builder settingsBuilder = Settings.builder();
-
         overrideTierPreference(this.getKey().phase()).ifPresent(override -> settingsBuilder.put(DataTier.TIER_PREFERENCE, override));
         if (totalShardsPerNode != null) {
             settingsBuilder.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), totalShardsPerNode);
+        }
+        if (replicas > 0) {
+            settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
         }
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(
@@ -245,7 +247,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType, totalShardsPerNode);
+        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType, totalShardsPerNode, replicas);
     }
 
     @Override
@@ -260,6 +262,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         return super.equals(obj)
             && Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix)
             && Objects.equals(storageType, other.storageType)
-            && Objects.equals(totalShardsPerNode, other.totalShardsPerNode);
+            && Objects.equals(totalShardsPerNode, other.totalShardsPerNode)
+            && Objects.equals(replicas, other.replicas);
     }
 }

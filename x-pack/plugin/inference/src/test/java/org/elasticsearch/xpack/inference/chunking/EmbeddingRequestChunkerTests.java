@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
@@ -501,10 +501,10 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", "2nd small", "3rd small");
 
         var failureMessage = new AtomicReference<String>();
-        var listener = new ActionListener<List<InferenceChunks>>() {
+        var listener = new ActionListener<List<ChunkedInference>>() {
 
             @Override
-            public void onResponse(List<InferenceChunks> chunkedResults) {
+            public void onResponse(List<ChunkedInference> chunkedResults) {
                 assertThat(chunkedResults.get(0), instanceOf(ChunkedInferenceError.class));
                 var error = (ChunkedInferenceError) chunkedResults.get(0);
                 failureMessage.set(error.exception().getMessage());
@@ -531,11 +531,11 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         return new ChunkedResultsListener();
     }
 
-    private static class ChunkedResultsListener implements ActionListener<List<InferenceChunks>> {
-        List<InferenceChunks> results;
+    private static class ChunkedResultsListener implements ActionListener<List<ChunkedInference>> {
+        List<ChunkedInference> results;
 
         @Override
-        public void onResponse(List<InferenceChunks> chunks) {
+        public void onResponse(List<ChunkedInference> chunks) {
             this.results = chunks;
         }
 

@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -771,7 +771,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
-            PlainActionFuture<List<InferenceChunks>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -787,7 +787,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var embeddingResult = (ChunkedInferenceEmbeddingFloat) result;
             assertThat(embeddingResult.chunks(), hasSize(1));
             assertThat(embeddingResult.chunks().get(0).matchedText(), is("abc"));
-            assertThat(embeddingResult.chunks().get(0).offset(), is(new InferenceChunks.TextOffset(0, "abc".length())));
+            assertThat(embeddingResult.chunks().get(0).offset(), is(new ChunkedInference.TextOffset(0, "abc".length())));
             assertArrayEquals(new float[] { -0.0123f, 0.0123f }, embeddingResult.chunks().get(0).embedding(), 0.001f);
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -819,7 +819,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
-            PlainActionFuture<List<InferenceChunks>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,

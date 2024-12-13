@@ -21,7 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -290,9 +290,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
-            ActionListener<List<InferenceChunks>> listener = (ActionListener<List<InferenceChunks>>) invocationOnMock.getArguments()[6];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
             Runnable runnable = () -> {
-                List<InferenceChunks> results = new ArrayList<>();
+                List<ChunkedInference> results = new ArrayList<>();
                 for (String input : inputs) {
                     results.add(model.getResults(input));
                 }
@@ -370,7 +370,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static class StaticModel extends TestModel {
-        private final Map<String, InferenceChunks> resultMap;
+        private final Map<String, ChunkedInference> resultMap;
 
         StaticModel(
             String inferenceEntityId,
@@ -396,11 +396,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
         }
 
-        InferenceChunks getResults(String text) {
+        ChunkedInference getResults(String text) {
             return resultMap.getOrDefault(text, new ChunkedInferenceEmbeddingSparse(List.of()));
         }
 
-        void putResult(String text, InferenceChunks result) {
+        void putResult(String text, ChunkedInference result) {
             resultMap.put(text, result);
         }
 

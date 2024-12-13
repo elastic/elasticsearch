@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -1551,7 +1551,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     requestSender.enqueue(mockResults2);
                 }
 
-                PlainActionFuture<List<InferenceChunks>> listener = new PlainActionFuture<>();
+                PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
                 service.chunkedInfer(
                     model,
                     null,

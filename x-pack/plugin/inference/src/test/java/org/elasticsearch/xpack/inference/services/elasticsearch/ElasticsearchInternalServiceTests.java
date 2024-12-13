@@ -26,7 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -865,7 +865,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var service = createService(client);
 
         var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<List<InferenceChunks>>wrap(chunkedResponse -> {
+        var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
             var result1 = (ChunkedInferenceEmbeddingFloat) chunkedResponse.get(0);
@@ -940,7 +940,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         var gotResults = new AtomicBoolean();
 
-        var resultsListener = ActionListener.<List<InferenceChunks>>wrap(chunkedResponse -> {
+        var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
             var result1 = (ChunkedInferenceEmbeddingSparse) chunkedResponse.get(0);
@@ -1010,7 +1010,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var service = createService(client);
 
         var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<List<InferenceChunks>>wrap(chunkedResponse -> {
+        var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
             var result1 = (ChunkedInferenceEmbeddingSparse) chunkedResponse.get(0);
@@ -1126,7 +1126,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var service = createService(client);
 
         var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<List<InferenceChunks>>wrap(chunkedResponse -> {
+        var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(3));
             // a single failure fails the batch
             for (var er : chunkedResponse) {
@@ -1190,7 +1190,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var service = createService(client);
 
         var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<List<InferenceChunks>>wrap(chunkedResponse -> {
+        var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(1));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
             var sparseResults = (ChunkedInferenceEmbeddingFloat) chunkedResponse.get(0);

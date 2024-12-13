@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -17,13 +17,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public record ChunkedInferenceEmbeddingByte(List<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> chunks) implements InferenceChunks {
+public record ChunkedInferenceEmbeddingByte(List<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> chunks) implements ChunkedInference {
 
     @Override
     public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException {
         var asChunk = new ArrayList<Chunk>();
-        for (var chunk : chunks)
-        {
+        for (var chunk : chunks) {
             asChunk.add(new Chunk(chunk.matchedText(), chunk.offset(), toBytesReference(xcontent, chunk.embedding())));
         }
         return asChunk.iterator();

@@ -18,7 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -151,7 +151,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<List<InferenceChunks>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
@@ -176,10 +176,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new InferenceTextEmbeddingFloatResults(embeddings);
         }
 
-        private List<InferenceChunks> makeChunkedResults(List<String> input, int dimensions) {
+        private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions) {
             InferenceTextEmbeddingFloatResults nonChunkedResults = makeResults(input, dimensions);
 
-            var results = new ArrayList<InferenceChunks>();
+            var results = new ArrayList<ChunkedInference>();
             for (int i = 0; i < input.size(); i++) {
                 results.add(
                     new ChunkedInferenceEmbeddingFloat(
@@ -187,7 +187,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                             new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                                 nonChunkedResults.embeddings().get(i).values(),
                                 input.get(i),
-                                new InferenceChunks.TextOffset(0, input.get(i).length())
+                                new ChunkedInference.TextOffset(0, input.get(i).length())
                             )
                         )
                     )

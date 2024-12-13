@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -90,7 +90,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
-            PlainActionFuture<List<InferenceChunks>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -111,7 +111,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                         new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
                             List.of(new WeightedToken(".", 0.13315596f)),
                             "abc",
-                            new InferenceChunks.TextOffset(0, "abc".length())
+                            new ChunkedInference.TextOffset(0, "abc".length())
                         )
                     )
                 )

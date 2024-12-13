@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -453,7 +453,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
-            PlainActionFuture<List<InferenceChunks>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -474,7 +474,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                         new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
                             List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
                             "input text",
-                            new InferenceChunks.TextOffset(0, "input text".length())
+                            new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )
                 )

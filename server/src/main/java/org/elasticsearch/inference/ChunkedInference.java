@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContent;
 import java.io.IOException;
 import java.util.Iterator;
 
-public interface InferenceChunks {
+public interface ChunkedInference {
 
     /**
      * Implementations of this function serialize their embeddings to {@link BytesReference} for storage in semantic text fields.

@@ -11,7 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -165,7 +165,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 values[j] = (float) randomDouble();
             }
             chunks.add(
-                new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(values, input, new InferenceChunks.TextOffset(0, input.length()))
+                new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(values, input, new ChunkedInference.TextOffset(0, input.length()))
             );
         }
         return new ChunkedInferenceEmbeddingFloat(chunks);
@@ -179,7 +179,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 tokens.add(new WeightedToken(token, randomFloat()));
             }
             chunks.add(
-                new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, input, new InferenceChunks.TextOffset(0, input.length()))
+                new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, input, new ChunkedInference.TextOffset(0, input.length()))
             );
         }
         return new ChunkedInferenceEmbeddingSparse(chunks);
@@ -187,7 +187,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public static SemanticTextField randomSemanticText(String fieldName, Model model, List<String> inputs, XContentType contentType)
         throws IOException {
-        InferenceChunks results = switch (model.getTaskType()) {
+        ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> randomChunkedInferenceEmbeddingFloat(model, inputs);
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
@@ -199,7 +199,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         String fieldName,
         Model model,
         List<String> inputs,
-        InferenceChunks results,
+        ChunkedInference results,
         XContentType contentType
     ) throws IOException {
         return new SemanticTextField(
@@ -232,7 +232,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
     }
 
-    public static InferenceChunks toChunkedResult(SemanticTextField field) throws IOException {
+    public static ChunkedInference toChunkedResult(SemanticTextField field) throws IOException {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
                 List<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk> chunks = new ArrayList<>();
@@ -242,7 +242,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
                             tokens,
                             chunk.text(),
-                            new InferenceChunks.TextOffset(0, chunk.text().length())
+                            new ChunkedInference.TextOffset(0, chunk.text().length())
                         )
                     );
                 }
@@ -260,7 +260,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                             FloatConversionUtils.floatArrayOf(values),
                             chunk.text(),
-                            new InferenceChunks.TextOffset(0, chunk.text().length())
+                            new ChunkedInference.TextOffset(0, chunk.text().length())
                         )
                     );
                 }

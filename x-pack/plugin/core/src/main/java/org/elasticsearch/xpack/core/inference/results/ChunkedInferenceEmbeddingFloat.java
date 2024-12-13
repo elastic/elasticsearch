@@ -8,18 +8,16 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
-public record ChunkedInferenceEmbeddingFloat(List<FloatEmbeddingChunk> chunks) implements InferenceChunks {
+public record ChunkedInferenceEmbeddingFloat(List<FloatEmbeddingChunk> chunks) implements ChunkedInference {
 
     @Override
     public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException {
@@ -43,21 +41,5 @@ public record ChunkedInferenceEmbeddingFloat(List<FloatEmbeddingChunk> chunks) i
         return BytesReference.bytes(b);
     }
 
-    public record FloatEmbeddingChunk(float[] embedding, String matchedText, TextOffset offset) {
-//
-//        @Override
-//        public int hashCode() {
-//            return Objects.hash(Arrays.hashCode(embedding), matchedText, offset);
-//        }
-//
-//        @Override
-//        public boolean equals(Object o) {
-//            if (this == o) return true;
-//            if (o == null || getClass() != o.getClass()) return false;
-//            FloatEmbeddingChunk that = (FloatEmbeddingChunk) o;
-//            return this.matchedText.equals(that.matchedText)
-//                && this.offset.equals(that.offset)
-//                && Arrays.equals(this.embedding, that.embedding);
-//        }
-    }
+    public record FloatEmbeddingChunk(float[] embedding, String matchedText, TextOffset offset) {}
 }

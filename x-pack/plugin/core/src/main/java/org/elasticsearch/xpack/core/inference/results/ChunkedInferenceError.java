@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.XContent;
 
 import java.util.Iterator;
 import java.util.stream.Stream;
 
-public record ChunkedInferenceError(Exception exception) implements InferenceChunks {
+public record ChunkedInferenceError(Exception exception) implements ChunkedInference {
 
     @Override
     public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {

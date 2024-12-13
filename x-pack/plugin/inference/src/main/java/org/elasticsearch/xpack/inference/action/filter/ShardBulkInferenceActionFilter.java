@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -142,7 +142,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         int inputOrder,
         boolean isOriginalFieldInput,
         Model model,
-        InferenceChunks chunkedResults
+        ChunkedInference chunkedResults
     ) {}
 
     private record FieldInferenceResponseAccumulator(
@@ -274,12 +274,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
             final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
             final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
-            ActionListener<List<InferenceChunks>> completionListener = new ActionListener<>() {
+            ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
-                public void onResponse(List<InferenceChunks> results) {
+                public void onResponse(List<ChunkedInference> results) {
                     try {
                         var requestsIterator = requests.iterator();
-                        for (InferenceChunks result : results) {
+                        for (ChunkedInference result : results) {
                             var request = requestsIterator.next();
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ChunkedInferenceError error) {
@@ -377,7 +377,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
                 List<String> inputs = responses.stream().filter(r -> r.isOriginalFieldInput).map(r -> r.input).collect(Collectors.toList());
-                List<InferenceChunks> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
+                List<ChunkedInference> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
                 var result = new SemanticTextField(
                     fieldName,
                     inputs,

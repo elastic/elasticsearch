@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -121,7 +121,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<InferenceChunks>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         // Pass-through without actually performing chunking (result will have a single chunk per input)
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
@@ -273,7 +273,7 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
-    private static List<InferenceChunks> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
+    private static List<ChunkedInference> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
             var inputsAsList = DocumentsOnlyInput.of(inputs).getInputs();
             return ChunkedInferenceEmbeddingSparse.listOf(inputsAsList, sparseEmbeddingResults);

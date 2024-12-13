@@ -17,7 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -102,7 +102,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<InferenceChunks>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
@@ -112,11 +112,11 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
     }
 
-    private static List<InferenceChunks> translateToChunkedResults(DocumentsOnlyInput inputs, InferenceServiceResults inferenceResults) {
+    private static List<ChunkedInference> translateToChunkedResults(DocumentsOnlyInput inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
             validateInputSizeAgainstEmbeddings(inputs.getInputs(), textEmbeddingResults.embeddings().size());
 
-            var results = new ArrayList<InferenceChunks>(inputs.getInputs().size());
+            var results = new ArrayList<ChunkedInference>(inputs.getInputs().size());
 
             for (int i = 0; i < inputs.getInputs().size(); i++) {
                 results.add(
@@ -125,7 +125,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                             new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                                 textEmbeddingResults.embeddings().get(i).values(),
                                 inputs.getInputs().get(i),
-                                new InferenceChunks.TextOffset(0, inputs.getInputs().get(i).length())
+                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
                             )
                         )
                     )

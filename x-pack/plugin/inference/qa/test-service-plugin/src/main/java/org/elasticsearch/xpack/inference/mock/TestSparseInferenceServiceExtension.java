@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -141,7 +141,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<List<InferenceChunks>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
@@ -166,8 +166,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<InferenceChunks> makeChunkedResults(List<String> input) {
-            List<InferenceChunks> results = new ArrayList<>();
+        private List<ChunkedInference> makeChunkedResults(List<String> input) {
+            List<ChunkedInference> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
@@ -179,7 +179,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                             new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
                                 tokens,
                                 input.get(i),
-                                new InferenceChunks.TextOffset(0, input.get(i).length())
+                                new ChunkedInference.TextOffset(0, input.get(i).length())
                             )
                         )
                     )

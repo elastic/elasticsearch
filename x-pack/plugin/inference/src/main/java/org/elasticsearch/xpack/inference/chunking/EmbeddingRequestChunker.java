@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceChunks;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
@@ -72,7 +72,7 @@ public class EmbeddingRequestChunker {
     private List<AtomicArray<List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>>> byteResults;
     private List<AtomicArray<List<SparseEmbeddingResults.Embedding>>> sparseResults;
     private AtomicArray<Exception> errors;
-    private ActionListener<List<InferenceChunks>> finalListener;
+    private ActionListener<List<ChunkedInference>> finalListener;
 
     public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, EmbeddingType embeddingType) {
         this(inputs, maxNumberOfInputsPerBatch, DEFAULT_WORDS_PER_CHUNK, DEFAULT_CHUNK_OVERLAP, embeddingType);
@@ -188,7 +188,7 @@ public class EmbeddingRequestChunker {
      * @param finalListener The listener to call once all the batches are processed
      * @return Batches and listeners
      */
-    public List<BatchRequestAndListener> batchRequestsWithListeners(ActionListener<List<InferenceChunks>> finalListener) {
+    public List<BatchRequestAndListener> batchRequestsWithListeners(ActionListener<List<ChunkedInference>> finalListener) {
         this.finalListener = finalListener;
 
         int numberOfRequests = batchedRequests.size();
@@ -340,7 +340,7 @@ public class EmbeddingRequestChunker {
         }
 
         private void sendResponse() {
-            var response = new ArrayList<InferenceChunks>(chunkedOffsets.size());
+            var response = new ArrayList<ChunkedInference>(chunkedOffsets.size());
             for (int i = 0; i < chunkedOffsets.size(); i++) {
                 if (errors.get(i) != null) {
                     response.add(new ChunkedInferenceError(errors.get(i)));
@@ -353,7 +353,7 @@ public class EmbeddingRequestChunker {
         }
     }
 
-    private InferenceChunks mergeResultsWithInputs(int resultIndex) {
+    private ChunkedInference mergeResultsWithInputs(int resultIndex) {
         return switch (embeddingType) {
             case FLOAT -> mergeFloatResultsWithInputs(chunkedOffsets.get(resultIndex), floatResults.get(resultIndex));
             case BYTE -> mergeByteResultsWithInputs(chunkedOffsets.get(resultIndex), byteResults.get(resultIndex));
@@ -379,7 +379,7 @@ public class EmbeddingRequestChunker {
                 new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                     all.get(i).values(),
                     chunks.chunkText(i),
-                    new InferenceChunks.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
+                    new ChunkedInference.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
                 )
             );
         }
@@ -405,7 +405,7 @@ public class EmbeddingRequestChunker {
                 new ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk(
                     all.get(i).values(),
                     chunks.chunkText(i),
-                    new InferenceChunks.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
+                    new ChunkedInference.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
                 )
             );
         }
@@ -431,7 +431,7 @@ public class EmbeddingRequestChunker {
                 new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
                     all.get(i).tokens(),
                     chunks.chunkText(i),
-                    new InferenceChunks.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
+                    new ChunkedInference.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
                 )
             );
         }

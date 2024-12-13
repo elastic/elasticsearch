@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -91,8 +92,8 @@ public class NodeMetadataTests extends ESTestCase {
             () -> NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir)
         );
         Throwable rootCause = ex.getRootCause();
-        assertTrue(rootCause instanceof IllegalStateException);
-        assertEquals("Node version is required in node metadata", rootCause.getMessage());
+        assertThat(rootCause, instanceOf(IllegalStateException.class));
+        assertThat("Node version is required in node metadata", equalTo(rootCause.getMessage()));
     }
 
     public void testUpgradesLegitimateVersions() {

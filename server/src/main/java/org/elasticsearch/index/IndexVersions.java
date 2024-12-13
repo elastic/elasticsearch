@@ -236,6 +236,8 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
+    // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
         return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
     }

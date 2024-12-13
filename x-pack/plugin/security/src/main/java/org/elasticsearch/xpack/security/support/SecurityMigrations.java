@@ -49,7 +49,6 @@ public class SecurityMigrations {
 
     /**
      * Interface for creating SecurityMigrations that will be automatically applied once to existing .security indices
-     * IMPORTANT: A new index version needs to be added to {@link org.elasticsearch.index.IndexVersions} for the migration to be triggered
      */
     public interface SecurityMigration {
         /**

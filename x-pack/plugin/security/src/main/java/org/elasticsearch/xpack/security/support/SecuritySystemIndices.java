@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -58,7 +59,20 @@ public class SecuritySystemIndices {
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
     public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
+    public static final NodeFeature SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION = new NodeFeature(
+        "security.main_index_created_on_migration_version"
+    );
     public static final NodeFeature SECURITY_ROLE_MAPPING_CLEANUP = new NodeFeature("security.role_mapping_cleanup");
+
+    /**
+     * The latest version of the security migration when the main security index was created
+     */
+    public static final Setting<Integer> MAIN_INDEX_CREATED_ON_MIGRATION_VERSION = Setting.intSetting(
+        "index.security.migration.version",
+        0,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
 
     /**
      * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings
@@ -155,6 +169,7 @@ public class SecuritySystemIndices {
             .put(DataTier.TIER_PREFERENCE, "data_hot,data_content")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT)
+            .put(MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.getKey(), SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey())
             .put("analysis.filter.email.type", "pattern_capture")
             .put("analysis.filter.email.preserve_original", true)
             .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
@@ -69,6 +70,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 
 /**
@@ -268,11 +270,21 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Check if the index was created on the latest index version available in the cluster
      */
 
-    private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata) {
-        final IndexVersion indexVersionCreated = indexMetadata != null
-            ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
-            : null;
-        return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
+    private static boolean isCreatedOnLatestMigrationVersion(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return false;
+        }
+
+        final Integer indexCreatedOnMigrationVersion = SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.get(
+            indexMetadata.getSettings()
+        );
+
+        // 2 is the migration before the MAIN_INDEX_CREATED_ON_MIGRATION_VERSION was introduced
+        if (indexCreatedOnMigrationVersion > 2) {
+            return indexCreatedOnMigrationVersion.equals(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey());
+        }
+        // Fall back on IndexVersion
+        return SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings()).onOrAfter(IndexVersion.current());
     }
 
     /**
@@ -329,7 +341,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
-        final boolean createdOnLatestVersion = isCreatedOnLatestVersion(indexMetadata);
+        final boolean createdOnLatestMigrationVersion = isCreatedOnLatestMigrationVersion(indexMetadata);
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
@@ -369,7 +381,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForSearch,
             indexAvailableForWrite,
             mappingIsUpToDate,
-            createdOnLatestVersion,
+            createdOnLatestMigrationVersion,
             roleMappingsCleanupMigrationStatus,
             migrationsVersion,
             minClusterMappingVersion,
@@ -663,11 +675,19 @@ public class SecurityIndexManager implements ClusterStateListener {
                         state.concreteIndexName,
                         descriptorForVersion.getAliasName()
                     );
+
+                    // If not all nodes support the MAIN_INDEX_CREATED_ON_MIGRATION_VERSION index settings, don't include it
+                    Settings filteredIndexSettings = descriptorForVersion.getSettings();
+                    if (state.securityFeatures.contains(SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION) == false) {
+                        filteredIndexSettings = descriptorForVersion.getSettings()
+                            .filter(key -> key.equals(SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.getKey()) == false);
+                    }
+
                     // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases
                     // for system indices, we nonetheless specify them here so that the values from `descriptorForVersion` are used.
                     CreateIndexRequest request = new CreateIndexRequest(state.concreteIndexName).origin(descriptorForVersion.getOrigin())
                         .mapping(descriptorForVersion.getMappings())
-                        .settings(descriptorForVersion.getSettings())
+                        .settings(filteredIndexSettings)
                         .alias(new Alias(descriptorForVersion.getAliasName()))
                         .waitForActiveShards(ActiveShardCount.ALL);
 
@@ -743,8 +763,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
-    public boolean isCreatedOnLatestVersion() {
-        return state.createdOnLatestVersion;
+    public boolean isCreatedOnLatestMigrationVersion() {
+        return state.createdOnLatestMigrationVersion;
     }
 
     /**
@@ -789,7 +809,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean indexAvailableForSearch;
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
-        public final boolean createdOnLatestVersion;
+        public final boolean createdOnLatestMigrationVersion;
         public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
@@ -808,7 +828,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForSearch,
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
-            boolean createdOnLatestVersion,
+            boolean createdOnLatestMigrationVersion,
             RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
@@ -825,7 +845,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexAvailableForWrite = indexAvailableForWrite;
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
-            this.createdOnLatestVersion = createdOnLatestVersion;
+            this.createdOnLatestMigrationVersion = createdOnLatestMigrationVersion;
             this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
@@ -846,7 +866,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForSearch == state.indexAvailableForSearch
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
-                && createdOnLatestVersion == state.createdOnLatestVersion
+                && createdOnLatestMigrationVersion == state.createdOnLatestMigrationVersion
                 && roleMappingsCleanupMigrationStatus == state.roleMappingsCleanupMigrationStatus
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
@@ -869,7 +889,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForSearch,
                 indexAvailableForWrite,
                 mappingUpToDate,
-                createdOnLatestVersion,
+                createdOnLatestMigrationVersion,
                 roleMappingsCleanupMigrationStatus,
                 migrationsVersion,
                 minClusterMappingVersion,
@@ -893,8 +913,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + indexAvailableForWrite
                 + ", mappingUpToDate="
                 + mappingUpToDate
-                + ", createdOnLatestVersion="
-                + createdOnLatestVersion
+                + ", createdOnLatestMigrationVersion="
+                + createdOnLatestMigrationVersion
                 + ", roleMappingsCleanupMigrationStatus="
                 + roleMappingsCleanupMigrationStatus
                 + ", migrationsVersion="

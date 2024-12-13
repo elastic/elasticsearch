@@ -178,6 +178,19 @@ public class ClusterStateTests extends ESTestCase {
                   voting tombstones: []
             """));
 
+        // blocks
+        assertThat(toString, containsString("""
+            blocks:\s
+               _global_:
+                  6,cluster read-only (api), blocks WRITE,METADATA_WRITE
+               tb5W0bx765nDVIwqJPw92G:
+                  common-index:
+                     9,index metadata (api), blocks METADATA_READ,METADATA_WRITE
+               3LftaL7hgfXAsF60Gm6jcD:
+                  another-index:
+                     5,index read-only (api), blocks WRITE,METADATA_WRITE
+            """));
+
         // project indices
         assertThat(toString, containsString("""
                project[tb5W0bx765nDVIwqJPw92G]:
@@ -251,7 +264,41 @@ public class ClusterStateTests extends ESTestCase {
                   "version": 404,
                   "state_uuid": "dIP3KIhRQPux2CgaDWgTMA",
                   "master_node": null,
-                  "blocks": {},
+                  "blocks": {
+                    "global": {
+                      "6": {
+                        "retryable": false,
+                        "description": "cluster read-only (api)",
+                        "levels": [ "write", "metadata_write"]
+                      }
+                    },
+                    "projects": [
+                      {
+                        "id": "tb5W0bx765nDVIwqJPw92G",
+                        "indices": {
+                          "common-index": {
+                            "9": {
+                              "retryable": false,
+                              "description": "index metadata (api)",
+                              "levels": [ "metadata_read", "metadata_write"]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "3LftaL7hgfXAsF60Gm6jcD",
+                        "indices": {
+                          "another-index": {
+                            "5": {
+                              "retryable": false,
+                              "description": "index read-only (api)",
+                              "levels": [ "write", "metadata_write"]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
                   "nodes": {
                     "node_01": {
                       "name": "",
@@ -824,6 +871,12 @@ public class ClusterStateTests extends ESTestCase {
             .metadata(metadata)
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .blocks(
+                ClusterBlocks.builder()
+                    .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
+                    .addIndexBlock(new ProjectId("tb5W0bx765nDVIwqJPw92G"), "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
+                    .addIndexBlock(new ProjectId("3LftaL7hgfXAsF60Gm6jcD"), "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+            )
             .build();
     }
 
@@ -2015,7 +2068,18 @@ public class ClusterStateTests extends ESTestCase {
 
         // blocks
         if (metrics.contains(ClusterState.Metric.BLOCKS)) {
-            chunkCount += 2 + clusterState.blocks().indices().size();
+            chunkCount += 2; // chunks for before and after
+            final Map<ProjectId, ProjectMetadata> projects = clusterState.metadata().projects();
+            if (projects.size() == 1 && projects.containsKey(Metadata.DEFAULT_PROJECT_ID)) {
+                chunkCount += clusterState.blocks().indices(Metadata.DEFAULT_PROJECT_ID).size();
+            } else {
+                for (var projectId : clusterState.metadata().projects().keySet()) {
+                    final Map<String, Set<ClusterBlock>> indicesBlocks = clusterState.blocks().indices(projectId);
+                    if (indicesBlocks.isEmpty() == false) {
+                        chunkCount += 2 + indicesBlocks.size();
+                    }
+                }
+            }
         }
 
         // nodes, nodes_versions, nodes_features

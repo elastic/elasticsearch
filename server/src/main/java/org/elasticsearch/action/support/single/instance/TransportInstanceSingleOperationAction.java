@@ -105,7 +105,7 @@ public abstract class TransportInstanceSingleOperationAction<
     }
 
     protected ClusterBlockException checkRequestBlock(ProjectState state, Request request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
+        return state.blocks().indexBlockedException(state.projectId(), ClusterBlockLevel.WRITE, request.concreteIndex());
     }
 
     /**

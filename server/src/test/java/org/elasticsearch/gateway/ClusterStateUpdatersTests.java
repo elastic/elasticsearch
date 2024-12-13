@@ -99,7 +99,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         assertMetadataEquals(initialState, newState);
         assertTrue(newState.blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
         assertTrue(newState.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK));
-        assertTrue(newState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_READ_BLOCK));
+        assertTrue(newState.blocks().hasIndexBlock(projectMetadata.id(), "test", IndexMetadata.INDEX_READ_BLOCK));
     }
 
     public void testRemoveStateNotRecoveredBlock() {

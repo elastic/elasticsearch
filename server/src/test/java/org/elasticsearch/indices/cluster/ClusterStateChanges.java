@@ -324,6 +324,7 @@ public class ClusterStateChanges {
             threadPool,
             deleteIndexService,
             actionFilters,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
             destructiveOperations
         );

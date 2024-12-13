@@ -2522,6 +2522,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         new MetadataDeleteIndexService(settings, clusterService, allocationService),
                         actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                         indexNameExpressionResolver,
                         new DestructiveOperations(settings, clusterSettings)
                     )

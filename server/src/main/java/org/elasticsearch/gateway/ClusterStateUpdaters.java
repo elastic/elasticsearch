@@ -88,9 +88,11 @@ public class ClusterStateUpdaters {
             blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
         }
 
-        for (final IndexMetadata indexMetadata : state.metadata().indicesAllProjects()) {
-            blocks.addBlocks(indexMetadata);
-        }
+        state.forEachProject(projectState -> {
+            for (final IndexMetadata indexMetadata : projectState.metadata()) {
+                blocks.addBlocks(projectState.projectId(), indexMetadata);
+            }
+        });
 
         return ClusterState.builder(state).blocks(blocks).build();
     }

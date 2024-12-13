@@ -218,9 +218,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                     .put(indexMetadata, true)
                     .build()
             )
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
-        assertTrue(anotherFinalClusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(anotherFinalClusterState.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
 
         monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
@@ -590,10 +590,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState)
             .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(indexMetadata, true))
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
 
-        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
         monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
             () -> clusterStateWithBlocks,
@@ -974,10 +974,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                     )
                     .build()
             )
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
 
-        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(clusterStateWithBlocks.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
 
         currentClusterState.set(clusterStateWithBlocks);
 
@@ -1039,10 +1039,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         final ClusterState clusterStateNoShutdown = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true).removeCustom(NodesShutdownMetadata.TYPE).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata).build())
             .build();
 
-        assertTrue(clusterStateNoShutdown.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
+        assertTrue(clusterStateNoShutdown.blocks().indexBlocked(projectId, ClusterBlockLevel.WRITE, "test_2"));
 
         currentClusterState.set(clusterStateNoShutdown);
 

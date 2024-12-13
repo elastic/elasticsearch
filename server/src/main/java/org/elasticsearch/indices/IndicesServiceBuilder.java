@@ -33,6 +33,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -78,6 +80,7 @@ public class IndicesServiceBuilder {
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
+    QueryRewriteInterceptor queryRewriteInterceptor = null;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -246,6 +249,27 @@ public class IndicesServiceBuilder {
             .map(IndexStorePlugin::getSnapshotCommitSuppliers)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        var queryRewriteInterceptors = pluginsService.filterPlugins(SearchPlugin.class)
+            .map(SearchPlugin::getQueryRewriteInterceptors)
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, interceptor -> {
+                if (interceptor.getQueryName() == null) {
+                    throw new IllegalArgumentException("QueryRewriteInterceptor [" + interceptor.getClass().getName() + "] requires name");
+                }
+                return interceptor;
+            }, (a, b) -> {
+                throw new IllegalStateException(
+                    "Conflicting rewrite interceptors ["
+                        + a.getQueryName()
+                        + "] found in ["
+                        + a.getClass().getName()
+                        + "] and ["
+                        + b.getClass().getName()
+                        + "]"
+                );
+            }));
+        queryRewriteInterceptor = QueryRewriteInterceptor.multi(queryRewriteInterceptors);
 
         return new IndicesService(this);
     }

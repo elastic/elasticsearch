@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -34,6 +36,12 @@ public final class PhysicalVerifier {
     public Collection<Failure> verify(PhysicalPlan plan) {
         Set<Failure> failures = new LinkedHashSet<>();
         Failures depFailures = new Failures();
+
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+        var enriches = plan.collectFirstChildren(EnrichExec.class::isInstance);
+        if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
+            return failures;
+        }
 
         plan.forEachDown(p -> {
             if (p instanceof AggregateExec agg) {

@@ -452,24 +452,6 @@ tests:
 - class: org.elasticsearch.discovery.ec2.DiscoveryEc2AvailabilityZoneAttributeNoImdsIT
   method: testAvailabilityZoneAttribute
   issue: https://github.com/elastic/elasticsearch/issues/118564
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {grok.OverwriteName SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118631
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {stats.ByStringAndLongWithAlias SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118632
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {dissect.OverwriteNameWhere SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118633
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/118514
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {grok.OverwriteNameWhere SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118638
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {dissect.OverwriteName SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118667
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {stats.ByDateAndKeywordAndIntWithAlias SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/118668

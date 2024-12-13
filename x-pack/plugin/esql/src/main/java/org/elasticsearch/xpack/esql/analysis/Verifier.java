@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -207,7 +207,6 @@ public class Verifier {
             checkJoin(p, failures);
         });
         checkRemoteEnrich(plan, failures);
-        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -219,13 +218,6 @@ public class Verifier {
         }
 
         return failures;
-    }
-
-    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
-        // _score can only be set as metadata attribute
-        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
-            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
-        }
     }
 
     private void checkSort(LogicalPlan p, Set<Failure> failures) {
@@ -324,11 +316,15 @@ public class Verifier {
     private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
         // Forbid CATEGORIZE grouping function with other groupings
         if (agg.groupings().size() > 1) {
-            agg.groupings().forEach(g -> {
+            agg.groupings().subList(1, agg.groupings().size()).forEach(g -> {
                 g.forEachDown(
                     Categorize.class,
                     categorize -> failures.add(
-                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                        fail(
+                            categorize,
+                            "CATEGORIZE grouping function [{}] can only be in the first grouping expression",
+                            categorize.sourceText()
+                        )
                     )
                 );
             });
@@ -381,6 +377,18 @@ public class Verifier {
                     );
                 }
             })));
+        agg.aggregates().forEach(a -> a.forEachDown(FilteredExpression.class, fe -> fe.filter().forEachDown(Attribute.class, attribute -> {
+            var categorize = categorizeByAttribute.get(attribute);
+            if (categorize != null) {
+                failures.add(
+                    fail(
+                        attribute,
+                        "cannot reference CATEGORIZE grouping function [{}] within an aggregation filter",
+                        attribute.sourceText()
+                    )
+                );
+            }
+        })));
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
@@ -420,7 +428,8 @@ public class Verifier {
                 Expression filter = fe.filter();
                 failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
             }
-            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
+            Expression f = fe.filter();
+            // check the filter has to be a boolean term, similar as checkFilterConditionType
             if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
                 failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
             }
@@ -431,9 +440,10 @@ public class Verifier {
                         fail(af, "cannot use aggregate function [{}] in aggregate WHERE clause [{}]", af.sourceText(), fe.sourceText())
                     );
                 }
-                // check the bucketing function against the group
+                // check the grouping function against the group
                 else if (c instanceof GroupingFunction gf) {
-                    if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                    if (c instanceof Categorize
+                        || Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
                         failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }
@@ -595,8 +605,16 @@ public class Verifier {
         functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
+    public XPackLicenseState licenseState() {
+        return licenseState;
+    }
+
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
@@ -641,6 +659,12 @@ public class Verifier {
         if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
+
+        // Allow mixed millisecond and nanosecond binary comparisons
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+            return null;
+        }
+
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,

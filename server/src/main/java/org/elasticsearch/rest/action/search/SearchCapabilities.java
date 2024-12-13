@@ -10,7 +10,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -34,16 +34,18 @@ public final class SearchCapabilities {
     private static final String TRANSFORM_RANK_RRF_TO_RETRIEVER = "transform_rank_rrf_to_retriever";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
-    /** Support multi-dense-vector field mapper. */
-    private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
+    /** Support rank-vectors field mapper. */
+    private static final String RANK_VECTORS_FIELD_MAPPER = "rank_vectors_field_mapper";
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
-    /** Support multi-dense-vector script field access. */
-    private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
-    /** Initial support for multi-dense-vector maxSim functions access. */
-    private static final String MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM = "multi_dense_vector_script_max_sim_with_bugfix";
+    /** Support rank-vectors script field access. */
+    private static final String RANK_VECTORS_SCRIPT_ACCESS = "rank_vectors_script_access";
+    /** Initial support for rank-vectors maxSim functions access. */
+    private static final String RANK_VECTORS_SCRIPT_MAX_SIM = "rank_vectors_script_max_sim_with_bugfix";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+    private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
+    private static final String KNN_QUANTIZED_VECTOR_RESCORE = "knn_quantized_vector_rescore";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -55,10 +57,12 @@ public final class SearchCapabilities {
         capabilities.add(TRANSFORM_RANK_RRF_TO_RETRIEVER);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
         capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
-        if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
-            capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
-            capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);
-            capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM);
+        capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
+        capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE);
+        if (RankVectorsFieldMapper.FEATURE_FLAG.isEnabled()) {
+            capabilities.add(RANK_VECTORS_FIELD_MAPPER);
+            capabilities.add(RANK_VECTORS_SCRIPT_ACCESS);
+            capabilities.add(RANK_VECTORS_SCRIPT_MAX_SIM);
         }
         if (Build.current().isSnapshot()) {
             capabilities.add(KQL_QUERY_SUPPORTED);

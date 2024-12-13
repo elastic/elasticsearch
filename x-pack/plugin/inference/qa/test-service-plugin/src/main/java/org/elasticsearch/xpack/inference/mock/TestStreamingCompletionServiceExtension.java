@@ -30,17 +30,20 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Flow;
@@ -121,8 +124,26 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             }
         }
 
+        @Override
+        public void unifiedCompletionInfer(
+            Model model,
+            UnifiedCompletionRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            switch (model.getConfigurations().getTaskType()) {
+                case COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                default -> listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        }
+
         private StreamingChatCompletionResults makeResults(List<String> input) {
-            var responseIter = input.stream().map(String::toUpperCase).iterator();
+            var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -148,6 +169,59 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 ChunkedToXContentHelper.field("delta", delta),
                 ChunkedToXContentHelper.endObject(),
                 ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
+            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
+            return new StreamingUnifiedChatCompletionResults(subscriber -> {
+                subscriber.onSubscribe(new Flow.Subscription() {
+                    @Override
+                    public void request(long n) {
+                        if (responseIter.hasNext()) {
+                            subscriber.onNext(unifiedCompletionChunk(responseIter.next()));
+                        } else {
+                            subscriber.onComplete();
+                        }
+                    }
+
+                    @Override
+                    public void cancel() {}
+                });
+            });
+        }
+
+        /*
+        The response format looks like this
+        {
+          "id": "chatcmpl-AarrzyuRflye7yzDF4lmVnenGmQCF",
+          "choices": [
+            {
+              "delta": {
+                "content": " information"
+              },
+              "index": 0
+            }
+          ],
+          "model": "gpt-4o-2024-08-06",
+          "object": "chat.completion.chunk"
+        }
+         */
+        private ChunkedToXContent unifiedCompletionChunk(String delta) {
+            return params -> Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.field("id", "id"),
+                ChunkedToXContentHelper.startArray("choices"),
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startObject("delta"),
+                ChunkedToXContentHelper.field("content", delta),
+                ChunkedToXContentHelper.endObject(),
+                ChunkedToXContentHelper.field("index", 0),
+                ChunkedToXContentHelper.endObject(),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
+                ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
                 ChunkedToXContentHelper.endObject()
             );
         }

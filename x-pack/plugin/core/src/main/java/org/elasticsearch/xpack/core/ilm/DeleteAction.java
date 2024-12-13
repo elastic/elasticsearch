@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -99,7 +98,7 @@ public class DeleteAction implements LifecycleAction {
             );
             CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, deleteStepKey, client);
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
-            return Arrays.asList(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, cleanupSnapshotStep, deleteStep);
+            return List.of(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, cleanupSnapshotStep, deleteStep);
         } else {
             WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
                 waitForNoFollowerStepKey,
@@ -113,7 +112,7 @@ public class DeleteAction implements LifecycleAction {
                 client
             );
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
-            return Arrays.asList(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, deleteStep);
+            return List.of(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, deleteStep);
         }
     }
 

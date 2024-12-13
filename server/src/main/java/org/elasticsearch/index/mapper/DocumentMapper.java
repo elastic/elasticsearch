@@ -30,6 +30,7 @@ public class DocumentMapper {
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
     private final Logger logger;
+    private final String indexName;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -67,6 +68,7 @@ public class DocumentMapper {
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;
         this.logger = Loggers.getLogger(getClass(), indexName);
+        this.indexName = indexName;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
@@ -74,9 +76,9 @@ public class DocumentMapper {
 
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
-            logger.debug("Error while parsing document: " + ex.getMessage(), ex);
+            logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
-            logger.error("Error while parsing document: " + ex.getMessage(), ex);
+            logger.info("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         }
     }
 
@@ -153,7 +155,7 @@ public class DocumentMapper {
          * with the source loading strategy declared on the source field mapper.
          */
         try {
-            sourceMapper().newSourceLoader(mapping(), mapperMetrics.sourceFieldMetrics());
+            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
         } catch (IllegalArgumentException e) {
             mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
             throw e;

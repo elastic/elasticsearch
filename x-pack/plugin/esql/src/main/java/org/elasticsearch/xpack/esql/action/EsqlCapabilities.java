@@ -346,6 +346,11 @@ public class EsqlCapabilities {
         DATE_NANOS_BINARY_COMPARISON(),
 
         /**
+         * Support for mixed comparisons between nanosecond and millisecond dates
+         */
+        DATE_NANOS_COMPARE_TO_MILLIS(),
+
+        /**
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),
@@ -414,6 +419,10 @@ public class EsqlCapabilities {
          */
         CATEGORIZE_V5,
 
+        /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
         /**
          * QSTR function
          */
@@ -555,7 +564,12 @@ public class EsqlCapabilities {
         /**
          * Term function
          */
-        TERM_FUNCTION(Build.current().isSnapshot());
+        TERM_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES;
 
         private final boolean enabled;
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.Page;
 
 public interface RemoteSink {
 
@@ -15,11 +16,11 @@ public interface RemoteSink {
 
     default void close(ActionListener<Void> listener) {
         fetchPageAsync(true, listener.delegateFailure((l, r) -> {
-            try {
-                r.close();
-            } finally {
-                l.onResponse(null);
+            final Page page = r.takePage();
+            if (page != null) {
+                page.releaseBlocks();
             }
+            l.onResponse(null);
         }));
     }
 }

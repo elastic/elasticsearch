@@ -30,11 +30,11 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -43,6 +43,8 @@ import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.rest.MethodHandlers;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -56,6 +58,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
@@ -113,12 +116,14 @@ class Elasticsearch {
              * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
              * This forces such policies to take effect immediately.
              */
-            org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-                @Override
-                public void checkPermission(Permission perm) {
-                    // grant all permissions so that we can later set the security manager to the one that we want
-                }
-            });
+            if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+                org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
+                    @Override
+                    public void checkPermission(Permission perm) {
+                        // grant all permissions so that we can later set the security manager to the one that we want
+                    }
+                });
+            }
             LogConfigurator.registerErrorListener();
 
             BootstrapInfo.init();
@@ -198,7 +203,11 @@ class Elasticsearch {
             SubscribableListener.class,
             RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
-            VectorUtil.class
+            VectorUtil.class,
+            // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
+            // it now (before SM) to be sure
+            RequestHandlerRegistry.class,
+            MethodHandlers.class
         );
 
         // load the plugin Java modules and layers now for use in entitlements
@@ -209,13 +218,17 @@ class Elasticsearch {
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-            List<Tuple<Path, Boolean>> pluginData = pluginsLoader.allBundles()
-                .stream()
-                .map(bundle -> Tuple.tuple(bundle.getDir(), bundle.pluginDescriptor().isModular()))
-                .toList();
+            List<EntitlementBootstrap.PluginData> pluginData = Stream.concat(
+                pluginsLoader.moduleBundles()
+                    .stream()
+                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                pluginsLoader.pluginBundles()
+                    .stream()
+                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+            ).toList();
 
             EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
-        } else {
+        } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
@@ -223,6 +236,8 @@ class Elasticsearch {
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
                 args.pidFile()
             );
+        } else {
+            LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
     }
 

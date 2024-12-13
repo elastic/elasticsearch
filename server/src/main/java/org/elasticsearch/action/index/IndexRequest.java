@@ -685,8 +685,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        indexRouting.process(this);
+    public void preRoutingProcess(IndexRouting indexRouting) {
+        indexRouting.preProcess(this);
+    }
+
+    @Override
+    public void postRoutingProcess(IndexRouting indexRouting) {
+        indexRouting.postProcess(this);
     }
 
     /**
@@ -885,7 +890,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source, this::routing);
+        return indexRouting.indexShard(id, routing, contentType, source);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

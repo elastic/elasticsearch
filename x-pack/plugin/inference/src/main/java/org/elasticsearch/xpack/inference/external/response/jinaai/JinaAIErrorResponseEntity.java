@@ -12,19 +12,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
-public class JinaAIErrorResponseEntity implements ErrorMessage {
-
-    private final String errorMessage;
+public class JinaAIErrorResponseEntity extends ErrorResponse {
 
     private JinaAIErrorResponseEntity(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    @Override
-    public String getErrorMessage() {
-        return errorMessage;
+        super(errorMessage);
     }
 
     /**

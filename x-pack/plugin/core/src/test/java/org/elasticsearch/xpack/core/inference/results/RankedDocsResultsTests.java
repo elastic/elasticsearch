@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractChunkedBWCSerializationTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,27 +42,12 @@ public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestC
     public void test_asMap() {
         var index = randomIntBetween(0, 100);
         var score = randomFloat();
-        var docNullText = new RankedDocsResults.RankedDoc(index, randomFloat(), null);
-        var mapNullText = docNullText.asMap();
-        assert mapNullText.containsKey("index");
-        assert mapNullText.containsKey("relevanceScore");
-        assert mapNullText.containsKey("text");
+        var mapNullText = new RankedDocsResults.RankedDoc(index, score, null).asMap();
+        assertThat(mapNullText, Matchers.is(Map.of("ranked_doc", Map.of("index", index, "relevance_score", score))));
 
-        assert mapNullText.get("index").equals(index);
-        assert mapNullText.get("relevanceScore").equals(score);
-        assert mapNullText.get("text").equals("Sample text");
-
-        var docWithText = new RankedDocsResults.RankedDoc(index, randomFloat(), "Sample text");
-        var mapWithText = docNullText.asMap();
-        assert mapNullText.containsKey("index");
-        assert mapNullText.containsKey("relevanceScore");
-        assert mapNullText.containsKey("text");
-
-        assert mapNullText.get("index").equals(index);
-        assert mapNullText.get("relevanceScore").equals(score);
-        assert mapNullText.get("text").equals("Sample text");
+        var mapWithText = new RankedDocsResults.RankedDoc(index, score, "Sample text").asMap();
+        assertThat(mapWithText, Matchers.is(Map.of("ranked_doc", Map.of("index", index, "relevance_score", score, "text", "Sample text"))));
     }
-
 
     @Override
     protected RankedDocsResults mutateInstance(RankedDocsResults instance) throws IOException {

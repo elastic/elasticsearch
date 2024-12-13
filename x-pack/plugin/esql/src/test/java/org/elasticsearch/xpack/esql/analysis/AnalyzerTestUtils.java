@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -105,7 +106,12 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution loadMapping(String resource, String indexName) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, IndexMode.STANDARD));
+        return IndexResolution.valid(test);
+    }
+
+    public static IndexResolution loadMapping(String resource, String indexName, IndexMode mode) {
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, mode));
         return IndexResolution.valid(test);
     }
 
@@ -118,7 +124,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution defaultLookupResolution() {
-        return loadMapping("mapping-languages.json", "languages_lookup");
+        return loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP);
     }
 
     public static EnrichResolution defaultEnrichResolution() {

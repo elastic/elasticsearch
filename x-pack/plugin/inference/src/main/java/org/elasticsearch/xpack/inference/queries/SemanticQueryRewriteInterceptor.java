@@ -34,20 +34,22 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
         QueryBuilder rewritten = queryBuilder;
         String fieldName = getFieldName(queryBuilder);
-        InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, context.getResolvedIndices());
-
-        if (indexInformation == null || indexInformation.getInferenceIndices().isEmpty()) {
-            // No inference fields were identified, so return the original query.
-            return rewritten;
-        } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-            // Combined case where the field name requested by this query contains both
-            // semantic_text and non-inference fields, so we have to combine queries per index
-            // containing each field type.
-            rewritten = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
-        } else {
-            // The only fields we've identified are inference fields (e.g. semantic_text),
-            // so rewrite the entire query to work on a semantic_text field.
-            rewritten = buildInferenceQuery(queryBuilder, indexInformation);
+        ResolvedIndices resolvedIndices = context.getResolvedIndices();
+        if (resolvedIndices != null) {
+            InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
+            if (indexInformation.getInferenceIndices().isEmpty()) {
+                // No inference fields were identified, so return the original query.
+                return rewritten;
+            } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
+                // Combined case where the field name requested by this query contains both
+                // semantic_text and non-inference fields, so we have to combine queries per index
+                // containing each field type.
+                rewritten = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+            } else {
+                // The only fields we've identified are inference fields (e.g. semantic_text),
+                // so rewrite the entire query to work on a semantic_text field.
+                rewritten = buildInferenceQuery(queryBuilder, indexInformation);
+            }
         }
 
         return rewritten;
@@ -87,23 +89,20 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     );
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
-        if (resolvedIndices != null) {
-            Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
-            Map<String, InferenceFieldMetadata> inferenceIndicesMetadata = new HashMap<>();
-            List<String> nonInferenceIndices = new ArrayList<>();
-            for (IndexMetadata indexMetadata : indexMetadataCollection) {
-                String indexName = indexMetadata.getIndex().getName();
-                InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-                if (inferenceFieldMetadata != null) {
-                    inferenceIndicesMetadata.put(indexName, inferenceFieldMetadata);
-                } else {
-                    nonInferenceIndices.add(indexName);
-                }
+        Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        Map<String, InferenceFieldMetadata> inferenceIndicesMetadata = new HashMap<>();
+        List<String> nonInferenceIndices = new ArrayList<>();
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            String indexName = indexMetadata.getIndex().getName();
+            InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
+            if (inferenceFieldMetadata != null) {
+                inferenceIndicesMetadata.put(indexName, inferenceFieldMetadata);
+            } else {
+                nonInferenceIndices.add(indexName);
             }
-
-            return new InferenceIndexInformationForField(fieldName, inferenceIndicesMetadata, nonInferenceIndices);
         }
-        return null;
+
+        return new InferenceIndexInformationForField(fieldName, inferenceIndicesMetadata, nonInferenceIndices);
     }
 
     protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {

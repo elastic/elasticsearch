@@ -34,7 +34,7 @@ POST /hockey/_explain/1
 // The test system sends error_trace=true by default for easier debugging so
 // we have to override it to get a normal shaped response
 
-Which shows that the class of `doc.first` is
+Which shows that the class of `doc.goals` is
 `org.elasticsearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
 [source,console-result]

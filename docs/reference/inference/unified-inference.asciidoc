@@ -75,7 +75,7 @@ The role of the message author. This should be set to `assistant` for this type 
 .Examples
 [%collapsible%closed]
 ======
-[source,json]
+[source,js]
 ------------------------------------------------------------
 {
     "tool_calls": [
@@ -211,7 +211,7 @@ Whether to enable schema adherence when generating the function call.
 .Examples
 [%collapsible%closed]
 ======
-[source,json]
+[source,js]
 ------------------------------------------------------------
 {
     "tools": [
@@ -266,7 +266,7 @@ The name of the function to call.
 .Examples
 [%collapsible%closed]
 =====
-[source,json]
+[source,js]
 ------------------------------------------------------------
 {
     "tool_choice": {

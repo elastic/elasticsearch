@@ -68,7 +68,7 @@ tag::unified-schema-content-with-examples[]
 [%collapsible%closed]
 ======
 String example
-[source,json]
+[source,js]
 ------------------------------------------------------------
 {
     "content": "Some string"
@@ -77,7 +77,7 @@ String example
 // NOTCONSOLE
 
 Object example
-[source,json]
+[source,js]
 ------------------------------------------------------------
 {
     "content": [

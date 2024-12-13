@@ -63,7 +63,6 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.ackTimeout(getAckTimeout(request));
         rolloverIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        // PRTODO: Ensure rollover uses the selector on the name to roll over data stream failure stores
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
-- class: org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT
-  method: testTopNThenEnrichRemote
-  issue: https://github.com/elastic/elasticsearch/issues/118307
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/118350
@@ -317,6 +314,12 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/118517
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/116521
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
+  method: testPlanSanityCheckWithBinaryPlans
+  issue: https://github.com/elastic/elasticsearch/issues/118656
 
 # Examples:
 #

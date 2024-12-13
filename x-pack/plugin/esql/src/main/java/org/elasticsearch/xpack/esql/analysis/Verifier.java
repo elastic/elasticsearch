@@ -610,6 +610,10 @@ public class Verifier {
         functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
+    public XPackLicenseState licenseState() {
+        return licenseState;
+    }
+
     /**
      * Limit QL's comparisons to types we support.  This should agree with
      * {@link EsqlBinaryComparison}'s checkCompatibility method

@@ -228,7 +228,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 if (isExpectedFailure(bulkFailure.getValue())) {
                     logger.info(logMessage, bulkFailure.getValue());
                 } else {
-                    logger.warn(logMessage, bulkFailure.getKey(), bulkFailure.getValue());
+                    logger.warn(logMessage, bulkFailure.getValue());
                 }
             }
         } else if (isExpectedFailure(e)) {

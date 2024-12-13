@@ -1537,8 +1537,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
-        EsqlSession.ListenerResult listenerResult = new EsqlSession.ListenerResult(null);
-        return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, listenerResult).fieldNames();
+        var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
+        return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();
     }
 
     private void assertFieldNames(String query, Set<String> expected) {
@@ -1547,9 +1547,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
-        EsqlSession.ListenerResult listenerResult = new EsqlSession.ListenerResult(null);
-        listenerResult = EsqlSession.fieldNames(parser.createStatement(query), Set.of(), listenerResult);
-        assertThat("Query-wide field names", listenerResult.fieldNames(), equalTo(expected));
-        assertThat("Lookup Indices that expect wildcard lookups", listenerResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+        var preAnalysisResult = EsqlSession.fieldNames(parser.createStatement(query), Set.of(), new EsqlSession.PreAnalysisResult(null));
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
+        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }
 }

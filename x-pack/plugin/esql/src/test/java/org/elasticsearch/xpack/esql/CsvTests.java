@@ -445,7 +445,8 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanningMetrics(),
-            null
+            null,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

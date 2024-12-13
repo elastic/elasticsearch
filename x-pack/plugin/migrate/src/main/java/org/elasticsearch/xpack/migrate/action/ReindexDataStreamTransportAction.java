@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.TASK_ID_PREFIX;
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.getOldIndexVersionPredicate;
 
 /*
  * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation
@@ -67,10 +68,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             return;
         }
         int totalIndices = dataStream.getIndices().size();
-        int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
-            .stream()
-            .filter(index -> metadata.index(index).getCreationVersion().isLegacyIndexVersion())
-            .count();
+        int totalIndicesToBeUpgraded = (int) dataStream.getIndices().stream().filter(getOldIndexVersionPredicate(metadata)).count();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),

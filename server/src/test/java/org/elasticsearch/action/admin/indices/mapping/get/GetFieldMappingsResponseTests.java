@@ -12,23 +12,15 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.hasKey;
 
 public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCase<GetFieldMappingsResponse> {
 
@@ -54,36 +46,6 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         mappings.put("index", Collections.emptyMap());
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
         assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(response));
-    }
-
-    public void testToXContentIncludesType() throws Exception {
-        Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
-        FieldMappingMetadata fieldMappingMetadata = new FieldMappingMetadata("my field", new BytesArray("{}"));
-        mappings.put("index", Collections.singletonMap("field", fieldMappingMetadata));
-        GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_type_name", "true"));
-
-        // v8 does not have _doc, even when include_type_name is present
-        // (although this throws unconsumed parameter exception in RestGetFieldMappingsAction)
-        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {
-            response.toXContent(builder, params);
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                @SuppressWarnings("unchecked")
-                Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
-                assertThat(index.get("mappings"), hasKey("field"));
-            }
-        }
-
-        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {
-            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                @SuppressWarnings("unchecked")
-                Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
-                assertThat(index.get("mappings"), hasKey("field"));
-            }
-        }
     }
 
     @Override

@@ -123,4 +123,15 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
         assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
     }
+
+    public void testThatDeprecatedTypesDeserializedAsFixed() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("foo", ThreadPool.ThreadPoolType.DIRECT);
+        output.setTransportVersion(TransportVersion.current());
+        info.writeTo(output);
+
+        StreamInput input = output.bytes().streamInput();
+        ThreadPool.Info newInfo = new ThreadPool.Info(input);
+
+        assertThat(newInfo.getThreadPoolType(), is(ThreadPool.ThreadPoolType.FIXED));
+    }
 }

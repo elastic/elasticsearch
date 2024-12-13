@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -26,7 +27,7 @@ import java.util.stream.Stream;
 public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
 
     private final ToXContent.Params params;
-    private final Stream.Builder<ToXContent> builder = Stream.builder();
+    private final Stream.Builder<ChunkedToXContent> builder = Stream.builder();
     private Iterator<ToXContent> iterator;
 
     public ChunkedToXContentBuilder(ToXContent.Params params) {
@@ -34,6 +35,10 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     private void addChunk(ToXContent content) {
+        addChunk(p -> Iterators.single(content));
+    }
+
+    private void addChunk(ChunkedToXContent content) {
         assert iterator == null : "Builder has been read, cannot add any more chunks";
         builder.add(Objects.requireNonNull(content));
     }
@@ -264,7 +269,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      */
     public ChunkedToXContentBuilder array(Iterator<? extends ToXContent> items) {
         startArray();
-        items.forEachRemaining(this::append);
+        append(items);
         endArray();
         return this;
     }
@@ -429,13 +434,13 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
 
     public ChunkedToXContentBuilder append(ChunkedToXContent chunk) {
         if (chunk != ChunkedToXContent.EMPTY) {
-            append(chunk.toXContentChunked(params));
+            addChunk(chunk);
         }
         return this;
     }
 
     public ChunkedToXContentBuilder append(Iterator<? extends ToXContent> xContents) {
-        xContents.forEachRemaining(this::append);
+        addChunk(p -> xContents);
         return this;
     }
 
@@ -455,7 +460,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
 
     private Iterator<ToXContent> checkCreateIterator() {
         if (iterator == null) {
-            iterator = builder.build().iterator();
+            iterator = Iterators.flatMap(builder.build().iterator(), c -> c.toXContentChunked(params));
         }
         return iterator;
     }

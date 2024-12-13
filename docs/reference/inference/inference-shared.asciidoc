@@ -41,7 +41,7 @@ end::chunking-settings[]
 tag::chunking-settings-max-chunking-size[]
 Specifies the maximum size of a chunk in words.
 Defaults to `250`.
-This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `10` (for `word` strategy). 
+This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `10` (for `word` strategy).
 end::chunking-settings-max-chunking-size[]
 
 tag::chunking-settings-overlap[]
@@ -63,4 +63,44 @@ Specifies the chunking strategy.
 It could be either `sentence` or `word`.
 end::chunking-settings-strategy[]
 
+tag::unified-schema-content-with-examples[]
+.Examples
+[%collapsible%closed]
+======
+String example
+[source,json]
+------------------------------------------------------------
+{
+    "content": "Some string"
+}
+------------------------------------------------------------
+// NOTCONSOLE
 
+Object example
+[source,json]
+------------------------------------------------------------
+{
+    "content": [
+        {
+            "text": "Some text",
+            "type": "text"
+        }
+    ]
+}
+------------------------------------------------------------
+// NOTCONSOLE
+======
+
+String representation:::
+(Required, string)
+The text content.
++
+Object representation:::
+`text`::::
+(Required, string)
+The text content.
++
+`type`::::
+(Required, string)
+This must be set to the value `text`.
+end::unified-schema-content-with-examples[]

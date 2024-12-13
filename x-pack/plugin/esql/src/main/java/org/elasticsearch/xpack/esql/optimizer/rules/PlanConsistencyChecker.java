@@ -20,14 +20,14 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class PlanConsistencyChecker<P extends QueryPlan<P>> {
+public class PlanConsistencyChecker {
 
     /**
      * Check whether a single {@link QueryPlan} produces no duplicate attributes and its children provide all of its required
      * {@link QueryPlan#references() references}. Otherwise, add
      * {@link org.elasticsearch.xpack.esql.common.Failure Failure}s to the {@link Failures} object.
      */
-    public void checkPlan(P p, Failures failures) {
+    public static void checkPlan(QueryPlan<?> p, Failures failures) {
         if (p instanceof BinaryPlan binaryPlan) {
             checkMissingBinary(
                 p,
@@ -61,8 +61,8 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
         }
     }
 
-    private void checkMissingBinary(
-        P plan,
+    private static void checkMissingBinary(
+        QueryPlan<?> plan,
         AttributeSet leftReferences,
         AttributeSet leftInput,
         AttributeSet rightReferences,
@@ -73,7 +73,13 @@ public class PlanConsistencyChecker<P extends QueryPlan<P>> {
         checkMissing(plan, rightReferences, rightInput, "missing references from right hand side", failures);
     }
 
-    private void checkMissing(P plan, AttributeSet references, AttributeSet input, String detailErrorMessage, Failures failures) {
+    private static void checkMissing(
+        QueryPlan<?> plan,
+        AttributeSet references,
+        AttributeSet input,
+        String detailErrorMessage,
+        Failures failures
+    ) {
         AttributeSet missing = references.subtract(input);
         if (missing.isEmpty() == false) {
             failures.add(fail(plan, "Plan [{}] optimized incorrectly due to {} {}", plan.nodeString(), detailErrorMessage, missing));

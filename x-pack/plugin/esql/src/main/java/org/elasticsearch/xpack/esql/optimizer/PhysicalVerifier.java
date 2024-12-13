@@ -25,7 +25,6 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public final class PhysicalVerifier {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
-    private static final PlanConsistencyChecker<PhysicalPlan> DEPENDENCY_CHECK = new PlanConsistencyChecker<>();
 
     private PhysicalVerifier() {}
 
@@ -48,7 +47,7 @@ public final class PhysicalVerifier {
                     );
                 }
             }
-            DEPENDENCY_CHECK.checkPlan(p, depFailures);
+            PlanConsistencyChecker.checkPlan(p, depFailures);
         });
 
         if (depFailures.hasFailures()) {

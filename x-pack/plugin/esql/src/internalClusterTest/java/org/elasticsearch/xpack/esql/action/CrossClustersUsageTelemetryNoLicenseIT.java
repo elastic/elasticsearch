@@ -17,13 +17,13 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CrossClustersUsageTelemetryNoLicenseIT extends CrossClustersUsageTelemetryIT {
+public class CrossClustersUsageTelemetryNoLicenseIT extends AbstractCrossClustersUsageTelemetryIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(EsqlPluginWithNonEnterpriseOrExpiredLicense.class);
+        plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
         return plugins;
     }
 

@@ -10,13 +10,12 @@
 package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
  */
-public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
+public abstract class CircuitBreakerService {
 
     protected CircuitBreakerService() {}
 
@@ -34,14 +33,5 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
      * @return stats about a specific breaker
      */
     public abstract CircuitBreakerStats stats(String name);
-
-    @Override
-    protected void doStart() {}
-
-    @Override
-    protected void doStop() {}
-
-    @Override
-    protected void doClose() {}
 
 }

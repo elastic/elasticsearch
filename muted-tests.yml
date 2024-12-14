@@ -464,3 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testVerifierOnMissingReferencesWithBinaryPlans {default}
   issue: https://github.com/elastic/elasticsearch/issues/118707
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereEmbeddings {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/116974

@@ -196,6 +196,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 localNodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(localNodeId)
+                    .setNodeEphemeralId(localNodeId)
                     .setReason("shutdown for a unit test")
                     .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())

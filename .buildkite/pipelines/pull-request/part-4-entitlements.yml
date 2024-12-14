@@ -1,11 +1,8 @@
 config:
-  allow-labels: ">test-mute"
-  skip-labels: []
+  allow-labels: "test-entitlements"
 steps:
-  - label: precommit
-    command: |
-      .buildkite/scripts/spotless.sh
-      .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+  - label: part-4-entitlements
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.jvm.argline="-Des.entitlements.enabled=true" checkPart4
     timeout_in_minutes: 300
     agents:
       provider: gcp

@@ -209,15 +209,13 @@ public class CircuitBreakerTests extends ESTestCase {
         TriFunction<ThreadPool, CircuitBreaker, Integer, ESMockClient> esClientSupplier
     ) {
         final int searchRequestsExpectedCount = 2;
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                Settings.EMPTY,
-                breakerSettings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            var threadPool = createThreadPool()
-        ) {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            breakerSettings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
             final var esClient = esClientSupplier.apply(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
@@ -248,16 +246,13 @@ public class CircuitBreakerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "0%")
             .build();
-
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                settings,
-                breakerSettings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            var threadPool = createThreadPool()
-        ) {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            breakerSettings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
             final var esClient = new SuccessfulESMockClient(
                 threadPool,
                 service.getBreaker(CIRCUIT_BREAKER_NAME),

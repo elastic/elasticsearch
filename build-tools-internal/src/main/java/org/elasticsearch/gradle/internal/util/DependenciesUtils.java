@@ -12,11 +12,13 @@ package org.elasticsearch.gradle.internal.util;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvableDependencies;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.specs.AndSpec;
 import org.gradle.api.specs.Spec;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,4 +49,9 @@ public class DependenciesUtils {
         }).getFiles();
     }
 
+    public static @NotNull FileCollection projectedDependenciesFilteredView(Configuration configuration) {
+        return configuration.getIncoming()
+            .artifactView(v -> v.componentFilter(i -> (i instanceof ProjectComponentIdentifier == false)))
+            .getFiles();
+    }
 }

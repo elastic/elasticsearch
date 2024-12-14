@@ -8,6 +8,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+
 esplugin {
   name 'x-pack-identity-provider'
   description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
@@ -17,6 +18,10 @@ esplugin {
 
 base {
   archivesName = 'x-pack-identity-provider'
+}
+
+configurations {
+  shadowedDeps
 }
 
 dependencies {
@@ -29,6 +34,7 @@ dependencies {
   api "org.opensaml:opensaml-messaging-api:${versions.opensaml}"
   api "org.opensaml:opensaml-messaging-impl:${versions.opensaml}"
   api project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
+  shadowedDeps project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
   api "org.opensaml:opensaml-security-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-api:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-impl:${versions.opensaml}"
@@ -64,7 +70,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(':modules:lang-mustache')
   internalClusterTestImplementation project(":modules:analysis-common")
-
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -87,6 +92,7 @@ tasks.named('forbiddenApisMain').configure {
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 tasks.named("thirdPartyAudit").configure {
+    thirdPartyClasspath.from(configurations.shadowedDeps)
     ignoreMissingClasses(
         // SAML dependencies
         // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes

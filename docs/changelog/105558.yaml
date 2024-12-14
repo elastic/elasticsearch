@@ -1,0 +1,5 @@
+pr: 105558
+summary: Add assertion that system index version hashes match at join time
+area: Infra/Core
+type: enhancement
+issues: []

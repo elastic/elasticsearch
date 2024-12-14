@@ -49,7 +49,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     private static boolean putShutdownNodeState(
         Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
         Predicate<String> nodeExists,
-        Request request
+        Request request,
+        String ephemeralNodeId
     ) {
         if (isNoop(shutdownMetadata, request)) {
             return false;
@@ -58,6 +59,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         final boolean nodeSeen = nodeExists.test(request.getNodeId());
         SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
             .setNodeId(request.getNodeId())
+            .setEphemeralNodeId(ephemeralNodeId)
             .setType(request.getType())
             .setReason(request.getReason())
             .setStartedAtMillis(System.currentTimeMillis())
@@ -103,8 +105,9 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             boolean needsReroute = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
+                var ephemeralNodeId = initialState.nodes().getNodes().get(request.getNodeId()).getEphemeralId();
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request);
+                    changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request, ephemeralNodeId);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;

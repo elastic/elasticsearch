@@ -275,9 +275,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             listener.delegateFailureAndWrap((delegate, statsResponse) -> {
 
                 AutoShardingResult rolloverAutoSharding = null;
-                final IndexAbstraction indexAbstraction = clusterState.metadata()
-                    .getIndicesLookup()
-                    .get(resolvedRolloverTarget.resource());
+                final IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(resolvedRolloverTarget.resource());
                 if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
                     DataStream dataStream = (DataStream) indexAbstraction;
                     final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)

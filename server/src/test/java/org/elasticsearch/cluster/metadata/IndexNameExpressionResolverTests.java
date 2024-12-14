@@ -3335,13 +3335,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         streams = indexNameExpressionResolver.dataStreams(state, IndicesOptions.strictExpandOpenAndForbidClosed(), "*foobar");
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.strictExpandOpenAndForbidClosed(), "*foobar");
-        assertThat(
-            streams,
-            containsInAnyOrder(
-                new ResolvedExpression(dataStream1, DATA),
-                new ResolvedExpression(dataStream2, DATA)
-            )
-        );
+        assertThat(streams, containsInAnyOrder(new ResolvedExpression(dataStream1, DATA), new ResolvedExpression(dataStream2, DATA)));
         assertThat(names, containsInAnyOrder(dataStream1, dataStream2));
 
         streams = indexNameExpressionResolver.dataStreams(state, IndicesOptions.lenientExpand(), "*foobar::*");

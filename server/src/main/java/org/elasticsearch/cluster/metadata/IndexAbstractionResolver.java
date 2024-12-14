@@ -138,9 +138,7 @@ public class IndexAbstractionResolver {
                 collect.add(ResolvedExpression.combineSelectorExpression(indexAbstraction, IndexComponentSelector.DATA.getKey()));
                 // Only put failures on the expression if the abstraction supports it.
                 if (acceptsAllSelectors) {
-                    collect.add(
-                        ResolvedExpression.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey())
-                    );
+                    collect.add(ResolvedExpression.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey()));
                 }
             } else {
                 // A non-wildcard selector is always passed along as-is, it's validity for this kind of abstraction is tested later

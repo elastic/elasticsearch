@@ -1551,10 +1551,7 @@ public record IndicesOptions(
             + ", ignore_throttled="
             + ignoreThrottled()
             + (DataStream.isFailureStoreFeatureFlagEnabled()
-                ? ", default_selector="
-                    + selectorOptions().defaultSelector()
-                    + ", allow_selectors="
-                    + allowSelectors()
+                ? ", default_selector=" + selectorOptions().defaultSelector() + ", allow_selectors=" + allowSelectors()
                 : "")
             + ']';
     }

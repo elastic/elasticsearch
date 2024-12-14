@@ -526,12 +526,7 @@ public class IndexNameExpressionResolver {
                     }
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                resolveWriteIndexForDataStreams(
-                    context,
-                    (DataStream) indexAbstraction,
-                    concreteIndicesResult,
-                    expression.selector()
-                );
+                resolveWriteIndexForDataStreams(context, (DataStream) indexAbstraction, concreteIndicesResult, expression.selector());
             } else {
                 if (context.getOptions().allowAliasesToMultipleIndices() == false
                     && resolvesToMoreThanOneIndex(indexAbstraction, context, expression)) {
@@ -551,12 +546,7 @@ public class IndexNameExpressionResolver {
                 }
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
-                    resolveIndicesForDataStream(
-                        context,
-                        (DataStream) indexAbstraction,
-                        concreteIndicesResult,
-                        expression.selector()
-                    );
+                    resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult, expression.selector());
                 } else if (indexAbstraction.getType() == Type.ALIAS
                     && indexAbstraction.isDataStreamRelated()
                     && shouldIncludeFailureIndices(context.getOptions(), expression.selector())) {
@@ -1803,8 +1793,11 @@ public class IndexNameExpressionResolver {
         }
 
         private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(Context context, IndexComponentSelector selector) {
-            final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getState().metadata(),
-                selector);
+            final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(
+                context.getOptions(),
+                context.getState().metadata(),
+                selector
+            );
             List<String> indices;
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
                 indices = List.of(allIndices);
@@ -1824,10 +1817,7 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
-        private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(
-            Context context,
-            String[] allIndices
-        ) {
+        private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
             List<String> filteredIndices = new ArrayList<>(allIndices.length);
             for (int i = 0; i < allIndices.length; i++) {
                 if (shouldIncludeIndexAbstraction(context, allIndices[i])) {
@@ -2145,9 +2135,7 @@ public class IndexNameExpressionResolver {
             return parseAndTransformSelector(matchAllExpression, (baseExpression, selector) -> {
                 if (context.options.allowSelectors()) {
                     // if selector was not present in the expression, use the defaults for the API
-                    return selector == null
-                        ? context.options.selectorOptions().defaultSelector()
-                        : selector;
+                    return selector == null ? context.options.selectorOptions().defaultSelector() : selector;
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.
                     ensureNoSelectorsProvided(matchAllExpression, selector);
@@ -2191,10 +2179,7 @@ public class IndexNameExpressionResolver {
          * @param <V> The type returned from the binding function
          * @throws InvalidIndexNameException In the event that the selector syntax is used incorrectly.
          */
-        private static <V> V parseAndTransformSelector(
-            String expression,
-            BiFunction<String, IndexComponentSelector, V> bindFunction
-        ) {
+        private static <V> V parseAndTransformSelector(String expression, BiFunction<String, IndexComponentSelector, V> bindFunction) {
             return splitSelectorExpression(expression, (expressionBase, suffix) -> {
                 if (suffix == null) {
                     return bindFunction.apply(expressionBase, null);

@@ -650,7 +650,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                     dataStream.getBackingIndices().getIndices().stream(),
                                     dataStream.getFailureIndices().getIndices().stream()
                                 );
-                        };
+                            };
                         String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
@@ -684,15 +684,18 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     }
                     case ALL_APPLICABLE -> {
                         if (ia.isDataStreamRelated()) {
-                            yield Stream.concat(ia.getIndices().stream(), ia.getIndices()
-                                .stream()
-                                .map(Index::getName)
-                                .map(indicesLookup::get)
-                                .map(IndexAbstraction::getParentDataStream)
-                                .filter(Objects::nonNull)
-                                .distinct()
-                                .map(DataStream::getFailureIndices)
-                                .flatMap(failureIndices -> failureIndices.getIndices().stream()));
+                            yield Stream.concat(
+                                ia.getIndices().stream(),
+                                ia.getIndices()
+                                    .stream()
+                                    .map(Index::getName)
+                                    .map(indicesLookup::get)
+                                    .map(IndexAbstraction::getParentDataStream)
+                                    .filter(Objects::nonNull)
+                                    .distinct()
+                                    .map(DataStream::getFailureIndices)
+                                    .flatMap(failureIndices -> failureIndices.getIndices().stream())
+                            );
                         } else {
                             yield ia.getIndices().stream();
                         }

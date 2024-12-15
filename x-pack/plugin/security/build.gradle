@@ -15,10 +15,6 @@ base {
   archivesName = 'x-pack-security'
 }
 
-configurations {
-  shadowedDeps
-}
-
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
@@ -51,7 +47,6 @@ dependencies {
   api "org.opensaml:opensaml-messaging-api:${versions.opensaml}"
   api "org.opensaml:opensaml-messaging-impl:${versions.opensaml}"
   api project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
-  shadowedDeps project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
 //  api "org.opensaml:opensaml-security-api:${versions.opensaml}"
   api "org.opensaml:opensaml-security-impl:${versions.opensaml}"
   api "org.opensaml:opensaml-profile-api:${versions.opensaml}"
@@ -86,7 +81,6 @@ dependencies {
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
   api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
-  shadowedDeps project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
   if (isEclipse) {
     /*
      * Eclipse can't pick up the shadow dependency so we point it at the unmodified version of the library
@@ -218,7 +212,6 @@ tasks.named('forbiddenApisTest').configure {
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 tasks.named("thirdPartyAudit").configure {
-  thirdPartyClasspath.from(configurations.shadowedDeps)
   ignoreMissingClasses(
     // SAML dependencies
     // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
@@ -392,21 +385,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.util.Arrays',
     'org.bouncycastle.util.io.Streams',
     'org.bouncycastle.cert.X509CertificateHolder',
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.JAXBException',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.UnmarshallerHandler',
-    // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
-    'org.cryptomator.siv.SivMode',
-    'com.nimbusds.common.contenttype.ContentType',
-    'com.nimbusds.common.contenttype.ContentType$Parameter',
-    'javax.activation.ActivationDataFlavor',
-    'javax.activation.DataContentHandler',
-    'javax.activation.DataHandler',
-    'javax.activation.DataSource',
-    'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap'
   )
 
   ignoreViolations(
@@ -424,6 +402,26 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  )
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'javax.xml.bind.JAXBContext',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.JAXBException',
+    'javax.xml.bind.Unmarshaller',
+    'javax.xml.bind.UnmarshallerHandler',
+    // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
+    'org.cryptomator.siv.SivMode',
+    'com.nimbusds.common.contenttype.ContentType',
+    'com.nimbusds.common.contenttype.ContentType$Parameter',
+    'javax.activation.ActivationDataFlavor',
+    'javax.activation.DataContentHandler',
+    'javax.activation.DataHandler',
+    'javax.activation.DataSource',
+    'javax.activation.FileDataSource',
+    'javax.activation.FileTypeMap'
   )
 }
 

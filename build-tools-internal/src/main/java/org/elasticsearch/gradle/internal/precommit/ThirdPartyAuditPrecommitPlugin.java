@@ -23,7 +23,7 @@ import java.io.File;
 import java.nio.file.Path;
 
 import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFileCollectionFromNonTransitiveArtifactsView;
-import static org.elasticsearch.gradle.internal.util.DependenciesUtils.projectedDependenciesFilteredView;
+import static org.elasticsearch.gradle.internal.util.DependenciesUtils.plainProjectedDependenciesFilteredView;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
@@ -61,10 +61,10 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         // usually only one task is created. but this construct makes our integTests easier to setup
         project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
             Configuration runtimeConfiguration = project.getConfigurations().getByName("runtimeClasspath");
-            FileCollection runtimeThirdParty = projectedDependenciesFilteredView(runtimeConfiguration);
+            FileCollection runtimeThirdParty = plainProjectedDependenciesFilteredView(runtimeConfiguration);
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-            FileCollection compileOnlyThirdParty = projectedDependenciesFilteredView(compileOnly);
+            FileCollection compileOnlyThirdParty = plainProjectedDependenciesFilteredView(compileOnly);
             t.getThirdPartyClasspath().from(runtimeThirdParty, compileOnlyThirdParty);
             t.getJarsToScan()
                 .from(

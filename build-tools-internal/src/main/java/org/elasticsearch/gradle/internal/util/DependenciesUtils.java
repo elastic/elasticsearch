@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.util;
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
+
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvableDependencies;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
@@ -49,9 +51,26 @@ public class DependenciesUtils {
         }).getFiles();
     }
 
-    public static @NotNull FileCollection projectedDependenciesFilteredView(Configuration configuration) {
-        return configuration.getIncoming()
-            .artifactView(v -> v.componentFilter(i -> (i instanceof ProjectComponentIdentifier == false)))
-            .getFiles();
+    public static @NotNull FileCollection plainProjectedDependenciesFilteredView(Configuration configuration) {
+        ResolvableDependencies incoming = configuration.getIncoming();
+        return incoming.artifactView(v -> {
+            // resolve componentIdentifier for all shadowed project dependencies
+            Set<ComponentIdentifier> shadowedDependencies = incoming.getResolutionResult()
+                .getRootComponent()
+                .map(
+                    root -> root.getDependencies()
+                        .stream()
+                        .filter(dep -> dep instanceof ResolvedDependencyResult)
+                        .map(dep -> (ResolvedDependencyResult) dep)
+                        .filter(dep -> dep.getSelected() instanceof ResolvedComponentResult)
+                        .filter(dep -> dep.getResolvedVariant().getDisplayName() == ShadowBasePlugin.COMPONENT_NAME)
+                        .map(dep -> dep.getSelected().getId())
+                        .collect(Collectors.toSet())
+                )
+                .get();
+            System.out.println("shadowedDependencies " + shadowedDependencies.size() + " " + shadowedDependencies);
+            // filter out project dependencies if they are not a shadowed dependency
+            v.componentFilter(i -> (i instanceof ProjectComponentIdentifier == false || shadowedDependencies.contains(i)));
+        }).getFiles();
     }
 }

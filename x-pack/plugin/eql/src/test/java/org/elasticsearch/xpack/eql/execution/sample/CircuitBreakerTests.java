@@ -101,15 +101,13 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     private void testMemoryCleared(boolean fail) {
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                Settings.EMPTY,
-                Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            var threadPool = createThreadPool()
-        ) {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
             final var esClient = new ESMockClient(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME));
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());

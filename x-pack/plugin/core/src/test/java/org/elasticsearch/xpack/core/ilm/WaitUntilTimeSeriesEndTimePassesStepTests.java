@@ -30,7 +30,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
     protected WaitUntilTimeSeriesEndTimePassesStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now);
     }
 
     @Override
@@ -42,12 +42,12 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
-        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now);
     }
 
     @Override
     protected WaitUntilTimeSeriesEndTimePassesStep copyInstance(WaitUntilTimeSeriesEndTimePassesStep instance) {
-        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now);
     }
 
     public void testEvaluateCondition() {
@@ -68,8 +68,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
         WaitUntilTimeSeriesEndTimePassesStep step = new WaitUntilTimeSeriesEndTimePassesStep(
             randomStepKey(),
             randomStepKey(),
-            () -> currentTime,
-            client
+            () -> currentTime
         );
         {
             // end_time has lapsed already so condition must be met

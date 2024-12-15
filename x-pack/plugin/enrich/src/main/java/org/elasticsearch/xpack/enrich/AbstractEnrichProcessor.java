@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -78,6 +79,13 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
             searchBuilder.query(constantScore);
             SearchRequest req = new SearchRequest();
             req.indices(EnrichPolicy.getBaseName(getPolicyName()));
+            req.indicesOptions(
+                IndicesOptions.builder(req.indicesOptions())
+                    .gatekeeperOptions(
+                        IndicesOptions.GatekeeperOptions.builder(req.indicesOptions().gatekeeperOptions()).allowSelectors(false).build()
+                    )
+                    .build()
+            );
             req.preference(Preference.LOCAL.type());
             req.source(searchBuilder);
 

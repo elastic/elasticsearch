@@ -20,7 +20,6 @@ import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.specs.AndSpec;
 import org.gradle.api.specs.Spec;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,7 +50,12 @@ public class DependenciesUtils {
         }).getFiles();
     }
 
-    public static @NotNull FileCollection plainProjectedDependenciesFilteredView(Configuration configuration) {
+    /**
+     * This method gives us an artifact view of a configuration that filters out all
+     * project dependencies that are not shadowed jars.
+     * Basically a thirdparty only view of the dependency tree.
+     */
+    public static FileCollection thirdPartyDependenciesView(Configuration configuration) {
         ResolvableDependencies incoming = configuration.getIncoming();
         return incoming.artifactView(v -> {
             // resolve componentIdentifier for all shadowed project dependencies
@@ -62,13 +66,12 @@ public class DependenciesUtils {
                         .stream()
                         .filter(dep -> dep instanceof ResolvedDependencyResult)
                         .map(dep -> (ResolvedDependencyResult) dep)
-                        .filter(dep -> dep.getSelected() instanceof ResolvedComponentResult)
                         .filter(dep -> dep.getResolvedVariant().getDisplayName() == ShadowBasePlugin.COMPONENT_NAME)
+                        .filter(dep -> dep.getSelected() instanceof ResolvedComponentResult)
                         .map(dep -> dep.getSelected().getId())
                         .collect(Collectors.toSet())
                 )
                 .get();
-            System.out.println("shadowedDependencies " + shadowedDependencies.size() + " " + shadowedDependencies);
             // filter out project dependencies if they are not a shadowed dependency
             v.componentFilter(i -> (i instanceof ProjectComponentIdentifier == false || shadowedDependencies.contains(i)));
         }).getFiles();

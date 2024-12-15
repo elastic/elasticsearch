@@ -467,3 +467,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/116974
+- class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
+  method: testPruneSome
+  issue: https://github.com/elastic/elasticsearch/issues/118728

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -261,6 +263,18 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             || cause instanceof FailedToMarkBuiltInRolesAsSyncedException;
     }
 
+    private static boolean isMixedVersionCluster(DiscoveryNodes nodes) {
+        Version version = null;
+        for (var n : nodes) {
+            if (version == null) {
+                version = n.getVersion();
+            } else if (version.equals(n.getVersion()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean shouldSyncBuiltInRoles(final ClusterState state) {
         if (false == state.nodes().isLocalNodeElectedMaster()) {
             logger.trace("Local node is not the master, skipping built-in roles synchronization");
@@ -278,7 +292,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             logger.trace("No data nodes in the cluster, skipping built-in roles synchronization");
             return false;
         }
-        if (state.nodes().isMixedVersionCluster()) {
+        if (isMixedVersionCluster(state.nodes())) {
             // To keep things simple and avoid potential overwrites with an older version of built-in roles,
             // we only sync built-in roles if all nodes are on the same version.
             logger.trace("Not all nodes are on the same version, skipping built-in roles synchronization");

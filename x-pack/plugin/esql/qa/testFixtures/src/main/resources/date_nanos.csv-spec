@@ -236,6 +236,19 @@ millis:date             | nanos:date_nanos
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
 ;
 
+implicit casting to nanos, date only, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+;
+
+
 implicit casting to nanos, date plus time to seconds
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
@@ -254,6 +267,18 @@ millis:date             | nanos:date_nanos
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to seconds, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
 ;
 
 implicit casting to nanos, date plus time to millis
@@ -276,6 +301,19 @@ millis:date             | nanos:date_nanos
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
 ;
 
+implicit casting to nanos, date plus time to millis, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28.948" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
 implicit casting to nanos, date plus time to nanos
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
@@ -294,6 +332,19 @@ millis:date             | nanos:date_nanos
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to nanos, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28.948000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
 ;
 
 date nanos greater than millis

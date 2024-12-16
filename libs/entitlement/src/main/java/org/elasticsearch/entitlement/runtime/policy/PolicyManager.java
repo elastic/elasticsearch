@@ -105,6 +105,30 @@ public class PolicyManager {
         return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name, scope -> scope.entitlements));
     }
 
+    public void checkStartProcess(Class<?> callerClass) {
+        neverEntitled(callerClass, "start process");
+    }
+
+    public void checkInspectProcess(Class<?> callerClass) {
+        neverEntitled(callerClass, "inspect process");
+    }
+
+    private void neverEntitled(Class<?> callerClass, String operationDescription) {
+        var requestingModule = requestingModule(callerClass);
+        if (isTriviallyAllowed(requestingModule)) {
+            return;
+        }
+
+        throw new NotEntitledException(
+            Strings.format(
+                "Not entitled: caller [%s], module [%s], operation [%s]",
+                callerClass,
+                requestingModule.getName(),
+                operationDescription
+            )
+        );
+    }
+
     public void checkExitVM(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, ExitVMEntitlement.class);
     }

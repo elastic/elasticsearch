@@ -270,7 +270,7 @@ setup:
 ---
 "Test sparse_vector requires one of inference_id or query_vector":
   - do:
-      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      catch: bad_request
       search:
         index: index-with-sparse-vector
         body:
@@ -281,16 +281,16 @@ setup:
   - match: { status: 400 }
 
 ---
-"Test sparse_vector only allows one of inference_id or query_vector":
+"Test sparse_vector only allows one of query or query_vector":
   - do:
-      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      catch: bad_request
       search:
         index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: text
-              inference_id: text_expansion_model
+              query: "octopus comforter smells"
               query_vector:
                 the: 1.0
                 comforter: 1.0

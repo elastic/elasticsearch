@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -49,8 +49,8 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
             return;
         }
 
-        final Set<String> rolesToSearchFor = new HashSet<>();
-        final Set<RoleDescriptor> reservedRoles = new HashSet<>();
+        final Set<String> rolesToSearchFor = new LinkedHashSet<>();
+        final Set<RoleDescriptor> reservedRoles = new LinkedHashSet<>();
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
                 if (ReservedRolesStore.isReserved(role)) {
@@ -78,7 +78,7 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
     }
 
     private void getNativeRoles(Set<String> rolesToSearchFor, ActionListener<GetRolesResponse> listener) {
-        getNativeRoles(rolesToSearchFor, new HashSet<>(), listener);
+        getNativeRoles(rolesToSearchFor, new LinkedHashSet<>(), listener);
     }
 
     private void getNativeRoles(Set<String> rolesToSearchFor, Set<RoleDescriptor> foundRoles, ActionListener<GetRolesResponse> listener) {

@@ -552,7 +552,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN with index mode verification
          */
-        JOIN_LOOKUP_VERIFY_MODE(JOIN_LOOKUP_V5.enabled),
+        JOIN_LOOKUP_VERIFY_MODE(JOIN_LOOKUP_V5.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

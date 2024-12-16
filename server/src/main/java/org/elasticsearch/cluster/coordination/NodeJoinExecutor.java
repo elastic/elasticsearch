@@ -376,14 +376,22 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         + maxSupportedVersion.toReleaseVersion()
                 );
             }
-            if (idxMetadata.getCompatibilityVersion().before(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+
+            IndexVersion minVersion= minSupportedVersion;
+
+            if (idxMetadata.getCreationVersion().equals(idxMetadata.getCompatibilityVersion()) == false
+                && idxMetadata.getCompatibilityVersion().onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+                minVersion = IndexVersions.MINIMUM_READONLY_COMPATIBLE;
+            }
+
+            if (idxMetadata.getCompatibilityVersion().before(minVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
                         + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " minimum compatible index version is: "
-                        + IndexVersions.MINIMUM_READONLY_COMPATIBLE.toReleaseVersion()
+                        + minVersion.toReleaseVersion()
                 );
             }
         }
@@ -412,7 +420,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {
             throw new IllegalStateException(
                 "node version ["
-                    + joiningNodeVersion
+                    + joiningNodeVersionl379
                     + "] is not supported."
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion

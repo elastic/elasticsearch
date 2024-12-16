@@ -103,7 +103,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
-        if (queryVectors == null ^ query == null == false) {
+        if ((queryVectors == null) == (query == null)) {
             throw new IllegalArgumentException(
                 "[" + NAME + "] requires one of [" + QUERY_VECTOR_FIELD.getPreferredName() + "] or [" + QUERY_FIELD.getPreferredName() + "]"
             );

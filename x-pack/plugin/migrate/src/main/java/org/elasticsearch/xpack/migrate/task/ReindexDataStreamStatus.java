@@ -69,9 +69,9 @@ public record ReindexDataStreamStatus(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("start_time", persistentTaskStartTime);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_millis", "start_time", persistentTaskStartTime);
         builder.field("complete", complete);
-        builder.field("total_indices", totalIndices);
+        builder.field("total_indices_in_data_stream", totalIndices);
         builder.field("total_indices_requiring_upgrade", totalIndicesToBeUpgraded);
         builder.field("successes", totalIndicesToBeUpgraded - (inProgress + pending + errors.size()));
         builder.field("in_progress", inProgress);

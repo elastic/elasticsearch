@@ -61,7 +61,7 @@ setup:
       migrate.get_reindex_status:
         index: "my-data-stream"
   - match: { complete: true }
-  - match: { total_indices: 1 }
+  - match: { total_indices_requiring_upgrade: 1 }
   - match: { total_indices_requiring_upgrade: 0 }
   - match: { successes: 0 }
   - match: { in_progress: 0 }

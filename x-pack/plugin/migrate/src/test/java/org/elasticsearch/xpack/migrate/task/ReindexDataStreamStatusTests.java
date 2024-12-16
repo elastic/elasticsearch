@@ -131,8 +131,9 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
                     parserMap,
                     equalTo(
                         Map.ofEntries(
-                            entry("start_time", 1234),
-                            entry("total_indices", 200),
+                            entry("start_time", "1970-01-01T00:00:01.234Z"),
+                            entry("start_time_millis", 1234),
+                            entry("total_indices_in_data_stream", 200),
                             entry("total_indices_requiring_upgrade", 100),
                             entry("complete", true),
                             entry("exception", "the whole task failed"),

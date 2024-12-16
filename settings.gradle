@@ -77,6 +77,7 @@ List projects = [
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
   'distribution:bwc:bugfix',
+  'distribution:bwc:bugfix2',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',

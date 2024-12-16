@@ -1977,10 +1977,14 @@ public class VerifierTests extends ESTestCase {
     public void testLookupJoinIndexMode() {
         assumeTrue("requires LOOKUP JOIN mode verification capability", EsqlCapabilities.Cap.JOIN_LOOKUP_VERIFY_MODE.isEnabled());
 
-        query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
-
         var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
         var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
+
+        query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+        query(
+            "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
+            AnalyzerTestUtils.analyzer(lookupResolution, lookupResolution)
+        );
 
         assertEquals(
             "1:70: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
@@ -1989,10 +1993,18 @@ public class VerifierTests extends ESTestCase {
                 AnalyzerTestUtils.analyzer(lookupResolution, indexResolution)
             )
         );
+        assertEquals(
+            "1:25: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
+            error("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolution))
+        );
     }
 
     private void query(String query) {
-        defaultAnalyzer.analyze(parser.createStatement(query));
+        query(query, defaultAnalyzer);
+    }
+
+    private void query(String query, Analyzer analyzer) {
+        analyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {

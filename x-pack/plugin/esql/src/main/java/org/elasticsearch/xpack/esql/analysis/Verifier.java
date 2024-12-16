@@ -316,11 +316,15 @@ public class Verifier {
     private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
         // Forbid CATEGORIZE grouping function with other groupings
         if (agg.groupings().size() > 1) {
-            agg.groupings().forEach(g -> {
+            agg.groupings().subList(1, agg.groupings().size()).forEach(g -> {
                 g.forEachDown(
                     Categorize.class,
                     categorize -> failures.add(
-                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                        fail(
+                            categorize,
+                            "CATEGORIZE grouping function [{}] can only be in the first grouping expression",
+                            categorize.sourceText()
+                        )
                     )
                 );
             });
@@ -599,6 +603,10 @@ public class Verifier {
         Set<Class<?>> functions = new HashSet<>();
         plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
         functions.forEach(f -> metrics.incFunctionMetric(f));
+    }
+
+    public XPackLicenseState licenseState() {
+        return licenseState;
     }
 
     /**

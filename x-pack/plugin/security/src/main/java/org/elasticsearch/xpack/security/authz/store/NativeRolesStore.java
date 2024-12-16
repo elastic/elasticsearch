@@ -568,7 +568,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
         final Collection<RoleDescriptor> roles,
-        boolean allowReservedRoleNames,
+        boolean validateRoleDescriptors,
         final ActionListener<BulkRolesResponse> listener
     ) {
         if (enabled == false) {
@@ -581,7 +581,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         for (RoleDescriptor role : roles) {
             Exception validationException;
             try {
-                validationException = allowReservedRoleNames ? validateRoleDescriptor(role) : null;
+                validationException = validateRoleDescriptors ? validateRoleDescriptor(role) : null;
             } catch (Exception e) {
                 validationException = e;
             }

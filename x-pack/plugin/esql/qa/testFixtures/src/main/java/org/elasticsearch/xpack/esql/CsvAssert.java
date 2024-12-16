@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
@@ -290,7 +291,7 @@ public final class CsvAssert {
         int[] width = new int[headers.size()];
         String[][] printableValues = new String[rows][headers.size()];
         for (int c = 0; c < headers.size(); c++) {
-            width[c] = headers.get(c).length();
+            width[c] = header(headers.get(c), types.get(c)).length();
         }
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < headers.size(); c++) {
@@ -301,10 +302,10 @@ public final class CsvAssert {
 
         var result = new StringBuilder().append(System.lineSeparator()).append(description).append(System.lineSeparator());
         // headers
-        appendPaddedValue(result, headers.get(0), width[0]);
+        appendPaddedValue(result, header(headers.get(0), types.get(0)), width[0]);
         for (int c = 1; c < width.length; c++) {
             result.append(" | ");
-            appendPaddedValue(result, headers.get(c), width[c]);
+            appendPaddedValue(result, header(headers.get(c), types.get(c)), width[c]);
         }
         result.append(System.lineSeparator());
         // values
@@ -320,6 +321,10 @@ public final class CsvAssert {
             result.append("...").append(System.lineSeparator());
         }
         return result.toString();
+    }
+
+    private static String header(String name, Type type) {
+        return name + ':' + Strings.toLowercaseAscii(type.name());
     }
 
     private static void appendPaddedValue(StringBuilder result, String value, int width) {

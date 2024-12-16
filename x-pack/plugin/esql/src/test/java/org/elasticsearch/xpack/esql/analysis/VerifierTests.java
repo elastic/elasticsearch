@@ -1979,12 +1979,16 @@ public class VerifierTests extends ESTestCase {
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
-        // TODO: Currently, VerifierTests resolve indices with the index existing with the expected mode,
-        // instead of the index with the same name
-        /*assertEquals(
-            "1:69: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
-            error("FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages")
-        );*/
+        var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
+        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
+
+        assertEquals(
+            "1:70: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
+            error(
+                "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
+                AnalyzerTestUtils.analyzer(lookupResolution, indexResolution)
+            )
+        );
     }
 
     private void query(String query) {

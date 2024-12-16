@@ -46,6 +46,10 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
+    public static Analyzer analyzer(IndexResolution indexResolution, IndexResolution lookupResolution) {
+        return analyzer(indexResolution, lookupResolution, TEST_VERIFIER);
+    }
+
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return new Analyzer(
             new AnalyzerContext(
@@ -53,6 +57,19 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
+            verifier
+        );
+    }
+
+    public static Analyzer analyzer(IndexResolution indexResolution, IndexResolution lookupResolution, Verifier verifier) {
+        return new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                lookupResolution,
                 defaultEnrichResolution()
             ),
             verifier

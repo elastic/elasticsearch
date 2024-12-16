@@ -36,6 +36,9 @@ public class RestUtils {
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
+        if (s == null) {
+            return;
+        }
         if (fromIndex < 0) {
             return;
         }

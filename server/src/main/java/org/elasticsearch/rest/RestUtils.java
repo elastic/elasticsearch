@@ -15,6 +15,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -35,10 +36,14 @@ public class RestUtils {
 
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
-    public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
-        if (s == null) {
-            return;
+    public static void decodeQueryString(URI uri, Map<String, String> params) {
+        final var query = uri.getQuery();
+        if (query != null) {
+            decodeQueryString(query, 0, params);
         }
+    }
+
+    public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
             return;
         }

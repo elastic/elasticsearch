@@ -281,7 +281,7 @@ setup:
   - match: { status: 400 }
 
 ---
-"Test sparse_vector only allows one of query or query_vector":
+"Test sparse_vector only allows one of inference_id or query_vector":
   - do:
       catch: bad_request
       search:
@@ -290,7 +290,7 @@ setup:
           query:
             sparse_vector:
               field: text
-              query: "octopus comforter smells"
+              inference_id: text_expansion_model
               query_vector:
                 the: 1.0
                 comforter: 1.0

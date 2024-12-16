@@ -12,6 +12,8 @@ package fixture.aws.imds;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -22,6 +24,7 @@ public class Ec2ImdsServiceBuilder {
     private BiConsumer<String, String> newCredentialsConsumer = Ec2ImdsServiceBuilder::rejectNewCredentials;
     private Collection<String> alternativeCredentialsEndpoints = Set.of();
     private Supplier<String> availabilityZoneSupplier = Ec2ImdsServiceBuilder::rejectAvailabilityZone;
+    private final Map<String, String> instanceAddresses = new HashMap<>();
 
     public Ec2ImdsServiceBuilder(Ec2ImdsVersion ec2ImdsVersion) {
         this.ec2ImdsVersion = ec2ImdsVersion;
@@ -50,8 +53,19 @@ public class Ec2ImdsServiceBuilder {
         return this;
     }
 
+    public Ec2ImdsServiceBuilder addInstanceAddress(String addressType, String addressValue) {
+        instanceAddresses.put("/latest/meta-data/" + addressType, addressValue);
+        return this;
+    }
+
     public Ec2ImdsHttpHandler buildHandler() {
-        return new Ec2ImdsHttpHandler(ec2ImdsVersion, newCredentialsConsumer, alternativeCredentialsEndpoints, availabilityZoneSupplier);
+        return new Ec2ImdsHttpHandler(
+            ec2ImdsVersion,
+            newCredentialsConsumer,
+            alternativeCredentialsEndpoints,
+            availabilityZoneSupplier,
+            Map.copyOf(instanceAddresses)
+        );
     }
 
 }

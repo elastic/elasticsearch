@@ -1,5 +1,0 @@
-pr: 115858
-summary: "ESQL: optimise aggregations filtered by false/null into evals"
-area: ES|QL
-type: enhancement
-issues: []

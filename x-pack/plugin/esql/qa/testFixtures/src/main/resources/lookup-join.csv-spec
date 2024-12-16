@@ -3,7 +3,6 @@
 // Reuses the sample dataset and commands from enrich.csv-spec
 //
 
-//TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
 basicOnTheDataNode
 required_capability: join_lookup_v5
 
@@ -100,6 +99,83 @@ emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
 10002          | 3                     | Spanish
 10003          | 4                     | German
+;
+
+nonUniqueLeftKeyOnTheDataNode
+required_capability: join_lookup_v5
+
+FROM employees
+| WHERE emp_no <= 10030
+| EVAL language_code = emp_no % 10
+| WHERE language_code < 3
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          |1                      | English
+10002          |2                      | French
+10010          |0                      | null
+10011          |1                      | English
+10012          |2                      | French
+10020          |0                      | null
+10021          |1                      | English
+10022          |2                      | French
+10030          |0                      | null
+;
+
+nonUniqueRightKeyOnTheDataNode
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| WHERE emp_no > 10090 AND emp_no < 10096
+| SORT emp_no
+| EVAL country = MV_SORT(country)
+| KEEP emp_no, language_code, language_name, country
+;
+
+emp_no:integer | language_code:integer | language_name:keyword       | country:keyword
+10091          | 1                     | [English, English, English] | [Canada, United Kingdom, United States of America]
+10092          | 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
+10093          | 3                     | null                        | null
+10094          | 4                     | Quenya                      | null
+10095          | 5                     | null                        | Atlantis
+;
+
+nonUniqueRightKeyOnTheCoordinator
+required_capability: join_lookup_v5
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL country = MV_SORT(country)
+| KEEP emp_no, language_code, language_name, country
+;
+
+emp_no:integer | language_code:integer | language_name:keyword       | country:keyword
+10001          | 1                     | [English, English, English] | [Canada, United Kingdom, United States of America]
+10002          | 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
+10003          | 3                     | null                        | null
+10004          | 4                     | Quenya                      | null
+10005          | 5                     | null                        | Atlantis
+;
+
+nonUniqueRightKeyFromRow
+required_capability: join_lookup_v5
+
+ROW language_code = 2
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| DROP country.keyword
+| EVAL country = MV_SORT(country)
+;
+
+language_code:integer | language_name:keyword       | country:keyword
+2                     | [German, German, German]    | [Austria, Germany, Switzerland]
 ;
 
 lookupIPFromRow
@@ -341,4 +417,69 @@ count:long | type:keyword
 3          | Error
 3          | Success
 1          | Disconnected
+;
+
+// 
+// Filtering tests
+// 
+
+lookupWithFilterOnLeftSideField
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| WHERE emp_no >= 10091 AND emp_no < 10094
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+lookupMessageWithFilterOnRightSideField-Ignore
+required_capability: join_lookup_v5
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE type == "Error"
+| KEEP @timestamp, client_ip, event_duration, message, type
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+;
+
+lookupWithFieldAndRightSideAfterStats
+required_capability: join_lookup_v5
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| STATS count = count(message) BY type
+| WHERE type == "Error"
+;
+
+count:long | type:keyword
+3          | Error
+;
+
+lookupWithFieldOnJoinKey-Ignore
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code > 1 AND language_name IS NOT NULL
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
 ;

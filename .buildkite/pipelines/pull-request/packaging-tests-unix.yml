@@ -13,6 +13,7 @@ steps:
               - debian-12
               - opensuse-leap-15
               - oraclelinux-8
+              - oraclelinux-9
               - sles-15
               - ubuntu-2004
               - ubuntu-2204

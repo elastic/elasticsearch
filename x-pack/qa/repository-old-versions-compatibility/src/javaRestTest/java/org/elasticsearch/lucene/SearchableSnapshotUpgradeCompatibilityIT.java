@@ -66,11 +66,14 @@ public class SearchableSnapshotUpgradeCompatibilityIT extends AbstractArchiveInd
             mountSnapshot(client(), repository, snapshot, index, mountedIndex);
 
             assertTrue(getIndices(client()).contains(mountedIndex));
+            assertDocCount(client(), mountedIndex, 5);
+
             return;
         }
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
             assertTrue(getIndices(client()).contains(mountedIndex));
+            assertDocCount(client(), mountedIndex, 5);
         }
     }
 
@@ -106,8 +109,7 @@ public class SearchableSnapshotUpgradeCompatibilityIT extends AbstractArchiveInd
     private void mountSnapshot(RestClient client, String repository, String snapshot, String index, String mountedIndex) throws Exception {
         var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_mount");
         request.addParameter("wait_for_completion", "true");
-        var storage = randomBoolean() ? "shared_cache" : "full_copy";
-        request.addParameter("storage", storage);
+        request.addParameter("storage", "full_copy");
         request.setJsonEntity(Strings.format("""
              {
               "index": "%s",

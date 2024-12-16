@@ -406,6 +406,7 @@ public record SemanticTextField(
      */
     public static List<Chunk> toSemanticTextFieldChunks(
         String input,
+        int offsetAdjustment,
         ChunkedInference results,
         XContentType contentType,
         boolean useInferenceMetadataFieldsFormat
@@ -413,16 +414,21 @@ public record SemanticTextField(
         List<Chunk> chunks = new ArrayList<>();
         Iterator<ChunkedInference.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
         while (it.hasNext()) {
-            chunks.add(toSemanticTextFieldChunk(input, it.next(), useInferenceMetadataFieldsFormat));
+            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useInferenceMetadataFieldsFormat));
         }
         return chunks;
     }
 
-    public static Chunk toSemanticTextFieldChunk(String input, ChunkedInference.Chunk chunk, boolean useInferenceMetadataFieldsFormat) {
+    public static Chunk toSemanticTextFieldChunk(
+        String input,
+        int offsetAdjustment,
+        ChunkedInference.Chunk chunk,
+        boolean useInferenceMetadataFieldsFormat
+    ) {
         // TODO: Use offsets from ChunkedInferenceServiceResults
         // TODO: When using legacy semantic text format, build chunk text from offsets
         assert chunk.matchedText() != null; // TODO: Remove once offsets are available from chunk
-        int startOffset = useInferenceMetadataFieldsFormat ? input.indexOf(chunk.matchedText()) : -1;
+        int startOffset = useInferenceMetadataFieldsFormat ? input.indexOf(chunk.matchedText()) + offsetAdjustment : -1;
         return new Chunk(
             useInferenceMetadataFieldsFormat ? null : chunk.matchedText(),
             useInferenceMetadataFieldsFormat ? startOffset : -1,

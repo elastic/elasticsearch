@@ -38,7 +38,7 @@ public class RestUtils {
 
     public static void decodeQueryString(URI uri, Map<String, String> params) {
         final var rawQuery = uri.getRawQuery();
-        if (rawQuery != null) {
+        if (Strings.hasLength(rawQuery)) {
             decodeQueryString(rawQuery, 0, params);
         }
     }

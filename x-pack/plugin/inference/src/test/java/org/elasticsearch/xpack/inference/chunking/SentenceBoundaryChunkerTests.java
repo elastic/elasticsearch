@@ -15,6 +15,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkerTests.TEST_TEXT;
@@ -26,6 +27,53 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SentenceBoundaryChunkerTests extends ESTestCase {
+
+    /**
+     * Utility method for testing.
+     */
+    private List<String> textChunks(
+        SentenceBoundaryChunker chunker,
+        String input,
+        int maxNumberWordsPerChunk,
+        boolean includePrecedingSentence
+    ) {
+        return chunker.chunk(input, maxNumberWordsPerChunk, includePrecedingSentence);
+    }
+
+    public void testEmptyString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is(""));
+    }
+
+    public void testBlankString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   ", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is("   "));
+    }
+
+    public void testSingleChar() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("   b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), "b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), ". ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(". "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " , ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" , "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " ,", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" ,"));
+    }
+
+    public void testSingleCharRepeated() {
+        var input = "a".repeat(32_000);
+        var chunks = textChunks(new SentenceBoundaryChunker(), input, 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(input));
+    }
 
     public void testChunkSplitLargeChunkSizes() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {

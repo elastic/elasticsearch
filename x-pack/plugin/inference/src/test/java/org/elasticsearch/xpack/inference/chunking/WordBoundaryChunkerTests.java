@@ -11,6 +11,7 @@ import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.List;
 import java.util.Locale;
@@ -224,6 +225,39 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     public void testWhitespace() {
         var chunks = new WordBoundaryChunker().chunk(" ", 10, 5);
         assertThat(chunks, contains(" "));
+    }
+
+    private List<String> textChunks(WordBoundaryChunker chunker, String input, int chunkSize, int overlap) {
+        return chunker.chunk(input, chunkSize, overlap);
+    }
+
+    public void testBlankString() {
+        var chunks = textChunks(new WordBoundaryChunker(), "   ", 100, 10);
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is("   "));
+    }
+
+    public void testSingleChar() {
+        var chunks = textChunks(new WordBoundaryChunker(), "   b", 100, 10);
+        assertThat(chunks, Matchers.contains("   b"));
+
+        chunks = textChunks(new WordBoundaryChunker(), "b", 100, 10);
+        assertThat(chunks, Matchers.contains("b"));
+
+        chunks = textChunks(new WordBoundaryChunker(), ". ", 100, 10);
+        assertThat(chunks, Matchers.contains(". "));
+
+        chunks = textChunks(new WordBoundaryChunker(), " , ", 100, 10);
+        assertThat(chunks, Matchers.contains(" , "));
+
+        chunks = textChunks(new WordBoundaryChunker(), " ,", 100, 10);
+        assertThat(chunks, Matchers.contains(" ,"));
+    }
+
+    public void testSingleCharRepeated() {
+        var input = "a".repeat(32_000);
+        var chunks = textChunks(new WordBoundaryChunker(), input, 100, 10);
+        assertThat(chunks, Matchers.contains(input));
     }
 
     public void testPunctuation() {

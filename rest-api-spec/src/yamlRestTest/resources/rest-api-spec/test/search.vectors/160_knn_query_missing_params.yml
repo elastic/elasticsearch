@@ -101,7 +101,7 @@ setup:
               field: vector
               query_vector: [1, 1, 1]
           size: 1
-  - match: { hits.total: 2 }  # due to num_candidates defined as round(1.5 * size), so we only see 2 results
+  - match: { hits.total: 1 }  # k defaults to size
   - length: { hits.hits: 1 }  # one result is only returned though
 
 ---
@@ -139,7 +139,7 @@ setup:
                     query_vector: [ 1, 1, 0]
           size: 1
 
-  - match: { hits.total: 2 }  # due to num_candidates defined as round(1.5 * size), so we only see 2 results from cat:A
+  - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
 
 ---
@@ -159,7 +159,7 @@ setup:
               tie_breaker: 0.8
           size: 1
 
-  - match: { hits.total.value: 3 } # 2 knn result + 1 extra from match query
+  - match: { hits.total.value: 2 } # 2 knn result + 1 extra from match query
   - length: { hits.hits: 1 }
 
 ---
@@ -178,5 +178,5 @@ setup:
               inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
           size: 1
 
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }

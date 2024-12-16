@@ -187,7 +187,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         final ClusterState state = event.state();
         if (isSecurityIndexDeleted(event)) {
             this.securityIndexDeleted = true;
-            logger.trace("Received security index deletion cluster state event, skipping built-in roles synchronization");
+            logger.trace("Received security index deletion event, skipping built-in roles synchronization");
             return;
         } else if (isSecurityIndexCreatedOrRecovered(event)) {
             this.securityIndexDeleted = false;

@@ -12,14 +12,15 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.support.MetadataUtils.RESERVED_METADATA_KEY;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesUtils.determineRolesToDelete;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesUtils.determineRolesToUpsert;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -189,7 +190,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
             null,
             new String[] { "*" },
-            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            randomlyOrderedSupermanMetadata(),
             Collections.emptyMap(),
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 new RoleDescriptor.RemoteIndicesPrivileges(
@@ -213,6 +214,20 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
             null,
             "Grants full access to cluster management and data indices."
         );
+    }
+
+    private static Map<String, Object> randomlyOrderedSupermanMetadata() {
+        final LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        if (randomBoolean()) {
+            metadata.put("foo", "bar");
+            metadata.put("baz", "qux");
+            metadata.put(RESERVED_METADATA_KEY, true);
+        } else {
+            metadata.put(RESERVED_METADATA_KEY, true);
+            metadata.put("foo", "bar");
+            metadata.put("baz", "qux");
+        }
+        return metadata;
     }
 
     private static QueryableBuiltInRoles buildQueryableBuiltInRoles(Set<RoleDescriptor> roles) {

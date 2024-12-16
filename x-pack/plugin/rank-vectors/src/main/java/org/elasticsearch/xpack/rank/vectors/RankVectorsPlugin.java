@@ -23,8 +23,6 @@ public class RankVectorsPlugin extends Plugin implements MapperPlugin {
         License.OperationMode.ENTERPRISE
     );
 
-
-
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(RankVectorsFieldMapper.CONTENT_TYPE, RankVectorsFieldMapper.PARSER);

@@ -17,7 +17,10 @@ import java.util.List;
 import java.util.Map;
 
 public class RankVectorsPainlessExtension implements PainlessExtension {
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(RankVectorsPainlessExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        RankVectorsPainlessExtension.class,
+        "rank_vector_whitelist.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

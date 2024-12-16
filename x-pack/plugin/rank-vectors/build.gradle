@@ -21,6 +21,4 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
-
-  clusterModules project(':modules:lang-painless')
 }

@@ -86,12 +86,7 @@ public class RankVectorsIndexFieldData implements IndexFieldData<RankVectorsDVLe
         private final int dims;
         private final DenseVectorFieldMapper.ElementType elementType;
 
-        public Builder(
-            String name,
-            ValuesSourceType valuesSourceType,
-            int dims,
-            DenseVectorFieldMapper.ElementType elementType
-        ) {
+        public Builder(String name, ValuesSourceType valuesSourceType, int dims, DenseVectorFieldMapper.ElementType elementType) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.dims = dims;

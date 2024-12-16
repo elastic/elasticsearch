@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -24,17 +23,11 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_
 public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     private RankVectorsFieldType createFloatFieldType() {
-        return new RankVectorsFieldType(
-            "f",
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            BBQ_MIN_DIMS,
-            IndexVersion.current(),
-            Collections.emptyMap()
-        );
+        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.FLOAT, BBQ_MIN_DIMS, Collections.emptyMap());
     }
 
     private RankVectorsFieldMapper.RankVectorsFieldType createByteFieldType() {
-        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.BYTE, 5, IndexVersion.current(), Collections.emptyMap());
+        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.BYTE, 5, Collections.emptyMap());
     }
 
     public void testHasDocValues() {

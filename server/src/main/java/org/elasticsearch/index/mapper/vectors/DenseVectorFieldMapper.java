@@ -486,8 +486,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-                throws IOException {
+            public VectorData parseKnnVector(
+                DocumentParserContext context,
+                int dims,
+                IntBooleanConsumer dimChecker,
+                VectorSimilarity similarity
+            ) throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
                 return switch (token) {
                     case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
@@ -691,8 +695,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-                throws IOException {
+            public VectorData parseKnnVector(
+                DocumentParserContext context,
+                int dims,
+                IntBooleanConsumer dimChecker,
+                VectorSimilarity similarity
+            ) throws IOException {
                 int index = 0;
                 float squaredMagnitude = 0;
                 float[] vector = new float[dims];
@@ -889,8 +897,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-                throws IOException {
+            public VectorData parseKnnVector(
+                DocumentParserContext context,
+                int dims,
+                IntBooleanConsumer dimChecker,
+                VectorSimilarity similarity
+            ) throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
                 return switch (token) {
                     case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);

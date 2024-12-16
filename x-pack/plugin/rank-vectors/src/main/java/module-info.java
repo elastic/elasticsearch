@@ -9,7 +9,6 @@ module org.elasticsearch.rank.vectors {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.simdvec;
     requires org.apache.lucene.core;
     requires org.elasticsearch.xcontent;
 
@@ -18,6 +17,6 @@ module org.elasticsearch.rank.vectors {
     exports org.elasticsearch.xpack.rank.vectors.script;
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.rank.vectors.script.RankVectorsPainlessExtension;
-    provides org.elasticsearch.features.FeatureSpecification with RankVectorsFeatures;
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.rank.vectors.RankVectorsFeatures;
 
 }

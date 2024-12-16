@@ -55,17 +55,42 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
     }
 
     public void testNoRolesToUpsertOrDelete() {
-        QueryableBuiltInRoles currentBuiltInRoles = buildQueryableBuiltInRoles(
-            Set.of(
-                ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
-                ReservedRolesStore.roleDescriptor("viewer"),
-                ReservedRolesStore.roleDescriptor("editor")
-            )
-        );
+        {
+            QueryableBuiltInRoles currentBuiltInRoles = buildQueryableBuiltInRoles(
+                Set.of(
+                    ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+                    ReservedRolesStore.roleDescriptor("viewer"),
+                    ReservedRolesStore.roleDescriptor("editor")
+                )
+            );
 
-        // no roles to delete or upsert since the built-in roles are the same as the indexed roles
-        assertThat(determineRolesToDelete(currentBuiltInRoles, currentBuiltInRoles.rolesDigest()), is(empty()));
-        assertThat(determineRolesToUpsert(currentBuiltInRoles, currentBuiltInRoles.rolesDigest()), is(empty()));
+            // no roles to delete or upsert since the built-in roles are the same as the indexed roles
+            assertThat(determineRolesToDelete(currentBuiltInRoles, currentBuiltInRoles.rolesDigest()), is(empty()));
+            assertThat(determineRolesToUpsert(currentBuiltInRoles, currentBuiltInRoles.rolesDigest()), is(empty()));
+        }
+        {
+            QueryableBuiltInRoles currentBuiltInRoles = buildQueryableBuiltInRoles(
+                Set.of(
+                    ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+                    ReservedRolesStore.roleDescriptor("viewer"),
+                    ReservedRolesStore.roleDescriptor("editor"),
+                    supermanRole("monitor", "read")
+                )
+            );
+
+            Map<String, String> digests = buildDigests(
+                Set.of(
+                    ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+                    ReservedRolesStore.roleDescriptor("viewer"),
+                    ReservedRolesStore.roleDescriptor("editor"),
+                    supermanRole("monitor", "read")
+                )
+            );
+
+            // no roles to delete or upsert since the built-in roles are the same as the indexed roles
+            assertThat(determineRolesToDelete(currentBuiltInRoles, digests), is(empty()));
+            assertThat(determineRolesToUpsert(currentBuiltInRoles, digests), is(empty()));
+        }
     }
 
     public void testRolesToDeleteOnly() {

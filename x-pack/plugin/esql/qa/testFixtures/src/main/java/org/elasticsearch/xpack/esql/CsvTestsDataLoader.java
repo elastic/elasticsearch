@@ -349,7 +349,7 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/data/" + dataset.dataFileName;
+        final String dataName = "/" + dataset.dataFileName;
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
@@ -603,7 +603,7 @@ public class CsvTestsDataLoader {
         }
 
         public TestsDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
+            this(indexName, "mapping-" + indexName + ".json", "data/" + indexName + ".csv", null, true, null, false);
         }
 
         public TestsDataset withIndex(String indexName) {

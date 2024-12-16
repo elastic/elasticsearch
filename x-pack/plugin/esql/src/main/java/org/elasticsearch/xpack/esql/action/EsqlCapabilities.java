@@ -514,7 +514,12 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
          */
-        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,;
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD;
 
         private final boolean enabled;
 

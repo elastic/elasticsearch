@@ -7,27 +7,46 @@
 
 package org.elasticsearch.xpack.ccr.rest;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class ShardChangesRestIT extends ESRestTestCase {
-    private static final String[] NAMES = { "skywalker", "leia", "obi-wan", "yoda", "chewbacca", "r2-d2", "c-3po", "darth-vader" };
     private static final String CCR_SHARD_CHANGES_ENDPOINT = "/%s/ccr/shard_changes";
     private static final String BULK_INDEX_ENDPOINT = "/%s/_bulk";
+
+    private static final String[] SHARD_RESPONSE_FIELDS = new String[] {
+        "took_in_millis",
+        "operations",
+        "shard_id",
+        "index",
+        "settings_version",
+        "max_seq_no_of_updates_or_deletes",
+        "number_of_operations",
+        "mapping_version",
+        "aliases_version",
+        "max_seq_no",
+        "global_checkpoint" };
+    private static final String[] NAMES = { "skywalker", "leia", "obi-wan", "yoda", "chewbacca", "r2-d2", "c-3po", "darth-vader" };
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -83,7 +102,11 @@ public class ShardChangesRestIT extends ESRestTestCase {
         assertOK(client().performRequest(bulkRequest(indexName, randomIntBetween(10, 20))));
 
         final Request shardChangesRequest = new Request("GET", shardChangesEndpoint(indexName));
-        assertOK(client().performRequest(shardChangesRequest));
+        final Response response = client().performRequest(shardChangesRequest);
+        assertOK(response);
+        assertShardChangesResponse(
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false)
+        );
     }
 
     public void testShardChangesWithAllParameters() throws IOException {
@@ -106,7 +129,11 @@ public class ShardChangesRestIT extends ESRestTestCase {
         shardChangesRequest.addParameter("poll_timeout", "10s");
         shardChangesRequest.addParameter("max_batch_size", "1MB");
 
-        assertOK(client().performRequest(shardChangesRequest));
+        final Response response = client().performRequest(shardChangesRequest);
+        assertOK(response);
+        assertShardChangesResponse(
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false)
+        );
     }
 
     public void testShardChangesMultipleRequests() throws IOException {
@@ -128,14 +155,24 @@ public class ShardChangesRestIT extends ESRestTestCase {
         firstRequest.addParameter("max_operations_count", "10");
         firstRequest.addParameter("poll_timeout", "10s");
         firstRequest.addParameter("max_batch_size", "1MB");
-        assertOK(client().performRequest(firstRequest));
+
+        final Response firstResponse = client().performRequest(firstRequest);
+        assertOK(firstResponse);
+        assertShardChangesResponse(
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(firstResponse.getEntity()), false)
+        );
 
         final Request secondRequest = new Request("GET", shardChangesEndpoint(indexName));
         secondRequest.addParameter("from_seq_no", "10");
         secondRequest.addParameter("max_operations_count", "10");
         secondRequest.addParameter("poll_timeout", "10s");
         secondRequest.addParameter("max_batch_size", "1MB");
-        assertOK(client().performRequest(secondRequest));
+
+        final Response secondResponse = client().performRequest(secondRequest);
+        assertOK(secondResponse);
+        assertShardChangesResponse(
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(secondResponse.getEntity()), false)
+        );
     }
 
     public void testShardChangesInvalidFromSeqNo() throws IOException {
@@ -218,5 +255,27 @@ public class ShardChangesRestIT extends ESRestTestCase {
     private void assertResponseException(final ResponseException ex, final RestStatus restStatus, final String error) {
         assertEquals(restStatus.getStatus(), ex.getResponse().getStatusLine().getStatusCode());
         assertThat(ex.getMessage(), Matchers.containsString(error));
+    }
+
+    private void assertShardChangesResponse(final Map<String, Object> shardChangesResponseBody) {
+        for (final String fieldName : SHARD_RESPONSE_FIELDS) {
+            final Object fieldValue = shardChangesResponseBody.get(fieldName);
+            assertNotNull("Field " + fieldName + " is missing or has a null value.", fieldValue);
+
+            if ("operations".equals(fieldName)) {
+                if (fieldValue instanceof List<?> operationsList) {
+                    assertFalse("Field 'operations' is empty.", operationsList.isEmpty());
+
+                    for (final Object operation : operationsList) {
+                        assertNotNull("Operation is null.", operation);
+                        if (operation instanceof Map<?, ?> operationMap) {
+                            assertNotNull("seq_no is missing in operation.", operationMap.get("seq_no"));
+                            assertNotNull("op_type is missing in operation.", operationMap.get("op_type"));
+                            assertNotNull("primary_term is missing in operation.", operationMap.get("primary_term"));
+                        }
+                    }
+                }
+            }
+        }
     }
 }

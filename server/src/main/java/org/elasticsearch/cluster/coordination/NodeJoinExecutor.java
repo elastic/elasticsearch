@@ -377,21 +377,22 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 );
             }
 
-            IndexVersion minVersion = minSupportedVersion;
-
+            // Special case for archive indices that have been restored first in a previous major version. Their compatibility version
+            // is < N - 1 and needs special treatment. This can be removed once N - 2 support has been implemented for all indices.
             if (idxMetadata.getCreationVersion().equals(idxMetadata.getCompatibilityVersion()) == false
+                && idxMetadata.getCreationVersion().isLegacyIndexVersion()
                 && idxMetadata.getCompatibilityVersion().onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
-                minVersion = IndexVersions.MINIMUM_READONLY_COMPATIBLE;
+                return;
             }
 
-            if (idxMetadata.getCompatibilityVersion().before(minVersion)) {
+            if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
                         + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " minimum compatible index version is: "
-                        + minVersion.toReleaseVersion()
+                        + minSupportedVersion.toReleaseVersion()
                 );
             }
         }

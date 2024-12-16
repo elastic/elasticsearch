@@ -25,19 +25,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 
-public class SearchableSnapshotOkdRepositoriesIT extends AbstractArchiveIndexCompatibilityTestCase {
+/**
+ * The test suite creates a cluster in the N-1 version, where N is the current version.
+ * Mounts snapshots from old-clusters (version 5/6) and upgrades it to the current version.
+ * Test methods are executed after each upgrade.
+ */
+public class SearchableSnapshotUpgradeCompatibilityIT extends AbstractArchiveIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public SearchableSnapshotOkdRepositoriesIT(Version version) {
+    public SearchableSnapshotUpgradeCompatibilityIT(Version version) {
         super(version);
     }
 
@@ -56,6 +60,7 @@ public class SearchableSnapshotOkdRepositoriesIT extends AbstractArchiveIndexCom
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             assertTrue(getIndices(client()).isEmpty());
 
+            // Copy a snapshot of an index with 5 documents
             copySnapshotFromResources(repositoryPath, version);
             registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
             mountSnapshot(client(), repository, snapshot, index, mountedIndex);

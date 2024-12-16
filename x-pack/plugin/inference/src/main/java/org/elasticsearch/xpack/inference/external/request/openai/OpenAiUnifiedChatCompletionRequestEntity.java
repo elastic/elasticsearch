@@ -66,18 +66,21 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             for (UnifiedCompletionRequest.Message message : unifiedRequest.messages()) {
                 builder.startObject();
                 {
-                    switch (message.content()) {
-                        case UnifiedCompletionRequest.ContentString contentString -> builder.field(CONTENT_FIELD, contentString.content());
-                        case UnifiedCompletionRequest.ContentObjects contentObjects -> {
-                            builder.startArray(CONTENT_FIELD);
-                            for (UnifiedCompletionRequest.ContentObject contentObject : contentObjects.contentObjects()) {
-                                builder.startObject();
-                                builder.field(TEXT_FIELD, contentObject.text());
-                                builder.field(TYPE_FIELD, contentObject.type());
-                                builder.endObject();
-                            }
-                            builder.endArray();
+                    if (message.content() instanceof UnifiedCompletionRequest.ContentString contentString) {
+                        builder.field(CONTENT_FIELD, contentString.content());
+                    } else if (message.content() instanceof UnifiedCompletionRequest.ContentObjects contentObjects) {
+                        builder.startArray(CONTENT_FIELD);
+                        for (UnifiedCompletionRequest.ContentObject contentObject : contentObjects.contentObjects()) {
+                            builder.startObject();
+                            builder.field(TEXT_FIELD, contentObject.text());
+                            builder.field(TYPE_FIELD, contentObject.type());
+                            builder.endObject();
                         }
+                        builder.endArray();
+                    } else {
+                        throw new IllegalArgumentException(
+                            Strings.format("Unsupported message.content class received: %s", message.content().getClass().getSimpleName())
+                        );
                     }
 
                     builder.field(ROLE_FIELD, message.role());

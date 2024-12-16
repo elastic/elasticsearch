@@ -110,9 +110,10 @@ public class IndexMetadataVerifier {
      * previous major version.
      */
     private static void checkSupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
-        // This is for archive indices support of N-2. This is temporal and eventually should be deleted when
-        // the distrib team concludes their work.
+        // Special case for archive indices that have been restored first in a previous major version. Their compatibility version
+        // is < N - 1 and needs special treatment. This can be removed once N - 2 support has been implemented for all indices.
         if (indexMetadata.getCreationVersion().equals(indexMetadata.getCompatibilityVersion()) == false
+            && indexMetadata.getCreationVersion().isLegacyIndexVersion()
             && indexMetadata.getCompatibilityVersion().onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
             return;
         }

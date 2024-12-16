@@ -33,10 +33,12 @@ import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.equalTo;
 
 @TestCaseOrdering(AbstractArchiveIndexCompatibilityTestCase.TestCaseOrdering.class)
 public abstract class AbstractArchiveIndexCompatibilityTestCase extends ESRestTestCase {
 
+    protected static final Version VERSION_MINUS_2 = fromString(System.getProperty("tests.minimum.index.compatible"));
     protected static final Version VERSION_MINUS_1 = fromString(System.getProperty("tests.minimum.wire.compatible"));
     protected static final Version VERSION_CURRENT = CURRENT;
 
@@ -83,7 +85,7 @@ public abstract class AbstractArchiveIndexCompatibilityTestCase extends ESRestTe
     public void maybeUpgrade() throws Exception {
         // We want to use this test suite for the V9 upgrade, but we are not fully committed to necessarily having N-2 support
         // in V10, so we add a check here to ensure we'll revisit this decision once V10 exists.
-        // assertThat("Explicit check that N-2 version is Elasticsearch 7", VERSION_MINUS_2.getMajor(), equalTo(7));
+        assertThat("Explicit check that N-2 version is Elasticsearch 7", VERSION_MINUS_2.getMajor(), equalTo(7));
 
         var currentVersion = clusterVersion();
         if (currentVersion.before(clusterVersion)) {

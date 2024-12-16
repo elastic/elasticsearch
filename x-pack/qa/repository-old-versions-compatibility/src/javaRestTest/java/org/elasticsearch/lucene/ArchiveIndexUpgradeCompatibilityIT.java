@@ -31,13 +31,13 @@ import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 
-public class ArchiveIndexCompatibilityIT extends AbstractArchiveIndexCompatibilityTestCase {
+public class ArchiveIndexUpgradeCompatibilityIT extends AbstractArchiveIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public ArchiveIndexCompatibilityIT(Version version) {
+    public ArchiveIndexUpgradeCompatibilityIT(Version version) {
         super(version);
     }
 

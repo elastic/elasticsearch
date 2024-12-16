@@ -12,7 +12,6 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.text.ParseException;
@@ -58,7 +57,6 @@ public class IndexVersions {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
 
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
@@ -244,10 +242,8 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
-        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
+        return VERSION_IDS.values();
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());

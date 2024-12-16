@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -56,8 +55,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -140,8 +137,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param sourceField The source field.
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
+     * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      */
-    private record FieldInferenceRequest(int index, String field, String sourceField, String input, int inputOrder) {}
+    private record FieldInferenceRequest(int index, String field, String sourceField, String input, int inputOrder, int offsetAdjustment) {}
 
     /**
      * The field inference response.
@@ -149,6 +147,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param sourceField The input that was used to run inference.
      * @param input The input that was used to run inference.
      * @param inputOrder The original order of the input.
+     * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      * @param model The model used to run inference.
      * @param chunkedResults The actual results.
      */
@@ -157,6 +156,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         String sourceField,
         String input,
         int inputOrder,
+        int offsetAdjustment,
         Model model,
         ChunkedInference chunkedResults
     ) {}
@@ -317,6 +317,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         request.sourceField(),
                                         request.input(),
                                         request.inputOrder(),
+                                        request.offsetAdjustment(),
                                         inferenceProvider.model,
                                         result
                                     )
@@ -402,6 +403,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     lst.addAll(
                         SemanticTextField.toSemanticTextFieldChunks(
                             resp.input,
+                            resp.offsetAdjustment,
                             resp.chunkedResults,
                             indexRequest.getContentType(),
                             addMetadataField
@@ -528,16 +530,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
 
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        if (useInferenceMetadataFieldsFormat) {
-                            // When using the inference metadata fields format, all the input values are concatenated so that the chunk
-                            // offsets are expressed in the context of a single string
-                            String concatenatedValue = Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
-                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, concatenatedValue, order++));
-                        } else {
-                            // When using the legacy format, each input value is processed using its own inference request
-                            for (String v : values) {
-                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++));
-                            }
+                        int offsetAdjustment = 0;
+                        for (String v : values) {
+                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+
+                            // When using the inference metadata fields format, all the input values are concatenated so that the
+                            // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+                            // to apply to account for this.
+                            offsetAdjustment += v.length() + 1; // Add one for separator char length
                         }
                     }
                 }

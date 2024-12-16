@@ -1,4 +1,4 @@
-categorize
+categorize-Ignore
 required_capability: categorize
 
 FROM sample_data

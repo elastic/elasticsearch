@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +44,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
     public void testImdsV1() throws IOException {
         final Map<String, String> generatedCredentials = new HashMap<>();
 
-        final var handler = new Ec2ImdsHttpHandler(Ec2ImdsVersion.V1, generatedCredentials::put, Set.of());
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(generatedCredentials::put).buildHandler();
 
         final var roleResponse = handleRequest(handler, "GET", SECURITY_CREDENTIALS_URI);
         assertEquals(RestStatus.OK, roleResponse.status());
@@ -66,18 +67,14 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
     public void testImdsV2Disabled() {
         assertEquals(
             RestStatus.METHOD_NOT_ALLOWED,
-            handleRequest(
-                new Ec2ImdsHttpHandler(Ec2ImdsVersion.V1, (accessKey, sessionToken) -> fail(), Set.of()),
-                "PUT",
-                "/latest/api/token"
-            ).status()
+            handleRequest(new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).buildHandler(), "PUT", "/latest/api/token").status()
         );
     }
 
     public void testImdsV2() throws IOException {
         final Map<String, String> generatedCredentials = new HashMap<>();
 
-        final var handler = new Ec2ImdsHttpHandler(Ec2ImdsVersion.V2, generatedCredentials::put, Set.of());
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(generatedCredentials::put).buildHandler();
 
         final var tokenResponse = handleRequest(handler, "PUT", "/latest/api/token");
         assertEquals(RestStatus.OK, tokenResponse.status());
@@ -99,6 +96,21 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
         assertEquals(accessKey, responseMap.get("AccessKeyId"));
         assertEquals(sessionToken, responseMap.get("Token"));
+    }
+
+    public void testAvailabilityZone() {
+        final Set<String> generatedAvailabilityZones = new HashSet<>();
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).availabilityZoneSupplier(() -> {
+            final var newAvailabilityZone = randomIdentifier();
+            generatedAvailabilityZones.add(newAvailabilityZone);
+            return newAvailabilityZone;
+        }).buildHandler();
+
+        final var availabilityZoneResponse = handleRequest(handler, "GET", "/latest/meta-data/placement/availability-zone");
+        assertEquals(RestStatus.OK, availabilityZoneResponse.status());
+        final var availabilityZone = availabilityZoneResponse.body().utf8ToString();
+
+        assertEquals(generatedAvailabilityZones, Set.of(availabilityZone));
     }
 
     private record TestHttpResponse(RestStatus status, BytesReference body) {}

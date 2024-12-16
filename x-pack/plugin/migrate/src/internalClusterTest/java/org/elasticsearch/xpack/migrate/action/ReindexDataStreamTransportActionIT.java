@@ -40,6 +40,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -51,6 +52,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testNonExistentDataStream() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String nonExistentDataStreamName = randomAlphaOfLength(50);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
@@ -64,6 +66,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testAlreadyUpToDateDataStream() throws Exception {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String dataStreamName = randomAlphaOfLength(50).toLowerCase(Locale.ROOT);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,

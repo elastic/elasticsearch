@@ -72,7 +72,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testMoveClusterStateToNextStep() {
         String indexName = "my_index";
         LifecyclePolicy policy = randomValueOtherThanMany(
-            p -> p.getPhases().size() == 0,
+            p -> p.getPhases().isEmpty(),
             () -> LifecyclePolicyTests.randomTestLifecyclePolicy("policy")
         );
         Phase nextPhase = policy.getPhases()
@@ -125,7 +125,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testMoveClusterStateToNextStepSamePhase() {
         String indexName = "my_index";
         LifecyclePolicy policy = randomValueOtherThanMany(
-            p -> p.getPhases().size() == 0,
+            p -> p.getPhases().isEmpty(),
             () -> LifecyclePolicyTests.randomTestLifecyclePolicy("policy")
         );
         List<LifecyclePolicyMetadata> policyMetadatas = Collections.singletonList(
@@ -176,7 +176,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testMoveClusterStateToNextStepSameAction() {
         String indexName = "my_index";
         LifecyclePolicy policy = randomValueOtherThanMany(
-            p -> p.getPhases().size() == 0,
+            p -> p.getPhases().isEmpty(),
             () -> LifecyclePolicyTests.randomTestLifecyclePolicy("policy")
         );
         List<LifecyclePolicyMetadata> policyMetadatas = Collections.singletonList(
@@ -228,7 +228,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         String indexName = "my_index";
         String policyName = "my_policy";
         LifecyclePolicy policy = randomValueOtherThanMany(
-            p -> p.getPhases().size() == 0,
+            p -> p.getPhases().isEmpty(),
             () -> LifecyclePolicyTests.randomTestLifecyclePolicy(policyName)
         );
         Phase nextPhase = policy.getPhases()
@@ -1436,6 +1436,6 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertEquals(expectedstepInfoValue, newLifecycleState.stepInfo());
         assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
         assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
-        assertEquals(newLifecycleState.stepTime(), newLifecycleState.stepTime());
+        assertEquals(oldLifecycleState.stepTime(), newLifecycleState.stepTime());
     }
 }

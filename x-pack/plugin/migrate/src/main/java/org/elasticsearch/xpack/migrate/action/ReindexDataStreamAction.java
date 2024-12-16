@@ -58,7 +58,7 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
      * in order to be writable in the _next_ lucene version.
      */
     public static Predicate<Index> getOldIndexVersionPredicate(Metadata metadata) {
-        return index -> true;// metadata.index(index).getCreationVersion().onOrBefore(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
+        return index -> metadata.index(index).getCreationVersion().onOrBefore(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
     }
 
     public enum Mode {

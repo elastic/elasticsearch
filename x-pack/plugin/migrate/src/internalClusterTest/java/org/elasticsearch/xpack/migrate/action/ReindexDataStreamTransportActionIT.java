@@ -117,6 +117,23 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             assertThat(status.totalIndices(), equalTo(backingIndexCount));
             assertThat(status.totalIndicesToBeUpgraded(), equalTo(0));
         });
+        AcknowledgedResponse cancelResponse = client().execute(
+            CancelReindexDataStreamAction.INSTANCE,
+            new CancelReindexDataStreamAction.Request(dataStreamName)
+        ).actionGet();
+        assertNotNull(cancelResponse);
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(CancelReindexDataStreamAction.INSTANCE, new CancelReindexDataStreamAction.Request(dataStreamName))
+                .actionGet()
+        );
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(
+                new ActionType<GetMigrationReindexStatusAction.Response>(GetMigrationReindexStatusAction.NAME),
+                new GetMigrationReindexStatusAction.Request(dataStreamName)
+            ).actionGet()
+        );
     }
 
     private int createDataStream(String dataStreamName) {

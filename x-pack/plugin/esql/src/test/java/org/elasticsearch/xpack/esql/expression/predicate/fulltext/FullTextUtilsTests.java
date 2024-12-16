@@ -4,11 +4,11 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
+package org.elasticsearch.xpack.esql.expression.predicate.fulltext;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.Map;
 

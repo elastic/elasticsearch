@@ -82,8 +82,7 @@ public class PolicyManager {
 
     public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(defaultPolicy));
-        this.pluginsEntitlements = requireNonNull(pluginPolicies)
-            .entrySet()
+        this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;

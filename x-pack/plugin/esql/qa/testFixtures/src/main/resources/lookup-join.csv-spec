@@ -178,6 +178,55 @@ language_code:integer | language_name:keyword       | country:keyword
 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
 ;
 
+nullJoinKeyOnTheDataNode
+required_capability: join_lookup_v5
+
+FROM employees
+| WHERE emp_no < 10004
+| EVAL language_code = emp_no % 10, language_code = CASE(language_code == 3, null, language_code)
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 1                     | [English, English, English]
+10002          | 2                     | [German, German, German]
+10003          | null                  | null
+;
+
+
+mvJoinKeyOnTheDataNode
+required_capability: join_lookup_v5
+
+FROM employees
+| WHERE 10003 < emp_no AND emp_no < 10008
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10004          | 4                     | Quenya
+10005          | 5                     | null
+10006          | 6                     | Mv-Lang
+10007          | 7                     | [Mv-Lang, Mv-Lang2]
+;
+
+mvJoinKeyFromRow
+required_capability: join_lookup_v5
+
+ROW language_code = [4, 5, 6, 7]
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL language_name = MV_SORT(language_name), country = MV_SORT(country)
+| KEEP language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:keyword
+[4, 5, 6, 7]          | [Mv-Lang, Mv-Lang2, Quenya] | [Atlantis, Mv-Land, Mv-Land2] 
+;
+
 lookupIPFromRow
 required_capability: join_lookup_v5
 

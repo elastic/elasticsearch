@@ -368,6 +368,11 @@ public class EsqlCapabilities {
         DATE_TRUNC_DATE_NANOS(),
 
         /**
+         * Support date nanos values as the field argument to bucket
+         */
+        DATE_NANOS_BUCKET(),
+
+        /**
          * support aggregations on date nanos
          */
         DATE_NANOS_AGGREGATIONS(),
@@ -572,7 +577,12 @@ public class EsqlCapabilities {
         /**
          * Additional types for match function and operator
          */
-        MATCH_ADDITIONAL_TYPES;
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD;
 
         private final boolean enabled;
 

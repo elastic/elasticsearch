@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.tools.securitymanager.scanner;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.tools.ExternalAccess;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.objectweb.asm.Opcodes.ACC_PROTECTED;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ASM9;
 import static org.objectweb.asm.Opcodes.GETSTATIC;
@@ -41,11 +43,6 @@ class SecurityCheckClassVisitor extends ClassVisitor {
 
     static final String SECURITY_MANAGER_INTERNAL_NAME = "java/lang/SecurityManager";
     static final Set<String> excludedClasses = Set.of(SECURITY_MANAGER_INTERNAL_NAME);
-
-    enum ExternalAccess {
-        CLASS,
-        METHOD
-    }
 
     record CallerInfo(
         String moduleName,
@@ -208,15 +205,12 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                 || opcode == INVOKEDYNAMIC) {
 
                 if (SECURITY_MANAGER_INTERNAL_NAME.equals(owner)) {
-                    EnumSet<ExternalAccess> externalAccesses = EnumSet.noneOf(ExternalAccess.class);
-                    if (moduleExports.contains(getPackageName(className))) {
-                        if ((methodAccess & ACC_PUBLIC) != 0) {
-                            externalAccesses.add(ExternalAccess.METHOD);
-                        }
-                        if ((classAccess & ACC_PUBLIC) != 0) {
-                            externalAccesses.add(ExternalAccess.CLASS);
-                        }
-                    }
+                    EnumSet<ExternalAccess> externalAccesses = ExternalAccess.fromPermissions(
+                        moduleExports.contains(getPackageName(className)),
+                        (classAccess & ACC_PUBLIC) != 0,
+                        (methodAccess & ACC_PUBLIC) != 0,
+                        (methodAccess & ACC_PROTECTED) != 0
+                    );
 
                     if (name.equals("checkPermission")) {
                         var callers = callerInfoByMethod.computeIfAbsent(name, ignored -> new ArrayList<>());

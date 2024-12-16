@@ -34,6 +34,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -71,17 +72,17 @@ public class EntitlementInitialization {
 
         Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        // TODO: should we limit this array somehow?
-        var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
-        inst.retransformClasses(classesToRetransform);
+        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
 
-    private static Class<?> internalNameToClass(String internalName) {
-        try {
-            return Class.forName(internalName.replace('/', '.'), false, ClassLoader.getPlatformClassLoader());
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
+    private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
+        List<Class<?>> retransform = new ArrayList<>();
+        for (Class<?> loadedClass : loadedClasses) {
+            if (classesToTransform.contains(loadedClass.getName().replace(".", "/"))) {
+                retransform.add(loadedClass);
+            }
         }
+        return retransform.toArray(new Class<?>[0]);
     }
 
     private static PolicyManager createPolicyManager() throws IOException {

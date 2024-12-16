@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -4910,6 +4911,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPlanSanityCheckWithBinaryPlans() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+
         var plan = optimizedPlan("""
               FROM test
             | RENAME languages AS language_code
@@ -5913,6 +5916,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -5954,6 +5959,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -5996,6 +6003,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -6039,6 +6048,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -6090,6 +6101,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+
         String query = """
               FROM test
             | RENAME languages AS language_code

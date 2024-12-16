@@ -377,7 +377,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 );
             }
 
-            IndexVersion minVersion= minSupportedVersion;
+            IndexVersion minVersion = minSupportedVersion;
 
             if (idxMetadata.getCreationVersion().equals(idxMetadata.getCompatibilityVersion()) == false
                 && idxMetadata.getCompatibilityVersion().onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
@@ -420,7 +420,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {
             throw new IllegalStateException(
                 "node version ["
-                    + joiningNodeVersionl379
+                    + joiningNodeVersion
                     + "] is not supported."
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion

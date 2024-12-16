@@ -710,7 +710,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      *  Set the {@code #id()} to an automatically generated one, optimized for storage (compression) efficiency.
-     *  If a routing hash is passed, it is included in the generated id starting at 8 bytes before the end.
+     *  If a routing hash is passed, it is included in the generated id starting at 9 bytes before the end.
      * @param hash optional routing hash value, used to route requests by id to the right shard.
      */
     public void autoGenerateTimeBasedId(OptionalInt hash) {

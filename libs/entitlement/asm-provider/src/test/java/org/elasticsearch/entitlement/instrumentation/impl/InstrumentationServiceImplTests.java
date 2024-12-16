@@ -51,8 +51,8 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void check$org_example_TestTargetClass$(Class<?> clazz, int x, String y);
     }
 
-    public void testInstrumentationTargetLookup() throws IOException, ClassNotFoundException {
-        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethodsToInstrument(TestChecker.class.getName());
+    public void testInstrumentationTargetLookup() throws IOException {
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestChecker.class);
 
         assertThat(checkMethods, aMapWithSize(3));
         assertThat(
@@ -116,8 +116,8 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithOverloads() throws IOException, ClassNotFoundException {
-        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethodsToInstrument(TestCheckerOverloads.class.getName());
+    public void testInstrumentationTargetLookupWithOverloads() throws IOException {
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerOverloads.class);
 
         assertThat(checkMethods, aMapWithSize(2));
         assertThat(
@@ -148,8 +148,8 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithCtors() throws IOException, ClassNotFoundException {
-        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethodsToInstrument(TestCheckerCtors.class.getName());
+    public void testInstrumentationTargetLookupWithCtors() throws IOException {
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerCtors.class);
 
         assertThat(checkMethods, aMapWithSize(2));
         assertThat(

@@ -64,8 +64,8 @@ public class ScalarFunctionWritables {
         entries.add(Concat.ENTRY);
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
-        entries.add(Hash.ENTRY);
         entries.add(Greatest.ENTRY);
+        entries.add(Hash.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
         entries.add(InsensitiveEquals.ENTRY);

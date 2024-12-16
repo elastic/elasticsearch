@@ -1786,6 +1786,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         Set<IndexSettingProvider> indexSettingProviders
     ) {
         return MetadataCreateIndexService.aggregateIndexSettings(
+            state.metadata(),
             state.getMetadata().getProject(projectId),
             state.nodes(),
             state.blocks(),

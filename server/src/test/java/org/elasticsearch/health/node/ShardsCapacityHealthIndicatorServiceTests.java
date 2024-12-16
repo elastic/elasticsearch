@@ -342,9 +342,9 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             numberOfNewShards,
             replicas,
             discoveryNodes,
-            projectMetadata) -> {
+            metadata) -> {
             assertEquals(mockedState.nodes(), discoveryNodes);
-            assertEquals(mockedState.metadata().getProject(), projectMetadata);
+            assertEquals(mockedState.metadata(), metadata);
             assertEquals(randomMaxShardsPerNodeSetting, maxConfiguredShardsPerNode);
             return new ShardLimitValidator.Result(
                 numberOfNewShards != shardsToAdd && replicas == 1,
@@ -356,20 +356,18 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         };
 
         assertEquals(
-            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata().getProject(), checkerWrapper.apply(5))
-                .status(),
+            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(5)).status(),
             RED
         );
         assertEquals(
-            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata().getProject(), checkerWrapper.apply(10))
-                .status(),
+            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(10)).status(),
             YELLOW
         );
 
         // Let's cover the holes :)
         Stream.of(randomIntBetween(1, 4), randomIntBetween(6, 9), randomIntBetween(11, Integer.MAX_VALUE))
             .map(checkerWrapper)
-            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata().getProject(), checker))
+            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checker))
             .map(ShardsCapacityHealthIndicatorService.StatusResult::status)
             .forEach(status -> assertEquals(status, GREEN));
     }

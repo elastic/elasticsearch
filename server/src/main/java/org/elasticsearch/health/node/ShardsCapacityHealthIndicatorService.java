@@ -9,7 +9,7 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -119,13 +119,13 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             calculateFrom(
                 shardLimitsMetadata.maxShardsPerNode(),
                 state.nodes(),
-                state.metadata().getProject(),
+                state.metadata(),
                 ShardLimitValidator::checkShardLimitForNormalNodes
             ),
             calculateFrom(
                 shardLimitsMetadata.maxShardsPerNodeFrozen(),
                 state.nodes(),
-                state.metadata().getProject(),
+                state.metadata(),
                 ShardLimitValidator::checkShardLimitForFrozenNodes
             )
         );
@@ -178,15 +178,15 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     static StatusResult calculateFrom(
         int maxShardsPerNodeSetting,
         DiscoveryNodes discoveryNodes,
-        ProjectMetadata projectMetadata,
+        Metadata metadata,
         ShardsCapacityChecker checker
     ) {
-        var result = checker.check(maxShardsPerNodeSetting, 5, 1, discoveryNodes, projectMetadata);
+        var result = checker.check(maxShardsPerNodeSetting, 5, 1, discoveryNodes, metadata);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.RED, result);
         }
 
-        result = checker.check(maxShardsPerNodeSetting, 10, 1, discoveryNodes, projectMetadata);
+        result = checker.check(maxShardsPerNodeSetting, 10, 1, discoveryNodes, metadata);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.YELLOW, result);
         }
@@ -237,7 +237,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             int numberOfNewShards,
             int replicas,
             DiscoveryNodes discoveryNodes,
-            ProjectMetadata projectMetadata
+            Metadata metadata
         );
     }
 }

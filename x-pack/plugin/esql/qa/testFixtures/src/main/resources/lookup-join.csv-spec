@@ -224,7 +224,25 @@ ROW language_code = [4, 5, 6, 7]
 ;
 
 language_code:integer | language_name:keyword       | country:keyword
-[4, 5, 6, 7]          | [Mv-Lang, Mv-Lang2, Quenya] | [Atlantis, Mv-Land, Mv-Land2] 
+[4, 5, 6, 7]          | [Mv-Lang, Mv-Lang2, Quenya] | [Atlantis, Mv-Land, Mv-Land2]
+;
+
+mvJoinKeyFromRowExpanded
+required_capability: join_lookup_v5
+
+ROW language_code = [4, 5, 6, 7, 8]
+| MV_EXPAND language_code
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL language_name = MV_SORT(language_name), country = MV_SORT(country)
+| KEEP language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:keyword
+4                     | Quenya                      | null
+5                     | null                        | Atlantis
+6                     | Mv-Lang                     | Mv-Land
+7                     | [Mv-Lang, Mv-Lang2]         | [Mv-Land, Mv-Land2]
+8                     | Mv-Lang2                    | Mv-Land2
 ;
 
 lookupIPFromRow

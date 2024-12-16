@@ -74,5 +74,5 @@ non-lookup index:
           query: 'FROM test-lookup | SORT key | LOOKUP JOIN `test` ON key | LIMIT 3'
       catch: "bad_request"
 
-  - match: { error.root_cause.0.type: "verification_exception" }
-  - match: { error.root_cause.0.reason: "Found 1 problem\nline 1:43: LOOKUP JOIN index [`test`] must have LOOKUP mode, has mode [standard]" }
+  - match: { error.type: "verification_exception" }
+  - match: { error.reason: "Found 1 problem\nline 1:43: LOOKUP JOIN index [`test`] must have LOOKUP mode, has mode [standard]" }

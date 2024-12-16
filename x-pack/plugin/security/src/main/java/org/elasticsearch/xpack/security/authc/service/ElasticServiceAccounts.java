@@ -171,6 +171,7 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".agentless-*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .allowRestrictedIndices(true)
                     .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

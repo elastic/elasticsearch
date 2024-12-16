@@ -330,7 +330,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "maintenance",
                     "view_index_metadata"
                   ],
-                  "allow_restricted_indices": false
+                  "allow_restricted_indices": true
                 }
               ],
               "applications": [        {

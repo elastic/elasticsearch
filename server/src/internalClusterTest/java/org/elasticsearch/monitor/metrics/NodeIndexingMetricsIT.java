@@ -18,6 +18,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -93,38 +94,61 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.resetMeter();
 
         assertAcked(prepareCreate("index_no_refresh", Settings.builder().put("index.refresh_interval", "-1")));
-        assertAcked(prepareCreate("index_with_refresh"));
+        assertAcked(prepareCreate("index_with_default_refresh"));
 
-        for (String indexName : List.of("index_no_refresh", "index_with_refresh")) {
-            client(dataNode).index(new IndexRequest(indexName).id("1").source(Map.of())).actionGet();
+        for (String indexName : List.of("index_no_refresh", "index_with_default_refresh")) {
+            String docId = randomUUID();
+            client(dataNode).index(new IndexRequest(indexName).id(docId).source(Map.of())).actionGet();
             // test version conflicts are counted when getting from the translog
             if (randomBoolean()) {
                 // this get has the side effect of tracking translog location in the live version map,
                 // which potentially influences the engine conflict exception path
-                client(dataNode).get(new GetRequest(indexName, "1").realtime(randomBoolean())).actionGet();
+                client(dataNode).get(new GetRequest(indexName, docId).realtime(randomBoolean())).actionGet();
             }
             {
                 var e = expectThrows(
                         VersionConflictEngineException.class,
                         () -> client(dataNode).get(
-                                new GetRequest(indexName, "1").version(10)
+                                new GetRequest(indexName, docId).version(10)
                                         .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
                         ).actionGet()
                 );
                 assertThat(e.status(), is(RestStatus.CONFLICT));
             }
             if (randomBoolean()) {
-                client(dataNode).get(new GetRequest(indexName, "1").realtime(false)).actionGet();
+                client(dataNode).get(new GetRequest(indexName, docId).realtime(false)).actionGet();
             }
             client(dataNode).admin().indices().prepareRefresh(indexName).get();
             {
                 var e = expectThrows(
                         VersionConflictEngineException.class,
                         () -> client(dataNode).get(
-                                new GetRequest("index_no_refresh", "1").version(5)
+                                new GetRequest(indexName, docId).version(5)
                                         .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
                                         .realtime(false)
                         ).actionGet()
+                );
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+            // updates
+            {
+                var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).update(
+                        new UpdateRequest(indexName, docId).setIfPrimaryTerm(1)
+                            .setIfSeqNo(randomIntBetween(2, 5))
+                            .doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))
+                    ).actionGet()
+                );
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+            // deletes
+            {
+                var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).delete(
+                        new DeleteRequest(indexName, docId).setIfPrimaryTerm(randomIntBetween(2, 5)).setIfSeqNo(0)
+                    ).actionGet()
                 );
                 assertThat(e.status(), is(RestStatus.CONFLICT));
             }
@@ -134,10 +158,12 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.collect();
 
         List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement("es.indexing.indexing.failed.total");
-        // there are no indexing failures reported because only gets generated conflicts
+        // there are no indexing failures reported because only gets/updates/deletes generated the conflicts above
         assertThat(measurements, iterableWithSize(2));
         assertThat(measurements.get(0).value(), is(0L));
+        assertThat(measurements.get(0).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "any")));
         assertThat(measurements.get(1).value(), is(0L));
+        assertThat(measurements.get(1).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "version_conflict")));
     }
 
     public void testNodeIndexingMetricsArePublishing() {

@@ -13,7 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -120,12 +119,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object with the contents of each field created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFields(Map<String, ? extends ToXContent> map) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(), (b, p) -> {
-            for (var e : map.entrySet()) {
-                b.field(e.getKey(), e.getValue(), p);
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject();
+        map.forEach(this::field);
+        endObject();
         return this;
     }
 
@@ -133,12 +129,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object named {@code name}, with the contents of each field created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(name), (b, p) -> {
-            for (var e : map.entrySet()) {
-                b.field(e.getKey(), e.getValue(), p);
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject(name);
+        map.forEach(this::field);
+        endObject();
         return this;
     }
 
@@ -146,12 +139,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object with the contents of each field each another object created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFieldObjects(Map<String, ? extends ToXContent> map) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(), (b, p) -> {
-            for (var e : map.entrySet()) {
-                e.getValue().toXContent(b.startObject(e.getKey()), p).endObject();
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject();
+        map.forEach(this::xContentObject);
+        endObject();
         return this;
     }
 
@@ -159,12 +149,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object named {@code name}, with the contents of each field each another object created from each entry in {@code map}
      */
     public ChunkedToXContentBuilder xContentObjectFieldObjects(String name, Map<String, ? extends ToXContent> map) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(name), (b, p) -> {
-            for (var e : map.entrySet()) {
-                e.getValue().toXContent(b.startObject(e.getKey()), p).endObject();
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject(name);
+        map.forEach(this::xContentObject);
+        endObject();
         return this;
     }
 
@@ -203,12 +190,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * the return values of {@code create} called on each item returned by {@code items}
      */
     public <T> ChunkedToXContentBuilder object(Iterator<T> items, Function<? super T, ToXContent> create) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(), (b, p) -> {
-            while (items.hasNext()) {
-                create.apply(items.next()).toXContent(b, p);
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject();
+        forEach(items, create);
+        endObject();
         return this;
     }
 
@@ -227,12 +211,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * the return values of {@code create} called on each item returned by {@code items}
      */
     public <T> ChunkedToXContentBuilder object(String name, Iterator<T> items, Function<? super T, ToXContent> create) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(name), (b, p) -> {
-            while (items.hasNext()) {
-                create.apply(items.next()).toXContent(b, p);
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject(name);
+        forEach(items, create);
+        endObject();
         return this;
     }
 
@@ -240,12 +221,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object with the contents of each field set by {@code map}
      */
     public ChunkedToXContentBuilder object(Map<String, ?> map) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(), (b, p) -> {
-            for (var e : map.entrySet()) {
-                b.field(e.getKey(), e.getValue());
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject();
+        map.forEach(this::field);
+        endObject();
         return this;
     }
 
@@ -253,12 +231,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object named {@code name}, with the contents of each field set by {@code map}
      */
     public ChunkedToXContentBuilder object(String name, Map<String, ?> map) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startObject(name), (b, p) -> {
-            for (var e : map.entrySet()) {
-                b.field(e.getKey(), e.getValue());
-            }
-            return b;
-        }, (b, p) -> b.endObject()).iterator());
+        startObject(name);
+        map.forEach(this::field);
+        endObject();
         return this;
     }
 
@@ -304,12 +279,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * the return values of {@code create} called on each item returned by {@code items}
      */
     public <T> ChunkedToXContentBuilder array(Iterator<T> items, Function<? super T, ToXContent> create) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startArray(), (b, p) -> {
-            while (items.hasNext()) {
-                create.apply(items.next()).toXContent(b, p);
-            }
-            return b;
-        }, (b, p) -> b.endArray()).iterator());
+        startArray();
+        forEach(items, create);
+        endArray();
         return this;
     }
 
@@ -338,12 +310,9 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * the return values of {@code create} called on each item returned by {@code items}
      */
     public <T> ChunkedToXContentBuilder array(String name, Iterator<T> items, Function<? super T, ToXContent> create) {
-        append(cp -> Arrays.<ToXContent>asList((b, p) -> b.startArray(name), (b, p) -> {
-            while (items.hasNext()) {
-                create.apply(items.next()).toXContent(b, p);
-            }
-            return b;
-        }, (b, p) -> b.endArray()).iterator());
+        startArray(name);
+        forEach(items, create);
+        endArray();
         return this;
     }
 

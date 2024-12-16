@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -88,7 +89,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode)
+            () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode, null)
         );
         assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1", exception.getMessage());
     }
@@ -134,21 +135,32 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
     @Override
     protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> new SearchableSnapshotAction(
                 randomAlphaOfLengthBetween(5, 10),
                 instance.isForceMergeIndex(),
-                instance.getTotalShardsPerNode()
+                instance.getTotalShardsPerNode(),
+                instance.getReplicateFor()
             );
             case 1 -> new SearchableSnapshotAction(
                 instance.getSnapshotRepository(),
                 instance.isForceMergeIndex() == false,
-                instance.getTotalShardsPerNode()
+                instance.getTotalShardsPerNode(),
+                instance.getReplicateFor()
             );
             case 2 -> new SearchableSnapshotAction(
                 instance.getSnapshotRepository(),
                 instance.isForceMergeIndex(),
-                instance.getTotalShardsPerNode() == null ? 1 : instance.getTotalShardsPerNode() + randomIntBetween(1, 100)
+                instance.getTotalShardsPerNode() == null ? 1 : instance.getTotalShardsPerNode() + randomIntBetween(1, 100),
+                instance.getReplicateFor()
+            );
+            case 3 -> new SearchableSnapshotAction(
+                instance.getSnapshotRepository(),
+                instance.isForceMergeIndex(),
+                instance.getTotalShardsPerNode(),
+                instance.getReplicateFor() == null
+                    ? TimeValue.timeValueDays(1)
+                    : TimeValue.timeValueDays(instance.getReplicateFor().getDays() + randomIntBetween(1, 10))
             );
             default -> throw new IllegalArgumentException("Invalid mutation branch");
         };
@@ -158,7 +170,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         return new SearchableSnapshotAction(
             randomAlphaOfLengthBetween(5, 10),
             randomBoolean(),
-            (randomBoolean() ? null : randomIntBetween(1, 100))
+            (randomBoolean() ? null : randomIntBetween(1, 100)),
+            (randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 10)))
         );
     }
 }

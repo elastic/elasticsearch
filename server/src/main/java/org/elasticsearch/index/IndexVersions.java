@@ -250,6 +250,10 @@ public class IndexVersions {
         return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
     }
 
+    static Collection<IndexVersion> getAllReadOnlyVersions() {
+        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_READONLY_COMPATIBLE) && v.before(MINIMUM_COMPATIBLE)).toList();
+    }
+
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());
 
     // no instance

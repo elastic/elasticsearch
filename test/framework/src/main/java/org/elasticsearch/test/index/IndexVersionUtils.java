@@ -50,7 +50,6 @@ public class IndexVersionUtils {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
-    /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static IndexVersion randomVersionBetween(Random random, @Nullable IndexVersion minVersion, @Nullable IndexVersion maxVersion) {
         if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");

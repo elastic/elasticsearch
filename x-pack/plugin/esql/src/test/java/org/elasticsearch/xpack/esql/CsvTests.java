@@ -425,7 +425,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {
-        var testData = loadPageFromCsv(CsvTests.class.getResource("/" + dataset.dataFileName()), dataset.typeMapping());
+        var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
         return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
     }
 

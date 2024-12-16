@@ -11,40 +11,54 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction.Request;
 import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction.Response;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamStatus;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
 
 public class GetMigrationReindexStatusTransportAction extends HandledTransportAction<Request, Response> {
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final Client client;
 
     @Inject
     public GetMigrationReindexStatusTransportAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Client client
     ) {
         super(GetMigrationReindexStatusAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.client = client;
     }
 
     @Override
@@ -96,7 +110,52 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
             );
         } else {
             TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
-            listener.onResponse(new Response(new TaskResult(false, info)));
+            ReindexDataStreamStatus status = (ReindexDataStreamStatus) info.status();
+            Set<String> inProgressIndices = status.inProgress();
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            String[] indices = inProgressIndices.stream()
+                .flatMap(index -> Stream.of(index, ReindexDataStreamIndexTransportAction.generateDestIndexName(index)))
+                .toList()
+                .toArray(new String[0]);
+            indicesStatsRequest.indices(indices);
+            client.execute(IndicesStatsAction.INSTANCE, indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+                @Override
+                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                    Map<String, Tuple<Long, Long>> inProgressMap = new HashMap<>();
+                    for (String index : inProgressIndices) {
+                        DocsStats totalDocsStats = indicesStatsResponse.getIndex(index).getTotal().getDocs();
+                        final long totalDocsInIndex = totalDocsStats == null ? 0 : totalDocsStats.getCount();
+                        IndexStats migratedIndexStats = indicesStatsResponse.getIndex(
+                            ReindexDataStreamIndexTransportAction.generateDestIndexName(index)
+                        );
+                        final long reindexedDocsInIndex;
+                        if (migratedIndexStats == null) {
+                            reindexedDocsInIndex = 0;
+                        } else {
+                            DocsStats reindexedDocsStats = migratedIndexStats.getTotal().getDocs();
+                            reindexedDocsInIndex = reindexedDocsStats == null ? 0 : reindexedDocsStats.getCount();
+                        }
+                        inProgressMap.put(index, Tuple.tuple(totalDocsInIndex, reindexedDocsInIndex));
+                    }
+                    ReindexDataStreamEnrichedStatus enrichedStatus = new ReindexDataStreamEnrichedStatus(
+                        status.persistentTaskStartTime(),
+                        status.totalIndices(),
+                        status.totalIndicesToBeUpgraded(),
+                        status.complete(),
+                        status.exception(),
+                        inProgressMap,
+                        status.pending(),
+                        status.errors()
+                    );
+                    listener.onResponse(new Response(enrichedStatus));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+
         }
     }
 

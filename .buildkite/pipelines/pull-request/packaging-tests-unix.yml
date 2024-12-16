@@ -13,6 +13,7 @@ steps:
               - debian-12
               - opensuse-leap-15
               - oraclelinux-8
+              - oraclelinux-9
               - sles-15
               - ubuntu-2004
               - ubuntu-2204
@@ -21,6 +22,7 @@ steps:
               - rhel-8
               - rhel-9
               - almalinux-8
+              - almalinux-9
             PACKAGING_TASK:
               - docker
               - docker-cloud-ess

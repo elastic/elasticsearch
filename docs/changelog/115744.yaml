@@ -1,6 +1,0 @@
-pr: 115744
-summary: Use `SearchStats` instead of field.isAggregatable in data node planning
-area: ES|QL
-type: bug
-issues:
- - 115737

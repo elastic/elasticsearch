@@ -20,7 +20,7 @@ public class KnnFloatVectorQueryBuilderTests extends AbstractKnnVectorQueryBuild
     @Override
     KnnVectorQueryBuilder createKnnVectorQueryBuilder(
         String fieldName,
-        Integer k,
+        int k,
         int numCands,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -23,13 +22,19 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
-import java.util.Collection;
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 
+/**
+ * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
+ * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
+ * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, ActionListener, BiConsumer)} will rewrite the plan by replacing
+ * {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
+ */
 public class QueryBuilderResolver {
     private final SearchService searchService;
     private final ClusterService clusterService;
@@ -53,6 +58,10 @@ public class QueryBuilderResolver {
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
+        if (plan.optimized() == false) {
+            throw new IllegalStateException("Expected optimized plan before query builder rewrite.");
+        }
+
         Set<FullTextFunction> unresolved = fullTextFunctions(plan);
         Set<String> indexNames = indexNames(plan);
 
@@ -60,42 +69,24 @@ public class QueryBuilderResolver {
             callback.accept(plan, listener);
             return;
         }
-        ConcurrentMap<FullTextFunction, QueryBuilder> results = new ConcurrentHashMap<>();
-
-        // We are using a GroupedActionListener here so that we update the plan only after al the QueryBuilders have been resolved.
-        // This way we avoid making concurrent updates to the plan.
-        GroupedActionListener<QueryBuilder> groupedActionListener = new GroupedActionListener<>(
-            unresolved.size(), // how many QueryBuilders need to be collected before onResponse is called
-            new ActionListener<Collection<QueryBuilder>>() {
-                @Override
-                public void onResponse(Collection<QueryBuilder> ignored) {
-                    // This is called only after the groupedActionListener has received all the QueryBuilders
-                    try {
-                        LogicalPlan newPlan = planWithResolvedQueryBuilders(plan, results);
-                        callback.accept(newPlan, listener);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
+        QueryRewriteContext ctx = queryRewriteContext(indexNames);
+        FullTextFunctionsRewritable rewritable = new FullTextFunctionsRewritable(unresolved);
+        Rewriteable.rewriteAndFetch(rewritable, ctx, new ActionListener<FullTextFunctionsRewritable>() {
+            @Override
+            public void onResponse(FullTextFunctionsRewritable fullTextFunctionsRewritable) {
+                try {
+                    LogicalPlan newPlan = planWithResolvedQueryBuilders(plan, fullTextFunctionsRewritable.results());
+                    callback.accept(newPlan, listener);
+                } catch (Exception e) {
+                    onFailure(e);
                 }
             }
-        );
 
-        QueryRewriteContext ctx = queryRewriteContext(indexNames);
-
-        for (FullTextFunction fullTextFunction : unresolved) {
-            // First we get the initial query builder
-            QueryBuilder queryBuilder = fullTextFunction.asQuery(PlannerUtils.TRANSLATOR_HANDLER).asBuilder();
-            // Then the rewrite will produce a new query builder
-            Rewriteable.rewriteAndFetch(queryBuilder, ctx, groupedActionListener.delegateFailureAndWrap((next, resolvedQueryBuilder) -> {
-                results.put(fullTextFunction, resolvedQueryBuilder);
-                next.onResponse(resolvedQueryBuilder);
-            }));
-        }
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private Set<FullTextFunction> fullTextFunctions(LogicalPlan plan) {
@@ -112,14 +103,14 @@ public class QueryBuilderResolver {
         return indexNames.get();
     }
 
-    public LogicalPlan planWithResolvedQueryBuilders(LogicalPlan plan, ConcurrentMap<FullTextFunction, QueryBuilder> newQueryBuilders) {
+    public LogicalPlan planWithResolvedQueryBuilders(LogicalPlan plan, Map<FullTextFunction, QueryBuilder> newQueryBuilders) {
         LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, m -> {
             if (newQueryBuilders.keySet().contains(m)) {
                 return m.replaceQueryBuilder(newQueryBuilders.get(m));
             }
             return m;
         });
-        newPlan.setAnalyzed();
+        // The given plan was already analyzed and optimized, so we set the resulted plan to optimized as well.
         newPlan.setOptimized();
         return newPlan;
     }
@@ -135,5 +126,45 @@ public class QueryBuilderResolver {
         );
 
         return searchService.getRewriteContext(() -> System.currentTimeMillis(), resolvedIndices, null);
+    }
+
+    private class FullTextFunctionsRewritable implements Rewriteable<FullTextFunctionsRewritable> {
+
+        private final Map<FullTextFunction, QueryBuilder> queryBuilderMap;
+
+        FullTextFunctionsRewritable(Map<FullTextFunction, QueryBuilder> queryBuilderMap) {
+            this.queryBuilderMap = queryBuilderMap;
+        }
+
+        FullTextFunctionsRewritable(Set<FullTextFunction> functions) {
+            this.queryBuilderMap = new HashMap<>();
+
+            for (FullTextFunction func : functions) {
+                queryBuilderMap.put(func, func.asQuery(PlannerUtils.TRANSLATOR_HANDLER).asBuilder());
+            }
+        }
+
+        @Override
+        public FullTextFunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
+            Map<FullTextFunction, QueryBuilder> results = new HashMap<>();
+
+            boolean hasChanged = false;
+            for (FullTextFunction func : queryBuilderMap.keySet()) {
+                var initial = queryBuilderMap.get(func);
+                var rewritten = Rewriteable.rewrite(initial, ctx, false);
+
+                if (rewritten.equals(initial) == false) {
+                    hasChanged = true;
+                }
+
+                results.put(func, rewritten);
+            }
+
+            return hasChanged ? new FullTextFunctionsRewritable(results) : this;
+        }
+
+        public Map<FullTextFunction, QueryBuilder> results() {
+            return queryBuilderMap;
+        }
     }
 }

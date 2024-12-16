@@ -161,8 +161,9 @@ public class EsqlSession {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
                     try {
+                        var optimizedPlan = optimizedPlan(analyzedPlan);
                         queryBuilderResolver.resolveQueryBuilders(
-                            optimizedPlan(analyzedPlan),
+                            optimizedPlan,
                             listener,
                             (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, newPlan, next)
                         );

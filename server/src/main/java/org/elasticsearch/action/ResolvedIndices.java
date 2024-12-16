@@ -168,10 +168,7 @@ public class ResolvedIndices {
         RemoteClusterService remoteClusterService,
         long startTimeInMillis
     ) {
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-            indicesOptions,
-            indexNames
-        );
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(indicesOptions, indexNames);
 
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 

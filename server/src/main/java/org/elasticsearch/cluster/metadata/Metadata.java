@@ -472,6 +472,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     /**
+     * Gets the total number of open shards of all indices across all projects. Includes
+     * replicas, but does not include shards that are part of closed indices.
+     */
+    public int getTotalOpenIndexShards() {
+        int shards = 0;
+        for (ProjectMetadata project : projects().values()) {
+            shards += project.getTotalOpenIndexShards();
+        }
+        return shards;
+    }
+
+    /**
      * @return The total number of shards across all projects in this cluster
      */
     public int getTotalNumberOfShards() {

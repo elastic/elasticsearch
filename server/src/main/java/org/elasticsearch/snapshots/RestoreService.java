@@ -1397,7 +1397,7 @@ public final class RestoreService implements ClusterStateApplier {
                     shardLimitValidator.validateShardLimit(
                         snapshotIndexMetadata.getSettings(),
                         currentState.nodes(),
-                        currentState.metadata().getProject()
+                        currentState.metadata()
                     );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(

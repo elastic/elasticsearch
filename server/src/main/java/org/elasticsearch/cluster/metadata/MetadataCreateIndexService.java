@@ -646,10 +646,12 @@ public class MetadataCreateIndexService {
             mappings = new CompressedXContent(mappingsMap);
         }
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            metadata,
             projectMetadata,
             currentState.nodes(),
             currentState.blocks(),
@@ -701,7 +703,8 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
@@ -725,6 +728,7 @@ public class MetadataCreateIndexService {
             request.index()
         );
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            metadata,
             projectMetadata,
             currentState.nodes(),
             currentState.blocks(),
@@ -774,10 +778,12 @@ public class MetadataCreateIndexService {
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request for system index [{}] matching pattern [{}]", request.index(), indexPattern);
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            metadata,
             projectMetadata,
             currentState.nodes(),
             currentState.blocks(),
@@ -839,10 +845,12 @@ public class MetadataCreateIndexService {
         final Map<String, ComponentTemplate> componentTemplates = request.systemDataStreamDescriptor().getComponentTemplates();
         final List<CompressedXContent> mappings = collectSystemV2Mappings(template, componentTemplates, xContentRegistry, request.index());
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            metadata,
             projectMetadata,
             currentState.nodes(),
             currentState.blocks(),
@@ -942,10 +950,12 @@ public class MetadataCreateIndexService {
             );
         }
 
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            metadata,
             projectMetadata,
             currentState.nodes(),
             currentState.blocks(),
@@ -1035,6 +1045,7 @@ public class MetadataCreateIndexService {
      * @return the aggregated settings for the new index
      */
     static Settings aggregateIndexSettings(
+        Metadata metadata,
         ProjectMetadata projectMetadata,
         DiscoveryNodes nodes,
         ClusterBlocks clusterBlocks,
@@ -1194,7 +1205,7 @@ public class MetadataCreateIndexService {
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
          * that will be used to create this index.
          */
-        shardLimitValidator.validateShardLimit(indexSettings, nodes, projectMetadata);
+        shardLimitValidator.validateShardLimit(indexSettings, nodes, metadata);
         validateSoftDeleteSettings(indexSettings);
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSetting(indexSettings);

@@ -180,7 +180,8 @@ public class MetadataUpdateSettingsService {
 
             final var currentRoutingTable = currentState.routingTable(request.projectId());
             RoutingTable.Builder routingTableBuilder = null;
-            final ProjectMetadata currentProject = currentState.metadata().getProject(request.projectId());
+            final Metadata currentMetadata = currentState.metadata();
+            final ProjectMetadata currentProject = currentMetadata.getProject(request.projectId());
             ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(currentProject);
 
             // allow to change any settings to a closed index, and only allow dynamic settings to be changed
@@ -257,7 +258,7 @@ public class MetadataUpdateSettingsService {
                     // Verify that this won't take us over the cluster shard limit.
                     shardLimitValidator.validateShardLimitOnReplicaUpdate(
                         currentState.nodes(),
-                        currentProject,
+                        currentMetadata,
                         request.indices(),
                         updatedNumberOfReplicas
                     );
@@ -342,18 +343,18 @@ public class MetadataUpdateSettingsService {
             try {
                 final var updatedProject = updatedState.metadata().getProject(request.projectId());
                 for (Index index : openIndices) {
-                    final IndexMetadata currentMetadata = currentProject.getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedProject.getIndexSafe(index);
-                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
+                    final IndexMetadata currentIndexMetadata = currentProject.getIndexSafe(index);
+                    final IndexMetadata updatedIndexMetadata = updatedProject.getIndexSafe(index);
+                    indicesService.verifyIndexMetadata(currentIndexMetadata, updatedIndexMetadata);
                 }
                 for (Index index : closedIndices) {
-                    final IndexMetadata currentMetadata = currentProject.getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedProject.getIndexSafe(index);
+                    final IndexMetadata currentIndexMetadata = currentProject.getIndexSafe(index);
+                    final IndexMetadata updatedIndexMetadata = updatedProject.getIndexSafe(index);
                     // Verifies that the current index settings can be updated with the updated dynamic settings.
-                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(currentIndexMetadata, updatedIndexMetadata);
                     // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
                     // This step is mandatory since we allow to update non-dynamic settings on closed indices.
-                    indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(updatedIndexMetadata, updatedIndexMetadata);
                 }
             } catch (IOException ex) {
                 throw ExceptionsHelper.convertToElastic(ex);

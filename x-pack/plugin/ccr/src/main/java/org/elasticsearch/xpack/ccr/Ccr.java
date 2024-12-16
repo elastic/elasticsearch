@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -123,8 +124,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTING;
@@ -144,7 +143,34 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     public static final String REQUESTED_OPS_MISSING_METADATA_KEY = "es.requested_operations_missing";
     public static final TransportVersion TRANSPORT_VERSION_ACTION_WITH_SHARD_ID = TransportVersions.V_8_9_X;
+    private static final List<RestHandler> BASE_REST_HANDLERS = Arrays.asList(
+        // stats API
+        new RestFollowStatsAction(),
+        new RestCcrStatsAction(),
+        new RestFollowInfoAction(),
+        // follow APIs
+        new RestPutFollowAction(),
+        new RestResumeFollowAction(),
+        new RestPauseFollowAction(),
+        new RestUnfollowAction(),
+        // auto-follow APIs
+        new RestDeleteAutoFollowPatternAction(),
+        new RestPutAutoFollowPatternAction(),
+        new RestGetAutoFollowPatternAction(),
+        new RestPauseAutoFollowPatternAction(),
+        new RestResumeAutoFollowPatternAction(),
+        // forget follower API
+        new RestForgetFollowerAction()
+    );
 
+    private static final List<RestHandler> REST_HANDLERS = Collections.unmodifiableList(BASE_REST_HANDLERS);
+
+    private static final List<RestHandler> SNAPSHOT_BUILD_REST_HANDLERS;
+    static {
+        List<RestHandler> snapshotBuildHandlers = new ArrayList<>(BASE_REST_HANDLERS);
+        snapshotBuildHandlers.add(new RestShardChangesAction());
+        SNAPSHOT_BUILD_REST_HANDLERS = Collections.unmodifiableList(snapshotBuildHandlers);
+    }
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -276,24 +302,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        return Stream.concat(
-            Stream.of(
-                new RestFollowStatsAction(),
-                new RestCcrStatsAction(),
-                new RestFollowInfoAction(),
-                new RestPutFollowAction(),
-                new RestResumeFollowAction(),
-                new RestPauseFollowAction(),
-                new RestUnfollowAction(),
-                new RestDeleteAutoFollowPatternAction(),
-                new RestPutAutoFollowPatternAction(),
-                new RestGetAutoFollowPatternAction(),
-                new RestPauseAutoFollowPatternAction(),
-                new RestResumeAutoFollowPatternAction(),
-                new RestForgetFollowerAction()
-            ),
-            Build.current().isSnapshot() ? Stream.of(new RestShardChangesAction()) : Stream.empty()
-        ).collect(Collectors.toList());
+        return Build.current().isSnapshot() ? SNAPSHOT_BUILD_REST_HANDLERS : REST_HANDLERS;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

@@ -532,12 +532,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         int offsetAdjustment = 0;
                         for (String v : values) {
                             fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
-                            if (useInferenceMetadataFieldsFormat) {
-                                // When using the inference metadata fields format, all the input values are concatenated so that the
-                                // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-                                // to apply to account for this.
-                                offsetAdjustment += v.length() + 1; // Add one for separator char length
-                            }
+
+                            // When using the inference metadata fields format, all the input values are concatenated so that the
+                            // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+                            // to apply to account for this.
+                            offsetAdjustment += v.length() + 1; // Add one for separator char length
                         }
                     }
                 }

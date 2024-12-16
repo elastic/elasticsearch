@@ -243,14 +243,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();
-
             chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, chunk, useInferenceMetadataFields));
-            if (useInferenceMetadataFields) {
-                // When using the inference metadata fields format, all the input values are concatenated so that the
-                // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-                // to apply to account for this.
-                offsetAdjustment = input.length() + 1; // Add one for separator char length
-            }
+
+            // When using the inference metadata fields format, all the input values are concatenated so that the
+            // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+            // to apply to account for this.
+            offsetAdjustment = input.length() + 1; // Add one for separator char length
         }
 
         if (inputsIt.hasNext() || chunkIt.hasNext()) {

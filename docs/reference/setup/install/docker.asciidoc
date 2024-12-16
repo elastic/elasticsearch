@@ -54,6 +54,17 @@ docker pull {docker-image}
 ----
 // REVIEWED[DEC.10.24]
 --
++
+[TIP]
+====
+Alternatively, you can use the hardened https://wolfi.dev/[Wolfi] image for additional security.
+Using Wolfi images requires Docker version 20.10.10 or higher.
+
+[source,sh,subs="attributes"]
+----
+docker pull docker.elastic.co/elasticsearch/elasticsearch-wolfi:{version}
+----
+====
 
 . Optional: Install
 https://docs.sigstore.dev/cosign/system_config/installation/[Cosign] for your

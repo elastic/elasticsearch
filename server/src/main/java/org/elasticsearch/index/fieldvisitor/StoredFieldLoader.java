@@ -53,17 +53,24 @@ public abstract class StoredFieldLoader {
         return create(spec.requiresSource(), spec.requiredStoredFields());
     }
 
+    public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
+        return create(loadSource, fields, false);
+    }
+
     /**
      * Creates a new StoredFieldLoader
-     * @param loadSource should this loader load the _source field
-     * @param fields     a set of additional fields the loader should load
+     *
+     * @param loadSource           indicates whether this loader should load the {@code _source} field.
+     * @param fields               a set of additional fields that the loader should load.
+     * @param forceSequentialReader if {@code true}, forces the use of a sequential leaf reader;
+     *                              otherwise, uses the heuristic defined in {@link StoredFieldLoader#reader(LeafReaderContext, int[])}.
      */
-    public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {
+    public static StoredFieldLoader create(boolean loadSource, Set<String> fields, boolean forceSequentialReader) {
         List<String> fieldsToLoad = fieldsToLoad(loadSource, fields);
         return new StoredFieldLoader() {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(reader(ctx, docs), loadSource, fields);
+                return new ReaderStoredFieldLoader(forceSequentialReader ? sequentialReader(ctx) : reader(ctx, docs), loadSource, fields);
             }
 
             @Override

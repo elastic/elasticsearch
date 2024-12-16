@@ -399,11 +399,7 @@ public final class CsvAssert {
                 x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
             );
             case GEO_POINT, GEO_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
-            case CARTESIAN_POINT, CARTESIAN_SHAPE -> rebuildExpected(
-                expectedValue,
-                BytesRef.class,
-                x -> CARTESIAN.wkbToWkt((BytesRef) x)
-            );
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
             case IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                 rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
             case VERSION -> // convert BytesRef-packed Version to String

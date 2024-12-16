@@ -220,6 +220,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_10_0;
+        return TransportVersions.ZERO;
     }
 }

@@ -66,11 +66,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         primaryRejections = in.readVLong();
         replicaRejections = in.readVLong();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            memoryLimit = in.readVLong();
-        } else {
-            memoryLimit = -1L;
-        }
+        memoryLimit = in.readVLong();
 
         // These are not currently propagated across the network yet
         this.totalCoordinatingOps = 0;
@@ -168,9 +164,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         out.writeVLong(primaryRejections);
         out.writeVLong(replicaRejections);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeVLong(memoryLimit);
-        }
+        out.writeVLong(memoryLimit);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeVLong(primaryDocumentRejections);

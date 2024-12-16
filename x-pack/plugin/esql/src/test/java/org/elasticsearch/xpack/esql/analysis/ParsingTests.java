@@ -49,27 +49,27 @@ public class ParsingTests extends ESTestCase {
     );
 
     public void testCaseFunctionInvalidInputs() {
-        assertEquals("1:23: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case()"));
-        assertEquals("1:23: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(a)"));
-        assertEquals("1:23: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(1)"));
+        assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case()"));
+        assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(a)"));
+        assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(1)"));
     }
 
     public void testConcatFunctionInvalidInputs() {
-        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat()"));
-        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(a)"));
-        assertEquals("1:23: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(1)"));
+        assertEquals("1:22: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat()"));
+        assertEquals("1:22: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(a)"));
+        assertEquals("1:22: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(1)"));
     }
 
     public void testCoalesceFunctionInvalidInputs() {
-        assertEquals("1:23: error building [coalesce]: expects at least one argument", error("row a = 1 | eval x = coalesce()"));
+        assertEquals("1:22: error building [coalesce]: expects at least one argument", error("row a = 1 | eval x = coalesce()"));
     }
 
     public void testGreatestFunctionInvalidInputs() {
-        assertEquals("1:23: error building [greatest]: expects at least one argument", error("row a = 1 | eval x = greatest()"));
+        assertEquals("1:22: error building [greatest]: expects at least one argument", error("row a = 1 | eval x = greatest()"));
     }
 
     public void testLeastFunctionInvalidInputs() {
-        assertEquals("1:23: error building [least]: expects at least one argument", error("row a = 1 | eval x = least()"));
+        assertEquals("1:22: error building [least]: expects at least one argument", error("row a = 1 | eval x = least()"));
     }
 
     /**
@@ -108,7 +108,7 @@ public class ParsingTests extends ESTestCase {
         while (query.length() < EsqlParser.MAX_LENGTH) {
             query.append(", a = CONCAT(a, a)");
         }
-        assertEquals("-1:0: ESQL statement is too large [1000011 characters > 1000000]", error(query.toString()));
+        assertEquals("-1:-1: ESQL statement is too large [1000011 characters > 1000000]", error(query.toString()));
     }
 
     private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {

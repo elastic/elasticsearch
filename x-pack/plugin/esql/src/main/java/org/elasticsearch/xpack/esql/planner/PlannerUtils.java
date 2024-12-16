@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -105,7 +106,12 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        plan.forEachUp(FragmentExec.class, f -> f.fragment().forEachUp(EsRelation.class, r -> indices.addAll(r.index().concreteIndices())));
+        // TODO: This only works for LEFT join, we still need to support RIGHT join
+        plan.forEachUp(node -> {
+            if (node instanceof FragmentExec f) {
+                f.fragment().forEachUp(EsRelation.class, r -> indices.addAll(r.index().concreteIndices()));
+            }
+        }, node -> node instanceof LookupJoinExec join ? List.of(join.left()) : node.children());
         return indices;
     }
 

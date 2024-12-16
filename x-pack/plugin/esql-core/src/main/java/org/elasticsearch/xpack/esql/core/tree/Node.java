@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -82,6 +83,12 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public void forEachUp(Consumer<? super T> action) {
         children().forEach(c -> c.forEachUp(action));
+        action.accept((T) this);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEachUp(Consumer<? super T> action, Function<? super T, Collection<T>> childrenGetter) {
+        childrenGetter.apply((T) this).forEach(c -> c.forEachUp(action, childrenGetter));
         action.accept((T) this);
     }
 

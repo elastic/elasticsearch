@@ -281,7 +281,24 @@ setup:
   - match: { status: 400 }
 
 ---
+"Test sparse_vector returns an error if inference ID not specified with query":
+  - do:
+      catch: bad_request # This is for BWC, the actual error message is tested in a subsequent test
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
 "Test sparse_vector requires an inference ID to be specified on sparse_vector fields":
+  - requires:
+      cluster_features: [ "search.semantic_sparse_vector_query_rewrite_interception_supported" ]
+      reason: "Error message changed in 8.18"
   - do:
       catch: /inference_id required to perform vector search on query string/
       search:

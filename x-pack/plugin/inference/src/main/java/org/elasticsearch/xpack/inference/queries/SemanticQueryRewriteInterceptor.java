@@ -143,19 +143,5 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                     )
                 );
         }
-
-        // public String getSearchInferenceId() {
-        // List<String> searchInferenceIds = inferenceIndicesMetadata.values()
-        // .stream()
-        // .map(InferenceFieldMetadata::getSearchInferenceId)
-        // .distinct()
-        // .toList();
-        // if (searchInferenceIds.size() > 1) {
-        // throw new IllegalStateException(
-        // "Conflicting searchInferenceIds for field [" + fieldName + "]: Found [" + searchInferenceIds + "]"
-        // );
-        // }
-        // return searchInferenceIds.getFirst();
-        // }
     }
 }

@@ -9,6 +9,24 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.net.URL;
+import java.net.URLStreamHandlerFactory;
+
 public interface EntitlementChecker {
-    void checkSystemExit(Class<?> callerClass, int status);
+
+    // Exit the JVM process
+    void check$$exit(Class<?> callerClass, Runtime runtime, int status);
+
+    void check$$halt(Class<?> callerClass, Runtime runtime, int status);
+
+    // URLClassLoader ctor
+    void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 }

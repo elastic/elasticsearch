@@ -299,7 +299,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
-        executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
+        var shardListener = new SearchActionListener<Result>(shard, shardIndex) {
             @Override
             public void innerOnResponse(Result result) {
                 try {
@@ -315,7 +315,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 releasable.close();
                 onShardFailure(shardIndex, shard, shardIt, e);
             }
-        });
+        };
+        final Transport.Connection connection;
+        try {
+            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        } catch (Exception e) {
+            shardListener.onFailure(e);
+            return;
+        }
+        executePhaseOnShard(shardIt, connection, shardListener);
     }
 
     private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
@@ -327,12 +335,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Sends the request to the actual shard.
      * @param shardIt the shards iterator
-     * @param shard the shard routing to send the request for
+     * @param connection to node that the shard is located on
      * @param listener the listener to notify on response
      */
     protected abstract void executePhaseOnShard(
         SearchShardIterator shardIt,
-        SearchShardTarget shard,
+        Transport.Connection connection,
         SearchActionListener<Result> listener
     );
 
@@ -703,7 +711,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 try {
                     SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
                     Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection, getOriginalIndices(entry.getShardIndex()));
+                    sendReleaseSearchContext(entry.getContextId(), connection);
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.trace("failed to release context", inner);
@@ -719,10 +727,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
       *
       */
-    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
-            searchTransportService.sendFreeContext(connection, contextId, originalIndices);
+            searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
         }
     }
 
@@ -731,7 +739,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardFailure(int, SearchShardTarget, Exception)
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
-    final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+    private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         executeNextPhase(this, this::getNextPhase);
     }
 
@@ -752,13 +760,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     public final void execute(Runnable command) {
         executor.execute(command);
-    }
-
-    /**
-      * Notifies the top-level listener of the provided exception
-    */
-    public void onFailure(Exception e) {
-        listener.onFailure(e);
     }
 
     /**

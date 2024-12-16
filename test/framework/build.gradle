@@ -6,7 +6,6 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.info.BuildParams;
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -87,7 +86,6 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("test").configure {
   systemProperty 'tests.gradle_index_compat_versions', buildParams.bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', buildParams.bwcVersions.wireCompatible.join(',')
-  systemProperty 'tests.gradle_unreleased_versions', buildParams.bwcVersions.unreleased.join(',')
 }
 
 tasks.register("integTest", Test) {

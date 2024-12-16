@@ -146,7 +146,6 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
@@ -181,7 +180,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -2245,7 +2243,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .client(client)
-                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();
@@ -2315,9 +2313,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
-                    responseCollectorService,
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP
@@ -2484,6 +2480,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new NoneCircuitBreakerService(),
                         transportService,
                         searchService,
+                        responseCollectorService,
                         searchTransportService,
                         searchPhaseController,
                         clusterService,

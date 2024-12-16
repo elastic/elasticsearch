@@ -7,31 +7,54 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -44,22 +67,57 @@ public class Match extends FullTextFunction implements Validatable {
 
     private transient Boolean isOperator;
 
+    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+        KEYWORD,
+        TEXT,
+        BOOLEAN,
+        DATETIME,
+        DATE_NANOS,
+        DOUBLE,
+        INTEGER,
+        IP,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
+        KEYWORD,
+        BOOLEAN,
+        DATETIME,
+        DATE_NANOS,
+        DOUBLE,
+        INTEGER,
+        IP,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Performs a match query on the specified field. Returns true if the provided query matches the row.",
+        description = "Performs a <<query-dsl-match-query,match query>> on the specified field. "
+            + "Returns true if the provided query matches the row.",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
     public Match(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Field that the query will target."
+        ) Expression field,
         @Param(
             name = "query",
-            type = { "keyword", "text" },
-            description = "Text you wish to find in the provided field."
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, List.of(field, matchQuery));
+        this(source, field, matchQuery, null);
+    }
+
+    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
         this.field = field;
     }
 
@@ -67,7 +125,11 @@ public class Match extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Match(source, field, query);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new Match(source, field, query, queryBuilder);
     }
 
     @Override
@@ -75,6 +137,9 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override
@@ -84,12 +149,56 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
+        return isNotNull(field, sourceText(), FIRST).and(
+            isType(
+                field,
+                FIELD_DATA_TYPES::contains,
+                sourceText(),
+                FIRST,
+                "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+            )
+        );
+    }
+
+    @Override
+    protected TypeResolution resolveQueryParamType() {
+        return isType(
+            query(),
+            QUERY_DATA_TYPES::contains,
+            sourceText(),
+            queryParamOrdinal(),
+            "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+        ).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
+    }
+
+    @Override
+    protected TypeResolution checkParamCompatibility() {
+        DataType fieldType = field().dataType();
+        DataType queryType = query().dataType();
+
+        // Field and query types should match. If the query is a string, then it can match any field type.
+        if ((fieldType == queryType) || (queryType == KEYWORD)) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        if (fieldType.isNumeric() && queryType.isNumeric()) {
+            // When doing an unsigned long query, field must be an unsigned long
+            if ((queryType == UNSIGNED_LONG && fieldType != UNSIGNED_LONG) == false) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+        }
+
+        return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
     }
 
     @Override
     public void validate(Failures failures) {
-        if (field instanceof FieldAttribute == false) {
+        Expression fieldExpression = field();
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof FieldAttribute == false) {
             failures.add(
                 Failure.fail(
                     field,
@@ -103,13 +212,39 @@ public class Match extends FullTextFunction implements Validatable {
     }
 
     @Override
+    public Object queryAsObject() {
+        Object queryAsObject = query().fold();
+
+        // Convert BytesRef to string for string-based values
+        if (queryAsObject instanceof BytesRef bytesRef) {
+            return switch (query().dataType()) {
+                case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
+                case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
+                default -> bytesRef.utf8ToString();
+            };
+        }
+
+        // Converts specific types to the correct type for the query
+        if (query().dataType() == DataType.UNSIGNED_LONG) {
+            return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
+        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+            // When casting to date and datetime, we get a long back. But Match query needs a date string
+            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
+        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
+            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
+        }
+
+        return queryAsObject;
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
@@ -123,6 +258,16 @@ public class Match extends FullTextFunction implements Validatable {
     @Override
     public String functionType() {
         return isOperator() ? "operator" : super.functionType();
+    }
+
+    @Override
+    protected ExpressionTranslator<Match> translator() {
+        return new EsqlExpressionTranslators.MatchFunctionTranslator();
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Match(source(), field, query(), queryBuilder);
     }
 
     @Override

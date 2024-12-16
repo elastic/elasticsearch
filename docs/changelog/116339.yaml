@@ -1,5 +1,0 @@
-pr: 116339
-summary: "Index stats enhancement: creation date and `tier_preference`"
-area: Stats
-type: feature
-issues: []

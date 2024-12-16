@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.application;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
-import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
 
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.application.rules.action.TestQueryRulesetAction.QUERY_RULES_TEST_API;
@@ -28,16 +24,6 @@ public class EnterpriseSearchFeatures implements FeatureSpecification {
             QUERY_RULES_TEST_API,
             QueryRuleRetrieverBuilder.QUERY_RULE_RETRIEVERS_SUPPORTED,
             ListQueryRulesetsAction.QUERY_RULE_LIST_TYPES
-        );
-    }
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(
-            ConnectorTemplateRegistry.CONNECTOR_TEMPLATES_FEATURE,
-            Version.V_8_10_0,
-            AnalyticsTemplateRegistry.ANALYTICS_TEMPLATE_FEATURE,
-            Version.V_8_12_0
         );
     }
 }

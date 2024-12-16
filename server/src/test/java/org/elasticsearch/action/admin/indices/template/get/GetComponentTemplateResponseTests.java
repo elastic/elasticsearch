@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -65,6 +67,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -74,9 +77,12 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
         if (randomBoolean()) {
             aliases = randomAliases();
         }
+        if (randomBoolean()) {
+            dataStreamOptions = ComponentTemplateTests.randomDataStreamOptionsTemplate();
+        }
 
         var template = new ComponentTemplate(
-            new Template(settings, mappings, aliases, lifecycle),
+            new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomBoolean() ? null : randomNonNegativeLong(),
             null,
             false

@@ -104,6 +104,30 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "start",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list."
+        },
+        {
+          "name" : "end",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Multivalue expression. If `null`, the function returns `null`."

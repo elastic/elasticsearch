@@ -9,28 +9,26 @@
 
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersAware
-import org.elasticsearch.gradle.testclusters.TestDistribution
 
 //apply plugin: org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
 
 // Common config when running with a FIPS-140 runtime JVM
 if (buildParams.inFipsJvm) {
   allprojects {
-    String javaSecurityFilename = buildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+    String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
     File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
-    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.4')
-    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.17')
+    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.5')
+    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
     def manualDebug = false; //change this to manually debug bouncy castle in an IDE
     if(manualDebug) {
-      bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.4')
-      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.17'){
+      bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.5')
+      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19'){
         exclude group: 'org.bouncycastle', module: 'bc-fips'  // to avoid jar hell
       }
     }

@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCrea
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -58,6 +59,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class CohereService extends SenderService {
@@ -233,6 +235,16 @@ public class CohereService extends SenderService {
     }
 
     @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
+    }
+
+    @Override
     public void doInfer(
         Model model,
         InferenceInputs inputs,
@@ -259,7 +271,6 @@ public class CohereService extends SenderService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
@@ -293,34 +304,33 @@ public class CohereService extends SenderService {
      */
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof CohereEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
-        var userDefinedSimilarity = model.getServiceSettings().similarity();
-        var similarityToUse = userDefinedSimilarity == null ? defaultSimilarity() : userDefinedSimilarity;
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof CohereEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
 
-        CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                model.getServiceSettings().getCommonSettings().uri(),
-                similarityToUse,
-                embeddingSize,
-                model.getServiceSettings().getCommonSettings().maxInputTokens(),
-                model.getServiceSettings().getCommonSettings().modelId(),
-                model.getServiceSettings().getCommonSettings().rateLimitSettings()
-            ),
-            model.getServiceSettings().getEmbeddingType()
-        );
+            var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
+                new CohereServiceSettings(
+                    serviceSettings.getCommonSettings().uri(),
+                    similarityToUse,
+                    embeddingSize,
+                    serviceSettings.getCommonSettings().maxInputTokens(),
+                    serviceSettings.getCommonSettings().modelId(),
+                    serviceSettings.getCommonSettings().rateLimitSettings()
+                ),
+                serviceSettings.getEmbeddingType()
+            );
 
-        return new CohereEmbeddingsModel(model, serviceSettings);
+            return new CohereEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     /**

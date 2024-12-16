@@ -50,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -499,9 +500,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         refresh();
 
-        assertHitCount(prepareSearch("test_index"), 5L);
-        assertHitCount(prepareSearch("simple_alias"), 5L);
-        assertHitCount(prepareSearch("templated_alias-test_index"), 5L);
+        assertHitCount(5L, prepareSearch("test_index"), prepareSearch("simple_alias"), prepareSearch("templated_alias-test_index"));
 
         assertResponse(prepareSearch("filtered_alias"), response -> {
             assertHitCount(response, 1L);
@@ -583,8 +582,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
-        assertHitCount(prepareSearch("test_index"), 2L);
-        assertHitCount(prepareSearch("alias1"), 2L);
+        assertHitCount(2L, prepareSearch("test_index"), prepareSearch("alias1"));
 
         assertResponse(prepareSearch("alias2"), response -> {
             assertHitCount(response, 1L);
@@ -843,24 +841,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        // ax -> matches template
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1);
+            assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+            assertNull(response.getHits().getAt(0).field("field2"));
+        },
             prepareSearch("ax").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
-            response -> {
-                assertHitCount(response, 1);
-                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
-                assertNull(response.getHits().getAt(0).field("field2"));
-            }
-        );
-
-        // bx -> matches template
-        assertResponse(
-            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
-            response -> {
-                assertHitCount(response, 1);
-                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
-                assertNull(response.getHits().getAt(0).field("field2"));
-            }
+            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2")
         );
     }
 

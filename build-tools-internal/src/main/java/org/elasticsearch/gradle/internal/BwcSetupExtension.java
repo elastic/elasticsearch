@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.Version;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
@@ -103,10 +104,16 @@ public class BwcSetupExtension {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
-            loggedExec.getNonTrackedEnvironment().put("JAVA_HOME", providerFactory.of(JavaHomeValueSource.class, spec -> {
-                spec.getParameters().getVersion().set(unreleasedVersionInfo.map(it -> it.version()));
-                spec.getParameters().getCheckoutDir().set(checkoutDir);
-            }).flatMap(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s))));
+            loggedExec.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    Provider<String> minimumCompilerVersionValueSource = providerFactory.of(JavaHomeValueSource.class, spec -> {
+                        spec.getParameters().getVersion().set(unreleasedVersionInfo.map(it -> it.version()));
+                        spec.getParameters().getCheckoutDir().set(checkoutDir);
+                    }).flatMap(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s)));
+                    loggedExec.getNonTrackedEnvironment().put("JAVA_HOME", minimumCompilerVersionValueSource.get());
+                }
+            });
 
             if (isCi && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
@@ -115,9 +122,9 @@ public class BwcSetupExtension {
 
             if (OS.current() == OS.WINDOWS) {
                 loggedExec.getExecutable().set("cmd");
-                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.args("/C", "call", "gradlew");
             } else {
-                loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.getExecutable().set("./gradlew");
             }
 
             if (useUniqueUserHome) {
@@ -169,20 +176,20 @@ public class BwcSetupExtension {
             .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
-    private static String readFromFile(File file) {
-        try {
-            return FileUtils.readFileToString(file).trim();
-        } catch (IOException ioException) {
-            throw new GradleException("Cannot read java properties file.", ioException);
-        }
-    }
-
-    public static abstract class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
+    public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
 
         private String minimumCompilerVersionPath(Version bwcVersion) {
             return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))
                 ? "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH
                 : "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
+        }
+
+        private static String readFromFile(File file) {
+            try {
+                return FileUtils.readFileToString(file).trim();
+            } catch (IOException ioException) {
+                throw new GradleException("Cannot read java properties file.", ioException);
+            }
         }
 
         @Override

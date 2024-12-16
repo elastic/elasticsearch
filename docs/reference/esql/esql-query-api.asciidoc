@@ -92,8 +92,8 @@ https://en.wikipedia.org/wiki/Query_plan[EXPLAIN PLAN].
 
 
 ifeval::["{release-state}"=="unreleased"]
-`table`::
-(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
+//`table`::
+//(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
 endif::[]
 
 [discrete]

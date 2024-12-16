@@ -11,12 +11,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -38,6 +36,7 @@ import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAi
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOp
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -59,6 +59,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
@@ -235,6 +236,16 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
+    }
+
+    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,
@@ -261,7 +272,6 @@ public class AzureOpenAiService extends SenderService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
@@ -294,48 +304,32 @@ public class AzureOpenAiService extends SenderService {
      */
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof AzureOpenAiEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private AzureOpenAiEmbeddingsModel updateModelWithEmbeddingDetails(AzureOpenAiEmbeddingsModel model, int embeddingSize) {
-        if (model.getServiceSettings().dimensionsSetByUser()
-            && model.getServiceSettings().dimensions() != null
-            && model.getServiceSettings().dimensions() != embeddingSize) {
-            throw new ElasticsearchStatusException(
-                Strings.format(
-                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                        + "Please recreate the [%s] configuration with the correct dimensions",
-                    embeddingSize,
-                    model.getServiceSettings().dimensions(),
-                    model.getConfigurations().getInferenceEntityId()
-                ),
-                RestStatus.BAD_REQUEST
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof AzureOpenAiEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
+            var updatedServiceSettings = new AzureOpenAiEmbeddingsServiceSettings(
+                serviceSettings.resourceName(),
+                serviceSettings.deploymentId(),
+                serviceSettings.apiVersion(),
+                embeddingSize,
+                serviceSettings.dimensionsSetByUser(),
+                serviceSettings.maxInputTokens(),
+                similarityToUse,
+                serviceSettings.rateLimitSettings()
             );
+
+            return new AzureOpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
-
-        var similarityFromModel = model.getServiceSettings().similarity();
-        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
-
-        AzureOpenAiEmbeddingsServiceSettings serviceSettings = new AzureOpenAiEmbeddingsServiceSettings(
-            model.getServiceSettings().resourceName(),
-            model.getServiceSettings().deploymentId(),
-            model.getServiceSettings().apiVersion(),
-            embeddingSize,
-            model.getServiceSettings().dimensionsSetByUser(),
-            model.getServiceSettings().maxInputTokens(),
-            similarityToUse,
-            model.getServiceSettings().rateLimitSettings()
-        );
-
-        return new AzureOpenAiEmbeddingsModel(model, serviceSettings);
     }
 
     @Override

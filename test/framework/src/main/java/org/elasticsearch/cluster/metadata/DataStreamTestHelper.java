@@ -157,23 +157,14 @@ public final class DataStreamTestHelper {
             .build();
     }
 
-    public static String getLegacyDefaultBackingIndexName(
-        String dataStreamName,
-        long generation,
-        long epochMillis,
-        boolean isNewIndexNameFormat
-    ) {
-        if (isNewIndexNameFormat) {
-            return String.format(
-                Locale.ROOT,
-                BACKING_INDEX_PREFIX + "%s-%s-%06d",
-                dataStreamName,
-                DATE_FORMATTER.formatMillis(epochMillis),
-                generation
-            );
-        } else {
-            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
-        }
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(
+            Locale.ROOT,
+            BACKING_INDEX_PREFIX + "%s-%s-%06d",
+            dataStreamName,
+            DATE_FORMATTER.formatMillis(epochMillis),
+            generation
+        );
     }
 
     public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
@@ -472,13 +463,13 @@ public final class DataStreamTestHelper {
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(
-                        false,
-                        false,
-                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
-                    )
+                .template(
+                    Template.builder()
+                        .dataStreamOptions(
+                            DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures ? createDataStreamOptionsTemplate(true) : null
+                        )
                 )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
 
@@ -749,4 +740,12 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
+        if (failureStore == null) {
+            return DataStreamOptions.Template.EMPTY;
+        }
+        return new DataStreamOptions.Template(
+            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
+        );
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -102,7 +103,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP);
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L));
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();

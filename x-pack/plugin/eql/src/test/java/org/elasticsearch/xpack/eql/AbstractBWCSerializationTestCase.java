@@ -16,14 +16,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractXContentSerializingTestCase<T> {
 
     private static List<TransportVersion> getAllBWCVersions() {
-        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersions.MINIMUM_COMPATIBLE);
-        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
+        List<TransportVersion> allVersions = TransportVersion.getAllVersions();
+        int minCompatVersion = Collections.binarySearch(allVersions, TransportVersions.MINIMUM_COMPATIBLE);
+        return allVersions.subList(minCompatVersion, allVersions.size());
     }
 
     private static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();

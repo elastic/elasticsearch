@@ -109,6 +109,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
+        safeAwait((ActionListener<Void> l) -> flushMasterQueue(clusterService, l));
         final var snapshotCompletesWithoutPausingListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
             if (entriesForRepo.isEmpty()) {
@@ -523,6 +524,15 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 "Pause signals have been set for all shard snapshots on data node [" + nodeForRemovalId + "]"
             )
         );
+        mockLog.addExpectation(
+            new MockLog.SeenEventExpectation(
+                "SnapshotShutdownProgressTracker index shard snapshot status messages",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                // Expect the shard snapshot to stall in data file upload, since we've blocked the data node file upload to the blob store.
+                "statusDescription='enqueued file snapshot tasks: threads running concurrent file uploads'"
+            )
+        );
 
         putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
 
@@ -580,6 +590,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
                 "Current active shard snapshot stats on data node [" + nodeForRemovalId + "]*Paused [" + numShards + "]"
+            )
+        );
+        mockLog.addExpectation(
+            new MockLog.SeenEventExpectation(
+                "SnapshotShutdownProgressTracker index shard snapshot messages",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                "statusDescription='finished: master notification attempt complete'"
             )
         );
 

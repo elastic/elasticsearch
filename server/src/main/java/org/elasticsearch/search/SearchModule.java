@@ -20,12 +20,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -68,7 +66,6 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
-import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -204,7 +201,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
@@ -231,7 +227,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -687,15 +682,6 @@ public class SearchModule {
                 .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
             builder
         );
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerQuery(
-                new QuerySpec<>(
-                    CommonTermsQueryBuilder.NAME_V7,
-                    (streamInput) -> new CommonTermsQueryBuilder(),
-                    CommonTermsQueryBuilder::fromXContent
-                )
-            );
-        }
 
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
 
@@ -816,15 +802,6 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder::parse
             )
         );
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerPipelineAggregation(
-                new PipelineAggregationSpec(
-                    MovAvgPipelineAggregationBuilder.NAME_V7,
-                    MovAvgPipelineAggregationBuilder::new,
-                    MovAvgPipelineAggregationBuilder.PARSER
-                )
-            );
-        }
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
@@ -1204,10 +1181,6 @@ public class SearchModule {
         }));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
-
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
-        }
     }
 
     private void registerIntervalsSourceProviders() {
@@ -1297,10 +1270,6 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
-    }
-
-    public RankFeatureShardPhase getRankFeatureShardPhase() {
-        return new RankFeatureShardPhase();
     }
 
     public FetchPhase getFetchPhase() {

@@ -86,9 +86,9 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -120,9 +120,9 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -154,9 +154,9 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -189,18 +189,15 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         shardStats[0] = sStats;
 
         mockXPackInfo(true, true);
-        mockIndexStatsCall(
-            indexName,
-            new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, null, null, shardStats)
-        );
+        mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, shardStats));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -238,12 +235,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final SetOnce<Exception> exceptionHolder = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 fail(
                     "onResponse should not be called in this test, called with conditionMet: "
                         + conditionMet
                         + " and stepInfo: "
-                        + Strings.toString(infomationContext)
+                        + Strings.toString(informationContext)
                 );
             }
 
@@ -292,7 +289,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         for (int i = 0; i < numOfShards; i++) {
             shardStats[i] = randomShardStats(isLeaderIndex);
         }
-        return new IndexStats(randomAlphaOfLength(5), randomAlphaOfLength(10), null, null, null, null, shardStats);
+        return new IndexStats(randomAlphaOfLength(5), randomAlphaOfLength(10), null, null, shardStats);
     }
 
     private ShardStats randomShardStats(boolean isLeaderIndex) {

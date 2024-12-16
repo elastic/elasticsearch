@@ -1,8 +1,3 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -11,6 +6,11 @@ import org.elasticsearch.gradle.internal.test.RestIntegTestTask
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 

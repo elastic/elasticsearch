@@ -95,7 +95,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     /**
      * {@code true} if {@code feature} is present on all nodes in the cluster.
      * <p>
-     * NOTE: This should not be used directly, as it does not read historical features.
+     * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
     @SuppressForbidden(reason = "directly reading cluster features")

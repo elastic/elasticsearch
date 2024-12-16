@@ -115,7 +115,7 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
               }
             }"""), XContentType.JSON).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);

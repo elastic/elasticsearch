@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -114,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -127,6 +129,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -153,6 +156,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
@@ -279,14 +283,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String indexName,
         String mappingFileName,
         EsqlFunctionRegistry functionRegistry,
+        IndexResolution lookupResolution,
         EnrichResolution enrichResolution,
         SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
-        Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(
+            new AnalyzerContext(config, functionRegistry, getIndexResult, lookupResolution, enrichResolution),
+            TEST_VERIFIER
+        );
         return new TestDataSource(mapping, index, analyzer, stats);
+    }
+
+    TestDataSource makeTestDataSource(
+        String indexName,
+        String mappingFileName,
+        EsqlFunctionRegistry functionRegistry,
+        EnrichResolution enrichResolution,
+        SearchStats stats
+    ) {
+        return makeTestDataSource(indexName, mappingFileName, functionRegistry, defaultLookupResolution(), enrichResolution, stats);
     }
 
     TestDataSource makeTestDataSource(
@@ -611,6 +629,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -652,6 +671,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no",
                 "first_name",
                 "gender",
+                "hire_date",
                 "job",
                 "job.raw",
                 "languages",
@@ -1172,7 +1192,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+            contains(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "languages",
+                "last_name",
+                "long_noidx",
+                "salary"
+            )
         );
 
         var source = source(extract.child());
@@ -2272,6 +2304,91 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testVerifierOnMissingReferences() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(
+            AggregateExec.class,
+            a -> new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                List.of(), // remove the aggs (and thus the groupings) entirely
+                a.getMode(),
+                a.intermediateAttributes(),
+                a.estimatedRowSize()
+            )
+        );
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
+    }
+
+    public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan("""
+              FROM test
+            | RENAME languages AS language_code
+            | SORT language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, testData, false);
+
+        var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
+
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+
+        var planWithInvalidJoinRightSide = plan.transformUp(
+            LookupJoinExec.class,
+            // LookupJoinExec.rightReferences() is currently EMPTY (hack); use a HashJoinExec instead.
+            join -> new HashJoinExec(
+                join.source(),
+                join.left(),
+                join.left(),
+                join.leftFields(),
+                join.leftFields(),
+                join.rightFields(),
+                join.output()
+            )
+        );
+
+        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+    }
+
+    public void testVerifierOnDuplicateOutputAttributes() {
+        var plan = physicalPlan("""
+            from test
+            | stats s = sum(salary) by emp_no
+            | where emp_no > 10
+            """);
+
+        plan = plan.transformUp(AggregateExec.class, a -> {
+            List<Attribute> intermediates = new ArrayList<>(a.intermediateAttributes());
+            intermediates.add(intermediates.get(0));
+            return new AggregateExec(
+                a.source(),
+                a.child(),
+                a.groupings(),
+                a.aggregates(),
+                AggregatorMode.INTERMEDIATE,  // FINAL would deduplicate aggregates()
+                intermediates,
+                a.estimatedRowSize()
+            );
+        });
+        final var finalPlan = plan;
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        assertThat(
+            e.getMessage(),
+            containsString("Plan [LimitExec[1000[INTEGER]]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+        );
+    }
+
     public void testProjectAwayColumns() {
         var rule = new ProjectAwayColumns();
 
@@ -2543,7 +2660,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = asRemoteExchange(aggregate.child());
         var localSourceExec = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
+        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "$$m$min", "$$m$seen"));
     }
 
     /**
@@ -2579,9 +2696,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("count", "seen"));
+        assertThat(Expressions.names(exchange.output()), contains("$$c$count", "$$c$seen"));
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("count", "seen"));
+        assertThat(Expressions.names(source.output()), contains("$$c$count", "$$c$seen"));
     }
 
     /**
@@ -2613,7 +2730,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         // The partial aggregation's output is determined via AbstractPhysicalOperationProviders.intermediateAttributes()
-        assertThat(Expressions.names(aggPartial.output()), contains("count", "seen"));
+        assertThat(Expressions.names(aggPartial.output()), contains("$$c$count", "$$c$seen"));
         limit = as(aggPartial.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2651,9 +2768,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.output(), hasSize(2));
         var exchange = as(aggFinal.child(), ExchangeExec.class);
-        assertThat(Expressions.names(exchange.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(exchange.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
+        assertThat(
+            Expressions.names(source.output()),
+            contains("$$SUM$a$0$sum", "$$SUM$a$0$seen", "$$COUNT$a$1$count", "$$COUNT$a$1$seen")
+        );
     }
 
     /**
@@ -6692,11 +6815,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
+        return physicalPlan(query, dataSource, true);
+    }
+
+    private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println(physical);
-        assertSerialization(physical);
+        if (assertSerialization) {
+            assertSerialization(physical);
+        }
         return physical;
     }
 

@@ -569,11 +569,6 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         }
 
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
-            assertPurpose(purpose);
-        }
-
         private void deleteContainer(DisruptableBlobContainer container) {
             blobContainer = null;
         }

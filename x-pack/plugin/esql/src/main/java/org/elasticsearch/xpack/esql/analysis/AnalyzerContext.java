@@ -15,5 +15,23 @@ public record AnalyzerContext(
     Configuration configuration,
     EsqlFunctionRegistry functionRegistry,
     IndexResolution indexResolution,
+    IndexResolution lookupResolution,
     EnrichResolution enrichResolution
-) {}
+) {
+    // Currently for tests only, since most do not test lookups
+    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        IndexResolution indexResolution,
+        EnrichResolution enrichResolution
+    ) {
+        this(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            IndexResolution.invalid("AnalyzerContext constructed without any lookup join resolution"),
+            enrichResolution
+        );
+    }
+}

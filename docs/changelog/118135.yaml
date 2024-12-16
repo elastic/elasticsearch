@@ -1,0 +1,5 @@
+pr: 118135
+summary: Backport Term query for ES|QL to 8.x
+area: ES|QL
+type: enhancement
+issues: []

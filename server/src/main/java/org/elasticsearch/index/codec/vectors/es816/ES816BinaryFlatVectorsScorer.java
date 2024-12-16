@@ -48,13 +48,8 @@ class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         RandomAccessVectorValues vectorValues
-    ) throws IOException {
-        if (vectorValues instanceof RandomAccessBinarizedByteVectorValues) {
-            throw new UnsupportedOperationException(
-                "getRandomVectorScorerSupplier(VectorSimilarityFunction,RandomAccessVectorValues) not implemented for binarized format"
-            );
-        }
-        return nonQuantizedDelegate.getRandomVectorScorerSupplier(similarityFunction, vectorValues);
+    ) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -90,59 +85,9 @@ class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
-    RandomVectorScorerSupplier getRandomVectorScorerSupplier(
-        VectorSimilarityFunction similarityFunction,
-        ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
-        RandomAccessBinarizedByteVectorValues targetVectors
-    ) {
-        return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
-    }
-
     @Override
     public String toString() {
         return "ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=" + nonQuantizedDelegate + ")";
-    }
-
-    /** Vector scorer supplier over binarized vector values */
-    static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
-        private final ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final RandomAccessBinarizedByteVectorValues targetVectors;
-        private final VectorSimilarityFunction similarityFunction;
-
-        BinarizedRandomVectorScorerSupplier(
-            ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            RandomAccessBinarizedByteVectorValues targetVectors,
-            VectorSimilarityFunction similarityFunction
-        ) {
-            this.queryVectors = queryVectors;
-            this.targetVectors = targetVectors;
-            this.similarityFunction = similarityFunction;
-        }
-
-        @Override
-        public RandomVectorScorer scorer(int ord) throws IOException {
-            byte[] vector = queryVectors.vectorValue(ord);
-            int quantizedSum = queryVectors.sumQuantizedValues(ord);
-            float distanceToCentroid = queryVectors.getCentroidDistance(ord);
-            float lower = queryVectors.getLower(ord);
-            float width = queryVectors.getWidth(ord);
-            float normVmC = 0f;
-            float vDotC = 0f;
-            if (similarityFunction != EUCLIDEAN) {
-                normVmC = queryVectors.getNormVmC(ord);
-                vDotC = queryVectors.getVDotC(ord);
-            }
-            BinaryQueryVector binaryQueryVector = new BinaryQueryVector(
-                vector,
-                new BinaryQuantizer.QueryFactors(quantizedSum, distanceToCentroid, lower, width, normVmC, vDotC)
-            );
-            return new BinarizedRandomVectorScorer(binaryQueryVector, targetVectors, similarityFunction);
-        }
-
-        @Override
-        public RandomVectorScorerSupplier copy() throws IOException {
-            return new BinarizedRandomVectorScorerSupplier(queryVectors.copy(), targetVectors.copy(), similarityFunction);
-        }
     }
 
     /** A binarized query representing its quantized form along with factors */

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -117,10 +119,15 @@ public class PlannerUtils {
         var indices = new LinkedHashSet<String>();
         plan.forEachUp(
             FragmentExec.class,
-            f -> f.fragment()
-                .forEachUp(EsRelation.class, r -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(r.index().name()))))
+            f -> f.fragment().forEachUp(EsRelation.class, r -> addOriginalIndexIfNotLookup(indices, r.index()))
         );
         return indices.toArray(String[]::new);
+    }
+
+    private static void addOriginalIndexIfNotLookup(Set<String> indices, EsIndex index) {
+        if (index.indexNameWithModes().get(index.name()) != IndexMode.LOOKUP) {
+            indices.addAll(asList(Strings.commaDelimitedListToStringArray(index.name())));
+        }
     }
 
     public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {

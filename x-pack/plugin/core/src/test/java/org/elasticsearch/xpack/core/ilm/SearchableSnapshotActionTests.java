@@ -33,7 +33,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
         List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
 
-        List<StepKey> expectedSteps = expectedStepKeys(phase, action.isForceMergeIndex());
+        List<StepKey> expectedSteps = expectedStepKeys(phase, action.isForceMergeIndex(), action.getReplicateFor() != null);
+
         assertThat(steps.size(), is(expectedSteps.size()));
         for (int i = 0; i < expectedSteps.size(); i++) {
             assertThat("steps match expectation at index " + i, steps.get(i).getKey(), is(expectedSteps.get(i)));
@@ -94,7 +95,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1", exception.getMessage());
     }
 
-    private List<StepKey> expectedStepKeys(String phase, boolean forceMergeIndex) {
+    private List<StepKey> expectedStepKeys(String phase, boolean forceMergeIndex, boolean hasReplicateFor) {
         return Stream.of(
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
@@ -111,6 +112,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, WaitForIndexColorStep.NAME),
             new StepKey(phase, NAME, CopyExecutionStateStep.NAME),
             new StepKey(phase, NAME, CopySettingsStep.NAME),
+            hasReplicateFor ? new StepKey(phase, NAME, WaitUntilReplicateForTimePassesStep.NAME) : null,
+            hasReplicateFor ? new StepKey(phase, NAME, UpdateSettingsStep.NAME) : null,
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY),
             new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME),
             new StepKey(phase, NAME, DeleteStep.NAME),

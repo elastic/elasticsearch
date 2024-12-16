@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
@@ -171,6 +172,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey replicateForKey = new StepKey(phase, NAME, WaitUntilReplicateForTimePassesStep.NAME);
+        StepKey dropReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
 
         // Before going through all these steps, first check if we need to do them at all. For example, the index could already be
         // a searchable snapshot of the same type and repository, in which case we don't need to do anything. If that is detected,
@@ -345,7 +348,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             getRestoredIndexPrefix(mountSnapshotKey),
             storageType,
             totalShardsPerNode,
-            0
+            replicateFor != null ? 1 : 0 // if the 'replicate_for' option is set, then have a replica, otherwise don't
         );
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
             waitForGreenRestoredIndexKey,
@@ -353,11 +356,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             ClusterHealthStatus.GREEN,
             getRestoredIndexPrefix(waitForGreenRestoredIndexKey)
         );
+        StepKey keyForReplicateForOrContinue = replicateFor != null ? replicateForKey : nextStepKey;
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(
             copyMetadataKey,
             copyLifecyclePolicySettingKey,
             (index, executionState) -> getRestoredIndexPrefix(copyMetadataKey) + index,
-            nextStepKey
+            keyForReplicateForOrContinue
         );
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
@@ -390,6 +394,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
             getRestoredIndexPrefix(swapAliasesKey)
         );
 
+        Step replicateForStep = new WaitUntilReplicateForTimePassesStep(replicateForKey, dropReplicasKey, replicateFor);
+        UpdateSettingsStep dropRelicasStep = new UpdateSettingsStep(
+            dropReplicasKey,
+            nextStepKey,
+            client,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+
         List<Step> steps = new ArrayList<>();
         steps.add(conditionalSkipActionStep);
         steps.add(checkNoWriteIndexStep);
@@ -408,6 +420,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(waitForGreenIndexHealthStep);
         steps.add(copyMetadataStep);
         steps.add(copySettingsStep);
+        if (replicateFor != null) {
+            steps.add(replicateForStep);
+            steps.add(dropRelicasStep);
+        }
         steps.add(isDataStreamBranchingStep);
         steps.add(replaceDataStreamBackingIndex);
         steps.add(deleteSourceIndexStep);

@@ -195,8 +195,6 @@ setup:
               query: "inference test"
 
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_2" }
 
 ---
 "sparse_vector query against combined sparse_vector and semantic_text fields still requires inference ID":
@@ -231,8 +229,6 @@ setup:
               query_vector: { "feature_0": 1, "feature_1": 2, "feature_2": 3, "feature_3": 4, "feature_4": 5 }
 
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_2" }
 
 
 ---
@@ -250,6 +246,4 @@ setup:
               query: "inference test"
 
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_3" }
 

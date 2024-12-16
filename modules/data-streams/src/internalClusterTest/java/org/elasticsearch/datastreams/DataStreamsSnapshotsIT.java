@@ -60,7 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -199,7 +198,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         assertAcked(
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ds" }))
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "ds"))
         );
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -357,34 +356,36 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testFailureStoreSnapshotAndRestore() throws Exception {
+        String dataStreamName = "with-fs";
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
             .setWaitForCompletion(true)
-            .setIndices("with-fs")
+            .setIndices(dataStreamName)
             .setIncludeGlobalState(false)
             .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
+        assertThat(getSnapshot(REPO, SNAPSHOT).dataStreams(), containsInAnyOrder(dataStreamName));
         assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(fsBackingIndexName, fsFailureIndexName));
 
-        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "with-fs")));
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, dataStreamName)));
 
         {
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
                 .cluster()
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIndices("with-fs")
+                .setIndices(dataStreamName)
                 .get();
 
             assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
             GetDataStreamAction.Response ds = client.execute(
                 GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "with-fs" })
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {dataStreamName})
             ).get();
             assertEquals(1, ds.getDataStreams().size());
             assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
@@ -397,7 +398,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIndices("with-fs")
+                .setIndices(dataStreamName)
                 .setRenamePattern("-fs")
                 .setRenameReplacement("-fs2")
                 .get();
@@ -955,7 +956,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testDataStreamNotRestoredWhenIndexRequested() throws Exception {
+    public void testDataStreamNotRestoredWhenIndexRequested() {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, "snap2")
@@ -984,7 +985,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(ResourceNotFoundException.class, client.execute(GetDataStreamAction.INSTANCE, getRequest));
     }
 
-    public void testDataStreamNotIncludedInLimitedSnapshot() throws ExecutionException, InterruptedException {
+    public void testDataStreamNotIncludedInLimitedSnapshot() {
         final String snapshotName = "test-snap";
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -1235,7 +1236,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse.failedShards(), 0);
     }
 
-    public void testExcludeDSFromSnapshotWhenExcludingItsIndices() {
+    public void testExcludeDSFromSnapshotWhenExcludingAnyOfItsIndices() {
         final String snapshot = "test-snapshot";
         final String indexWithoutDataStream = "test-idx-no-ds";
         createIndexWithContent(indexWithoutDataStream);
@@ -1251,10 +1252,28 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));
         assertThat(restoreInfo.successfulShards(), is(1));
+
+        // Exclude only failure store indices
+        {
+            String dataStreamName = "with-fs";
+            CreateSnapshotResponse createSnapshotResponse = client.admin()
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices(dataStreamName + "*", "-.fs*")
+                .setIncludeGlobalState(false)
+                .get();
+
+            RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+            assertEquals(RestStatus.OK, status);
+
+            assertThat(getSnapshot(REPO, SNAPSHOT).dataStreams(), empty());
+            assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(fsBackingIndexName));
+        }
     }
 
     /**
-     * This test is a copy of the {@link #testExcludeDSFromSnapshotWhenExcludingItsIndices()} the only difference
+     * This test is a copy of the {@link #testExcludeDSFromSnapshotWhenExcludingAnyOfItsIndices()} ()} the only difference
      * is that one include the global state and one doesn't. In general this shouldn't matter that's why it used to be
      * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
      * separate until this is fixed.
@@ -1285,7 +1304,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(REPO, snapshotName);
 
         assertAcked(
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" }))
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*"))
                 .get()
         );
         assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.lenientExpandOpenHidden()).get());
@@ -1326,7 +1345,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void testRestoreDataStreamAliasWithConflictingIndicesAlias() throws Exception {
+    public void testRestoreDataStreamAliasWithConflictingIndicesAlias() {
         var snapshotName = "test-snapshot";
         createFullSnapshot(REPO, snapshotName);
         client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*")).actionGet();

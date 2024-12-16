@@ -145,7 +145,8 @@ public final class TranslogConfig {
     }
 
     /**
-     * @return true if the configuration allows the Translog files to exist.
+     * @return {@code true} if the configuration allows the Translog files to exist, {@code false} otherwise. In the case there is no
+     * translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
         // Expect no translog files to exist for searchable snapshots

@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -206,7 +207,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             assert oldSegmentInfos.getLuceneVersion()
                 .onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion()) == false
                 : oldSegmentInfos.getLuceneVersion() + " should contain the ES_VERSION";
-            map.put(Engine.ES_VERSION, IndexVersion.current().toString());
+            map.put(Engine.ES_VERSION, IndexVersions.MINIMUM_COMPATIBLE.toString());
         }
         segmentInfos.setUserData(map, false);
         for (SegmentCommitInfo infoPerCommit : oldSegmentInfos.asList()) {

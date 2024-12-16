@@ -109,10 +109,10 @@ public class SearchableSnapshotUpgradeCompatibilityIT extends AbstractArchiveInd
         var storage = randomBoolean() ? "shared_cache" : "full_copy";
         request.addParameter("storage", storage);
         request.setJsonEntity(Strings.format("""
-                 {
-                  "index": "%s",
-                  "renamed_index": "%s"
-                }""", index, mountedIndex));
+             {
+              "index": "%s",
+              "renamed_index": "%s"
+            }""", index, mountedIndex));
         createFromResponse(client.performRequest(request));
     }
 

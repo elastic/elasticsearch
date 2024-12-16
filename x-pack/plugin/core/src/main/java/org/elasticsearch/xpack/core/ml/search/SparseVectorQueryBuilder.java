@@ -90,6 +90,25 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
         this.weightedTokensSupplier = null;
 
+        // Preserve BWC error messaging
+        if (queryVectors != null && inferenceId != null) {
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] requires one of ["
+                    + QUERY_VECTOR_FIELD.getPreferredName()
+                    + "] or ["
+                    + INFERENCE_ID_FIELD.getPreferredName()
+                    + "]"
+            );
+        }
+
+        if (queryVectors == null ^ query == null == false) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] requires one of [" + QUERY_VECTOR_FIELD.getPreferredName() + "] or [" + QUERY_FIELD.getPreferredName() + "]"
+            );
+        }
+
         if (inferenceId != null && query == null) {
             throw new IllegalArgumentException(
                 "["
@@ -99,12 +118,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     + "] when ["
                     + INFERENCE_ID_FIELD.getPreferredName()
                     + "] is specified"
-            );
-        }
-
-        if (queryVectors == null ^ query == null == false) {
-            throw new IllegalArgumentException(
-                "[" + NAME + "] requires one of [" + QUERY_VECTOR_FIELD.getPreferredName() + "] or [" + QUERY_FIELD.getPreferredName() + "]"
             );
         }
     }

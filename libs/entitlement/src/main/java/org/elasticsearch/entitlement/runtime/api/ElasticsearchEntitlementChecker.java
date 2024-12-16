@@ -38,6 +38,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
     public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
         policyManager.checkCreateClassLoader(callerClass);
     }

@@ -19,6 +19,13 @@ public interface EntitlementChecker {
 
     void check$$halt(Class<?> callerClass, Runtime runtime, int status);
 
+    // ClassLoader ctor
+    void check$java_lang_ClassLoader$(Class<?> callerClass);
+
+    void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent);
+
+    void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
+
     // URLClassLoader ctor
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
 

@@ -256,14 +256,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeMinReadOnlyVersionSerialization() throws Exception {
-        var node = DiscoveryNodeUtils.create(
-            "_id",
-            new TransportAddress(
-                InetAddress.getByAddress("_host", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 }),
-                randomIntBetween(0, 65535)
-            ),
-            VersionInformation.CURRENT
-        );
+        var node = DiscoveryNodeUtils.create("_id", buildNewFakeTransportAddress(), VersionInformation.CURRENT);
 
         {
             try (var out = new BytesStreamOutput()) {

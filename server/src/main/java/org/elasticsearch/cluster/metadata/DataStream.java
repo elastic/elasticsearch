@@ -438,8 +438,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Returns whether this data stream has its failure store enabled, either explicitly in its metadata or implicitly via settings.
      *
      * <p>If the failure store is either explicitly enabled or explicitly disabled in its options metadata, that value is returned. If not,
-     * it checks that the data stream is not internal (i.e. neither a dot-prefixed or system data stream) and that its name matches one
-     * of the patterns in the settings.
+     * it checks whether its name matches one of the patterns in the settings, and that the data stream is not internal (i.e. neither a
+     * dot-prefixed nor a system data stream).
      *
      * @param dataStreamFailureStoreSettings The settings to use to determine whether the failure store should be implicitly enabled
      */

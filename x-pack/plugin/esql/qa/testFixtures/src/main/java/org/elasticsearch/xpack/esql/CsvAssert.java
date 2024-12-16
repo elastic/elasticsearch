@@ -208,38 +208,10 @@ public final class CsvAssert {
                 var actualRow = actualValues.get(row);
 
                 for (int column = 0; column < expectedRow.size(); column++) {
-                    var expectedValue = expectedRow.get(column);
-                    var actualValue = actualRow.get(column);
                     var expectedType = expected.columnTypes().get(column);
+                    var expectedValue = convertExpectedValue(expectedRow.get(column), expectedType);
+                    var actualValue = actualRow.get(column);
 
-                    if (expectedValue != null) {
-                        // convert the long from CSV back to its STRING form
-                        if (expectedType == Type.DATETIME) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
-                        } else if (expectedType == Type.DATE_NANOS) {
-                            expectedValue = rebuildExpected(
-                                expectedValue,
-                                Long.class,
-                                x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
-                            );
-                        } else if (expectedType == Type.GEO_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
-                        } else if (expectedType == Type.CARTESIAN_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
-                        } else if (expectedType == Type.GEO_SHAPE) {
-                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
-                        } else if (expectedType == Type.CARTESIAN_SHAPE) {
-                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
-                        } else if (expectedType == Type.IP) {
-                            // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
-                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
-                        } else if (expectedType == Type.VERSION) {
-                            // convert BytesRef-packed Version to String
-                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> new Version((BytesRef) x).toString());
-                        } else if (expectedType == UNSIGNED_LONG) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
-                        }
-                    }
                     var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     var transformedActual = valueTransformer.apply(expectedType, actualValue);
                     if (Objects.equals(transformedExpected, transformedActual) == false) {
@@ -366,6 +338,30 @@ public final class CsvAssert {
                 }
             }
             return 0;
+        };
+    }
+
+    private static Object convertExpectedValue(Object expectedValue, Type expectedType) {
+        if (expectedValue == null) {
+            return null;
+        }
+
+        // convert the long from CSV back to its STRING form
+        return switch (expectedType) {
+            case Type.DATETIME -> rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
+            case Type.DATE_NANOS -> rebuildExpected(
+                expectedValue,
+                Long.class,
+                x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
+            );
+            case Type.GEO_POINT, Type.GEO_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+            case Type.CARTESIAN_POINT, Type.CARTESIAN_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
+            case Type.IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
+                rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
+            case Type.VERSION -> // convert BytesRef-packed Version to String
+                rebuildExpected(expectedValue, BytesRef.class, x -> new Version((BytesRef) x).toString());
+            case UNSIGNED_LONG -> rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
+            default -> expectedValue;
         };
     }
 

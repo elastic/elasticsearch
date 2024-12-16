@@ -38,6 +38,8 @@ public final class SearchCapabilities {
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
     /** Support multi-dense-vector script field access. */
     private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
+    /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
+    private static final String MOVING_FN_RIGHT_MATH = "moving_fn_right_math";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
 
@@ -50,6 +52,7 @@ public final class SearchCapabilities {
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
         capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
+        capabilities.add(MOVING_FN_RIGHT_MATH);
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
             capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);

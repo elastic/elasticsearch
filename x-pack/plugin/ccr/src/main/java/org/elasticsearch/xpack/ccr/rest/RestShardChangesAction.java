@@ -46,8 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * It handles GET requests to the "/{index}/ccr/shard_changes" endpoint retrieving shard-level changes,
  * such as translog operations, mapping version, settings version, aliases version, the global checkpoint,
  * maximum sequence number and maximum sequence number of updates or deletes.
- *
- * This handler is only available for snapshot builds.
+ * <p>
+ * Note: This handler is only available for snapshot builds.
  */
 public class RestShardChangesAction extends BaseRestHandler {
 

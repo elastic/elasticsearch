@@ -37,9 +37,9 @@ public class RestUtils {
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(URI uri, Map<String, String> params) {
-        final var query = uri.getQuery();
-        if (query != null) {
-            decodeQueryString(query, 0, params);
+        final var rawQuery = uri.getRawQuery();
+        if (rawQuery != null) {
+            decodeQueryString(rawQuery, 0, params);
         }
     }
 

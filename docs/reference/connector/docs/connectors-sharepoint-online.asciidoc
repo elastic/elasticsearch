@@ -87,14 +87,16 @@ Select an expiration date. (At this expiration date, you will need to generate a
 +
 ```
 Graph API
-- Sites.Read.All
+- Sites.Selected
 - Files.Read.All
 - Group.Read.All
 - User.Read.All
 
 Sharepoint
-- Sites.Read.All
+- Sites.Selected
 ```
+NOTE: If the `Comma-separated list of sites` configuration is set to `*` or if a user enables the toggle button `Enumerate all sites`, the connector requires `Sites.Read.All` permission.
+
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.
 
@@ -138,7 +140,7 @@ Refer to https://learn.microsoft.com/en-us/sharepoint/dev/general-development/ho
 
 Here's a summary of why we use these Graph API permissions:
 
-* *Sites.Read.All* is used to fetch the sites and their metadata
+* *Sites.Selected* is used to fetch the sites and their metadata
 * *Files.Read.All* is used to fetch Site Drives and files in these drives
 * *Groups.Read.All* is used to fetch groups for document-level permissions
 * *User.Read.All* is used to fetch user information for document-level permissions
@@ -275,7 +277,7 @@ Example:
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations]
-======= Limitations of sync rules with incremental syncs
+*Limitations of sync rules with incremental syncs*
 
 Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<es-connectors-sync-types-incremental,incremental syncs>>.
 
@@ -286,7 +288,7 @@ Incremental syncs ensure _updates_ from 3rd-party system, but do not modify exis
 Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-added]
-======== Example: Restrictive basic sync rule added after a full sync
+*Example: Restrictive basic sync rule added after a full sync*
 
 Imagine your Sharepoint Online drive contains the following drive items:
 
@@ -320,7 +322,7 @@ If no files were changed, incremental sync will not receive information about ch
 After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-removed]
-======== Example: Restrictive basic sync rules removed after a full sync
+*Example: Restrictive basic sync rules removed after a full sync*
 
 Imagine that Sharepoint Online drive has the following drive items:
 
@@ -352,7 +354,7 @@ Afterwards, we can remove the filtering rule and run an incremental sync. If no 
 Only a *full sync* will include the items previously ignored by the sync rule.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-changed]
-======== Example: Advanced sync rules edge case
+*Example: Advanced sync rules edge case*
 
 Advanced sync rules can be applied to limit which documents will have content extracted.
 For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
@@ -546,14 +548,16 @@ Select an expiration date. (At this expiration date, you will need to generate a
 +
 ```
 Graph API
-- Sites.Read.All
+- Sites.Selected
 - Files.Read.All
 - Group.Read.All
 - User.Read.All
 
 Sharepoint
-- Sites.Read.All
+- Sites.Selected
 ```
+NOTE: If the `Comma-separated list of sites` configuration is set to `*` or if a user enables the toggle button `Enumerate all sites`, the connector requires `Sites.Read.All` permission.
+
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.
 
@@ -597,7 +601,7 @@ Refer to https://learn.microsoft.com/en-us/sharepoint/dev/general-development/ho
 
 Here's a summary of why we use these Graph API permissions:
 
-* *Sites.Read.All* is used to fetch the sites and their metadata
+* *Sites.Selected* is used to fetch the sites and their metadata
 * *Files.Read.All* is used to fetch Site Drives and files in these drives
 * *Groups.Read.All* is used to fetch groups for document-level permissions
 * *User.Read.All* is used to fetch user information for document-level permissions
@@ -759,7 +763,7 @@ Example:
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations]
-======= Limitations of sync rules with incremental syncs
+*Limitations of sync rules with incremental syncs*
 
 Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<es-connectors-sync-types-incremental,incremental syncs>>.
 
@@ -770,7 +774,7 @@ Incremental syncs ensure _updates_ from 3rd-party system, but do not modify exis
 Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-added]
-======== Example: Restrictive basic sync rule added after a full sync
+*Example: Restrictive basic sync rule added after a full sync*
 
 Imagine your Sharepoint Online drive contains the following drive items:
 
@@ -804,7 +808,7 @@ If no files were changed, incremental sync will not receive information about ch
 After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-removed]
-======== Example: Restrictive basic sync rules removed after a full sync
+*Example: Restrictive basic sync rules removed after a full sync*
 
 Imagine that Sharepoint Online drive has the following drive items:
 
@@ -836,7 +840,7 @@ Afterwards, we can remove the filtering rule and run an incremental sync. If no 
 Only a *full sync* will include the items previously ignored by the sync rule.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-changed]
-======== Example: Advanced sync rules edge case
+*Example: Advanced sync rules edge case*
 
 Advanced sync rules can be applied to limit which documents will have content extracted.
 For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.

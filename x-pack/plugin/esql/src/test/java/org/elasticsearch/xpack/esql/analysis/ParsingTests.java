@@ -103,6 +103,14 @@ public class ParsingTests extends ESTestCase {
         logger.info("Wrote to file: {}", file);
     }
 
+    public void testTooBigQuery() {
+        StringBuilder query = new StringBuilder("FROM foo | EVAL a = a");
+        while (query.length() < EsqlParser.MAX_LENGTH) {
+            query.append(", a = CONCAT(a, a)");
+        }
+        assertEquals("-1:0: ESQL statement is too large [1000011 characters > 1000000]", error(query.toString()));
+    }
+
     private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {
         for (FunctionDefinition def : registry.listFunctions()) {
             if (functionCall.getClass().equals(def.clazz())) {

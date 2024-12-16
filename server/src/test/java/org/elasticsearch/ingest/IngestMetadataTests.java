@@ -59,8 +59,8 @@ public class IngestMetadataTests extends ESTestCase {
             assertEquals(2, m.getPipelines().size());
             assertEquals("1", m.getPipelines().get("1").getId());
             assertEquals("2", m.getPipelines().get("2").getId());
-            assertEquals(pipeline.getConfigAsMap(), m.getPipelines().get("1").getConfigAsMap());
-            assertEquals(pipeline2.getConfigAsMap(), m.getPipelines().get("2").getConfigAsMap());
+            assertEquals(pipeline.getConfig(), m.getPipelines().get("1").getConfig());
+            assertEquals(pipeline2.getConfig(), m.getPipelines().get("2").getConfig());
         }
     }
 

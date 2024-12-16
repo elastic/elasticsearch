@@ -10,8 +10,6 @@ template:
       sort:
         field: [ "resource.attributes.host.name", "@timestamp" ]
   mappings:
-    _source:
-      mode: synthetic
     properties:
       trace_id:
         type: keyword

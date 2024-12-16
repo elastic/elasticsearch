@@ -12,7 +12,7 @@ package org.elasticsearch.gradle.internal;
 import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
@@ -39,6 +39,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(HistoricalFeaturesMetadataPlugin.class);
+        boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).isCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
@@ -54,7 +55,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
             .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
                 public void doCall(Project proj) {
                     // This is only a convenience for local developers so make this a noop when running in CI
-                    if (BuildParams.isCi() == false) {
+                    if (isCi == false) {
                         proj.afterEvaluate(project1 -> {
                             // let check depend on check tasks of qa sub-projects
                             final var checkTaskProvider = project1.getTasks().named("check");

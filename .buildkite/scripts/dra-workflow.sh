@@ -6,7 +6,7 @@ WORKFLOW="${DRA_WORKFLOW:-snapshot}"
 BRANCH="${BUILDKITE_BRANCH:-}"
 
 # Don't publish main branch to staging
-if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
+if [[ ("$BRANCH" == "main" || "$BRANCH" == *.x) && "$WORKFLOW" == "staging" ]]; then
   exit 0
 fi
 

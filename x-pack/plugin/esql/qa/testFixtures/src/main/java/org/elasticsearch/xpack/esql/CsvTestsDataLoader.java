@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -52,20 +51,38 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestsDataset EMPLOYEES_INCOMPATIBLE = new TestsDataset(
+        "employees_incompatible",
+        "mapping-default-incompatible.json",
+        "employees_incompatible.csv"
+    ).noSubfields();
     private static final TestsDataset HOSTS = new TestsDataset("hosts");
     private static final TestsDataset APPS = new TestsDataset("apps");
     private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestsDataset LANGUAGES = new TestsDataset("languages");
+    private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
+        .withSetting("languages_lookup-settings.json");
+    private static final TestsDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
+        .withData("languages_non_unique_key.csv");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
+    private static final TestsDataset MV_SAMPLE_DATA = new TestsDataset("mv_sample_data");
     private static final TestsDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
     private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
+    private static final TestsDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+        .withData("sample_data_ts_nanos.csv")
+        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
+    private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
+        .withSetting("clientips_lookup-settings.json");
+    private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
+    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+        .withSetting("message_types_lookup-settings.json");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
     private static final TestsDataset AGES = new TestsDataset("ages");
     private static final TestsDataset HEIGHTS = new TestsDataset("heights");
@@ -92,17 +109,25 @@ public class CsvTestsDataLoader {
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
+        Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
+        Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
+        Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
+        Map.entry(MESSAGE_TYPES.indexName, MESSAGE_TYPES),
+        Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
         Map.entry(HEIGHTS.indexName, HEIGHTS),
@@ -164,13 +189,14 @@ public class CsvTestsDataLoader {
      * </p>
      * <p>
      * Accepts an URL as first argument, eg. http://localhost:9200 or http://user:pass@localhost:9200
-     *</p>
+     * </p>
      * <p>
      * If no arguments are specified, the default URL is http://localhost:9200 without authentication
      * </p>
      * <p>
      * It also supports HTTPS
      * </p>
+     *
      * @param args the URL to connect
      * @throws IOException
      */
@@ -212,7 +238,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -231,26 +257,39 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static Set<TestsDataset> availableDatasetsForEs(RestClient client) throws IOException {
+    public static Set<TestsDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
-        return CSV_DATASET_MAP.values()
-            .stream()
-            .filter(d -> d.requiresInferenceEndpoint == false || inferenceEnabled)
-            .collect(Collectors.toCollection(HashSet::new));
+        Set<TestsDataset> testDataSets = new HashSet<>();
+
+        for (TestsDataset dataset : CSV_DATASET_MAP.values()) {
+            if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
+                && (supportsIndexModeLookup || isLookupDataset(dataset) == false)) {
+                testDataSets.add(dataset);
+            }
+        }
+
+        return testDataSets;
     }
 
-    public static void loadDataSetIntoEs(RestClient client) throws IOException {
-        loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+    public static boolean isLookupDataset(TestsDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("lookup"));
+    }
+
+    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
+        loadDataSetIntoEs(client, supportsIndexModeLookup, (restClient, indexName, indexMapping, indexSettings) -> {
             ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
         });
     }
 
-    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
+    private static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, IndexCreator indexCreator)
+        throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client)) {
+        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
@@ -260,7 +299,9 @@ public class CsvTestsDataLoader {
         }
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    /**
+     * The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index.
+     */
     public static void createInferenceEndpoint(RestClient client) throws IOException {
         Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
         request.setJsonEntity("""
@@ -326,13 +367,8 @@ public class CsvTestsDataLoader {
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
-        Settings indexSettings = Settings.EMPTY;
-        final String settingName = dataset.settingFileName != null ? "/" + dataset.settingFileName : null;
-        if (settingName != null) {
-            indexSettings = Settings.builder()
-                .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                .build();
-        }
+
+        Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
         loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
     }
@@ -640,6 +676,18 @@ public class CsvTestsDataLoader {
 
         public TestsDataset withInferenceEndpoint(boolean needsInference) {
             return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+        }
+
+        private Settings readSettingsFile() throws IOException {
+            Settings indexSettings = Settings.EMPTY;
+            final String settingName = settingFileName != null ? "/" + settingFileName : null;
+            if (settingName != null) {
+                indexSettings = Settings.builder()
+                    .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
+                    .build();
+            }
+
+            return indexSettings;
         }
     }
 

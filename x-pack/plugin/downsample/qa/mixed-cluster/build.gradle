@@ -29,7 +29,7 @@ def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter("8.10.0") && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
-BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
     usesDefaultDistribution()

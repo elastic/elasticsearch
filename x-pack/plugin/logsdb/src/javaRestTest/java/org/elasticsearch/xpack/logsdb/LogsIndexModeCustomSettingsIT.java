@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matchers;
@@ -113,8 +116,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
-
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (minimumIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
@@ -183,7 +189,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (minimumIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");

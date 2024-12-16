@@ -13,11 +13,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +41,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = 11;
+        int numModels = 12;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -129,153 +126,6 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var inference = infer(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         deleteModel(modelId);
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetServicesWithoutTaskType() throws IOException {
-        List<Object> services = getAllServices();
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            assertThat(services.size(), equalTo(18));
-        } else {
-            assertThat(services.size(), equalTo(17));
-        }
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
-        }
-
-        Arrays.sort(providers);
-
-        var providerList = new ArrayList<>(
-            Arrays.asList(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "anthropic",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "elasticsearch",
-                "googleaistudio",
-                "googlevertexai",
-                "hugging_face",
-                "mistral",
-                "openai",
-                "streaming_completion_test_service",
-                "test_reranking_service",
-                "test_service",
-                "text_embedding_test_service",
-                "watsonxai"
-            )
-        );
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            providerList.add(6, "elastic");
-        }
-        assertArrayEquals(providers, providerList.toArray());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(13));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
-        }
-
-        Arrays.sort(providers);
-        assertArrayEquals(
-            providers,
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "elasticsearch",
-                "googleaistudio",
-                "googlevertexai",
-                "hugging_face",
-                "mistral",
-                "openai",
-                "text_embedding_test_service",
-                "watsonxai"
-            ).toArray()
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetServicesWithRerankTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(5));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
-        }
-
-        Arrays.sort(providers);
-        assertArrayEquals(
-            providers,
-            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "test_reranking_service").toArray()
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetServicesWithCompletionTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(9));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
-        }
-
-        Arrays.sort(providers);
-        assertArrayEquals(
-            providers,
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "anthropic",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "googleaistudio",
-                "openai",
-                "streaming_completion_test_service"
-            ).toArray()
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            assertThat(services.size(), equalTo(5));
-        } else {
-            assertThat(services.size(), equalTo(4));
-        }
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
-        }
-
-        Arrays.sort(providers);
-
-        var providerList = new ArrayList<>(Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "test_service"));
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            providerList.add(1, "elastic");
-        }
-        assertArrayEquals(providers, providerList.toArray());
     }
 
     public void testSkipValidationAndStart() throws IOException {
@@ -478,7 +328,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testGetZeroModels() throws IOException {
-        var models = getModels("_all", TaskType.RERANK);
+        var models = getModels("_all", TaskType.COMPLETION);
         assertThat(models, empty());
     }
 }

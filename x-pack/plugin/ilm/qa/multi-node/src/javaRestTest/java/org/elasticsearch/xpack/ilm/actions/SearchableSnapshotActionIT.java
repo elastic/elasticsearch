@@ -47,7 +47,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
@@ -185,7 +184,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, LifecycleAction> coldActions = Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -455,7 +454,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -516,12 +515,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -586,7 +585,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
             null
@@ -600,12 +599,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -664,14 +663,14 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);
@@ -695,7 +694,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
             null
@@ -710,12 +709,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -775,10 +774,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", restoredPartiallyMountedIndexName);
@@ -803,12 +802,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 new Phase(
                     "cold",
                     TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                    Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
                 ),
                 new Phase(
                     "frozen",
                     TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))
+                    Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))
                 ),
                 null
             )
@@ -934,12 +933,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
             ),
             null
         );

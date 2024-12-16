@@ -7,19 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.build'
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
-configurations {
-  bridgeJar {
-    canBeConsumed = true
-    canBeResolved = false
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
+
+tasks.named('jar').configure {
+  // guarding for intellij
+  if (sourceSets.findByName("main23")) {
+    from sourceSets.main23.output
   }
 }
 
-artifacts {
-  bridgeJar(jar)
-}
-
-tasks.named('forbiddenApisMain').configure {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

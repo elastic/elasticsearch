@@ -305,7 +305,7 @@ public class FilterTests extends ESTestCase {
         // System.out.println("physical\n" + physical);
         physical = physical.transformUp(
             FragmentExec.class,
-            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize(), f.reducer())
+            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize())
         );
         physical = physicalPlanOptimizer.optimize(physical);
         // System.out.println("optimized\n" + physical);

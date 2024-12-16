@@ -125,7 +125,7 @@ public class ReaderContext implements Releasable {
         refCounted.incRef();
         tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
-            this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
             refCounted.decRef();
         });
     }

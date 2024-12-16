@@ -353,6 +353,114 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | SORT languages""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
+    public void testEvalStats() {
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY y""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY y
+            | SORT y""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | STATS count = COUNT(*) BY first_name
+            | SORT first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL first_name = "a"
+            | STATS count = COUNT(*) BY first_name
+            | SORT first_name""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name = to_upper(y)
+            | SORT first_name""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = to_upper(first_name), z = "z"
+            | STATS count = COUNT(*) BY first_name = to_lower(y), z
+            | SORT first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y, z = first_name
+            | SORT x, z""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y, first_name
+            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(first_name) BY x = y
+            | SORT x
+            | DROP first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | MV_EXPAND x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | MV_EXPAND first_name""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | MV_EXPAND first_name
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | SORT y""", Set.of("first_name", "first_name.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | MV_EXPAND y
+            | STATS count = COUNT(*) BY x = y
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY x = y
+            | STATS count = COUNT(count) by x
+            | SORT x""", Set.of("_index"));
+
+        assertFieldNames("""
+            FROM employees
+            | EVAL y = "a"
+            | STATS count = COUNT(*) BY first_name, y
+            | STATS count = COUNT(count) by x = y
+            | SORT x""", Set.of("first_name", "first_name.*"));
+    }
+
     public void testSortWithLimitOne_DropHeight() {
         assertFieldNames("from employees | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }

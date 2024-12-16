@@ -82,8 +82,9 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS))
-            .thenReturn(new ElasticsearchException("simulated"));
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+            new ElasticsearchException("simulated")
+        );
         final TokenService tokenService = new TokenService(
             SETTINGS,
             Clock.systemUTC(),
@@ -102,8 +103,11 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
 
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
         InvalidateTokenRequest request = new InvalidateTokenRequest(
-                tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), newTokenBytes.v1()),
-                ACCESS_TOKEN.getValue(), null, null);
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), newTokenBytes.v1()),
+            ACCESS_TOKEN.getValue(),
+            null,
+            null
+        );
         PlainActionFuture<InvalidateTokenResponse> accessTokenfuture = new PlainActionFuture<>();
         action.doExecute(null, request, accessTokenfuture);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, accessTokenfuture::actionGet);
@@ -148,8 +152,11 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
 
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
         InvalidateTokenRequest request = new InvalidateTokenRequest(
-                tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), newTokenBytes.v1()),
-                ACCESS_TOKEN.getValue(), null, null);
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), newTokenBytes.v1()),
+            ACCESS_TOKEN.getValue(),
+            null,
+            null
+        );
         PlainActionFuture<InvalidateTokenResponse> accessTokenfuture = new PlainActionFuture<>();
         action.doExecute(null, request, accessTokenfuture);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, accessTokenfuture::actionGet);

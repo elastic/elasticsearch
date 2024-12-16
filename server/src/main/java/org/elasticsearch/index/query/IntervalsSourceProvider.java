@@ -825,7 +825,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES;
+            return TransportVersions.V_8_16_0;
         }
 
         @Override
@@ -1129,7 +1129,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.REGEX_AND_RANGE_INTERVAL_QUERIES;
+            return TransportVersions.V_8_16_0;
         }
 
         @Override

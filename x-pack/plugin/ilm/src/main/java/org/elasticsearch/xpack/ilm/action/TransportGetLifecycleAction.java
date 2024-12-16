@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +70,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
-                listener.onResponse(new Response(Collections.emptyList()));
+                listener.onResponse(new Response(List.of()));
             } else {
                 listener.onFailure(
                     new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames()))

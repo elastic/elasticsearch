@@ -86,6 +86,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search/240_date_nanos/doc value fields are working as expected across date and date_nanos fields", "Fetching docvalues field multiple times is no longer allowed")
   task.skipTest("search/110_field_collapsing/field collapsing and rescore", "#107779 Field collapsing is compatible with rescore in 8.15")
   task.skipTest("indices.create/11_basic_with_types/Create index with mappings", "Empty mapping creation has changed")
+  task.skipTest("search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit", "#115314 we skipp all shards unless the query has aggs, therefore the _shard.skipped do not match")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
@@ -247,4 +248,13 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("tsdb/20_mapping/stored source is supported", "no longer serialize source_mode")
+  task.skipTest("tsdb/20_mapping/Synthetic source", "no longer serialize source_mode")
+  task.skipTest("logsdb/10_settings/create logs index", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
+  task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
+  task.skipTest("search/520_fetch_fields/fetch _seq_no via fields", "error code is changed from 5xx to 400 in 9.0")
+  task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Test knn search", "Scoring has changed in latest versions")
+  task.skipTest("search.vectors/42_knn_search_bbq_flat/Test knn search", "Scoring has changed in latest versions")
 })

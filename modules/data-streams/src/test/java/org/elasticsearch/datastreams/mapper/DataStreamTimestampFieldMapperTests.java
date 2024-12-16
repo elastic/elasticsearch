@@ -48,7 +48,8 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         checker.registerConflictCheck(
             "enabled",
             timestampMapping(true, b -> b.startObject("@timestamp").field("type", "date").endObject()),
-            timestampMapping(false, b -> b.startObject("@timestamp").field("type", "date").endObject())
+            timestampMapping(false, b -> b.startObject("@timestamp").field("type", "date").endObject()),
+            dm -> {}
         );
         checker.registerUpdateCheck(
             timestampMapping(false, b -> b.startObject("@timestamp").field("type", "date").endObject()),

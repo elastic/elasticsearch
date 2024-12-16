@@ -1,0 +1,61 @@
+plugins {
+  id 'application'
+}
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
+group = 'org.elasticsearch.entitlement.tools'
+
+ext {
+  javaMainClass = "org.elasticsearch.entitlement.tools.securitymanager.scanner.Main"
+}
+
+application {
+  mainClass.set(javaMainClass)
+  applicationDefaultJvmArgs = [
+    '--add-exports', 'java.base/sun.security.util=ALL-UNNAMED',
+    '--add-opens', 'java.base/java.lang=ALL-UNNAMED',
+    '--add-opens', 'java.base/java.net=ALL-UNNAMED',
+    '--add-opens', 'java.base/java.net.spi=ALL-UNNAMED',
+    '--add-opens', 'java.base/java.util.concurrent=ALL-UNNAMED',
+    '--add-opens', 'java.base/javax.crypto=ALL-UNNAMED',
+    '--add-opens', 'java.base/javax.security.auth=ALL-UNNAMED',
+    '--add-opens', 'java.base/jdk.internal.logger=ALL-UNNAMED',
+    '--add-opens', 'java.base/sun.nio.ch=ALL-UNNAMED',
+    '--add-opens', 'jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED',
+    '--add-opens', 'java.logging/java.util.logging=ALL-UNNAMED',
+    '--add-opens', 'java.logging/sun.util.logging.internal=ALL-UNNAMED',
+    '--add-opens', 'java.naming/javax.naming.ldap.spi=ALL-UNNAMED',
+    '--add-opens', 'java.rmi/sun.rmi.runtime=ALL-UNNAMED',
+    '--add-opens', 'jdk.dynalink/jdk.dynalink=ALL-UNNAMED',
+    '--add-opens', 'jdk.dynalink/jdk.dynalink.linker=ALL-UNNAMED',
+    '--add-opens', 'java.desktop/sun.awt=ALL-UNNAMED',
+    '--add-opens', 'java.sql.rowset/javax.sql.rowset.spi=ALL-UNNAMED',
+    '--add-opens', 'java.sql/java.sql=ALL-UNNAMED',
+    '--add-opens', 'java.xml.crypto/com.sun.org.apache.xml.internal.security.utils=ALL-UNNAMED'
+  ]
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  compileOnly(project(':libs:core'))
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-util:9.7.1'
+  implementation(project(':libs:entitlement:tools:common'))
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+}

@@ -208,6 +208,11 @@ public class EsqlCapabilities {
         SPATIAL_CENTROID_NO_RECORDS,
 
         /**
+         * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
+         */
+        ST_ENVELOPE,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -278,6 +283,11 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
+         * Enforce strict type checking on ENRICH range types, and warnings for KEYWORD parsing at runtime. Done in #115091.
+         */
+        ENRICH_STRICT_RANGE_TYPES,
+
+        /**
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
@@ -301,7 +311,7 @@ public class EsqlCapabilities {
         /**
          * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON,
 
         /**
          * Removing support for the {@code META} keyword.
@@ -316,32 +326,46 @@ public class EsqlCapabilities {
         /**
          * Support for nanosecond dates as a data type
          */
-        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_TYPE(),
 
         /**
          * Support for to_date_nanos function
          */
-        TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        TO_DATE_NANOS(),
 
         /**
          * Support for date nanos type in binary comparisons
          */
-        DATE_NANOS_BINARY_COMPARISON(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_BINARY_COMPARISON(),
+
+        /**
+         * Support for mixed comparisons between nanosecond and millisecond dates
+         */
+        DATE_NANOS_COMPARE_TO_MILLIS(),
 
         /**
          * Support Least and Greatest functions on Date Nanos type
          */
-        LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        LEAST_GREATEST_FOR_DATENANOS(),
 
+        /**
+         * Support add and subtract on date nanos
+         */
+        DATE_NANOS_ADD_SUBTRACT(),
         /**
          * Support for date_trunc function on date nanos type
          */
-        DATE_TRUNC_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_TRUNC_DATE_NANOS(),
+
+        /**
+         * Support date nanos values as the field argument to bucket
+         */
+        DATE_NANOS_BUCKET(),
 
         /**
          * support aggregations on date nanos
          */
-        DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_AGGREGATIONS(),
 
         /**
          * Support for datetime in least and greatest functions
@@ -391,8 +415,12 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE(Build.current().isSnapshot()),
+        CATEGORIZE_V5,
 
+        /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
         /**
          * QSTR function
          */
@@ -402,6 +430,11 @@ public class EsqlCapabilities {
          * MATCH function
          */
         MATCH_FUNCTION,
+
+        /**
+         * KQL function
+         */
+        KQL_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -420,6 +453,12 @@ public class EsqlCapabilities {
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
 
         /**
+         * Fix {@code SORT} when the {@code _source} field is not a sort key but
+         * <strong>is</strong> being returned.
+         */
+        SORT_RETURNING_SOURCE_OK,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -428,6 +467,11 @@ public class EsqlCapabilities {
          * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
          */
         PER_AGG_FILTERING_ORDS,
+
+        /**
+         * Support for {@code STD_DEV} aggregation.
+         */
+        STD_DEV,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
@@ -488,7 +532,42 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * LOOKUP JOIN
+         */
+        JOIN_LOOKUP_V5(Build.current().isSnapshot()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
+         */
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE(Build.current().isSnapshot()),
+
+        /**
+         * Term function
+         */
+        TERM_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD;
 
         private final boolean enabled;
 

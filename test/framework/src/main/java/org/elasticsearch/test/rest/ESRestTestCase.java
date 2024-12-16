@@ -26,6 +26,8 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -68,6 +70,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -156,6 +159,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
+
+    private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -328,8 +333,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            var clientSettings = restClientSettings();
+            var adminSettings = restAdminSettings();
+            var hosts = clusterHosts.toArray(new HttpHost[0]);
+            client = buildClient(clientSettings, hosts);
+            adminClient = clientSettings.equals(adminSettings) ? client : buildClient(adminSettings, hosts);
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
@@ -1170,6 +1178,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+
+            // If system index warning, ignore but log
+            // See: https://github.com/elastic/elasticsearch/issues/117099
+            // and: https://github.com/elastic/elasticsearch/issues/115809
+            deleteRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
+            );
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1180,6 +1195,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+        for (String warning : warnings) {
+            if (warning.startsWith("this request accesses system indices:")) {
+                SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
+            } else {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected static void wipeDataStreams() throws IOException {
@@ -1858,8 +1885,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        }
-
+        } else if (isSyntheticSourceConfiguredInMapping(mapping)
+            && minimumIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+            }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return CreateIndexResponse.fromXContent(parser);
@@ -1901,6 +1930,49 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             v.compatible(expectedWarning);
         }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInMapping(String mapping) {
+        if (mapping == null) {
+            return false;
+        }
+        var mappings = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}',
+            false
+        );
+        if (mappings.containsKey("_doc")) {
+            mappings = (Map<String, Object>) mappings.get("_doc");
+        }
+        Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+        if (sourceMapper == null) {
+            return false;
+        }
+        return sourceMapper.get("mode") != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
+        if (template == null) {
+            return false;
+        }
+        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
+        for (Object value : values.values()) {
+            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
+            if (mappings == null) {
+                continue;
+            }
+            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+            if (sourceMapper == null) {
+                continue;
+            }
+            Object mode = sourceMapper.get("mode");
+            if (mode != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -2296,7 +2368,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static IndexVersion minimumIndexVersion() throws IOException {
         final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version,nodes.*.index_version");
 
         final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
@@ -2304,10 +2376,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         IndexVersion minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
-            String versionStr = (String) nodeData.get("max_index_version");
+            Object versionStr = nodeData.get("index_version");
+            if (versionStr == null) {
+                versionStr = nodeData.get("max_index_version");
+            }
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
-                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                ? IndexVersion.fromId(Integer.parseInt(versionStr.toString()))
                 : IndexVersion.fromId(
                     parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id())
                 );

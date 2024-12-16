@@ -58,7 +58,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the same stream of data based on two different expressions "
-                    + "use the pattern `COUNT(<expression> OR NULL)`",
+                    + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
+                    + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
+                    + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
                 file = "stats",
                 tag = "count-or-null"
             ) }

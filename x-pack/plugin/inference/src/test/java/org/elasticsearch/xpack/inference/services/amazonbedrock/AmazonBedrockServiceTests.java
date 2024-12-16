@@ -19,7 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -35,7 +35,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
@@ -1551,7 +1551,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     requestSender.enqueue(mockResults2);
                 }
 
-                PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+                PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
                 service.chunkedInfer(
                     model,
                     List.of("abc", "xyz"),
@@ -1564,15 +1564,15 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 var results = listener.actionGet(TIMEOUT);
                 assertThat(results, hasSize(2));
                 {
-                    assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                    var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                    assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                    var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals("abc", floatResult.chunks().get(0).matchedText());
                     assertArrayEquals(new float[] { 0.123F, 0.678F }, floatResult.chunks().get(0).embedding(), 0.0f);
                 }
                 {
-                    assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                    var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                    assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                    var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals("xyz", floatResult.chunks().get(0).matchedText());
                     assertArrayEquals(new float[] { 0.223F, 0.278F }, floatResult.chunks().get(0).embedding(), 0.0f);

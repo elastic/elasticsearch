@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,7 +60,11 @@ public class Term extends FullTextFunction implements Validatable {
             description = "Term you wish to find in the provided field."
         ) Expression termQuery
     ) {
-        super(source, termQuery, List.of(field, termQuery));
+        this(source, field, termQuery, null);
+    }
+
+    public Term(Source source, Expression field, Expression termQuery, QueryBuilder queryBuilder) {
+        super(source, termQuery, List.of(field, termQuery), queryBuilder);
         this.field = field;
     }
 
@@ -64,7 +72,11 @@ public class Term extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Term(source, field, query);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new Term(source, field, query, queryBuilder);
     }
 
     @Override
@@ -72,6 +84,9 @@ public class Term extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override
@@ -101,16 +116,26 @@ public class Term extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Term(source(), newChildren.get(0), newChildren.get(1));
+        return new Term(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Term::new, field, query());
+        return NodeInfo.create(this, Term::new, field, query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return SECOND;
+    }
+
+    @Override
+    protected ExpressionTranslator<Term> translator() {
+        return new EsqlExpressionTranslators.TermFunctionTranslator();
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Term(source(), field, query(), queryBuilder);
     }
 
     public Expression field() {

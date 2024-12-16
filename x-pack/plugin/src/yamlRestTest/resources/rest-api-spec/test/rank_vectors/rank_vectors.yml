@@ -1,11 +1,7 @@
 setup:
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ rank_vectors_field_mapper ]
-      test_runner_features: capabilities
-      reason: "Support for rank vectors field mapper capability required"
+      cluster_features: [ "rank_vectors" ]
+      reason: "requires rank_vectors feature"
 ---
 "Test create multi-vector field":
   - do:

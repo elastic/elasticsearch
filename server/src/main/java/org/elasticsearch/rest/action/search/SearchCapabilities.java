@@ -10,7 +10,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -34,14 +33,8 @@ public final class SearchCapabilities {
     private static final String TRANSFORM_RANK_RRF_TO_RETRIEVER = "transform_rank_rrf_to_retriever";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
-    /** Support rank-vectors field mapper. */
-    private static final String RANK_VECTORS_FIELD_MAPPER = "rank_vectors_field_mapper";
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
-    /** Support rank-vectors script field access. */
-    private static final String RANK_VECTORS_SCRIPT_ACCESS = "rank_vectors_script_access";
-    /** Initial support for rank-vectors maxSim functions access. */
-    private static final String RANK_VECTORS_SCRIPT_MAX_SIM = "rank_vectors_script_max_sim_with_bugfix";
     /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
     private static final String MOVING_FN_RIGHT_MATH = "moving_fn_right_math";
 
@@ -62,11 +55,6 @@ public final class SearchCapabilities {
         capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
         capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE);
         capabilities.add(MOVING_FN_RIGHT_MATH);
-        if (RankVectorsFieldMapper.FEATURE_FLAG.isEnabled()) {
-            capabilities.add(RANK_VECTORS_FIELD_MAPPER);
-            capabilities.add(RANK_VECTORS_SCRIPT_ACCESS);
-            capabilities.add(RANK_VECTORS_SCRIPT_MAX_SIM);
-        }
         if (Build.current().isSnapshot()) {
             capabilities.add(KQL_QUERY_SUPPORTED);
         }

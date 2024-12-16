@@ -1,11 +1,7 @@
 setup:
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ rank_vectors_script_access ]
-      test_runner_features: capabilities
-      reason: "Support for rank vector field script access capability required"
+      cluster_features: [ "rank_vectors" ]
+      reason: "requires rank_vectors feature"
   - skip:
       features: headers
 

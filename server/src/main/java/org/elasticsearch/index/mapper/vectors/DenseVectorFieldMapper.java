@@ -102,7 +102,7 @@ import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
-    static final int BBQ_MIN_DIMS = 64;
+    public static final int BBQ_MIN_DIMS = 64;
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -486,7 +486,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
+            public VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
                 throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
                 return switch (token) {
@@ -517,17 +517,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            int getNumBytes(int dimensions) {
+            public int getNumBytes(int dimensions) {
                 return dimensions;
             }
 
             @Override
-            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
+            public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
 
             @Override
-            int parseDimensionCount(DocumentParserContext context) throws IOException {
+            public int parseDimensionCount(DocumentParserContext context) throws IOException {
                 XContentParser.Token currentToken = context.parser().currentToken();
                 return switch (currentToken) {
                     case START_ARRAY -> {
@@ -691,7 +691,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
+            public VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
                 throws IOException {
                 int index = 0;
                 float squaredMagnitude = 0;
@@ -711,12 +711,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            int getNumBytes(int dimensions) {
+            public int getNumBytes(int dimensions) {
                 return dimensions * Float.BYTES;
             }
 
             @Override
-            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
+            public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
                     ? ByteBuffer.wrap(new byte[numBytes]).order(ByteOrder.LITTLE_ENDIAN)
                     : ByteBuffer.wrap(new byte[numBytes]);
@@ -889,7 +889,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
+            public VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
                 throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
                 return switch (token) {
@@ -920,18 +920,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            int getNumBytes(int dimensions) {
+            public int getNumBytes(int dimensions) {
                 assert dimensions % Byte.SIZE == 0;
                 return dimensions / Byte.SIZE;
             }
 
             @Override
-            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
+            public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
 
             @Override
-            int parseDimensionCount(DocumentParserContext context) throws IOException {
+            public int parseDimensionCount(DocumentParserContext context) throws IOException {
                 XContentParser.Token currentToken = context.parser().currentToken();
                 return switch (currentToken) {
                     case START_ARRAY -> {
@@ -974,16 +974,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException;
 
-        abstract VectorData parseKnnVector(
+        public abstract VectorData parseKnnVector(
             DocumentParserContext context,
             int dims,
             IntBooleanConsumer dimChecker,
             VectorSimilarity similarity
         ) throws IOException;
 
-        abstract int getNumBytes(int dimensions);
+        public abstract int getNumBytes(int dimensions);
 
-        abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
+        public abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 
         public abstract void checkVectorBounds(float[] vector);
 
@@ -1001,7 +1001,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        int parseDimensionCount(DocumentParserContext context) throws IOException {
+        public int parseDimensionCount(DocumentParserContext context) throws IOException {
             int index = 0;
             for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
                 index++;
@@ -1088,7 +1088,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static final Map<String, ElementType> namesToElementType = Map.of(
+    public static final Map<String, ElementType> namesToElementType = Map.of(
         ElementType.BYTE.toString(),
         ElementType.BYTE,
         ElementType.FLOAT.toString(),
@@ -2502,7 +2502,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     /**
      * @FunctionalInterface for a function that takes a int and boolean
      */
-    interface IntBooleanConsumer {
+    public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
     }
 }

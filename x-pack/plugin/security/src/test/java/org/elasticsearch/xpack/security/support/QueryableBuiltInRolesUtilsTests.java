@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -88,6 +89,31 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
             );
 
             // no roles to delete or upsert since the built-in roles are the same as the indexed roles
+            assertThat(determineRolesToDelete(currentBuiltInRoles, digests), is(empty()));
+            assertThat(determineRolesToUpsert(currentBuiltInRoles, digests), is(empty()));
+        }
+        {
+            final RoleDescriptor randomRole = RoleDescriptorTestHelper.randomRoleDescriptor();
+            final QueryableBuiltInRoles currentBuiltInRoles = buildQueryableBuiltInRoles(Set.of(randomRole));
+            final Map<String, String> digests = buildDigests(
+                Set.of(
+                    new RoleDescriptor(
+                        randomRole.getName(),
+                        randomRole.getClusterPrivileges(),
+                        randomRole.getIndicesPrivileges(),
+                        randomRole.getApplicationPrivileges(),
+                        randomRole.getConditionalClusterPrivileges(),
+                        randomRole.getRunAs(),
+                        randomRole.getMetadata(),
+                        randomRole.getTransientMetadata(),
+                        randomRole.getRemoteIndicesPrivileges(),
+                        randomRole.getRemoteClusterPermissions(),
+                        randomRole.getRestriction(),
+                        randomRole.getDescription()
+                    )
+                )
+            );
+
             assertThat(determineRolesToDelete(currentBuiltInRoles, digests), is(empty()));
             assertThat(determineRolesToUpsert(currentBuiltInRoles, digests), is(empty()));
         }

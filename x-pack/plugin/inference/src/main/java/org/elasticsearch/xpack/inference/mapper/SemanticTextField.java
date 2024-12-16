@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -402,17 +402,17 @@ public record SemanticTextField(
     }
 
     /**
-     * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
+     * Converts the provided {@link ChunkedInference} into a list of {@link Chunk}.
      */
     public static List<Chunk> toSemanticTextFieldChunks(
         String input,
         int offsetAdjustment,
-        ChunkedInferenceServiceResults results,
+        ChunkedInference results,
         XContentType contentType,
         boolean useInferenceMetadataFieldsFormat
-    ) {
+    ) throws IOException {
         List<Chunk> chunks = new ArrayList<>();
-        Iterator<ChunkedInferenceServiceResults.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+        Iterator<ChunkedInference.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
         while (it.hasNext()) {
             chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useInferenceMetadataFieldsFormat));
         }
@@ -422,7 +422,7 @@ public record SemanticTextField(
     public static Chunk toSemanticTextFieldChunk(
         String input,
         int offsetAdjustment,
-        ChunkedInferenceServiceResults.Chunk chunk,
+        ChunkedInference.Chunk chunk,
         boolean useInferenceMetadataFieldsFormat
     ) {
         // TODO: Use offsets from ChunkedInferenceServiceResults

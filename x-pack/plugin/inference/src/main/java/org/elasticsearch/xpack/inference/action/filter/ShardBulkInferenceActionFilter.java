@@ -32,7 +32,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -40,12 +40,13 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -157,7 +158,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         int inputOrder,
         int offsetAdjustment,
         Model model,
-        ChunkedInferenceServiceResults chunkedResults
+        ChunkedInference chunkedResults
     ) {}
 
     private record FieldInferenceResponseAccumulator(
@@ -292,19 +293,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
             final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
             final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
-            ActionListener<List<ChunkedInferenceServiceResults>> completionListener = new ActionListener<>() {
+            ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
-                public void onResponse(List<ChunkedInferenceServiceResults> results) {
+                public void onResponse(List<ChunkedInference> results) {
                     try {
                         var requestsIterator = requests.iterator();
-                        for (ChunkedInferenceServiceResults result : results) {
+                        for (ChunkedInference result : results) {
                             var request = requestsIterator.next();
                             var acc = inferenceResults.get(request.index);
-                            if (result instanceof ErrorChunkedInferenceResults error) {
+                            if (result instanceof ChunkedInferenceError error) {
                                 acc.addFailure(
                                     new ElasticsearchException(
                                         "Exception when running inference id [{}] on field [{}]",
-                                        error.getException(),
+                                        error.exception(),
                                         inferenceProvider.model.getInferenceEntityId(),
                                         request.field
                                     )
@@ -378,7 +379,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * If the response contains failures, the bulk item request is marked as failed for the downstream action.
          * Otherwise, the source of the request is augmented with the field inference results.
          */
-        private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) {
+        private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) throws IOException {
             if (response.failures().isEmpty() == false) {
                 for (var failure : response.failures()) {
                     item.abort(item.index(), failure);

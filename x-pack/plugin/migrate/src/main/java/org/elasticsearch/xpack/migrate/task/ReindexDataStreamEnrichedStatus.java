@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/*
+ * This class represents information similar to that in ReindexDataStreamStatus, but enriched from other sources besides just the task
+ * itself.
+ */
 public record ReindexDataStreamEnrichedStatus(
     long persistentTaskStartTime,
     int totalIndices,

@@ -126,7 +126,11 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
      * The status is enriched with the information from inProgressMap to create a new ReindexDataStreamEnrichedStatus, which is used in the
      * response sent to the listener.
      */
-    private void reportStatus(Map<String, Tuple<Long, Long>> inProgressMap, ReindexDataStreamStatus status, ActionListener<Response> listener) {
+    private void reportStatus(
+        Map<String, Tuple<Long, Long>> inProgressMap,
+        ReindexDataStreamStatus status,
+        ActionListener<Response> listener
+    ) {
         ReindexDataStreamEnrichedStatus enrichedStatus = new ReindexDataStreamEnrichedStatus(
             status.persistentTaskStartTime(),
             status.totalIndices(),
@@ -144,7 +148,11 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
      * This method feches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
      * successfully fetching those, reportStatus is called.
      */
-    private void fetchInProgressStatsAndReportStatus(Set<String> inProgressIndices, ReindexDataStreamStatus status, ActionListener<Response> listener) {
+    private void fetchInProgressStatsAndReportStatus(
+        Set<String> inProgressIndices,
+        ReindexDataStreamStatus status,
+        ActionListener<Response> listener
+    ) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         String[] indices = inProgressIndices.stream()
             .flatMap(index -> Stream.of(index, ReindexDataStreamIndexTransportAction.generateDestIndexName(index)))

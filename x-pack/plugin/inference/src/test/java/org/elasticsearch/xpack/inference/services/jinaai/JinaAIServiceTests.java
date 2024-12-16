@@ -216,7 +216,7 @@ public class JinaAIServiceTests extends ESTestCase {
         try (var service = createJinaAIService()) {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "The [JinaAI] service does not support task type [sparse_embedding]"
+                "The [jinaai] service does not support task type [sparse_embedding]"
             );
 
             service.parseRequestConfig(
@@ -250,7 +250,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [JinaAI] service"
+                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -269,7 +269,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [JinaAI] service"
+                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -288,7 +288,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [JinaAI] service"
+                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
 
@@ -308,7 +308,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [JinaAI] service"
+                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -437,7 +437,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [JinaAI] service, please delete and add the service again")
+                is("Failed to parse stored model [id] for [jinaai] service, please delete and add the service again")
             );
         }
     }
@@ -674,7 +674,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [JinaAI] service, please delete and add the service again")
+                is("Failed to parse stored model [id] for [jinaai] service, please delete and add the service again")
             );
         }
     }
@@ -1252,52 +1252,19 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
             var resultAsMap = result.asMap();
-            Object rerankObject = resultAsMap.get("rerank");
-
-            assert rerankObject instanceof List;
-
-            List<?> rerankList = (List<?>) rerankObject;
-
-            for (Object item : rerankList) {
-                assert item instanceof Map;
-            }
-
-            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
-            Object firstRerankDocObj = rerankList.get(0);
-            assert firstRerankDocObj instanceof Map;
-            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
-            Object firstItemObj = firstRerankDoc.get("ranked_doc");
-            assert firstItemObj instanceof Map;
-            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
-            assert !firstItem.containsKey("text");
-            assert firstItem.containsKey("index");
-            assert firstItem.containsKey("relevance_score");
-            assert firstItem.get("index").equals(2);
-            assert firstItem.get("relevance_score").equals(0.98005307F);
-
-            Object secondRerankDocObj = rerankList.get(1);
-            assert secondRerankDocObj instanceof Map;
-            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
-            Object secondItemObj = secondRerankDoc.get("ranked_doc");
-            assert secondItemObj instanceof Map;
-            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
-            assert !secondItem.containsKey("text");
-            assert secondItem.containsKey("index");
-            assert secondItem.containsKey("relevance_score");
-            assert secondItem.get("index").equals(1);
-            assert secondItem.get("relevance_score").equals(0.27904198F);
-
-            Object thirdRerankDocObj = rerankList.get(2);
-            assert thirdRerankDocObj instanceof Map;
-            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
-            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
-            assert thirdItemObj instanceof Map;
-            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
-            assert !thirdItem.containsKey("text");
-            assert thirdItem.containsKey("index");
-            assert thirdItem.containsKey("relevance_score");
-            assert thirdItem.get("index").equals(0);
-            assert thirdItem.get("relevance_score").equals(0.10194652F);
+            assertThat(
+                resultAsMap,
+                is(
+                    Map.of(
+                        "rerank",
+                        List.of(
+                            Map.of("ranked_doc", Map.of("index", 2, "relevance_score", 0.98005307F)),
+                            Map.of("ranked_doc", Map.of("index", 1, "relevance_score", 0.27904198F)),
+                            Map.of("ranked_doc", Map.of("index", 0, "relevance_score", 0.10194652F))
+                        )
+                    )
+                )
+            );
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
@@ -1368,52 +1335,19 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
             var resultAsMap = result.asMap();
-            Object rerankObject = resultAsMap.get("rerank");
-
-            assert rerankObject instanceof List;
-
-            List<?> rerankList = (List<?>) rerankObject;
-
-            for (Object item : rerankList) {
-                assert item instanceof Map;
-            }
-
-            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
-            Object firstRerankDocObj = rerankList.get(0);
-            assert firstRerankDocObj instanceof Map;
-            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
-            Object firstItemObj = firstRerankDoc.get("ranked_doc");
-            assert firstItemObj instanceof Map;
-            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
-            assert !firstItem.containsKey("text");
-            assert firstItem.containsKey("index");
-            assert firstItem.containsKey("relevance_score");
-            assert firstItem.get("index").equals(2);
-            assert firstItem.get("relevance_score").equals(0.98005307F);
-
-            Object secondRerankDocObj = rerankList.get(1);
-            assert secondRerankDocObj instanceof Map;
-            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
-            Object secondItemObj = secondRerankDoc.get("ranked_doc");
-            assert secondItemObj instanceof Map;
-            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
-            assert !secondItem.containsKey("text");
-            assert secondItem.containsKey("index");
-            assert secondItem.containsKey("relevance_score");
-            assert secondItem.get("index").equals(1);
-            assert secondItem.get("relevance_score").equals(0.27904198F);
-
-            Object thirdRerankDocObj = rerankList.get(2);
-            assert thirdRerankDocObj instanceof Map;
-            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
-            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
-            assert thirdItemObj instanceof Map;
-            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
-            assert !thirdItem.containsKey("text");
-            assert thirdItem.containsKey("index");
-            assert thirdItem.containsKey("relevance_score");
-            assert thirdItem.get("index").equals(0);
-            assert thirdItem.get("relevance_score").equals(0.10194652F);
+            assertThat(
+                resultAsMap,
+                is(
+                    Map.of(
+                        "rerank",
+                        List.of(
+                            Map.of("ranked_doc", Map.of("index", 2, "relevance_score", 0.98005307F)),
+                            Map.of("ranked_doc", Map.of("index", 1, "relevance_score", 0.27904198F)),
+                            Map.of("ranked_doc", Map.of("index", 0, "relevance_score", 0.10194652F))
+                        )
+                    )
+                )
+            );
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
@@ -1496,55 +1430,19 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
             var resultAsMap = result.asMap();
-            Object rerankObject = resultAsMap.get("rerank");
-
-            assert rerankObject instanceof List;
-
-            List<?> rerankList = (List<?>) rerankObject;
-
-            for (Object item : rerankList) {
-                assert item instanceof Map;
-            }
-
-            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
-            Object firstRerankDocObj = rerankList.get(0);
-            assert firstRerankDocObj instanceof Map;
-            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
-            Object firstItemObj = firstRerankDoc.get("ranked_doc");
-            assert firstItemObj instanceof Map;
-            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
-            assert firstItem.containsKey("text");
-            assert firstItem.containsKey("index");
-            assert firstItem.containsKey("relevance_score");
-            assert firstItem.get("text").equals("candidate3");
-            assert firstItem.get("relevance_score").equals(0.98005307F);
-
-            Object secondRerankDocObj = rerankList.get(1);
-            assert secondRerankDocObj instanceof Map;
-            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
-            Object secondItemObj = secondRerankDoc.get("ranked_doc");
-            assert secondItemObj instanceof Map;
-            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
-            assert secondItem.containsKey("text");
-            assert secondItem.containsKey("index");
-            assert secondItem.containsKey("relevance_score");
-            assert secondItem.get("text").equals("candidate2");
-            assert secondItem.get("index").equals(1);
-            assert secondItem.get("relevance_score").equals(0.27904198F);
-
-            Object thirdRerankDocObj = rerankList.get(2);
-            assert thirdRerankDocObj instanceof Map;
-            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
-            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
-            assert thirdItemObj instanceof Map;
-            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
-            assert thirdItem.containsKey("text");
-            assert thirdItem.containsKey("index");
-            assert thirdItem.containsKey("relevance_score");
-            assert thirdItem.get("text").equals("candidate1");
-            assert thirdItem.get("index").equals(0);
-            assert thirdItem.get("relevance_score").equals(0.10194652F);
-
+            assertThat(
+                resultAsMap,
+                is(
+                    Map.of(
+                        "rerank",
+                        List.of(
+                            Map.of("ranked_doc", Map.of("text", "candidate3", "index", 2, "relevance_score", 0.98005307F)),
+                            Map.of("ranked_doc", Map.of("text", "candidate2", "index", 1, "relevance_score", 0.27904198F)),
+                            Map.of("ranked_doc", Map.of("text", "candidate1", "index", 0, "relevance_score", 0.10194652F))
+                        )
+                    )
+                )
+            );
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
@@ -1613,55 +1511,19 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
             var resultAsMap = result.asMap();
-            Object rerankObject = resultAsMap.get("rerank");
-
-            assert rerankObject instanceof List;
-
-            List<?> rerankList = (List<?>) rerankObject;
-
-            for (Object item : rerankList) {
-                assert item instanceof Map;
-            }
-
-            assert !((Map<?, ?>) rerankList.get(0)).containsKey("text");
-            Object firstRerankDocObj = rerankList.get(0);
-            assert firstRerankDocObj instanceof Map;
-            Map<?, ?> firstRerankDoc = (Map<?, ?>) firstRerankDocObj;
-            Object firstItemObj = firstRerankDoc.get("ranked_doc");
-            assert firstItemObj instanceof Map;
-            Map<?, ?> firstItem = (Map<?, ?>) firstItemObj;
-            assert firstItem.containsKey("text");
-            assert firstItem.containsKey("index");
-            assert firstItem.containsKey("relevance_score");
-            assert firstItem.get("text").equals("candidate3");
-            assert firstItem.get("relevance_score").equals(0.98005307F);
-
-            Object secondRerankDocObj = rerankList.get(1);
-            assert secondRerankDocObj instanceof Map;
-            Map<?, ?> secondRerankDoc = (Map<?, ?>) secondRerankDocObj;
-            Object secondItemObj = secondRerankDoc.get("ranked_doc");
-            assert secondItemObj instanceof Map;
-            Map<?, ?> secondItem = (Map<?, ?>) secondItemObj;
-            assert secondItem.containsKey("text");
-            assert secondItem.containsKey("index");
-            assert secondItem.containsKey("relevance_score");
-            assert secondItem.get("text").equals("candidate2");
-            assert secondItem.get("index").equals(1);
-            assert secondItem.get("relevance_score").equals(0.27904198F);
-
-            Object thirdRerankDocObj = rerankList.get(2);
-            assert thirdRerankDocObj instanceof Map;
-            Map<?, ?> thirdRerankDoc = (Map<?, ?>) thirdRerankDocObj;
-            Object thirdItemObj = thirdRerankDoc.get("ranked_doc");
-            assert thirdItemObj instanceof Map;
-            Map<?, ?> thirdItem = (Map<?, ?>) thirdItemObj;
-            assert thirdItem.containsKey("text");
-            assert thirdItem.containsKey("index");
-            assert thirdItem.containsKey("relevance_score");
-            assert thirdItem.get("text").equals("candidate1");
-            assert thirdItem.get("index").equals(0);
-            assert thirdItem.get("relevance_score").equals(0.10194652F);
-
+            assertThat(
+                resultAsMap,
+                is(
+                    Map.of(
+                        "rerank",
+                        List.of(
+                            Map.of("ranked_doc", Map.of("text", "candidate3", "index", 2, "relevance_score", 0.98005307F)),
+                            Map.of("ranked_doc", Map.of("text", "candidate2", "index", 1, "relevance_score", 0.27904198F)),
+                            Map.of("ranked_doc", Map.of("text", "candidate1", "index", 0, "relevance_score", 0.10194652F))
+                        )
+                    )
+                )
+            );
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
@@ -1832,7 +1694,7 @@ public class JinaAIServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                            "provider": "JinaAI",
+                            "provider": "jinaai",
                             "task_types": [
                                  {
                                      "task_type": "text_embedding",

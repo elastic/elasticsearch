@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class JinaAIService extends SenderService {
-    public static final String NAME = "JinaAI";
+    public static final String NAME = "jinaai";
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 

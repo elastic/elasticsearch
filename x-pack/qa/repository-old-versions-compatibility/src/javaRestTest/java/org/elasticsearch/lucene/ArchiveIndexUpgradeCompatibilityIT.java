@@ -31,6 +31,12 @@ import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 
+/**
+ * Test suite for Archive indices backward compatibility with N-2 versions.
+ * The test suite creates a cluster in the N-1 version, where N is the current version.
+ * Restores snapshots from old-clusters (version 5/6) and upgrades it to the current version.
+ * Test methods are executed after each upgrade.
+ */
 public class ArchiveIndexUpgradeCompatibilityIT extends AbstractArchiveIndexCompatibilityTestCase {
 
     static {
@@ -55,18 +61,20 @@ public class ArchiveIndexUpgradeCompatibilityIT extends AbstractArchiveIndexComp
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             assertTrue(getIndices(client()).isEmpty());
 
+            // Copy a snapshot of an index with 5 documents
             copySnapshotFromResources(repositoryPath, version);
-
             registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
-
             restoreSnapshot(client(), repository, snapshot, index);
+
             assertTrue(getIndices(client()).contains(index));
+            assertDocCount(client(), index, 5);
 
             return;
         }
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
             assertTrue(getIndices(client()).contains(index));
+            assertDocCount(client(), index, 5);
         }
     }
 

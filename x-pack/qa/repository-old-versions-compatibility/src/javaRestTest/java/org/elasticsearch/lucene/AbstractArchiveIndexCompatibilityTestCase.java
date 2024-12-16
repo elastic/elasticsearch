@@ -32,8 +32,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(AbstractArchiveIndexCompatibilityTestCase.TestCaseOrdering.class)
 public abstract class AbstractArchiveIndexCompatibilityTestCase extends ESRestTestCase {

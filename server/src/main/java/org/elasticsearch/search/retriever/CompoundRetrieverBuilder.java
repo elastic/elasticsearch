@@ -235,12 +235,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             if (innerRetriever.retriever() instanceof CompoundRetrieverBuilder<?> compoundChild) {
                 if (rankWindowSize > compoundChild.rankWindowSize) {
                     String errorMessage = String.format(
-                            Locale.ROOT,
-                            "[%s] requires [rank_window_size: %d] to be smaller than or equal to its sub retriever's %s [rank_window_size: %d]",
-                            this.getName(),
-                            rankWindowSize,
-                            compoundChild.getName(),
-                            compoundChild.rankWindowSize
+                        Locale.ROOT,
+                        "[%s] requires [rank_window_size: %d] to be smaller than or equal to its sub retriever's %s [rank_window_size: %d]",
+                        this.getName(),
+                        rankWindowSize,
+                        compoundChild.getName(),
+                        compoundChild.rankWindowSize
                     );
                     validationException = addValidationError(errorMessage, validationException);
                 }

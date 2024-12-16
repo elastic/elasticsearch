@@ -1,0 +1,28 @@
+pr: 118804
+summary: Add new experimental `rank_vectors` mapping for late-interaction second order
+  ranking
+area: Vector Search
+type: feature
+issues: []
+highlight:
+  title: Add new experimental `rank_vectors` mapping for late-interaction second order
+    ranking
+  body: "Late-interaction models are powerful rerankers. While their size and\noverall\
+    \ cost doesn't lend itself for HNSW indexing, utilizing them as\nsecond order\
+    \ \"brute-force\" reranking can provide excellent boosts in\nrelevance. At generally\
+    \ lower inference times than large cross-encoders.\n\n\nThis commit exposes a\
+    \ new experimental `rank_vectors` field that allows\nfor maxSim operations. This\
+    \ unlocks the initial, and most common use of\nlate-interaction dense-models.\
+    \ \n\nFor example, this is how you would use it via the API:\n\n```\nPUT index\n\
+    {\n  \"mappings\": {\n    \"properties\": {\n      \"late_interaction_vectors\"\
+    : {\n        \"type\": \"rank_vectors\"\n      }\n    }\n  }\n}\n```\n\nThen to\
+    \ index:\n\n```\nPOST index/_doc\n{\n  \"late_interaction_vectors\": [[0.1, ...],...]\n\
+    }\n```\n\nFor querying, scoring can be exposed with scripting:\n\n```\nPOST index/_search\n\
+    {\n  \"query\": {\n    \"script_score\": {\n      \"query\": {\n        \"match_all\"\
+    : {}\n      },\n      \"script\": {\n        \"source\": \"maxSimDotProduct(params.query_vector,\
+    \ 'my_vector')\",\n        \"params\": {\n          \"query_vector\": [[0.42,\
+    \ ...], ...]\n        }\n      }\n    }\n  }\n}\n```\n\nOf course, the initial\
+    \ ranking should be done before re-scoring or\ncombining via the `rescore` parameter,\
+    \ or simply passing whatever first\nphase retrieval you want as the inner query\
+    \ in `script_score`."
+  notable: true

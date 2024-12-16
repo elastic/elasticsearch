@@ -223,6 +223,7 @@ public class DiscoveryNodeTests extends ESTestCase {
                             ],
                             "version" : "%s",
                             "min_index_version" : %s,
+                            "min_read_only_index_version" : %s,
                             "max_index_version" : %s
                           }
                         }""",
@@ -230,6 +231,7 @@ public class DiscoveryNodeTests extends ESTestCase {
                     withExternalId ? "test-external-id" : "test-name",
                     Version.CURRENT,
                     IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current()
                 )
             )

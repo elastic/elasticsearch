@@ -85,9 +85,11 @@ public final class RuntimeUtils {
                 SearchResponse response = item.getResponse();
 
                 if (failure == null) {
-                    ShardSearchFailure[] failures = response.getShardFailures();
-                    if (CollectionUtils.isEmpty(failures) == false && allowPartialSearchResults == false) {
-                        failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                    if (allowPartialSearchResults == false) {
+                        ShardSearchFailure[] failures = response.getShardFailures();
+                        if (CollectionUtils.isEmpty(failures) == false) {
+                            failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                        }
                     }
                 }
                 if (failure != null) {

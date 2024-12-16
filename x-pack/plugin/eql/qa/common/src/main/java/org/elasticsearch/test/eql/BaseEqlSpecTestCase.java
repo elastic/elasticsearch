@@ -194,7 +194,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                     builder.field("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
                 }
             } else {
-                // these will be overwritten by the query params, that have higher priority than the body params
+                // these will be overwritten by the path params, that have higher priority than the query (JSON body) params
                 if (allowPartialSearchResults != null) {
                     builder.field("allow_partial_search_results", randomBoolean());
                 }
@@ -203,6 +203,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 }
             }
         } else {
+            // Tests that don't specify a setting for these parameters should always pass.
+            // These params should be irrelevant.
             if (randomBoolean()) {
                 builder.field("allow_partial_search_results", randomBoolean());
             }
@@ -225,6 +227,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 }
             }
         } else {
+            // Tests that don't specify a setting for these parameters should always pass.
+            // These params should be irrelevant.
             if (randomBoolean()) {
                 request.addParameter("allow_partial_search_results", String.valueOf(randomBoolean()));
             }
@@ -253,6 +257,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             } else {
                 assertNull(shardFailures);
             }
+        } else {
+            assertNull(shardFailures);
         }
     }
 

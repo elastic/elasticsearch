@@ -15,6 +15,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
+import java.util.List;
+import java.util.Map;
+
 public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
@@ -39,8 +42,31 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
 
     @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
-        String searchInferenceId = indexInformation.getSearchInferenceId();
-        return buildNestedQueryFromSparseVectorQuery(queryBuilder, searchInferenceId);
+        Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
+        if (inferenceIdsIndices.size() == 1) {
+            // Simple case, everything uses the same inference ID
+            String searchInferenceId = inferenceIdsIndices.keySet().iterator().next();
+            return buildNestedQueryFromSparseVectorQuery(queryBuilder, searchInferenceId);
+        } else {
+            // Multiple inference IDs, construct a boolean query
+            return buildInferenceQueryWithMultipleInferenceIds(queryBuilder, inferenceIdsIndices);
+        }
+    }
+
+    private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(
+        QueryBuilder queryBuilder,
+        Map<String, List<String>> inferenceIdsIndices
+    ) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        for (String inferenceId : inferenceIdsIndices.keySet()) {
+            boolQueryBuilder.should(
+                createSubQueryForIndices(
+                    inferenceIdsIndices.get(inferenceId),
+                    buildNestedQueryFromSparseVectorQuery(queryBuilder, inferenceId)
+                )
+            );
+        }
+        return boolQueryBuilder;
     }
 
     @Override
@@ -50,7 +76,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     ) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
-        String searchInferenceId = indexInformation.getSearchInferenceId();
+        Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.should(
@@ -61,12 +87,14 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         );
         // We always perform nested subqueries on semantic_text fields, to support
         // sparse_vector queries using query vectors.
-        boolQueryBuilder.should(
-            createSubQueryForIndices(
-                indexInformation.getInferenceIndices(),
-                buildNestedQueryFromSparseVectorQuery(sparseVectorQueryBuilder, searchInferenceId)
-            )
-        );
+        for (String inferenceId : inferenceIdsIndices.keySet()) {
+            boolQueryBuilder.should(
+                createSubQueryForIndices(
+                    inferenceIdsIndices.get(inferenceId),
+                    buildNestedQueryFromSparseVectorQuery(sparseVectorQueryBuilder, inferenceId)
+                )
+            );
+        }
         return boolQueryBuilder;
     }
 

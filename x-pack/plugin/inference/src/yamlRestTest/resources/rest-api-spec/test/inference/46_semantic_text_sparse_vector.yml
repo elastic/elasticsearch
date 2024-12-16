@@ -19,6 +19,21 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-semantic-text-index
         body:
@@ -27,6 +42,16 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: sparse-inference-id
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-2
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id-2
 
   - do:
       indices.create:
@@ -45,6 +70,13 @@ setup:
           inference_field: [ "inference test", "another inference test" ]
         refresh: true
 
+  - do:
+      index:
+        index: test-semantic-text-index-2
+        id: doc_3
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
 
   - do:
       index:
@@ -201,4 +233,23 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
   - match: { hits.hits.1._id: "doc_2" }
+
+
+---
+"sparse_vector query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_3" }
 

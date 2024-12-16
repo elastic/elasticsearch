@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Intercepts and adapts a query to be rewritten to work seamlessly on a semantic_text field.
@@ -132,22 +133,29 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return inferenceIndicesMetadata.keySet();
         }
 
-        public String getSearchInferenceIdForIndex(String index) {
-            return inferenceIndicesMetadata.get(index).getSearchInferenceId();
+        public Map<String, List<String>> getInferenceIdsIndices() {
+            return inferenceIndicesMetadata.entrySet()
+                .stream()
+                .collect(
+                    Collectors.groupingBy(
+                        entry -> entry.getValue().getSearchInferenceId(),
+                        Collectors.mapping(Map.Entry::getKey, Collectors.toList())
+                    )
+                );
         }
 
-        public String getSearchInferenceId() {
-            List<String> searchInferenceIds = inferenceIndicesMetadata.values()
-                .stream()
-                .map(InferenceFieldMetadata::getSearchInferenceId)
-                .distinct()
-                .toList();
-            if (searchInferenceIds.size() > 1) {
-                throw new IllegalStateException(
-                    "Conflicting searchInferenceIds for field [" + fieldName + "]: Found [" + searchInferenceIds + "]"
-                );
-            }
-            return searchInferenceIds.getFirst();
-        }
+        // public String getSearchInferenceId() {
+        // List<String> searchInferenceIds = inferenceIndicesMetadata.values()
+        // .stream()
+        // .map(InferenceFieldMetadata::getSearchInferenceId)
+        // .distinct()
+        // .toList();
+        // if (searchInferenceIds.size() > 1) {
+        // throw new IllegalStateException(
+        // "Conflicting searchInferenceIds for field [" + fieldName + "]: Found [" + searchInferenceIds + "]"
+        // );
+        // }
+        // return searchInferenceIds.getFirst();
+        // }
     }
 }

@@ -57,8 +57,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -166,6 +171,11 @@ public class ExpressionWritables {
         entries.add(Sinh.ENTRY);
         entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
+        entries.add(StEnvelope.ENTRY);
+        entries.add(StXMax.ENTRY);
+        entries.add(StXMin.ENTRY);
+        entries.add(StYMax.ENTRY);
+        entries.add(StYMin.ENTRY);
         entries.add(StX.ENTRY);
         entries.add(StY.ENTRY);
         entries.add(Tan.ENTRY);

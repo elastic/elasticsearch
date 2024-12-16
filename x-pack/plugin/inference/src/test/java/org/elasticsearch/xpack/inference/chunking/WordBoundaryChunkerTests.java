@@ -227,6 +227,10 @@ public class WordBoundaryChunkerTests extends ESTestCase {
         assertThat(chunks, contains(" "));
     }
 
+    private List<String> textChunks(WordBoundaryChunker chunker, String input, int chunkSize, int overlap) {
+        return chunker.chunk(input, chunkSize, overlap);
+    }
+
     public void testBlankString() {
         var chunks = textChunks(new WordBoundaryChunker(), "   ", 100, 10);
         assertThat(chunks, hasSize(1));

@@ -157,7 +157,7 @@ public class SentenceBoundaryChunker implements Chunker {
 
         if (chunks.isEmpty()) {
             // The input did not chunk, return the entire input
-            chunks.add(new ChunkOffset(0, input.length()));
+            chunks.add(input);
         }
 
         return chunks;

@@ -129,11 +129,11 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
         {
             // Default data stream options
             assertAcknowledged(client().performRequest(new Request("DELETE", "/_data_stream/" + DATA_STREAM_NAME + "/_options")));
-            enableClusterSettingForDataStream();
+            setDataStreamFailureStoreClusterSetting(DATA_STREAM_NAME);
             assertDataStreamOptions(null);
             assertFailureStoreValuesInGetDataStreamResponse(true, 1);
             assertRedirectsDocWithBadMappingToFailureStore();
-            disableClusterSettingForDataStream();
+            setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream");
             assertDataStreamOptions(null);
             assertFailureStoreValuesInGetDataStreamResponse(false, 1);
             assertFailsDocWithBadMapping();
@@ -148,11 +148,11 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }""");
             assertAcknowledged(client().performRequest(enableRequest));
-            enableClusterSettingForDataStream();
+            setDataStreamFailureStoreClusterSetting(DATA_STREAM_NAME);
             assertDataStreamOptions(true);
             assertFailureStoreValuesInGetDataStreamResponse(true, 1);
             assertRedirectsDocWithBadMappingToFailureStore();
-            disableClusterSettingForDataStream(); // should have no effect because enabled in options
+            setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream"); // should have no effect as enabled in options
             assertDataStreamOptions(true);
             assertFailureStoreValuesInGetDataStreamResponse(true, 1);
             assertRedirectsDocWithBadMappingToFailureStore();
@@ -167,11 +167,11 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }""");
             assertAcknowledged(client().performRequest(disableRequest));
-            enableClusterSettingForDataStream(); // should have no effect because disabled in options
+            setDataStreamFailureStoreClusterSetting(DATA_STREAM_NAME); // should have no effect as disabled in options
             assertDataStreamOptions(false);
             assertFailureStoreValuesInGetDataStreamResponse(false, 1);
             assertFailsDocWithBadMapping();
-            disableClusterSettingForDataStream();
+            setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream");
             assertDataStreamOptions(false);
             assertFailureStoreValuesInGetDataStreamResponse(false, 1);
             assertFailsDocWithBadMapping();
@@ -222,19 +222,9 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
         return indices.stream().map(index -> index.get("index_name")).toList();
     }
 
-    private static void enableClusterSettingForDataStream() throws IOException {
+    private static void setDataStreamFailureStoreClusterSetting(String value) throws IOException {
         updateClusterSettings(
-            Settings.builder()
-                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), DATA_STREAM_NAME)
-                .build()
-        );
-    }
-
-    private static void disableClusterSettingForDataStream() throws IOException {
-        updateClusterSettings(
-            Settings.builder()
-                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "not-failure-data-stream")
-                .build()
+            Settings.builder().put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), value).build()
         );
     }
 

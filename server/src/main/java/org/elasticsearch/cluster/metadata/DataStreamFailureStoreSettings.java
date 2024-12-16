@@ -57,11 +57,10 @@ public class DataStreamFailureStoreSettings {
      * Returns whether the settings indicate that the failure store should be enabled by the cluster settings for the given name.
      *
      * @param name The data stream name
-     * @param isInternal Whether this is an internal (system or dot-prefix) data stream: if true, this method will always return false
      */
-    public boolean failureStoreEnabledForDataStreamName(String name, boolean isInternal) {
+    public boolean failureStoreEnabledForDataStreamName(String name) {
         assert DataStream.isFailureStoreFeatureFlagEnabled() : "Testing whether failure store is enabled should be behind by feature flag";
-        return isInternal == false && failureStoreEnabledByName.test(name);
+        return failureStoreEnabledByName.test(name);
     }
 
     private void setEnabledByNamePatterns(List<String> patterns) {

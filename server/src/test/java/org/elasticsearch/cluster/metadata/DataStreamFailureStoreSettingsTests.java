@@ -28,14 +28,12 @@ public class DataStreamFailureStoreSettingsTests extends ESTestCase {
 
         // The default should return false for any input.
         // The following will include some illegal names, but it's still valid to test how the method treats them.
-        Stream.generate(() -> randomAsciiAlphanumOfLengthBetween(random(), 1, 20)).limit(100).forEach(name -> {
-            assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name, false), is(false));
-            assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name, true), is(false));
-        });
-        Stream.generate(() -> randomUnicodeOfLengthBetween(1, 20)).limit(100).forEach(name -> {
-            assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name, false), is(false));
-            assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name, true), is(false));
-        });
+        Stream.generate(() -> randomAsciiAlphanumOfLengthBetween(random(), 1, 20))
+            .limit(100)
+            .forEach(name -> assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name), is(false)));
+        Stream.generate(() -> randomUnicodeOfLengthBetween(1, 20))
+            .limit(100)
+            .forEach(name -> assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name), is(false)));
     }
 
     public void testFailureStoreEnabledForDataStreamName_exactMatches() {
@@ -46,12 +44,12 @@ public class DataStreamFailureStoreSettingsTests extends ESTestCase {
             )
         );
 
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("food", false), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("tbar", false), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(".foo", false), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("barf", false), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("food"), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("tbar"), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(".foo"), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("barf"), is(false));
     }
 
     public void testFailureStoreEnabledForDataStreamName_wildcardMatches() {
@@ -62,28 +60,14 @@ public class DataStreamFailureStoreSettingsTests extends ESTestCase {
         );
 
         // These tests aren't exhaustive as the library used is tested thoroughly, but they provide a basic check of the correct usage:
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("food", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("tbar", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("az", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("a123z", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(".foo", false), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("barf", false), is(false));
-    }
-
-    public void testFailureStoreEnabledForDataStreamName_excludesInternal() {
-        DataStreamFailureStoreSettings dataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(
-                // Match exactly 'foo' and 'bar' — whitespace should be stripped:
-                Settings.builder().put(DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "  foo  , bar  ").build()
-            )
-        );
-
-        // Should return false for exact matches, or for anything else, when isInternal is true:
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo", true), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar", true), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("zzz", true), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("food"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("tbar"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("az"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("a123z"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(".foo"), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("barf"), is(false));
     }
 
     public void testFailureStoreEnabledForDataStreamName_respondsToSettingsChange() {
@@ -92,12 +76,12 @@ public class DataStreamFailureStoreSettingsTests extends ESTestCase {
         );
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(clusterSettings);
 
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo", false), is(true));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar", false), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo"), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar"), is(false));
 
         clusterSettings.applySettings(Settings.builder().put(DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "bar").build());
 
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo", false), is(false));
-        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar", false), is(true));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("foo"), is(false));
+        assertThat(dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName("bar"), is(true));
     }
 }

@@ -1,12 +1,24 @@
 pr: 118366
-summary: Prevent boot if bind DN is set without password
+summary: |-
+  Configuring a bind DN in an LDAP or Active Directory (AD) realm without a corresponding bind password
+  will prevent node from starting
 area: Authentication
 type: breaking
 issues: []
 breaking:
-  title: Prevent boot if bind DN is set without password
-  area: Authentication
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
+  title: -|
+    Configuring a bind DN in an LDAP or Active Directory (AD) realm without
+    a corresponding bind password will prevent node from starting
+  area: Cluster and node setting
+  details: -|
+    For LDAP or AD authentication realms, setting a bind DN (via the
+    `xpack.security.authc.realms.ldap.*.bind_dn` realm setting) without a
+    bind password is a misconfiguration that may prevent successful
+    authentication to the node. Nodes will fail to start if a bind DN is specified without a password.
+  impact: -|
+    If you have a bind DN configured for an LDAP or AD authentication
+    realm, set a bind password for
+    [LDAP](https://www.elastic.co/guide/en/elasticsearch/reference/current/ldap-realm.html#ldap-realm-configuration)
+    or [Active
+    Directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/active-directory-realm.html#ad-realm-configuration).
+    Configuring a bind DN without a password prevents the misconfigured node from starting.

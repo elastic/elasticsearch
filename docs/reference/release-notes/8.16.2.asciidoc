@@ -48,6 +48,8 @@ Ranking::
 
 Search::
 * Don't skip shards in coord rewrite if timestamp is an alias {es-pull}117271[#117271]
+* Handle exceptions in query phase can match {es-pull}117469[#117469] (issue: {es-issue}104994[#104994])
+
 
 [[enhancement-8.16.2]]
 [float]
@@ -55,5 +57,11 @@ Search::
 
 Inference::
 * [8.16] Update sparse text embeddings API route for Inference Service {es-pull}118367[#118367]
+
+
+Packaging::
+* In this release we've introduced an image based on the hardened link:https://github.com/wolfi-dev/[Wolfi] 
+image to provide secure containers to our self-managed customers, help with compliance regulations, 
+and improve our supply chain security posture. {es-pull}118684[#118684]
 
 

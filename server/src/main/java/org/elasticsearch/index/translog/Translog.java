@@ -220,6 +220,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public static void deleteAll(Path translogLocation) throws IOException {
+        IOUtils.rm(translogLocation);
+    }
+
     /** recover all translog files found on disk */
     private ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
         boolean success = false;

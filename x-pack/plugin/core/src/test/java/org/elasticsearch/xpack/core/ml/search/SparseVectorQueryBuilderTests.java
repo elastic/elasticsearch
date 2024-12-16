@@ -269,7 +269,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", "model text", null)
             );
-            assertEquals("[sparse_vector] requires [query] when [inference_id] is specified", e.getMessage());
+            assertEquals("[sparse_vector] requires one of [query_vector] or [query]", e.getMessage());
         }
     }
 

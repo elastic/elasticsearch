@@ -360,7 +360,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void deleteRoles(
         final Collection<String> roleNames,
         WriteRequest.RefreshPolicy refreshPolicy,
-        boolean allowReservedRoleNames,
+        boolean validateRoleNames,
         final ActionListener<BulkRolesResponse> listener
     ) {
         if (enabled == false) {
@@ -372,7 +372,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         Map<String, Exception> validationErrorByRoleName = new HashMap<>();
 
         for (String roleName : roleNames) {
-            if (allowReservedRoleNames && reservedRoleNameChecker.isReserved(roleName)) {
+            if (validateRoleNames && reservedRoleNameChecker.isReserved(roleName)) {
                 validationErrorByRoleName.put(
                     roleName,
                     new IllegalArgumentException("role [" + roleName + "] is reserved and cannot be deleted")

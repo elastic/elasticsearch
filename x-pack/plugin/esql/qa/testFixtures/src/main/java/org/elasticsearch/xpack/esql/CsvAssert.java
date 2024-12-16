@@ -392,21 +392,21 @@ public final class CsvAssert {
 
         // convert the long from CSV back to its STRING form
         return switch (expectedType) {
-            case Type.DATETIME -> rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
-            case Type.DATE_NANOS -> rebuildExpected(
+            case DATETIME -> rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
+            case DATE_NANOS -> rebuildExpected(
                 expectedValue,
                 Long.class,
                 x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
             );
-            case Type.GEO_POINT, Type.GEO_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
-            case Type.CARTESIAN_POINT, Type.CARTESIAN_SHAPE -> rebuildExpected(
+            case GEO_POINT, GEO_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> rebuildExpected(
                 expectedValue,
                 BytesRef.class,
                 x -> CARTESIAN.wkbToWkt((BytesRef) x)
             );
-            case Type.IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
+            case IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                 rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
-            case Type.VERSION -> // convert BytesRef-packed Version to String
+            case VERSION -> // convert BytesRef-packed Version to String
                 rebuildExpected(expectedValue, BytesRef.class, x -> new Version((BytesRef) x).toString());
             case UNSIGNED_LONG -> rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
             default -> expectedValue;

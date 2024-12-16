@@ -88,8 +88,12 @@ public class IndexMetadataVerifier {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
-        checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
+    public IndexMetadata verifyIndexMetadata(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumIndexCompatibilityVersion,
+        IndexVersion minimumReadOnlyIndexCompatibilityVersion
+    ) {
+        checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
         IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
@@ -105,26 +109,66 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * Check that the index version is compatible. Elasticsearch does not support indices created before the
-     * previous major version.
+     * Check that the index version is compatible. Elasticsearch supports reading and writing indices created in the current version ("N")
+     + as well as the previous major version ("N-1"). Elasticsearch only supports reading indices created down to the penultimate version
+     + ("N-2") and does not support reading nor writing any version below that.
      */
-    private static void checkSupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
-        boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
-        if (isSupportedVersion == false) {
-            throw new IllegalStateException(
-                "The index "
-                    + indexMetadata.getIndex()
-                    + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion().toReleaseVersion()
-                    + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion.toReleaseVersion()
-                    + "]. It should be re-indexed in Elasticsearch "
-                    + (Version.CURRENT.major - 1)
-                    + ".x before upgrading to "
-                    + Build.current().version()
-                    + "."
-            );
+    private static void checkSupportedVersion(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumIndexCompatibilityVersion,
+        IndexVersion minimumReadOnlyIndexCompatibilityVersion
+    ) {
+        if (isFullySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion)) {
+            return;
         }
+        if (isReadOnlySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion)) {
+            return;
+        }
+        throw new IllegalStateException(
+            "The index "
+                + indexMetadata.getIndex()
+                + " has current compatibility version ["
+                + indexMetadata.getCompatibilityVersion().toReleaseVersion()
+                + "] but the minimum compatible version is ["
+                + minimumIndexCompatibilityVersion.toReleaseVersion()
+                + "]. It should be re-indexed in Elasticsearch "
+                + (Version.CURRENT.major - 1)
+                + ".x before upgrading to "
+                + Build.current().version()
+                + "."
+        );
+    }
+
+    private static boolean isFullySupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+        return indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
+    }
+
+    public static boolean isReadOnlySupportedVersion(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumIndexCompatibilityVersion,
+        IndexVersion minReadOnlyIndexCompatibilityVersion
+    ) {
+        boolean isReadOnlySupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minReadOnlyIndexCompatibilityVersion);
+        assert isFullySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion) == false;
+
+        if (isReadOnlySupportedVersion && indexMetadata.isSearchableSnapshot()) {
+            boolean isReadOnly = IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
+            if (isReadOnly == false) {
+                throw new IllegalStateException(
+                    "The index "
+                        + indexMetadata.getIndex()
+                        + " with current compatibility version ["
+                        + indexMetadata.getCompatibilityVersion().toReleaseVersion()
+                        + "] must be marked as read-only using the setting ["
+                        + IndexMetadata.SETTING_BLOCKS_WRITE
+                        + "] set to [true] before upgrading to "
+                        + Build.current().version()
+                        + "."
+                );
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

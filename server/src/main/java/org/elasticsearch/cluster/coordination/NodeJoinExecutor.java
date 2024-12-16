@@ -47,6 +47,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlySupportedVersion;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
@@ -177,7 +178,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         enforceNodeFeatureBarrier(node.getId(), allNodesFeatures, features);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
-                        ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
+                        ensureIndexCompatibility(
+                            node.getMinIndexVersion(),
+                            node.getMinReadOnlyIndexVersion(),
+                            node.getMaxIndexVersion(),
+                            initialState.getMetadata()
+                        );
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
                         nodeFeatures.put(node.getId(), features);
@@ -362,7 +368,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * @see IndexVersions#MINIMUM_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
-    public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {
+    public static void ensureIndexCompatibility(
+        IndexVersion minSupportedVersion,
+        IndexVersion minReadOnlySupportedVersion,
+        IndexVersion maxSupportedVersion,
+        Metadata metadata
+    ) {
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
         for (IndexMetadata idxMetadata : metadata) {
@@ -377,6 +388,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 );
             }
             if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
+                if (isReadOnlySupportedVersion(idxMetadata, minSupportedVersion, minReadOnlySupportedVersion)) {
+                    continue;
+                }
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
@@ -477,7 +491,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), state.getMetadata());
+            ensureIndexCompatibility(
+                node.getMinIndexVersion(),
+                node.getMinReadOnlyIndexVersion(),
+                node.getMaxIndexVersion(),
+                state.getMetadata()
+            );
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);

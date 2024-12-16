@@ -1,0 +1,6 @@
+pr: 118785
+summary: "[Draft] Allow searchable snapshot indices in version N-2 to be recovered\
+  \ on a V9 cluster"
+area: Allocation
+type: enhancement
+issues: []

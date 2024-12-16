@@ -67,4 +67,9 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     ) {
         policyManager.checkCreateClassLoader(callerClass);
     }
+
+    @Override
+    public void check$$start(Class<?> callerClass, ProcessBuilder processBuilder, ProcessBuilder.Redirect[] redirects) {
+        policyManager.checkStartProcess(callerClass);
+    }
 }

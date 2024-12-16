@@ -262,7 +262,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
 
-        if (( ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+        if ((ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
             assertThat(services.size(), equalTo(5));
         } else {
             assertThat(services.size(), equalTo(4));

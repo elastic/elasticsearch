@@ -66,7 +66,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, "{\"kind\":\"storage#objects\",\"items\":[],\"prefixes\":[]}"),
-            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o?prefix=b")
+            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o")
         );
 
         // Multipart upload

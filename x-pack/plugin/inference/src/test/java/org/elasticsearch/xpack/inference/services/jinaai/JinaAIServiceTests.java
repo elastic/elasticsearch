@@ -1068,7 +1068,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model", "task", "retrieval.passage")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.passage")));
         }
     }
 
@@ -1117,7 +1117,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model", "task", "retrieval.query")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.query")));
         }
     }
 
@@ -1166,7 +1166,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model", "task", "separation")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "separation")));
         }
     }
 
@@ -1206,7 +1206,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model")));
         }
     }
 
@@ -1598,7 +1598,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "jina-clip-v2")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2")));
         }
     }
 
@@ -1635,7 +1635,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            // Batching will call the service with 2 inputs
+            // Batching will call the service with 2 input
             String responseJson =
                 """
                     {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}, {"object":"embedding","index":1,"embedding":[0.223, -0.223]}]}
@@ -1643,7 +1643,7 @@ public class JinaAIServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            // 2 inputs
+            // 2 input
             service.chunkedInfer(
                 model,
                 null,
@@ -1680,7 +1680,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("foo", "bar"), "model", "jina-clip-v2")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("foo", "bar"), "model", "jina-clip-v2")));
         }
     }
 

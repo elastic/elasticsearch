@@ -28,7 +28,7 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
     private static final String SEARCH_QUERY = "retrieval.query";
     private static final String CLUSTERING = "separation";
     private static final String CLASSIFICATION = "classification";
-    private static final String INPUTS_FIELD = "inputs";
+    private static final String INPUT_FIELD = "input";
     public static final String TASK_TYPE_FIELD = "task";
 
     public JinaAIEmbeddingsRequestEntity {
@@ -39,7 +39,7 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INPUTS_FIELD, input);
+        builder.field(INPUT_FIELD, input);
         if (model != null) {
             builder.field(JinaAIServiceSettings.OLD_MODEL_ID_FIELD, model);
         }

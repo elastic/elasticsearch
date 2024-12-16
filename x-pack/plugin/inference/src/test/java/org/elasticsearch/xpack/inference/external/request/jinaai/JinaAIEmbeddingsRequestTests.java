@@ -46,7 +46,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"))));
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
     }
 
     public void testCreateRequest_AllOptionsDefined() throws IOException {
@@ -69,7 +69,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model", "task", "retrieval.passage")));
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.passage")));
     }
 
     public void testCreateRequest_InputTypeSearch_EmbeddingTypeBinary() throws IOException {
@@ -92,7 +92,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("inputs", List.of("abc"), "model", "model", "task", "retrieval.query")));
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.query")));
     }
 
     public static JinaAIEmbeddingsRequest createRequest(List<String> input, JinaAIEmbeddingsModel model) {

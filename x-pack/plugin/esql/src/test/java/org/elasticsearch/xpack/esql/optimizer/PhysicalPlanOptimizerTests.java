@@ -2331,7 +2331,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.

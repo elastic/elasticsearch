@@ -197,7 +197,13 @@ public final class CsvAssert {
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
                 if (row >= actualValues.size()) {
-                    dataFailure("Expected more data but no more entries found after [" + row + "]", dataFailures, expected, actualValues);
+                    dataFailure(
+                        "Expected more data but no more entries found after [" + row + "]",
+                        dataFailures,
+                        expected,
+                        actualValues,
+                        valueTransformer
+                    );
                 }
 
                 if (logger != null) {
@@ -209,7 +215,7 @@ public final class CsvAssert {
 
                 for (int column = 0; column < expectedRow.size(); column++) {
                     var expectedType = expected.columnTypes().get(column);
-                    var expectedValue = convertExpectedValue(expectedRow.get(column), expectedType);
+                    var expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
                     var actualValue = actualRow.get(column);
 
                     var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
@@ -218,7 +224,7 @@ public final class CsvAssert {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
-                        dataFailure("", dataFailures, expected, actualValues);
+                        dataFailure("", dataFailures, expected, actualValues, valueTransformer);
                     }
                 }
 
@@ -227,7 +233,8 @@ public final class CsvAssert {
                         "Plan has extra columns, returned [" + actualRow.size() + "], expected [" + expectedRow.size() + "]",
                         dataFailures,
                         expected,
-                        actualValues
+                        actualValues,
+                        valueTransformer
                     );
                 }
             } catch (AssertionError ae) {
@@ -239,10 +246,16 @@ public final class CsvAssert {
             }
         }
         if (dataFailures.isEmpty() == false) {
-            dataFailure("", dataFailures, expected, actualValues);
+            dataFailure("", dataFailures, expected, actualValues, valueTransformer);
         }
         if (expectedValues.size() < actualValues.size()) {
-            dataFailure("Elasticsearch still has data after [" + expectedValues.size() + "] entries", dataFailures, expected, actualValues);
+            dataFailure(
+                "Elasticsearch still has data after [" + expectedValues.size() + "] entries",
+                dataFailures,
+                expected,
+                actualValues,
+                valueTransformer
+            );
         }
     }
 
@@ -250,42 +263,68 @@ public final class CsvAssert {
         String description,
         List<DataFailure> dataFailures,
         ExpectedResults expectedValues,
-        List<List<Object>> actualValues
+        List<List<Object>> actualValues,
+        BiFunction<Type, Object, Object> valueTransformer
     ) {
-        var expected = pipeTable("Expected:", expectedValues.columnNames(), expectedValues.values(), 25);
-        var actual = pipeTable("Actual:", expectedValues.columnNames(), actualValues, 25);
+        var expected = pipeTable(
+            "Expected:",
+            expectedValues.columnNames(),
+            expectedValues.columnTypes(),
+            expectedValues.values(),
+            (type, value) -> valueTransformer.apply(type, convertExpectedValue(type, value))
+        );
+        var actual = pipeTable("Actual:", expectedValues.columnNames(), expectedValues.columnTypes(), actualValues, valueTransformer);
         fail(description + System.lineSeparator() + describeFailures(dataFailures) + actual + expected);
     }
 
-    private static String pipeTable(String description, List<String> headers, List<List<Object>> values, int maxRows) {
+    private static final int MAX_ROWS = 25;
+
+    private static String pipeTable(
+        String description,
+        List<String> headers,
+        List<Type> types,
+        List<List<Object>> values,
+        BiFunction<Type, Object, Object> valueTransformer
+    ) {
+        int rows = Math.min(MAX_ROWS, values.size());
         int[] width = new int[headers.size()];
-        for (int i = 0; i < width.length; i++) {
-            width[i] = headers.get(i).length();
-            for (List<Object> row : values) {
-                width[i] = Math.max(width[i], String.valueOf(row.get(i)).length());
+        String[][] printableValues = new String[rows][headers.size()];
+        for (int c = 0; c < headers.size(); c++) {
+            width[c] = headers.get(c).length();
+        }
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < headers.size(); c++) {
+                printableValues[r][c] = String.valueOf(valueTransformer.apply(types.get(c), values.get(r).get(c)));
+                width[c] = Math.max(width[c], printableValues[r][c].length());
             }
         }
 
         var result = new StringBuilder().append(System.lineSeparator()).append(description).append(System.lineSeparator());
-        for (int c = 0; c < width.length; c++) {
-            appendValue(result, headers.get(c), width[c]);
+        // headers
+        appendPaddedValue(result, headers.get(0), width[0]);
+        for (int c = 1; c < width.length; c++) {
+            result.append(" | ");
+            appendPaddedValue(result, headers.get(c), width[c]);
         }
-        result.append('|').append(System.lineSeparator());
-        for (int r = 0; r < Math.min(maxRows, values.size()); r++) {
-            for (int c = 0; c < width.length; c++) {
-                appendValue(result, values.get(r).get(c), width[c]);
+        result.append(System.lineSeparator());
+        // values
+        for (int r = 0; r < printableValues.length; r++) {
+            appendPaddedValue(result, printableValues[r][0], width[0]);
+            for (int c = 1; c < printableValues[r].length; c++) {
+                result.append(" | ");
+                appendPaddedValue(result, printableValues[r][c], width[c]);
             }
-            result.append('|').append(System.lineSeparator());
+            result.append(System.lineSeparator());
         }
-        if (values.size() > maxRows) {
+        if (values.size() > rows) {
             result.append("...").append(System.lineSeparator());
         }
         return result.toString();
     }
 
-    private static void appendValue(StringBuilder result, Object value, int width) {
-        result.append('|').append(value);
-        for (int i = 0; i < width - String.valueOf(value).length(); i++) {
+    private static void appendPaddedValue(StringBuilder result, String value, int width) {
+        result.append(value);
+        for (int i = 0; i < width - (value != null ? value.length() : 4); i++) {
             result.append(' ');
         }
     }
@@ -341,7 +380,7 @@ public final class CsvAssert {
         };
     }
 
-    private static Object convertExpectedValue(Object expectedValue, Type expectedType) {
+    private static Object convertExpectedValue(Type expectedType, Object expectedValue) {
         if (expectedValue == null) {
             return null;
         }
@@ -355,7 +394,11 @@ public final class CsvAssert {
                 x -> DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos((long) x)
             );
             case Type.GEO_POINT, Type.GEO_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
-            case Type.CARTESIAN_POINT, Type.CARTESIAN_SHAPE -> rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
+            case Type.CARTESIAN_POINT, Type.CARTESIAN_SHAPE -> rebuildExpected(
+                expectedValue,
+                BytesRef.class,
+                x -> CARTESIAN.wkbToWkt((BytesRef) x)
+            );
             case Type.IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                 rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
             case Type.VERSION -> // convert BytesRef-packed Version to String

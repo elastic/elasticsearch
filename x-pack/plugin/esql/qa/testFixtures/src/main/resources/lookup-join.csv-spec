@@ -342,3 +342,68 @@ count:long | type:keyword
 3          | Success
 1          | Disconnected
 ;
+
+// 
+// Filtering tests
+// 
+
+lookupWithFilterOnLeftSideField
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| WHERE emp_no >= 10091 AND emp_no < 10094
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+lookupMessageWithFilterOnRightSideField-Ignore
+required_capability: join_lookup_v5
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE type == "Error"
+| KEEP @timestamp, client_ip, event_duration, message, type
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+;
+
+lookupWithFieldAndRightSideAfterStats
+required_capability: join_lookup_v5
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| STATS count = count(message) BY type
+| WHERE type == "Error"
+;
+
+count:long | type:keyword
+3          | Error
+;
+
+lookupWithFieldOnJoinKey-Ignore
+required_capability: join_lookup_v5
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code > 1 AND language_name IS NOT NULL
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
+;

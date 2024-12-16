@@ -57,6 +57,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
   // Something has changed with response codes
   task.skipTest("search.aggregation/20_terms/IP test", "Hybrid t-digest produces different results.")
+  // Maths changed
+  task.skipTest("aggregations/moving_fn/linearWeightedAvg", "math was wrong in previous versions")
 
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }

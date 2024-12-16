@@ -12,23 +12,27 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContent;
 
+import java.io.IOException;
 import java.util.Iterator;
 
-public interface ChunkedInferenceServiceResults extends InferenceServiceResults {
+public interface ChunkedInference {
 
     /**
      * Implementations of this function serialize their embeddings to {@link BytesReference} for storage in semantic text fields.
-     * The iterator iterates over all the chunks stored in the {@link ChunkedInferenceServiceResults}.
      *
      * @param xcontent provided by the SemanticTextField
      * @return an iterator of the serialized {@link Chunk} which includes the matched text (input) and bytes reference (output/embedding).
      */
-    Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent);
+    Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException;
 
     /**
-     * A chunk of inference results containing matched text and the bytes reference.
+     * A chunk of inference results containing matched text, the substring location
+     * in the original text and the bytes reference.
      * @param matchedText
+     * @param textOffset
      * @param bytesReference
      */
-    record Chunk(String matchedText, BytesReference bytesReference) {}
+    record Chunk(String matchedText, TextOffset textOffset, BytesReference bytesReference) {}
+
+    record TextOffset(int start, int end) {}
 }

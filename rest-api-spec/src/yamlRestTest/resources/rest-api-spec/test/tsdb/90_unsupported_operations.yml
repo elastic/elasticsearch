@@ -72,7 +72,7 @@ setup:
 index with routing:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   - do:
       catch: /specifying routing is not supported because the destination index \[test\] is in time_series mode/
@@ -95,7 +95,7 @@ index with routing:
 index with routing over _bulk:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   - do:
       bulk:
@@ -110,7 +110,7 @@ index with routing over _bulk:
 noop update:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   - do:
       search:
@@ -132,7 +132,7 @@ noop update:
 regular update:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   # We fail even though the document isn't found.
   - do:
@@ -157,7 +157,7 @@ regular update:
 update over _bulk:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   - do:
       bulk:
@@ -171,7 +171,7 @@ update over _bulk:
 search with routing:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   # We fail even though the document isn't found.
   - do:

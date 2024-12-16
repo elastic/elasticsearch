@@ -92,7 +92,7 @@ setup:
 split:
   - requires:
       cluster_features: ["routing.logsb_route_on_sort_fields"]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   - do:
       catch: /index-split is not supported because the destination index \[test\] is in time_series mode/

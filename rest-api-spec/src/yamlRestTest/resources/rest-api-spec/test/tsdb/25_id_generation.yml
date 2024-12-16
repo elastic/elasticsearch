@@ -405,7 +405,7 @@ delete with routing:
 delete over _bulk:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
-      reason: error message changed
+      reason: introduction of route on index sorting fields
 
   # mget call added to investigate test failure: https://github.com/elastic/elasticsearch/issues/93852
   # (should be removed when test issue is resolved)

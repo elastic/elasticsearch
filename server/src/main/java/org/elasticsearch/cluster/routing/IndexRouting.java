@@ -482,7 +482,7 @@ public abstract class IndexRouting {
             // For TSDB, the hash is stored as the id prefix.
             // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 8, id.length - 4] of the id,
             // see IndexRequest#autoGenerateTimeBasedId.
-            return hashToShardId(ByteUtils.readIntLE(idBytes, addIdWithRoutingHash ? idBytes.length - 8 : 0));
+            return hashToShardId(ByteUtils.readIntLE(idBytes, addIdWithRoutingHash ? idBytes.length - 9 : 0));
         }
 
         @Override

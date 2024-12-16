@@ -238,7 +238,7 @@ public enum IndexMode {
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             validateTimeSeriesSettings(settings);
             var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
-            if (setting != null && (setting.equals("false") || setting.equals(Boolean.FALSE))) {
+            if (setting.equals(Boolean.FALSE)) {
                 validateRoutingPathSettings(settings);
             }
         }

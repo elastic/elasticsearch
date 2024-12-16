@@ -72,14 +72,14 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         assert macAddress.length == 6;
         buffer.put(macAddress, 0, macAddress.length);
 
-        buffer.put((byte) (sequenceId >>> 16));
-
         // Copy the hash value if provided
         if (hash.isPresent()) {
             byte[] hashBytes = new byte[4];
             ByteUtils.writeIntLE(hash.getAsInt(), hashBytes, 0);
             buffer.put(hashBytes, 0, hashBytes.length);
         }
+
+        buffer.put((byte) (sequenceId >>> 16));
 
         // From hereinafter everything is almost like random and does not compress well
         // due to unlikely prefix-sharing

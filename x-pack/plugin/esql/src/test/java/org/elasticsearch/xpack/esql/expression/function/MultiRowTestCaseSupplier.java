@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -19,11 +21,11 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomList;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedDataSupplier;
 
@@ -263,9 +265,7 @@ public final class MultiRowTestCaseSupplier {
     }
 
     /**
-     *
      * Generate cases for {@link DataType#DATE_NANOS}.
-     *
      */
     public static List<TypedDataSupplier> dateNanosCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
@@ -370,53 +370,58 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
-    public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, boolean withAltitude) {
-        List<TypedDataSupplier> cases = new ArrayList<>();
-
-        addSuppliers(
-            cases,
-            minRows,
-            maxRows,
-            "<no alt geo_point>",
-            DataType.GEO_POINT,
-            () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))
-        );
-
-        if (withAltitude) {
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "<with alt geo_point>",
-                DataType.GEO_POINT,
-                () -> GEO.asWkb(GeometryTestUtils.randomPoint(true))
-            );
-        }
-
-        return cases;
+    public enum IncludingAltitude {
+        YES,
+        NO
     }
 
-    public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, boolean withAltitude) {
-        List<TypedDataSupplier> cases = new ArrayList<>();
+    public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, IncludingAltitude withAltitude) {
+        return spatialCases(minRows, maxRows, withAltitude, "geo_point", DataType.GEO_POINT, GeometryTestUtils::randomPoint);
+    }
 
-        addSuppliers(
-            cases,
+    public static List<TypedDataSupplier> geoShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(
             minRows,
             maxRows,
-            "<no alt cartesian_point>",
-            DataType.CARTESIAN_POINT,
-            () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(false))
+            includingAltitude,
+            "geo_shape",
+            DataType.GEO_SHAPE,
+            b -> GeometryTestUtils.randomGeometryWithoutCircle(0, b)
         );
+    }
 
-        if (withAltitude) {
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "<with alt cartesian_point>",
-                DataType.CARTESIAN_POINT,
-                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(true))
-            );
+    public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.CARTESIAN_SHAPE,
+            b -> ShapeTestUtils.randomGeometryWithoutCircle(0, b)
+        );
+    }
+
+    public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(minRows, maxRows, includingAltitude, "cartesian_point", DataType.CARTESIAN_POINT, ShapeTestUtils::randomPoint);
+    }
+
+    @SuppressWarnings("fallthrough")
+    private static List<TypedDataSupplier> spatialCases(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        String name,
+        DataType type,
+        Function<Boolean, ? extends Geometry> gen
+    ) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        switch (includingAltitude) {
+            case YES:
+                addSuppliers(cases, minRows, maxRows, Strings.format("<with alt %s>", name), type, () -> GEO.asWkb(gen.apply(true)));
+                // Explicit fallthrough: always generate a case without altitude.
+            case NO:
+                addSuppliers(cases, minRows, maxRows, Strings.format("<no alt %s>", name), type, () -> GEO.asWkb(gen.apply(false)));
         }
 
         return cases;

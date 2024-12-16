@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -208,7 +207,6 @@ public class Verifier {
             checkJoin(p, failures);
         });
         checkRemoteEnrich(plan, failures);
-        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -220,13 +218,6 @@ public class Verifier {
         }
 
         return failures;
-    }
-
-    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
-        // _score can only be set as metadata attribute
-        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
-            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
-        }
     }
 
     private void checkSort(LogicalPlan p, Set<Failure> failures) {
@@ -325,11 +316,15 @@ public class Verifier {
     private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
         // Forbid CATEGORIZE grouping function with other groupings
         if (agg.groupings().size() > 1) {
-            agg.groupings().forEach(g -> {
+            agg.groupings().subList(1, agg.groupings().size()).forEach(g -> {
                 g.forEachDown(
                     Categorize.class,
                     categorize -> failures.add(
-                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                        fail(
+                            categorize,
+                            "CATEGORIZE grouping function [{}] can only be in the first grouping expression",
+                            categorize.sourceText()
+                        )
                     )
                 );
             });
@@ -608,6 +603,10 @@ public class Verifier {
         Set<Class<?>> functions = new HashSet<>();
         plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
         functions.forEach(f -> metrics.incFunctionMetric(f));
+    }
+
+    public XPackLicenseState licenseState() {
+        return licenseState;
     }
 
     /**

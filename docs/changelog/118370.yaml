@@ -1,6 +1,0 @@
-pr: 118370
-summary: Fix concurrency issue with `ReinitializingSourceProvider`
-area: Mapping
-type: bug
-issues:
- - 118238

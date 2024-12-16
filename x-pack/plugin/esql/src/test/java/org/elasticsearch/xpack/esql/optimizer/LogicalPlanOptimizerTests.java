@@ -219,11 +219,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
-        var lookupMapping = loadMapping("mapping-languages.json");
-        IndexResolution lookupResolution = IndexResolution.valid(
-            new EsIndex("language_code", lookupMapping, Map.of("language_code", IndexMode.LOOKUP))
-        );
-
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));

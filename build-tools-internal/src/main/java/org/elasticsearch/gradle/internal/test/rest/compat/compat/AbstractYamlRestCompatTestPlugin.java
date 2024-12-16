@@ -242,6 +242,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         // setup the test task
         TaskProvider<? extends Test> yamlRestCompatTestTask = registerTestTask(project, yamlCompatTestSourceSet);
         yamlRestCompatTestTask.configure(testTask -> {
+            testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
             FileCollection outputFileCollection = yamlCompatTestSourceSet.getOutput();
             testTask.setTestClassesDirs(

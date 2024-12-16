@@ -376,14 +376,22 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         + maxSupportedVersion.toReleaseVersion()
                 );
             }
-            if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
+
+            IndexVersion minVersion = minSupportedVersion;
+
+            if (idxMetadata.getCreationVersion().equals(idxMetadata.getCompatibilityVersion()) == false
+                && idxMetadata.getCompatibilityVersion().onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+                minVersion = IndexVersions.MINIMUM_READONLY_COMPATIBLE;
+            }
+
+            if (idxMetadata.getCompatibilityVersion().before(minVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
                         + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " minimum compatible index version is: "
-                        + minSupportedVersion.toReleaseVersion()
+                        + minVersion.toReleaseVersion()
                 );
             }
         }

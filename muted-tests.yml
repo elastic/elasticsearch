@@ -40,9 +40,6 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test33JavaChanged
   issue: https://github.com/elastic/elasticsearch/issues/113177
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-  issue: https://github.com/elastic/elasticsearch/issues/108997
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test80JavaOptsInEnvVar
   issue: https://github.com/elastic/elasticsearch/issues/113219
@@ -52,12 +49,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/113325
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testFieldMappings
-  issue: https://github.com/elastic/elasticsearch/issues/113592
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testSearchAndMSearch
-  issue: https://github.com/elastic/elasticsearch/issues/113593
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
@@ -85,9 +76,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
-- class: org.elasticsearch.action.update.UpdateResponseTests
-  method: testToAndFromXContent
-  issue: https://github.com/elastic/elasticsearch/issues/115689
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testStalledShardMigrationProperlyDetected
   issue: https://github.com/elastic/elasticsearch/issues/115697
@@ -180,6 +168,12 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
+- class: "org.elasticsearch.xpack.esql.qa.mixed.MultiClusterEsqlSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/118460
+- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
+  method: "test {scoring.*}"
+  issue: https://github.com/elastic/elasticsearch/issues/118460
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {scoring.QstrWithFieldAndScoringSortedEval}
   issue: https://github.com/elastic/elasticsearch/issues/117751
@@ -276,9 +270,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
-- class: org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT
-  method: testTopNThenEnrichRemote
-  issue: https://github.com/elastic/elasticsearch/issues/118307
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/118350
@@ -297,23 +288,17 @@ tests:
 - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
   method: test {p0=/11_nodes/Test cat nodes output}
   issue: https://github.com/elastic/elasticsearch/issues/118397
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/20_reindex_status/Test get reindex status with nonexistent task id}
-  issue: https://github.com/elastic/elasticsearch/issues/118401
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Nonexistent Data Stream}
-  issue: https://github.com/elastic/elasticsearch/issues/118274
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Bad Data Stream Name}
-  issue: https://github.com/elastic/elasticsearch/issues/118272
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Unsupported Mode}
-  issue: https://github.com/elastic/elasticsearch/issues/118273
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/118517
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/116521
 
 # Examples:
 #

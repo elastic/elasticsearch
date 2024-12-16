@@ -65,39 +65,34 @@ public class HashTests extends AbstractScalarFunctionTestCase {
 
     private static List<TestCaseSupplier> createTestCases(String algorithm) {
         return List.of(
-            createTestCase(algorithm, DataType.KEYWORD, DataType.KEYWORD),
-            createTestCase(algorithm, DataType.KEYWORD, DataType.TEXT),
-            createTestCase(algorithm, DataType.TEXT, DataType.KEYWORD),
-            createTestCase(algorithm, DataType.TEXT, DataType.TEXT),
-            createLiteralTestCase(algorithm, DataType.KEYWORD, DataType.KEYWORD),
-            createLiteralTestCase(algorithm, DataType.KEYWORD, DataType.TEXT),
-            createLiteralTestCase(algorithm, DataType.TEXT, DataType.KEYWORD),
-            createLiteralTestCase(algorithm, DataType.TEXT, DataType.KEYWORD)
+            createTestCase(algorithm, false, DataType.KEYWORD, DataType.KEYWORD),
+            createTestCase(algorithm, false, DataType.KEYWORD, DataType.TEXT),
+            createTestCase(algorithm, false, DataType.TEXT, DataType.KEYWORD),
+            createTestCase(algorithm, false, DataType.TEXT, DataType.TEXT),
+            createTestCase(algorithm, true, DataType.KEYWORD, DataType.KEYWORD),
+            createTestCase(algorithm, true, DataType.KEYWORD, DataType.TEXT),
+            createTestCase(algorithm, true, DataType.TEXT, DataType.KEYWORD),
+            createTestCase(algorithm, true, DataType.TEXT, DataType.TEXT)
         );
     }
 
-    private static TestCaseSupplier createTestCase(String algorithm, DataType algorithmType, DataType inputType) {
+    private static TestCaseSupplier createTestCase(String algorithm, boolean forceLiteral, DataType algorithmType, DataType inputType) {
         return new TestCaseSupplier(algorithm, List.of(algorithmType, inputType), () -> {
             var input = randomFrom(TestCaseSupplier.stringCases(inputType)).get();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm"), input),
-                "HashEvaluator[algorithm=Attribute[channel=0], input=Attribute[channel=1]]",
+                List.of(createTypedData(algorithm, forceLiteral, algorithmType, "algorithm"), input),
+                forceLiteral
+                    ? "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]"
+                    : "HashEvaluator[algorithm=Attribute[channel=0], input=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(hash(algorithm, BytesRefs.toString(input.data()))))
             );
         });
     }
 
-    private static TestCaseSupplier createLiteralTestCase(String algorithm, DataType algorithmType, DataType inputType) {
-        return new TestCaseSupplier(algorithm, List.of(algorithmType, inputType), () -> {
-            var input = randomFrom(TestCaseSupplier.stringCases(inputType)).get();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm").forceLiteral(), input),
-                "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(hash(algorithm, BytesRefs.toString(input.data()))))
-            );
-        });
+    private static TestCaseSupplier.TypedData createTypedData(String value, boolean forceLiteral, DataType type, String name) {
+        var data = new TestCaseSupplier.TypedData(new BytesRef(value), type, name);
+        return forceLiteral ? data.forceLiteral() : data;
     }
 
     private static String hash(String algorithm, String input) {

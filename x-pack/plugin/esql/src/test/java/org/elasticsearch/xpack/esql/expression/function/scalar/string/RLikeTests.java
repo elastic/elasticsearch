@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -159,8 +160,8 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
         Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
-        String patternString = ((BytesRef) pattern.fold()).utf8ToString();
-        boolean caseInsensitiveBool = caseInsensitive != null ? (boolean) caseInsensitive.fold() : false;
+        String patternString = ((BytesRef) pattern.fold(FoldContext.unbounded())).utf8ToString();
+        boolean caseInsensitiveBool = caseInsensitive != null ? (boolean) caseInsensitive.fold(FoldContext.unbounded()) : false;
         logger.info("pattern={} caseInsensitive={}", patternString, caseInsensitiveBool);
 
         return caseInsensitiveBool

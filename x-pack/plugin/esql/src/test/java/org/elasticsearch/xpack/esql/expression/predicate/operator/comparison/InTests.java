@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,27 +49,27 @@ public class InTests extends AbstractFunctionTestCase {
 
     public void testInWithContainedValue() {
         In in = new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE));
-        assertTrue((Boolean) in.fold());
+        assertTrue((Boolean) in.fold(FoldContext.unbounded()));
     }
 
     public void testInWithNotContainedValue() {
         In in = new In(EMPTY, THREE, Arrays.asList(ONE, TWO));
-        assertFalse((Boolean) in.fold());
+        assertFalse((Boolean) in.fold(FoldContext.unbounded()));
     }
 
     public void testHandleNullOnLeftValue() {
         In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
-        assertNull(in.fold());
+        assertNull(in.fold(FoldContext.unbounded()));
         in = new In(EMPTY, NULL, Arrays.asList(ONE, NULL, THREE));
-        assertNull(in.fold());
+        assertNull(in.fold(FoldContext.unbounded()));
 
     }
 
     public void testHandleNullsOnRightValue() {
         In in = new In(EMPTY, THREE, Arrays.asList(ONE, NULL, THREE));
-        assertTrue((Boolean) in.fold());
+        assertTrue((Boolean) in.fold(FoldContext.unbounded()));
         in = new In(EMPTY, ONE, Arrays.asList(TWO, NULL, THREE));
-        assertNull(in.fold());
+        assertNull(in.fold(FoldContext.unbounded()));
     }
 
     private static Literal L(Object value) {

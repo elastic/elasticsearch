@@ -1390,7 +1390,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
-         * or {@link Expression#fold()} on the expression built by this.
+         * or {@link Expression#fold} on the expression built by this.
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
@@ -1520,7 +1520,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
-         * or {@link Expression#fold()} on the expression built by this.
+         * or {@link Expression#fold} on the expression built by this.
          */
         public String[] getExpectedBuildEvaluatorWarnings() {
             return expectedBuildEvaluatorWarnings;
@@ -1602,7 +1602,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
-         * or {@link Expression#fold()} on the expression built by this.
+         * or {@link Expression#fold} on the expression built by this.
          */
         public TestCase withBuildEvaluatorWarning(String warning) {
             return new TestCase(

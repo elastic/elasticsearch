@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -84,15 +85,15 @@ public class Delay extends UnaryScalarFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         return null;
     }
 
-    private long msValue() {
+    private long msValue(FoldContext ctx) {
         if (field().foldable() == false) {
             throw new IllegalArgumentException("function [" + sourceText() + "] has invalid argument [" + field().sourceText() + "]");
         }
-        var ms = field().fold();
+        var ms = field().fold(ctx);
         if (ms instanceof Duration duration) {
             return duration.toMillis();
         }
@@ -101,7 +102,7 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return new DelayEvaluator.Factory(source(), msValue());
+        return new DelayEvaluator.Factory(source(), msValue(toEvaluator.foldCtx()));
     }
 
     @Evaluator

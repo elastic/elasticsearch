@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -65,8 +66,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private final Page testData;
     private final List<String> columnNames;
 
-    public TestPhysicalOperationProviders(Page testData, List<String> columnNames) throws IOException {
+    public TestPhysicalOperationProviders(FoldContext foldContext, Page testData, List<String> columnNames) throws IOException {
         super(
+            foldContext,
             new AnalysisModule(
                 TestEnvironment.newEnvironment(
                     Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()

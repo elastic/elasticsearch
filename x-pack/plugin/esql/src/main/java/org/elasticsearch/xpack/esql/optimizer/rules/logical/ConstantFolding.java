@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
@@ -17,7 +18,7 @@ public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRul
     }
 
     @Override
-    public Expression rule(Expression e) {
-        return e.foldable() ? Literal.of(e) : e;
+    public Expression rule(Expression e, LogicalOptimizerContext ctx) {
+        return e.foldable() ? Literal.of(ctx.foldCtx(), e) : e;
     }
 }

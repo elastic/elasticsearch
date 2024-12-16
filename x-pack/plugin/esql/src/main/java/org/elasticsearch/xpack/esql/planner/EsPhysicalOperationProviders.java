@@ -53,9 +53,11 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -100,8 +102,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
 
-    public EsPhysicalOperationProviders(List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
-        super(analysisRegistry);
+    public EsPhysicalOperationProviders(FoldContext foldContext, List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+        super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
     }
 
@@ -168,7 +170,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
-        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
+        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.attrs()
             .stream()
             .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE));
@@ -224,7 +226,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             querySupplier(queryBuilder),
             context.queryPragmas().dataPartitioning(),
             context.queryPragmas().taskConcurrency(),
-            limit == null ? NO_LIMIT : (Integer) limit.fold()
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }
 
@@ -394,16 +396,27 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     BigArrays.NON_RECYCLING_INSTANCE
                 )
             );
-            this.convertEvaluator = convertFunction.toEvaluator(e -> driverContext -> new EvalOperator.ExpressionEvaluator() {
+            EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
                 @Override
-                public org.elasticsearch.compute.data.Block eval(Page page) {
-                    // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
-                    return page.getBlock(0);
+                public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+                    return driverContext -> new EvalOperator.ExpressionEvaluator() {
+                        @Override
+                        public org.elasticsearch.compute.data.Block eval(Page page) {
+                            // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
+                            return page.getBlock(0);
+                        }
+
+                        @Override
+                        public void close() {}
+                    };
                 }
 
                 @Override
-                public void close() {}
-            }).get(driverContext1);
+                public FoldContext foldCtx() {
+                    return FoldContext.unbounded() /* TODO remove me */;
+                }
+            };
+            this.convertEvaluator = convertFunction.toEvaluator(toEvaluator).get(driverContext1);
         }
 
         @Override

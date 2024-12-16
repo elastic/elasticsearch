@@ -112,7 +112,7 @@ public class Space extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.foldable()) {
-            Object folded = field.fold();
+            Object folded = field.fold(toEvaluator.foldCtx());
             if (folded instanceof Integer num) {
                 checkNumber(num);
                 return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));

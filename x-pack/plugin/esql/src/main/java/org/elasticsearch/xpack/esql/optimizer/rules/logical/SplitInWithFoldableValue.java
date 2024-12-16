@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,7 @@ public final class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpr
     }
 
     @Override
-    public Expression rule(In in) {
+    public Expression rule(In in, LogicalOptimizerContext ctx) {
         if (in.value().foldable()) {
             List<Expression> foldables = new ArrayList<>(in.list().size());
             List<Expression> nonFoldables = new ArrayList<>(in.list().size());
@@ -36,7 +37,7 @@ public final class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpr
                     nonFoldables.add(e);
                 }
             });
-            if (foldables.size() > 0 && nonFoldables.size() > 0) {
+            if (foldables.isEmpty() == false && nonFoldables.isEmpty() == false) {
                 In withFoldables = new In(in.source(), in.value(), foldables);
                 In withoutFoldables = new In(in.source(), in.value(), nonFoldables);
                 return new Or(in.source(), withFoldables, withoutFoldables);

@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -86,7 +87,8 @@ public abstract class AggregateFunction extends Function {
     }
 
     public boolean hasFilter() {
-        return filter != null && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold()) == false);
+        return filter != null
+            && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold(FoldContext.unbounded() /* TODO remove me */)) == false);
     }
 
     public Expression filter() {

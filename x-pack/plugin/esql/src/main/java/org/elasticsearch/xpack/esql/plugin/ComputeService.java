@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -145,6 +146,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         Configuration configuration,
+        FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
@@ -181,6 +183,7 @@ public class ComputeService {
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 List.of(),
                 configuration,
+                foldContext,
                 null,
                 null
             );
@@ -233,6 +236,7 @@ public class ComputeService {
                         RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                         List.of(),
                         configuration,
+                        foldContext,
                         exchangeSource,
                         null
                     ),
@@ -500,16 +504,16 @@ public class ComputeService {
                 context.exchangeSink(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(contexts, searchService.getIndicesService().getAnalysis())
+                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis())
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration, plan);
+            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration, context.foldCtx(), plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.foldCtx(), plan);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
@@ -755,7 +759,15 @@ public class ComputeService {
             };
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
-                var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
+                var computeContext = new ComputeContext(
+                    sessionId,
+                    clusterAlias,
+                    searchContexts,
+                    configuration,
+                    new FoldContext(configuration.pragmas().foldLimit().getBytes()),
+                    null,
+                    exchangeSink
+                );
                 runCompute(parentTask, computeContext, request.plan(), batchListener);
             }, batchListener::onFailure));
         }
@@ -806,6 +818,7 @@ public class ComputeService {
                     request.clusterAlias(),
                     List.of(),
                     request.configuration(),
+                    new FoldContext(request.pragmas().foldLimit().getBytes()),
                     exchangeSource,
                     externalSink
                 ),
@@ -940,7 +953,15 @@ public class ComputeService {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
             runCompute(
                 parentTask,
-                new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
+                new ComputeContext(
+                    localSessionId,
+                    clusterAlias,
+                    List.of(),
+                    configuration,
+                    new FoldContext(configuration.pragmas().foldLimit().getBytes()),
+                    exchangeSource,
+                    exchangeSink
+                ),
                 coordinatorPlan,
                 computeListener.acquireCompute(clusterAlias)
             );
@@ -964,6 +985,7 @@ public class ComputeService {
         String clusterAlias,
         List<SearchContext> searchContexts,
         Configuration configuration,
+        FoldContext foldCtx,
         ExchangeSourceHandler exchangeSource,
         ExchangeSinkHandler exchangeSink
     ) {

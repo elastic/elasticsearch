@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -67,9 +68,11 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -85,28 +88,27 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 public class FoldNullTests extends ESTestCase {
+    private Expression foldNull(Expression e) {
+        return new FoldNull().rule(e, unboundLogicalOptimizerContext());
+    }
 
     public void testBasicNullFolding() {
-        FoldNull rule = new FoldNull();
-        assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
-        assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
-        assertNullLiteral(rule.rule(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
-        assertNullLiteral(rule.rule(new DateParse(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
+        assertNullLiteral(foldNull(new Round(EMPTY, Literal.NULL, null)));
+        assertNullLiteral(foldNull(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
+        assertNullLiteral(foldNull(new DateParse(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
     }
 
     public void testNullFoldingIsNotNull() {
-        FoldNull foldNull = new FoldNull();
-        assertEquals(true, foldNull.rule(new IsNotNull(EMPTY, TRUE)).fold());
-        assertEquals(false, foldNull.rule(new IsNotNull(EMPTY, NULL)).fold());
+        assertEquals(true, foldNull(new IsNotNull(EMPTY, TRUE)).fold(FoldContext.unbounded()));
+        assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.unbounded()));
     }
 
     @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAbstractMultivalueFunction() throws Exception {
-        FoldNull rule = new FoldNull();
-
         List<Class<? extends AbstractMultivalueFunction>> items = List.of(
             MvDedupe.class,
             MvFirst.class,
@@ -119,119 +121,112 @@ public class FoldNullTests extends ESTestCase {
         for (Class<? extends AbstractMultivalueFunction> clazz : items) {
             Constructor<? extends AbstractMultivalueFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AbstractMultivalueFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
-            assertEquals(conditionalFunction, rule.rule(conditionalFunction));
+            assertEquals(conditionalFunction, foldNull(conditionalFunction));
 
             conditionalFunction = ctor.newInstance(EMPTY, NULL);
-            assertEquals(NULL, rule.rule(conditionalFunction));
+            assertEquals(NULL, foldNull(conditionalFunction));
         }
 
         // avg and count ar different just because they know the return type in advance (all the others infer the type from the input)
         MvAvg avg = new MvAvg(EMPTY, getFieldAttribute("a"));
-        assertEquals(avg, rule.rule(avg));
+        assertEquals(avg, foldNull(avg));
         avg = new MvAvg(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(avg));
+        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(avg));
 
         MvCount count = new MvCount(EMPTY, getFieldAttribute("a"));
-        assertEquals(count, rule.rule(count));
+        assertEquals(count, foldNull(count));
         count = new MvCount(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, INTEGER), rule.rule(count));
+        assertEquals(new Literal(EMPTY, null, INTEGER), foldNull(count));
     }
 
     public void testNullFoldingIsNull() {
-        FoldNull foldNull = new FoldNull();
-        assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
-        assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
+        assertEquals(true, foldNull(new IsNull(EMPTY, NULL)).fold(FoldContext.unbounded()));
+        assertEquals(false, foldNull(new IsNull(EMPTY, TRUE)).fold(FoldContext.unbounded()));
     }
 
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // arithmetic
-        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute("a"), NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL)));
         // comparison
-        assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute("a"), NULL)));
+        assertNullLiteral(foldNull(greaterThanOf(getFieldAttribute("a"), NULL)));
         // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, new RLikePattern("123"))));
+        assertNullLiteral(foldNull(new RLike(EMPTY, NULL, new RLikePattern("123"))));
         // date functions
-        assertNullLiteral(rule.rule(new DateExtract(EMPTY, NULL, NULL, configuration(""))));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, NULL, NULL, configuration(""))));
         // math functions
-        assertNullLiteral(rule.rule(new Cos(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new Cos(EMPTY, NULL)));
         // string functions
-        assertNullLiteral(rule.rule(new LTrim(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new LTrim(EMPTY, NULL)));
         // spatial
-        assertNullLiteral(rule.rule(new SpatialCentroid(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new SpatialCentroid(EMPTY, NULL)));
         // ip
-        assertNullLiteral(rule.rule(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
+        assertNullLiteral(foldNull(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
         // conversion
-        assertNullLiteral(rule.rule(new ToString(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, NULL)));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
-        FoldNull rule = new FoldNull();
-
         Or or = new Or(EMPTY, NULL, TRUE);
-        assertEquals(or, rule.rule(or));
+        assertEquals(or, foldNull(or));
         or = new Or(EMPTY, NULL, NULL);
-        assertEquals(or, rule.rule(or));
+        assertEquals(or, foldNull(or));
 
         And and = new And(EMPTY, NULL, TRUE);
-        assertEquals(and, rule.rule(and));
+        assertEquals(and, foldNull(and));
         and = new And(EMPTY, NULL, NULL);
-        assertEquals(and, rule.rule(and));
+        assertEquals(and, foldNull(and));
     }
 
     @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAggregate() throws Exception {
-        FoldNull rule = new FoldNull();
-
         List<Class<? extends AggregateFunction>> items = List.of(Max.class, Min.class);
         for (Class<? extends AggregateFunction> clazz : items) {
             Constructor<? extends AggregateFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AggregateFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
-            assertEquals(conditionalFunction, rule.rule(conditionalFunction));
+            assertEquals(conditionalFunction, foldNull(conditionalFunction));
 
             conditionalFunction = ctor.newInstance(EMPTY, NULL);
-            assertEquals(NULL, rule.rule(conditionalFunction));
+            assertEquals(NULL, foldNull(conditionalFunction));
         }
 
         Avg avg = new Avg(EMPTY, getFieldAttribute("a"));
-        assertEquals(avg, rule.rule(avg));
+        assertEquals(avg, foldNull(avg));
         avg = new Avg(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(avg));
+        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(avg));
 
         Count count = new Count(EMPTY, getFieldAttribute("a"));
-        assertEquals(count, rule.rule(count));
+        assertEquals(count, foldNull(count));
         count = new Count(EMPTY, NULL);
-        assertEquals(count, rule.rule(count));
+        assertEquals(count, foldNull(count));
 
         CountDistinct countd = new CountDistinct(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
-        assertEquals(countd, rule.rule(countd));
+        assertEquals(countd, foldNull(countd));
         countd = new CountDistinct(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, LONG), rule.rule(countd));
+        assertEquals(new Literal(EMPTY, null, LONG), foldNull(countd));
 
         Median median = new Median(EMPTY, getFieldAttribute("a"));
-        assertEquals(median, rule.rule(median));
+        assertEquals(median, foldNull(median));
         median = new Median(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(median));
+        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(median));
 
         MedianAbsoluteDeviation medianad = new MedianAbsoluteDeviation(EMPTY, getFieldAttribute("a"));
-        assertEquals(medianad, rule.rule(medianad));
+        assertEquals(medianad, foldNull(medianad));
         medianad = new MedianAbsoluteDeviation(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(medianad));
+        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(medianad));
 
         Percentile percentile = new Percentile(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
-        assertEquals(percentile, rule.rule(percentile));
+        assertEquals(percentile, foldNull(percentile));
         percentile = new Percentile(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(percentile));
+        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(percentile));
 
         Sum sum = new Sum(EMPTY, getFieldAttribute("a"));
-        assertEquals(sum, rule.rule(sum));
+        assertEquals(sum, foldNull(sum));
         sum = new Sum(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(sum));
+        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(sum));
     }
 
     public void testNullFoldableDoesNotApplyToIsNullAndNotNull() {
-        FoldNull rule = new FoldNull();
-
         DataType numericType = randomFrom(INTEGER, LONG, DOUBLE);
         DataType genericType = randomFrom(INTEGER, LONG, DOUBLE, UNSIGNED_LONG, KEYWORD, TEXT, GEO_POINT, GEO_SHAPE, VERSION, IP);
         List<Expression> items = List.of(
@@ -260,29 +255,26 @@ public class FoldNullTests extends ESTestCase {
         );
         for (Expression item : items) {
             Expression isNull = new IsNull(EMPTY, item);
-            Expression transformed = rule.rule(isNull);
+            Expression transformed = foldNull(isNull);
             assertEquals(isNull, transformed);
 
             IsNotNull isNotNull = new IsNotNull(EMPTY, item);
-            transformed = rule.rule(isNotNull);
+            transformed = foldNull(isNotNull);
             assertEquals(isNotNull, transformed);
         }
     }
 
     public void testNullBucketGetsFolded() {
-        FoldNull foldNull = new FoldNull();
-        assertEquals(NULL, foldNull.rule(new Bucket(EMPTY, NULL, NULL, NULL, NULL)));
+        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL)));
     }
 
     public void testNullCategorizeGroupingNotFolded() {
-        FoldNull foldNull = new FoldNull();
         Categorize categorize = new Categorize(EMPTY, NULL);
-        assertEquals(categorize, foldNull.rule(categorize));
+        assertEquals(categorize, foldNull(categorize));
     }
 
     private void assertNullLiteral(Expression expression) {
-        assertEquals(Literal.class, expression.getClass());
-        assertNull(expression.fold());
+        assertNull(as(expression, Literal.class).value());
     }
 
 }

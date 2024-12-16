@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -77,30 +78,24 @@ public class HashTests extends AbstractScalarFunctionTestCase {
 
     private static TestCaseSupplier createTestCase(String algorithm, DataType algorithmType, DataType inputType) {
         return new TestCaseSupplier(algorithm, List.of(algorithmType, inputType), () -> {
-            var input = randomAlphaOfLength(10);
+            var input = randomFrom(TestCaseSupplier.stringCases(inputType)).get();
             return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm"),
-                    new TestCaseSupplier.TypedData(new BytesRef(input), inputType, "input")
-                ),
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm"), input),
                 "HashEvaluator[algorithm=Attribute[channel=0], input=Attribute[channel=1]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(hash(algorithm, input)))
+                equalTo(new BytesRef(hash(algorithm, BytesRefs.toString(input.data()))))
             );
         });
     }
 
     private static TestCaseSupplier createLiteralTestCase(String algorithm, DataType algorithmType, DataType inputType) {
         return new TestCaseSupplier(algorithm, List.of(algorithmType, inputType), () -> {
-            var input = randomAlphaOfLength(10);
+            var input = randomFrom(TestCaseSupplier.stringCases(inputType)).get();
             return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm").forceLiteral(),
-                    new TestCaseSupplier.TypedData(new BytesRef(input), inputType, "input")
-                ),
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(algorithm), algorithmType, "algorithm").forceLiteral(), input),
                 "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                equalTo(new BytesRef(hash(algorithm, input)))
+                equalTo(new BytesRef(hash(algorithm, BytesRefs.toString(input.data()))))
             );
         });
     }

@@ -49,7 +49,6 @@ dependencies {
     [group: "org.fusesource.leveldbjni", module: "leveldbjni-all"],
     [group: "commons-cli", module: "commons-cli"],
     [group: "org.mortbay.jetty", module: "servlet-api"],
-    [group: "commons-daemon", module: "commons-daemon"],
     [group: "commons-logging", module: "commons-logging"],
     [group: "org.slf4j", module: "slf4j-log4j12"],
     [group: "commons-codec", module: "commons-codec"],

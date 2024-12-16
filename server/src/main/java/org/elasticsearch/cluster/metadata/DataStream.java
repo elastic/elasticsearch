@@ -475,7 +475,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (options != null && options.failureStore() != null && options.failureStore().enabled() != null) {
             return options.failureStore().enabled();
         } else {
-            return dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name) && (isInternal == false);
+            return (isInternal == false) && dataStreamFailureStoreSettings.failureStoreEnabledForDataStreamName(name);
         }
     }
 

@@ -481,7 +481,6 @@ GET movies/_search
 }
 ----
 // TEST[skip:uses ELSER]
-
 <1> Specifies the number of top documents to return in the final response.
 <2> A `rescorer` retriever applied as the final step.
 <3> The definition of the `query` rescorer.

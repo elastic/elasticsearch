@@ -17,13 +17,28 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCase<RescorerRetrieverBuilder> {
+    private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
+
+    @BeforeClass
+    public static void init() {
+        xContentRegistryEntries = new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents();
+    }
+
+    @AfterClass
+    public static void afterClass() throws Exception {
+        xContentRegistryEntries = null;
+    }
+
     @Override
     protected RescorerRetrieverBuilder createTestInstance() {
         int num = randomIntBetween(1, 3);
@@ -31,19 +46,7 @@ public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCa
         for (int i = 0; i < num; i++) {
             rescorers.add(QueryRescorerBuilderTests.randomRescoreBuilder());
         }
-        final RetrieverBuilder retriever;
-        if (randomBoolean()) {
-            retriever = KnnRetrieverBuilderParsingTests.createRandomKnnRetrieverBuilder();
-        } else {
-            retriever = StandardRetrieverBuilderParsingTests.createRandomStandardRetrieverBuilder((xContent, data) -> {
-                try {
-                    return createParser(xContent, data);
-                } catch (IOException ioe) {
-                    throw new UncheckedIOException(ioe);
-                }
-            });
-        }
-        return new RescorerRetrieverBuilder(retriever, rescorers);
+        return new RescorerRetrieverBuilder(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), rescorers);
     }
 
     @Override
@@ -61,6 +64,15 @@ public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCa
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(xContentRegistryEntries);
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                RetrieverBuilder.class,
+                TestRetrieverBuilder.TEST_SPEC.getName(),
+                (p, c) -> TestRetrieverBuilder.TEST_SPEC.getParser().fromXContent(p, (RetrieverParserContext) c),
+                TestRetrieverBuilder.TEST_SPEC.getName().getForRestApiVersion()
+            )
+        );
+        return new NamedXContentRegistry(entries);
     }
 }

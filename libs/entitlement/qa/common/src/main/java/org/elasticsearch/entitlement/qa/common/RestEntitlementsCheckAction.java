@@ -47,14 +47,21 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
-        entry("system_exit", CheckAction.serverOnly(RestEntitlementsCheckAction::systemExit)),
+        entry("runtime_exit", CheckAction.serverOnly(RestEntitlementsCheckAction::runtimeExit)),
+        entry("runtime_halt", CheckAction.serverOnly(RestEntitlementsCheckAction::runtimeHalt)),
         entry("create_classloader", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::createClassLoader))
     );
 
-    @SuppressForbidden(reason = "Specifically testing System.exit")
-    private static void systemExit() {
-        logger.info("Calling System.exit(123);");
-        System.exit(123);
+    @SuppressForbidden(reason = "Specifically testing Runtime.exit")
+    private static void runtimeExit() {
+        logger.info("Calling Runtime.exit;");
+        Runtime.getRuntime().exit(123);
+    }
+
+    @SuppressForbidden(reason = "Specifically testing Runtime.halt")
+    private static void runtimeHalt() {
+        logger.info("Calling Runtime.halt;");
+        Runtime.getRuntime().halt(123);
     }
 
     private static void createClassLoader() {

@@ -291,7 +291,7 @@ public enum TextFormat implements MediaType {
         boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
         return Iterators.concat(
             // if the header is requested return the info
-            hasHeader(request) && esqlResponse.columns().isEmpty() == false
+            hasHeader(request) && esqlResponse.columns() != null
                 ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
                 : Collections.emptyIterator(),
             Iterators.map(

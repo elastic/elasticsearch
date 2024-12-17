@@ -88,21 +88,21 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             return mappingsOverride;
         }
 
-        // @Override
-        // public boolean equals(Object o) {
-        // if (this == o) return true;
-        // if (o == null || getClass() != o.getClass()) return false;
-        // Request request = (Request) o;
-        // return Objects.equals(sourceIndex, request.sourceIndex)
-        // && Objects.equals(destIndex, request.destIndex)
-        // && Objects.equals(settingsOverride, request.settingsOverride)
-        // && Objects.equals(mappingsOverride, request.mappingsOverride);
-        // }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(sourceIndex, request.sourceIndex)
+                && Objects.equals(destIndex, request.destIndex)
+                && Objects.equals(settingsOverride, request.settingsOverride)
+                && Objects.equals(mappingsOverride, request.mappingsOverride);
+        }
 
-        // @Override
-        // public int hashCode() {
-        // return Objects.hash(sourceIndex, destIndex, settingsOverride, mappingsOverride);
-        // }
+        @Override
+        public int hashCode() {
+            return Objects.hash(sourceIndex, destIndex, settingsOverride, mappingsOverride);
+        }
 
         @Override
         public String[] indices() {

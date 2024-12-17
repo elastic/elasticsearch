@@ -884,7 +884,8 @@ public record IndicesOptions(
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
         if (allowSelectors()) {
-            if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+            if (out.getTransportVersion()
+                .between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
                 backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
             } else if (out.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
                 backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);

@@ -163,10 +163,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("*::data")));
         // Selectors allowed, valid selector given
         // ::data selector returns all values with data component
-        assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("*::data")),
-            containsInAnyOrder("index1", "index2", "data-stream1")
-        );
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("*::data")), containsInAnyOrder("index1", "index2", "data-stream1"));
         // Selectors allowed, valid selector given
         // ::failures selector returns only data streams, which can have failure components
         assertThat(resolveAbstractionsSelectorAllowed(List.of("*::failures")), contains("data-stream1::failures"));

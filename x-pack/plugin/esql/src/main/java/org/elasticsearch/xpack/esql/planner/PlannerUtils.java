@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -49,9 +50,12 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -107,12 +111,24 @@ public class PlannerUtils {
         }
         var indices = new LinkedHashSet<String>();
         // TODO: This only works for LEFT join, we still need to support RIGHT join
-        plan.forEachUp(node -> {
+        forEachUpWithChildren(plan, node -> {
             if (node instanceof FragmentExec f) {
                 f.fragment().forEachUp(EsRelation.class, r -> indices.addAll(r.index().concreteIndices()));
             }
         }, node -> node instanceof LookupJoinExec join ? List.of(join.left()) : node.children());
         return indices;
+    }
+
+    /**
+     * Similar to {@link Node#forEachUp(Consumer)}, but with a custom callback to get the node children.
+     */
+    private static <T extends Node<T>> void forEachUpWithChildren(
+        T node,
+        Consumer<? super T> action,
+        Function<? super T, Collection<T>> childrenGetter
+    ) {
+        childrenGetter.apply(node).forEach(c -> forEachUpWithChildren(c, action, childrenGetter));
+        action.accept(node);
     }
 
     /**

@@ -307,7 +307,6 @@ FROM employees
 | WHERE language_code > 1 AND language_name IS NOT NULL
 | KEEP emp_no, language_code, language_name
 ;
-ignoreOrder:true
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French

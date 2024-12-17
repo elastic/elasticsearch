@@ -125,6 +125,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -1958,6 +1959,38 @@ public class AuthenticationServiceTests extends ESTestCase {
         final User user = new User("_username", "r1");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
+
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        // An invalid token might decode to something that looks like a UUID
+        // Randomise it being invalid because the index doesn't exist, or the document doesn't exist
+        if (randomBoolean()) {
+            when(projectIndex.isAvailable(any())).thenReturn(false);
+            when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
+        } else {
+            when(projectIndex.isAvailable(any())).thenReturn(true);
+            doAnswer(inv -> {
+                final GetRequest request = inv.getArgument(0);
+                final ActionListener<GetResponse> listener = inv.getArgument(1);
+                listener.onResponse(
+                    new GetResponse(
+                        new GetResult(
+                            request.index(),
+                            request.id(),
+                            UNASSIGNED_SEQ_NO,
+                            UNASSIGNED_PRIMARY_TERM,
+                            0,
+                            false,
+                            null,
+                            Map.of(),
+                            Map.of()
+                        )
+                    )
+                );
+                return null;
+            }).when(client).get(any(GetRequest.class), any());
+        }
+
         mockAuthenticate(firstRealm, token, user);
         final int numBytes = randomIntBetween(TokenService.MINIMUM_BYTES, TokenService.MINIMUM_BYTES + 32);
         final byte[] randomBytes = new byte[numBytes];

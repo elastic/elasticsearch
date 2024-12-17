@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -170,12 +169,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
-        final List<String> nonCachedExtensions;
         if (randomBoolean()) {
-            nonCachedExtensions = randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim"));
+            var nonCachedExtensions = randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim"));
             indexSettingsBuilder.putList(SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), nonCachedExtensions);
-        } else {
-            nonCachedExtensions = Collections.emptyList();
         }
         if (randomBoolean()) {
             indexSettingsBuilder.put(
@@ -265,8 +261,6 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             final long originalSize = snapshotShards.get(shardRouting.getId()).getStats().getTotalSize();
             totalExpectedSize += originalSize;
 
-            // an extra segments_N file is created for bootstrapping new history and associating translog. We can extract the size of this
-            // extra file but we have to unwrap the in-memory directory first.
             final Directory unwrappedDir = FilterDirectory.unwrap(
                 internalCluster().getInstance(IndicesService.class, getDiscoveryNodes().resolveNode(shardRouting.currentNodeId()).getName())
                     .indexServiceSafe(shardRouting.index())
@@ -278,7 +272,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             assertThat(shardRouting.toString(), unwrappedDir, instanceOf(ByteBuffersDirectory.class));
 
             final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
-            assertThat(inMemoryDir.listAll(), arrayWithSize(1));
+            assertThat(inMemoryDir.listAll(), arrayWithSize(0));
 
             assertThat(shardRouting.toString(), store.totalDataSetSizeInBytes(), equalTo(originalSize));
         }

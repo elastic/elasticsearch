@@ -1006,7 +1006,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Resolves a concrete index name or alias to a {@link IndexMetadata} instance.  Requires
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
-    private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final ProjectMetadata project) {
+    public static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final ProjectMetadata project) {
         final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexOrAliasName);
         if (indexAbstraction != null) {
             final List<Index> indices = indexAbstraction.getIndices();

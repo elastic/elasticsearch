@@ -199,7 +199,8 @@ null               | null      | null
 ;
 
 
-overwriteName
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteName#[skip:-8.12.99]
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -209,7 +210,8 @@ Parto Bamford     | Parto          | Bamford
 ;
 
 
-overwriteNameWhere
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteNameWhere#[skip:-8.12.99]
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword

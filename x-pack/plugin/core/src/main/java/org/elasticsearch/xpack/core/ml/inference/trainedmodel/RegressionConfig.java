@@ -23,7 +23,6 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
 
     public static final ParseField NAME = new ParseField("regression");
     private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
-    private static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_6_0;
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
     public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
@@ -160,7 +159,7 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return requestingImportance() ? TransportVersions.V_7_7_0 : MIN_SUPPORTED_TRANSPORT_VERSION;
+        return TransportVersions.ZERO;
     }
 
     public static Builder builder() {

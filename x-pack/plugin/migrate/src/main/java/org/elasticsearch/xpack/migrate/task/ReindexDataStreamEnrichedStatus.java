@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,13 +32,11 @@ public record ReindexDataStreamEnrichedStatus(
     Map<String, Tuple<Long, Long>> inProgress,
     int pending,
     List<Tuple<String, Exception>> errors
-) implements Task.Status {
+) implements ToXContentObject, Writeable {
     public ReindexDataStreamEnrichedStatus {
         Objects.requireNonNull(inProgress);
         Objects.requireNonNull(errors);
     }
-
-    public static final String NAME = "ReindexDataStreamStatus";
 
     public ReindexDataStreamEnrichedStatus(StreamInput in) throws IOException {
         this(
@@ -50,11 +49,6 @@ public record ReindexDataStreamEnrichedStatus(
             in.readInt(),
             in.readCollectionAsList(in1 -> Tuple.tuple(in1.readString(), in1.readException()))
         );
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     @Override

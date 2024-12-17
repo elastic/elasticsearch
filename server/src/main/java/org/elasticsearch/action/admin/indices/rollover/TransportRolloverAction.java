@@ -174,7 +174,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         Metadata metadata = clusterState.metadata();
 
         // Parse the rollover request's target since the expression it may contain a selector on it
-        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpressionWithDefault(
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.indicesOptions()
         );
@@ -499,7 +499,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ) throws Exception {
             final var rolloverTask = rolloverTaskContext.getTask();
             final var rolloverRequest = rolloverTask.rolloverRequest();
-            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpressionWithDefault(
+            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.indicesOptions()
             );

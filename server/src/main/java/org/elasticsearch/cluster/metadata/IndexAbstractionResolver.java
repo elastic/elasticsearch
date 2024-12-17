@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -130,19 +129,21 @@ public class IndexAbstractionResolver {
 
             // Supply default if needed
             if (selectorString == null) {
-                selectorString = indicesOptions.selectorOptions().defaultSelector().getKey();
+                selectorString = IndexComponentSelector.DATA.getKey();
             }
 
             if (Regex.isMatchAllPattern(selectorString)) {
                 // Always accept data
-                collect.add(ResolvedExpression.combineSelectorExpression(indexAbstraction, IndexComponentSelector.DATA.getKey()));
+                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.DATA.getKey()));
                 // Only put failures on the expression if the abstraction supports it.
                 if (acceptsAllSelectors) {
-                    collect.add(ResolvedExpression.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey()));
+                    collect.add(
+                        IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey())
+                    );
                 }
             } else {
                 // A non-wildcard selector is always passed along as-is, it's validity for this kind of abstraction is tested later
-                collect.add(ResolvedExpression.combineSelectorExpression(indexAbstraction, selectorString));
+                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
             }
         } else {
             assert selectorString == null

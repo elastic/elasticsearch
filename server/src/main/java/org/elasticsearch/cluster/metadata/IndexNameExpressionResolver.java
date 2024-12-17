@@ -60,8 +60,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression.combineSelector;
-
 /**
  * This class main focus is to resolve multi-syntax target expressions to resources or concrete indices. This resolution is influenced
  * by IndicesOptions and other flags passed through the method call. Examples of the functionality it provides:
@@ -97,18 +95,8 @@ public class IndexNameExpressionResolver {
             this(indexAbstraction, null);
         }
 
-        public static String combineSelector(String baseExpression, @Nullable IndexComponentSelector selectorExpression) {
-            Objects.requireNonNull(baseExpression, "baseExpression is null");
-            return selectorExpression == null
-                ? baseExpression
-                : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression.getKey());
-        }
-
-        public static String combineSelectorExpression(String baseExpression, @Nullable String selectorExpression) {
-            Objects.requireNonNull(baseExpression, "baseExpression is null");
-            return selectorExpression == null
-                ? baseExpression
-                : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
+        public String combined() {
+            return combineSelector(resource, selector);
         }
     }
 
@@ -314,7 +302,7 @@ public class IndexNameExpressionResolver {
                 if (expressions != null && expressions.length == 1) {
                     selector = SelectorResolver.parseMatchAllToSelector(context, expressions[0]);
                 } else {
-                    selector = context.getOptions().selectorOptions().defaultSelector();
+                    selector = IndexComponentSelector.DATA;
                 }
                 return WildcardExpressionResolver.resolveAll(context, selector);
             } else if (isNoneExpression(expressions)) {
@@ -337,9 +325,7 @@ public class IndexNameExpressionResolver {
             // Parse a potential selector from the expression
             ResolvedExpression partiallyResolvedExpression = SelectorResolver.parseExpression(baseExpression, context.getOptions());
             baseExpression = partiallyResolvedExpression.resource();
-            IndexComponentSelector selector = partiallyResolvedExpression.selector() == null
-                ? context.options.selectorOptions().defaultSelector()
-                : partiallyResolvedExpression.selector();
+            IndexComponentSelector selector = partiallyResolvedExpression.selector();
 
             // Resolve date math
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
@@ -359,7 +345,7 @@ public class IndexNameExpressionResolver {
                 );
 
                 if (context.getOptions().allowNoIndices() == false && matchingResources.isEmpty()) {
-                    throw notFoundException(ResolvedExpression.combineSelector(baseExpression, partiallyResolvedExpression.selector()));
+                    throw notFoundException(combineSelector(baseExpression, partiallyResolvedExpression.selector()));
                 }
 
                 if (isExclusion) {
@@ -644,7 +630,8 @@ public class IndexNameExpressionResolver {
             if (expressionSelector != null) {
                 return expressionSelector.shouldIncludeData();
             } else {
-                return indicesOptions.selectorOptions().defaultSelector().shouldIncludeData();
+                // Defaults to regular indices
+                return true;
             }
         }
         return true;
@@ -656,7 +643,8 @@ public class IndexNameExpressionResolver {
             if (expressionSelector != null) {
                 return expressionSelector.shouldIncludeFailures();
             } else {
-                return indicesOptions.selectorOptions().defaultSelector().shouldIncludeFailures();
+                // Defaults to no failure indices
+                return false;
             }
         }
         return false;
@@ -886,6 +874,20 @@ public class IndexNameExpressionResolver {
      */
     public static Tuple<String, String> splitSelectorExpression(String expression) {
         return SelectorResolver.splitSelectorExpression(expression, Tuple::new);
+    }
+
+    public static String combineSelector(String baseExpression, @Nullable IndexComponentSelector selectorExpression) {
+        Objects.requireNonNull(baseExpression, "baseExpression is null");
+        return selectorExpression == null || IndexComponentSelector.DATA.equals(selectorExpression)
+            ? baseExpression
+            : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression.getKey());
+    }
+
+    public static String combineSelectorExpression(String baseExpression, @Nullable String selectorExpression) {
+        Objects.requireNonNull(baseExpression, "baseExpression is null");
+        return selectorExpression == null || IndexComponentSelector.DATA.getKey().equals(selectorExpression)
+            ? baseExpression
+            : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
     }
 
     /**
@@ -2081,31 +2083,10 @@ public class IndexNameExpressionResolver {
 
         /**
          * Parses an index expression for a selector suffix. If a suffix is present and supported by the index options, the
-         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the default selector will
-         * be returned. If suffixes are present but not supported by the index options, this will throw {@link IndexNotFoundException}. When
-         * suffixes are not allowed by the context, the selector returned will be null.
-         * @param options IndicesOptions object
-         * @param expression The expression to check for selectors
-         * @return A resolved expression, optionally paired with a selector if present and supported.
-         */
-        public static ResolvedExpression parseExpressionWithDefault(String expression, IndicesOptions options) {
-            return parseAndTransformSelector(expression, (baseExpression, selector) -> {
-                if (options.allowSelectors()) {
-                    IndexComponentSelector resolvedSelector = selector != null ? selector : options.selectorOptions().defaultSelector();
-                    return new ResolvedExpression(baseExpression, resolvedSelector);
-                } else {
-                    // Ensure there is no selector if the API doesn't allow it.
-                    ensureNoSelectorsProvided(expression, selector);
-                    return new ResolvedExpression(baseExpression);
-                }
-            });
-        }
-
-        /**
-         * Parses an index expression for a selector suffix. If a suffix is present and supported by the index options, the
-         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the selector returned will
-         * be null. If suffixes are present but not supported by the index options, this will throw {@link IndexNotFoundException}. When
-         * suffixes are not allowed by the context, the selector returned will be null.
+         * expression and its suffix are split apart and returned. If a suffix is not present on the expression, the default
+         * {@link IndexComponentSelector#DATA} selector will be returned. If suffixes are present but not supported by the
+         * index options, this will throw {@link IndexNotFoundException}. When suffixes are not allowed by the context, the
+         * selector returned will be null.
          * @param options IndicesOptions object
          * @param expression The expression to check for selectors
          * @return A resolved expression, optionally paired with a selector if present and supported.
@@ -2113,7 +2094,8 @@ public class IndexNameExpressionResolver {
         public static ResolvedExpression parseExpression(String expression, IndicesOptions options) {
             return parseAndTransformSelector(expression, (baseExpression, selector) -> {
                 if (options.allowSelectors()) {
-                    return new ResolvedExpression(baseExpression, selector);
+                    IndexComponentSelector resolvedSelector = selector != null ? selector : IndexComponentSelector.DATA;
+                    return new ResolvedExpression(baseExpression, resolvedSelector);
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.
                     ensureNoSelectorsProvided(expression, selector);
@@ -2134,8 +2116,8 @@ public class IndexNameExpressionResolver {
         public static IndexComponentSelector parseMatchAllToSelector(Context context, String matchAllExpression) {
             return parseAndTransformSelector(matchAllExpression, (baseExpression, selector) -> {
                 if (context.options.allowSelectors()) {
-                    // if selector was not present in the expression, use the defaults for the API
-                    return selector == null ? context.options.selectorOptions().defaultSelector() : selector;
+                    // if selector was not present in the expression, default to ::data
+                    return selector == null ? IndexComponentSelector.DATA : selector;
                 } else {
                     // Ensure there is no selector if the API doesn't allow it.
                     ensureNoSelectorsProvided(matchAllExpression, selector);

@@ -747,15 +747,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final String defaultRolloverIndexName;
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
-        var defaultSelectorOptions = IndicesOptions.SelectorOptions.DEFAULT;
+        boolean isFailureStoreRollover = false;
         if (useDataStream) {
             DataStream dataStream = DataStreamTestHelper.randomInstance()
                 // ensure no replicate data stream
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
             if (dataStream.isFailureStoreEnabled() && randomBoolean()) {
-                defaultSelectorOptions = IndicesOptions.SelectorOptions.FAILURES;
                 sourceIndexName = dataStream.getFailureStoreWriteIndex().getName();
+                isFailureStoreRollover = true;
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(
                     dataStream.getName(),
                     dataStream.getGeneration() + 1,
@@ -815,7 +815,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             true,
             null,
             null,
-            IndicesOptions.SelectorOptions.FAILURES.equals(defaultSelectorOptions)
+            isFailureStoreRollover
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;

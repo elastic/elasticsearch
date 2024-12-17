@@ -57,7 +57,6 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
                 )
-                .selectorOptions(randomFrom(SelectorOptions.DATA, SelectorOptions.FAILURES, SelectorOptions.ALL_APPLICABLE))
                 .build();
 
             BytesStreamOutput output = new BytesStreamOutput();

@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -418,11 +418,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
             if (targetFailureStore) {
-                rolloverRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                        .build()
-                );
+                rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
             }
             // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
             // unconditional and performant rollover.

@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -126,16 +128,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        IndexComponentSelector selector = indicesOptions.selectorOptions().defaultSelector();
         if (rolloverTarget != null) {
-            Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(rolloverTarget);
-            selector = indexAndSelector.v2() != null ? IndexComponentSelector.getByKey(indexAndSelector.v2()) : selector;
-        }
-        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
-            validationException = addValidationError(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException
-            );
+            ResolvedExpression resolvedExpression = SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            IndexComponentSelector selector = resolvedExpression.selector();
+            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
+                validationException = addValidationError(
+                    "rollover cannot be applied to both regular and failure indices at the same time",
+                    validationException
+                );
+            }
         }
 
         return validationException;

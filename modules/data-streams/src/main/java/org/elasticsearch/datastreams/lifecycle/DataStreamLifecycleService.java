@@ -33,6 +33,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -49,6 +50,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -946,11 +948,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                updateMergePolicySettingsRequest.indicesOptions(
-                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                        .build()
-                );
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()
@@ -1000,7 +997,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
-        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpressionWithDefault(
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.indicesOptions()
         );
@@ -1412,9 +1409,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
-            );
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;

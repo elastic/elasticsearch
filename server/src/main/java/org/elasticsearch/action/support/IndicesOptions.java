@@ -511,7 +511,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -530,7 +529,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -549,7 +547,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_NO_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -586,7 +583,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -605,7 +601,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -619,7 +614,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -651,7 +645,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -665,7 +658,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -697,7 +689,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -711,7 +702,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -730,7 +720,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ALL_APPLICABLE)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -749,7 +738,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -768,7 +756,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -787,7 +774,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .allowAliasToMultipleIndices(true)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -806,7 +792,6 @@ public record IndicesOptions(
                 .allowSelectors(false)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -825,7 +810,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -844,7 +828,6 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.DATA)
         .build();
 
     /**
@@ -1551,7 +1534,7 @@ public record IndicesOptions(
             + ", ignore_throttled="
             + ignoreThrottled()
             + (DataStream.isFailureStoreFeatureFlagEnabled()
-                ? ", default_selector=" + selectorOptions().defaultSelector() + ", allow_selectors=" + allowSelectors()
+                ? ", allow_selectors=" + allowSelectors()
                 : "")
             + ']';
     }

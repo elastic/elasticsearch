@@ -123,7 +123,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 : "The auto rollover action does not expect any other parameters in the request apart from the data stream name";
 
             Metadata metadata = clusterState.metadata();
-            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpressionWithDefault(
+            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.indicesOptions()
             );
@@ -154,12 +154,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             String source = "lazy_rollover source [" + trialSourceIndexName + "] to target [" + trialRolloverIndexName + "]";
             // We create a new rollover request to ensure that it doesn't contain any other parameters apart from the data stream name
             // This will provide a more resilient user experience
-            var newRolloverRequest = new RolloverRequest(resolvedRolloverTarget.resource(), null);
-            newRolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .selectorOptions(isFailureStoreRollover ? SelectorOptions.FAILURES : SelectorOptions.DATA)
-                    .build()
-            );
+            var newRolloverRequest = new RolloverRequest(resolvedRolloverTarget.combined(), null);
             LazyRolloverTask rolloverTask = new LazyRolloverTask(newRolloverRequest, listener);
             lazyRolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
         }
@@ -238,7 +233,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
 
-            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpressionWithDefault(
+            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.indicesOptions()
             );

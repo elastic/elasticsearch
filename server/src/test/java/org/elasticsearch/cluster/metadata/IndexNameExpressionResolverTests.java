@@ -2766,19 +2766,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
         }
 
-        // Test default include failure store with an exact data stream name
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
-            assertThat(result.length, equalTo(4));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
-            assertThat(result[2].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)));
-            assertThat(result[3].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis)));
-        }
-
         // Test explicit include failure store with an exact data stream name
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
@@ -2788,20 +2775,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
             assertThat(result[2].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)));
             assertThat(result[3].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis)));
-        }
-
-        // Test default include failure store while not allowing selectors
-        // We expect that failure store results will be skipped since a default selector of "all applicable" is only applied when
-        // selectors are enabled
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).build())
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
-            assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
         }
 
         // Test explicit include failure store while not allowing selectors
@@ -2814,17 +2787,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream::*")
             );
-        }
-
-        // Test defaulting to only failure store with an exact data stream name
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
-            assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis)));
         }
 
         // Test explicitly selecting only failure store with an exact data stream name
@@ -2852,43 +2814,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
         }
 
-        // Test include failure store without any expressions
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true);
-            assertThat(result.length, equalTo(5));
-            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
-            assertThat(
-                indexNames,
-                containsInAnyOrder(
-                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
-                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
-                    otherIndex.getIndex().getName()
-                )
-            );
-        }
-
-        // Test only failure store without any expressions
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true);
-            assertThat(result.length, equalTo(2));
-            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
-            assertThat(
-                indexNames,
-                containsInAnyOrder(
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)
-                )
-            );
-        }
-
         // Test default with wildcard expression
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
@@ -2900,26 +2825,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 containsInAnyOrder(
                     DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
-                    otherIndex.getIndex().getName()
-                )
-            );
-        }
-
-        // Test default include failure store with wildcard expression
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*");
-            assertThat(result.length, equalTo(5));
-            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
-            assertThat(
-                indexNames,
-                containsInAnyOrder(
-                    DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis),
-                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis),
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
                     otherIndex.getIndex().getName()
                 )
             );
@@ -2939,23 +2844,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
                     DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis),
                     otherIndex.getIndex().getName()
-                )
-            );
-        }
-
-        // Test default only failure store with wildcard expression
-        {
-            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
-                .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                .build();
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-*");
-            assertThat(result.length, equalTo(2));
-            List<String> indexNames = Arrays.stream(result).map(Index::getName).toList();
-            assertThat(
-                indexNames,
-                containsInAnyOrder(
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 2, epochMillis),
-                    DataStream.getDefaultFailureStoreName(dataStreamName, 1, epochMillis)
                 )
             );
         }

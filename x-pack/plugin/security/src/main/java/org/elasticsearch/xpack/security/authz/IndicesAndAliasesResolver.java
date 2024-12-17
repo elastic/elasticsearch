@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -95,12 +94,12 @@ class IndicesAndAliasesResolver {
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      * <br><br>
      * <p>
-     * If the provided <code>request</code> is of a type that {@link IndicesOptions#allowSelectors() allows selectors}, then the index
-     * names will be updated to include any {@link IndicesOptions.SelectorOptions#defaultSelector() default selectors} that should be
+     * If the provided <code>request</code> is of a type that {@link IndicesOptions#allowSelectors() allows selectors}, then the given index
+     * names may be modified to include any {@link IndexComponentSelector selectors} that should be
      * returned. If a wildcard selector is present on the index name then the wildcard will be resolved to
      * {@link IndexComponentSelector#values() all applicable concrete selector names} for a given index abstraction. Selectors that are
      * not applicable for an index abstraction (such as the <code>::failures</code> selector on non-data streams) are not returned when
-     * resolving wildcards or applying default selectors.
+     * resolving wildcards.
      * </p>
      */
 
@@ -219,7 +218,7 @@ class IndicesAndAliasesResolver {
             }
             String finalExpression = IndexNameExpressionResolver.resolveDateMathExpression(localExpression);
             if (selector != null) {
-                finalExpression = ResolvedExpression.combineSelectorExpression(finalExpression, selector);
+                finalExpression = IndexNameExpressionResolver.combineSelectorExpression(finalExpression, selector);
             }
             localIndices.add(finalExpression);
         }
@@ -298,6 +297,7 @@ class IndicesAndAliasesResolver {
             String allIndicesPatternSelector = null;
             if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
                 // Always parse selectors off to see if this targets all indices
+                // PRTODO: This looks inefficient
                 List<Tuple<String, String>> selectedIndices = indicesList(indicesRequest.indices()).stream()
                     .map(IndexNameExpressionResolver::splitSelectorExpression)
                     .toList();
@@ -328,7 +328,7 @@ class IndicesAndAliasesResolver {
                             indicesRequest.includeDataStreams()
                         )) {
                             resolvedIndicesBuilder.addLocal(
-                                ResolvedExpression.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
+                                IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
                             );
                         }
                     }

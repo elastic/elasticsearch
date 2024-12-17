@@ -31,10 +31,10 @@ public class SelectorResolverTests extends ESTestCase {
 
     public void testResolveExpression() {
         // === Parsing and defaults
-        // Allow selectors TRUE and default selector of $data (example, a search API)
-        Context selectorsAllowed = getContext(getOptionsForSelectors(DATA));
+        // Allow selectors TRUE
+        Context selectorsAllowed = getContext(getOptionsForSelectors());
 
-        assertThat(resolve(selectorsAllowed, "testXXX"), equalTo(new ResolvedExpression("testXXX", null)));
+        assertThat(resolve(selectorsAllowed, "testXXX"), equalTo(new ResolvedExpression("testXXX", DATA)));
         assertThat(resolve(selectorsAllowed, "testXXX::data"), equalTo(new ResolvedExpression("testXXX", DATA)));
         assertThat(resolve(selectorsAllowed, "testXXX::failures"), equalTo(new ResolvedExpression("testXXX", FAILURES)));
         assertThat(resolve(selectorsAllowed, "testXXX::*"), equalTo(new ResolvedExpression("testXXX", ALL_APPLICABLE)));
@@ -60,13 +60,13 @@ public class SelectorResolverTests extends ESTestCase {
 
         // === Wildcards, Date Math, and edge cases
         // Wildcards are left as-is (handled in wildcard resolver)
-        assertThat(resolve(selectorsAllowed, "*"), equalTo(new ResolvedExpression("*", null)));
+        assertThat(resolve(selectorsAllowed, "*"), equalTo(new ResolvedExpression("*", DATA)));
         // Exclusions are left as-is (if no wildcards are present they are not treated as exclusions)
-        assertThat(resolve(selectorsAllowed, "-testXXX"), equalTo(new ResolvedExpression("-testXXX", null)));
+        assertThat(resolve(selectorsAllowed, "-testXXX"), equalTo(new ResolvedExpression("-testXXX", DATA)));
         // Exclusion syntax with selectors will have the selectors parsed
         assertThat(resolve(selectorsAllowed, "-testXXX::failures"), equalTo(new ResolvedExpression("-testXXX", FAILURES)));
         // Date math is left unprocessed (handled later in date math resolver)
-        assertThat(resolve(selectorsAllowed, "<test-{now/d}>"), equalTo(new ResolvedExpression("<test-{now/d}>", null)));
+        assertThat(resolve(selectorsAllowed, "<test-{now/d}>"), equalTo(new ResolvedExpression("<test-{now/d}>", DATA)));
         // Providing a selector requires adding after the date math brackets
         assertThat(resolve(selectorsAllowed, "<test-{now/d}>::failures"), equalTo(new ResolvedExpression("<test-{now/d}>", FAILURES)));
         // Selectors inside of date math expressions will trip an exception because they do not match an existing component name exactly
@@ -88,44 +88,36 @@ public class SelectorResolverTests extends ESTestCase {
     }
 
     public void testResolveMatchAllToSelectors() {
-        Context dataSelector = getContext(getOptionsForSelectors(DATA));
-        assertThat(resolveMatchAllToSelector(dataSelector, "*"), is(DATA));
-        assertThat(resolveMatchAllToSelector(dataSelector, "*::data"), is(DATA));
-        assertThat(resolveMatchAllToSelector(dataSelector, "*::failures"), is(FAILURES));
-        assertThat(resolveMatchAllToSelector(dataSelector, "_all"), is(DATA));
-        assertThat(resolveMatchAllToSelector(dataSelector, "_all::data"), is(DATA));
-        assertThat(resolveMatchAllToSelector(dataSelector, "_all::failures"), is(FAILURES));
+        Context selectorsAllowed = getContext(getOptionsForSelectors());
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "*"), is(DATA));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "*::data"), is(DATA));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "*::failures"), is(FAILURES));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all"), is(DATA));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all::data"), is(DATA));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all::failures"), is(FAILURES));
 
-        Context bothSelector = getContext(getOptionsForSelectors(ALL_APPLICABLE));
-        assertThat(resolveMatchAllToSelector(bothSelector, "*"), is(ALL_APPLICABLE));
-        assertThat(resolveMatchAllToSelector(bothSelector, "*::data"), is(DATA));
-        assertThat(resolveMatchAllToSelector(bothSelector, "*::failures"), is(FAILURES));
-        assertThat(resolveMatchAllToSelector(bothSelector, "_all"), is(ALL_APPLICABLE));
-        assertThat(resolveMatchAllToSelector(bothSelector, "_all::data"), is(DATA));
-        assertThat(resolveMatchAllToSelector(bothSelector, "_all::failures"), is(FAILURES));
-
-        Context noneSelector = getContext(getDisabledSelectorOptions());
-        assertThat(resolveMatchAllToSelector(noneSelector, "*"), is(nullValue()));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "*::data"));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "*::failures"));
-        assertThat(resolveMatchAllToSelector(noneSelector, "_all"), is(nullValue()));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "_all::data"));
-        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(noneSelector, "_all::failures"));
+        Context selectorsDisallowed = getContext(getDisabledSelectorOptions());
+        assertThat(resolveMatchAllToSelector(selectorsDisallowed, "*"), is(nullValue()));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(selectorsDisallowed, "*::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(selectorsDisallowed, "*::failures"));
+        assertThat(resolveMatchAllToSelector(selectorsDisallowed, "_all"), is(nullValue()));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(selectorsDisallowed, "_all::data"));
+        expectThrows(IllegalArgumentException.class, () -> resolveMatchAllToSelector(selectorsDisallowed, "_all::failures"));
     }
 
     public void testCombineExpressionWithSelector() {
-        expectThrows(NullPointerException.class, () -> ResolvedExpression.combineSelectorExpression(null, null));
-        expectThrows(NullPointerException.class, () -> ResolvedExpression.combineSelectorExpression(null, ""));
-        expectThrows(NullPointerException.class, () -> ResolvedExpression.combineSelectorExpression(null, "a"));
-        expectThrows(NullPointerException.class, () -> ResolvedExpression.combineSelectorExpression(null, "*"));
-        assertThat(ResolvedExpression.combineSelectorExpression("", null), is(equalTo("")));
-        assertThat(ResolvedExpression.combineSelectorExpression("", ""), is(equalTo("::")));
-        assertThat(ResolvedExpression.combineSelectorExpression("a", null), is(equalTo("a")));
-        assertThat(ResolvedExpression.combineSelectorExpression("a", ""), is(equalTo("a::")));
-        assertThat(ResolvedExpression.combineSelectorExpression("a", "b"), is(equalTo("a::b")));
-        assertThat(ResolvedExpression.combineSelectorExpression("a", "*"), is(equalTo("a::*")));
-        assertThat(ResolvedExpression.combineSelectorExpression("*", "b"), is(equalTo("*::b")));
-        assertThat(ResolvedExpression.combineSelectorExpression("*", "*"), is(equalTo("*::*")));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, null));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, ""));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, "a"));
+        expectThrows(NullPointerException.class, () -> IndexNameExpressionResolver.combineSelectorExpression(null, "*"));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("", null), is(equalTo("")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("", ""), is(equalTo("::")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", null), is(equalTo("a")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", ""), is(equalTo("a::")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", "b"), is(equalTo("a::b")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("a", "*"), is(equalTo("a::*")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("*", "b"), is(equalTo("*::b")));
+        assertThat(IndexNameExpressionResolver.combineSelectorExpression("*", "*"), is(equalTo("*::*")));
     }
 
     public void testHasSelectorSuffix() {
@@ -168,9 +160,8 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.splitSelectorExpression("::*"), is(equalTo(new Tuple<>("", "*"))));
     }
 
-    private static IndicesOptions getOptionsForSelectors(IndexComponentSelector selector) {
+    private static IndicesOptions getOptionsForSelectors() {
         return IndicesOptions.builder()
-            .selectorOptions(new IndicesOptions.SelectorOptions(selector))
             .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(true))
             .build();
     }

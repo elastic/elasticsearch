@@ -22,6 +22,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -32,6 +33,8 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -71,6 +74,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.*;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
@@ -131,7 +135,8 @@ public class TransportBulkActionTests extends ESTestCase {
 
         @Override
         void rollOver(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener) {
-            boolean isFailureStoreRollover = rolloverRequest.indicesOptions().selectorOptions().defaultSelector().shouldIncludeFailures();
+            String selectorString = IndexNameExpressionResolver.splitSelectorExpression(rolloverRequest.getRolloverTarget()).v2();
+            boolean isFailureStoreRollover = IndexComponentSelector.FAILURES.getKey().equals(selectorString);
             if (failDataStreamRolloverException != null && isFailureStoreRollover == false) {
                 listener.onFailure(failDataStreamRolloverException);
             } else if (failFailureStoreRolloverException != null && isFailureStoreRollover) {

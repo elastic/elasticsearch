@@ -62,7 +62,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                             .allowSelectors(true)
                             .build()
                     )
-                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                     .build()
             );
         }

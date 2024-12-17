@@ -174,9 +174,6 @@ public class RolloverRequestTests extends ESTestCase {
                 .build()
         );
         originalRequest.lazy(randomBoolean());
-        originalRequest.setIndicesOptions(
-            IndicesOptions.builder(originalRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE).build()
-        );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
@@ -250,22 +247,6 @@ public class RolloverRequestTests extends ESTestCase {
             }
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNull(validationException);
-        }
-
-        {
-            RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                    .build()
-            );
-            ActionRequestValidationException validationException = rolloverRequest.validate();
-            assertNotNull(validationException);
-            assertEquals(1, validationException.validationErrors().size());
-            assertEquals(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException.validationErrors().get(0)
-            );
         }
 
         {

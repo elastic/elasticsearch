@@ -53,7 +53,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReindexDatastreamIndexIT extends ESIntegTestCase {
+public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     private static final String MAPPING = """
         {

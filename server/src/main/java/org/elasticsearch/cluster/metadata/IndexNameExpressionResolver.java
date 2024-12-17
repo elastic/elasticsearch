@@ -250,8 +250,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        assert request.indicesOptions().allowSelectors() == false
-            : "Cannot resolve write abstractions on an API that allows index selectors";
+
         final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.index());
 
         if (expressions.size() == 1) {

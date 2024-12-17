@@ -1963,4 +1963,14 @@ public class BasicBlockTests extends ESTestCase {
             return builder.build();
         }
     }
+
+    /**
+     * A random {@link ElementType} for which we can build a {@link RandomBlock}.
+     */
+    public static ElementType randomElementType() {
+        return randomValueOtherThanMany(
+            e -> e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE,
+            () -> randomFrom(ElementType.values())
+        );
+    }
 }

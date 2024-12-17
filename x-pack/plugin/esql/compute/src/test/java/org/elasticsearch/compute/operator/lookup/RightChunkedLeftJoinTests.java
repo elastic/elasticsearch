@@ -8,16 +8,21 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BasicBlockTests;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ListMatcher;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -175,6 +180,57 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
         }
     }
 
+    public void testRandom() {
+        int leftSize = between(1, 10000);
+        BlockFactory factory = blockFactory();
+        ElementType[] leftColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
+        ElementType[] rightColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
+
+        RandomPage left = randomPage(factory, leftColumns, leftSize);
+        try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(left.page, rightColumns.length)) {
+            int rightSize = 5;
+            IntVector selected = randomPositions(factory, leftSize, rightSize);
+            RandomPage right = randomPage(factory, rightColumns, rightSize, selected.asBlock());
+            try {
+                Page joined = join.join(right.page);
+                try {
+                    assertThat(joined.getPositionCount(), equalTo(selected.max() + 1));
+
+                    List<List<Object>> actualColumns = new ArrayList<>();
+                    BlockTestUtils.readInto(actualColumns, joined);
+                    int rightRow = 0;
+                    for (int leftRow = 0; leftRow < joined.getPositionCount(); leftRow++) {
+                        List<Object> actualRow = new ArrayList<>();
+                        for (int c = 0; c < actualColumns.size(); c++) {
+                            actualRow.add(actualColumns.get(c).get(leftRow));
+                        }
+                        ListMatcher matcher = ListMatcher.matchesList();
+                        for (int c = 0; c < leftColumns.length; c++) {
+                            matcher = matcher.item(unwrapSingletonLists(left.blocks[c].values().get(leftRow)));
+                        }
+                        if (selected.getInt(rightRow) == leftRow) {
+                            for (int c = 0; c < rightColumns.length; c++) {
+                                matcher = matcher.item(unwrapSingletonLists(right.blocks[c].values().get(rightRow)));
+                            }
+                            rightRow++;
+                        } else {
+                            for (int c = 0; c < rightColumns.length; c++) {
+                                matcher = matcher.item(null);
+                            }
+                        }
+                        assertMap(actualRow, matcher);
+                    }
+                } finally {
+                    joined.releaseBlocks();
+                }
+            } finally {
+                right.page.releaseBlocks();
+            }
+        } finally {
+            left.page.releaseBlocks();
+        }
+    }
+
     NumberFormat exampleNumberFormat(int size) {
         NumberFormat nf = NumberFormat.getIntegerInstance(Locale.ROOT);
         nf.setMinimumIntegerDigits((int) Math.ceil(Math.log10(size)));
@@ -251,5 +307,55 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
                 IntStream.range(next, size).mapToObj(p -> new Object[] { "l" + nf.format(p), null, null }).toArray(Object[][]::new)
             );
         }
+    }
+
+    Object unwrapSingletonLists(Object o) {
+        if (o instanceof List<?> l && l.size() == 1) {
+            return l.getFirst();
+        }
+        return o;
+    }
+
+    record RandomPage(Page page, BasicBlockTests.RandomBlock[] blocks) {};
+
+    RandomPage randomPage(BlockFactory factory, ElementType[] types, int positions, Block... prepend) {
+        BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.length];
+        Block[] blocks = new Block[prepend.length + types.length];
+        try {
+            for (int c = 0; c < prepend.length; c++) {
+                blocks[c] = prepend[c];
+            }
+            for (int c = 0; c < types.length; c++) {
+
+                int min = between(0, 3);
+                randomBlocks[c] = BasicBlockTests.randomBlock(
+                    factory,
+                    types[c],
+                    positions,
+                    randomBoolean(),
+                    min,
+                    between(min, min + 3),
+                    0,
+                    0
+                );
+                blocks[prepend.length + c] = randomBlocks[c].block();
+            }
+            Page p = new Page(blocks);
+            blocks = null;
+            return new RandomPage(p, randomBlocks);
+        } finally {
+            if (blocks != null) {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    IntVector randomPositions(BlockFactory factory, int leftSize, int positionCount) {
+        int[] positions = new int[positionCount];
+        for (int p = 0; p < positions.length; p++) {
+            positions[p] = between(0, leftSize);
+        }
+        Arrays.sort(positions);
+        return factory.newIntArrayVector(positions, positions.length);
     }
 }

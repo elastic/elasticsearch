@@ -224,15 +224,17 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      */
     default Block insertNulls(IntVector before) {
         // TODO remove default and scatter to implementation where it can be a lot more efficient
-        try (Builder builder = elementType().newBlockBuilder(getPositionCount() + before.getPositionCount(), blockFactory())) {
+        int myCount = getPositionCount();
+        int beforeCount = before.getPositionCount();
+        try (Builder builder = elementType().newBlockBuilder(myCount + beforeCount, blockFactory())) {
             int beforeP = 0;
             int nextNull = before.getInt(beforeP);
-            for (int mainP = 0; mainP < getPositionCount(); mainP++) {
+            for (int mainP = 0; mainP < myCount; mainP++) {
                 while (mainP == nextNull) {
                     builder.appendNull();
                     beforeP++;
-                    if (beforeP >= before.getPositionCount()) {
-                        builder.copyFrom(this, mainP, getPositionCount());
+                    if (beforeP >= beforeCount) {
+                        builder.copyFrom(this, mainP, myCount);
                         return builder.build();
                     }
                     nextNull = before.getInt(beforeP);
@@ -240,10 +242,10 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
                 // This line right below this is the super inefficient one.
                 builder.copyFrom(this, mainP, mainP + 1);
             }
-            assert nextNull == getPositionCount();
-            while (beforeP < before.getPositionCount()) {
+            assert nextNull == myCount;
+            while (beforeP < beforeCount) {
                 nextNull = before.getInt(beforeP++);
-                assert nextNull == getPositionCount();
+                assert nextNull == myCount;
                 builder.appendNull();
             }
             return builder.build();

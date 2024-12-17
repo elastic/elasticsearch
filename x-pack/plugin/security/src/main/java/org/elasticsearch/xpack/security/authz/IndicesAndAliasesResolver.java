@@ -294,13 +294,18 @@ class IndicesAndAliasesResolver {
             boolean isAllIndices;
             String allIndicesPatternSelector = null;
             if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
-                // Always parse selectors off to see if this targets all indices
-                // PRTODO: This looks inefficient
-                List<Tuple<String, String>> selectedIndices = indicesList(indicesRequest.indices()).stream()
-                    .map(IndexNameExpressionResolver::splitSelectorExpression)
-                    .toList();
-                isAllIndices = IndexNameExpressionResolver.isAllIndices(selectedIndices, Tuple::v1);
-                allIndicesPatternSelector = selectedIndices.getFirst().v2();
+                // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(
+                    indicesList(indicesRequest.indices()),
+                    (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
+                );
+                if (isAllIndices) {
+                    // This parses the single all-indices expression for a second time in this conditional branch, but this is better than
+                    // parsing a potentially big list of indices on every request.
+                    allIndicesPatternSelector = IndexNameExpressionResolver.splitSelectorExpression(
+                        indicesList(indicesRequest.indices()).getFirst()
+                    ).v2();
+                }
             } else {
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
             }

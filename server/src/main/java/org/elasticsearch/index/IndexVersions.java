@@ -243,8 +243,8 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    static Collection<IndexVersion> getWriteVersions() {
-        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(IndexVersions.V_8_0_0)).collect(Collectors.toSet());
+    static Collection<IndexVersion> getAllWriteVersions() {
+        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).collect(Collectors.toSet());
     }
 
     static Collection<IndexVersion> getAllVersions() {

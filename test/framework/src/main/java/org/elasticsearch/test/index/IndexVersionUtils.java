@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class IndexVersionUtils {
 
     private static final List<IndexVersion> ALL_VERSIONS = KnownIndexVersions.ALL_VERSIONS;
-    private static final List<IndexVersion> WRITE_VERSIONS = KnownIndexVersions.WRITE_VERSIONS;
+    private static final List<IndexVersion> ALL_WRITE_VERSIONS = KnownIndexVersions.ALL_WRITE_VERSIONS;
 
     /** Returns all released versions */
     public static List<IndexVersion> allReleasedVersions() {
@@ -38,7 +38,7 @@ public class IndexVersionUtils {
 
     /** Returns the oldest known {@link IndexVersion} that can be written to */
     public static IndexVersion getLowestWriteCompatibleVersion() {
-        return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).findFirst().get();
+        return ALL_WRITE_VERSIONS.get(0);
     }
 
     /** Returns a random {@link IndexVersion} from all available versions. */
@@ -46,15 +46,14 @@ public class IndexVersionUtils {
         return ESTestCase.randomFrom(ALL_VERSIONS);
     }
 
+    /** Returns a random {@link IndexVersion} from all versions that can be written to. */
+    public static IndexVersion randomWriteVersion() {
+        return ESTestCase.randomFrom(ALL_WRITE_VERSIONS);
+    }
+
     /** Returns a random {@link IndexVersion} from all available versions without the ignore set */
     public static IndexVersion randomVersion(Set<IndexVersion> ignore) {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
-    }
-
-    /** Returns a random {@link IndexVersion} from all available versions. */
-    public static IndexVersion randomVersion(Random random) {
-        // TODO provide a variant of this that includes read only versions?
-        return WRITE_VERSIONS.get(random.nextInt(WRITE_VERSIONS.size()));
     }
 
     /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -120,6 +119,8 @@ public class IndexVersionUtils {
         }
         return ALL_VERSIONS.get(place);
     }
+
+    //TODO add variants of the two following methods that include read only versions
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */
     public static IndexVersion randomCompatibleVersion(Random random) {

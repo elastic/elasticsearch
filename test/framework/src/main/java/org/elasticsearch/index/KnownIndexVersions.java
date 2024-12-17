@@ -22,5 +22,5 @@ public class KnownIndexVersions {
     /**
      * A sorted list of all known index versions that can be written to
      */
-    public static final List<IndexVersion> WRITE_VERSIONS = List.copyOf(IndexVersions.getWriteVersions());
+    public static final List<IndexVersion> ALL_WRITE_VERSIONS = List.copyOf(IndexVersions.getAllWriteVersions());
 }

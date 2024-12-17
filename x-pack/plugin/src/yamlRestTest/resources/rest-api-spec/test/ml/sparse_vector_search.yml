@@ -270,7 +270,7 @@ setup:
 ---
 "Test sparse_vector requires one of query or query_vector":
   - do:
-      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[query\]/
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
       search:
         index: index-with-sparse-vector
         body:
@@ -312,12 +312,12 @@ setup:
   - match: { status: 400 }
 
 ---
-"Test sparse_vector only allows one of query or query_vector":
+"Test sparse_vector only allows one of query or query_vector (note the error message is misleading)":
   - requires:
       cluster_features: [ "search.semantic_sparse_vector_query_rewrite_interception_supported" ]
       reason: "sparse vector inference checks updated in 8.18 to support sparse_vector on semantic_text fields"
   - do:
-      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[query\]/
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
       search:
         index: index-with-sparse-vector
         body:

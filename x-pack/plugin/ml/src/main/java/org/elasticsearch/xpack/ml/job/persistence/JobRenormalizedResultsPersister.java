@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -110,7 +111,7 @@ public class JobRenormalizedResultsPersister {
                     if (response.isFailed() == false) {
                         continue;
                     }
-                    if (response.getFailureMessage().contains(IndexMetadata.INDEX_READ_ONLY_BLOCK.desription())) {
+                    if (response.getFailureMessage().contains(IndexMetadata.INDEX_READ_ONLY_BLOCK.description())) {
                         // We expect this to happen when the old index is made read-only and being reindexed
                         logger.debug(
                             "[{}] Ignoring failure to write renormalized results read-only index [{}]: {}",

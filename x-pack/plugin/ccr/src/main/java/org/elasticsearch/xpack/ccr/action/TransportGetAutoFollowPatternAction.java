@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -29,7 +31,7 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportGetAutoFollowPatternAction extends TransportMasterNodeReadAction<
+public class TransportGetAutoFollowPatternAction extends TransportMasterNodeReadProjectAction<
     GetAutoFollowPatternAction.Request,
     GetAutoFollowPatternAction.Response> {
 
@@ -39,6 +41,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -48,6 +51,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
             threadPool,
             actionFilters,
             GetAutoFollowPatternAction.Request::new,
+            projectResolver,
             indexNameExpressionResolver,
             GetAutoFollowPatternAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -58,7 +62,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
     protected void masterOperation(
         Task task,
         GetAutoFollowPatternAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetAutoFollowPatternAction.Response> listener
     ) throws Exception {
         Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metadata(), request.getName());
@@ -70,8 +74,8 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
-    static Map<String, AutoFollowPattern> getAutoFollowPattern(Metadata metadata, String name) {
-        AutoFollowMetadata autoFollowMetadata = metadata.getProject().custom(AutoFollowMetadata.TYPE);
+    static Map<String, AutoFollowPattern> getAutoFollowPattern(ProjectMetadata project, String name) {
+        AutoFollowMetadata autoFollowMetadata = project.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             if (name == null) {
                 return Collections.emptyMap();

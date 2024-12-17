@@ -182,6 +182,9 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
+        /** Support for function {@code ST_EXTENT}. */
+        ST_EXTENT_AGG,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */
@@ -206,6 +209,11 @@ public class EsqlCapabilities {
          * Fix for spatial centroid when no records are found.
          */
         SPATIAL_CENTROID_NO_RECORDS,
+
+        /**
+         * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
+         */
+        ST_ENVELOPE,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -351,6 +359,11 @@ public class EsqlCapabilities {
          * Support for date_trunc function on date nanos type
          */
         DATE_TRUNC_DATE_NANOS(),
+
+        /**
+         * Support date nanos values as the field argument to bucket
+         */
+        DATE_NANOS_BUCKET(),
 
         /**
          * support aggregations on date nanos
@@ -527,7 +540,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V5(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V6(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -552,7 +565,12 @@ public class EsqlCapabilities {
         /**
          * Additional types for match function and operator
          */
-        MATCH_ADDITIONAL_TYPES;
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD;
 
         private final boolean enabled;
 

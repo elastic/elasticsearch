@@ -548,6 +548,80 @@ yr:date_nanos                  | mo:date_nanos                  | mn:date_nanos 
 2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T12:10:00.000000000Z | 2023-10-23T12:15:03.360000000Z
 ;
 
+Bucket Date nanos by Year
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY yr = BUCKET(nanos, 1 year);
+
+ct:long | yr:date_nanos
+8       | 2023-01-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Year, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW());
+
+ct:long | yr:date_nanos
+8       | 2023-01-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Month
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 1 month);
+
+ct:long | mo:date_nanos
+8       | 2023-10-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Month, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31");
+
+ct:long | mo:date_nanos
+8       | 2023-10-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Week, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31");
+
+ct:long | mo:date_nanos
+8       | 2023-10-23T00:00:00.000000000Z 
+;
+Bucket Date nanos by 10 minutes
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mn = BUCKET(nanos, 10 minutes);
+
+ct:long | mn:date_nanos                 
+4       | 2023-10-23T13:50:00.000000000Z
+1       | 2023-10-23T13:30:00.000000000Z
+1       | 2023-10-23T12:20:00.000000000Z
+2       | 2023-10-23T12:10:00.000000000Z
+;
+
 Add date nanos
 required_capability: date_nanos_add_subtract
 

@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -353,6 +354,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
+                def(SpatialExtent.class, SpatialExtent::new, "st_extent_agg"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
@@ -414,7 +416,7 @@ public class EsqlFunctionRegistry {
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
             // fulltext functions
-            new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr") } };
+            new FunctionDefinition[] { def(Match.class, bi(Match::new), "match"), def(QueryString.class, uni(QueryString::new), "qstr") } };
 
     }
 
@@ -424,9 +426,9 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(Kql.class, Kql::new, "kql"),
+                def(Kql.class, uni(Kql::new), "kql"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
-                def(Term.class, Term::new, "term") } };
+                def(Term.class, bi(Term::new), "term") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

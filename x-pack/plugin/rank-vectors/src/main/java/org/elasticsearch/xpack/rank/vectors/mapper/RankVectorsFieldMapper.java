@@ -177,9 +177,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
-            );
+            return DocValueFormat.DENSE_VECTOR;
         }
 
         @Override

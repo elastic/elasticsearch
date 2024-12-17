@@ -290,7 +290,12 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
-            assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
+            if (isOriginalClusterCurrent()) {
+                // If the original cluster was the same as this one, we don't want any indices reindexed:
+                assertThat(statusResponseMap.get("successes"), equalTo(0));
+            } else {
+                assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
+            }
         }, 60, TimeUnit.SECONDS);
         Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
         Response cancelResponse = client().performRequest(cancelRequest);

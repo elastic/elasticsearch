@@ -65,7 +65,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
     protected ClusterComputeRequest createTestInstance() {
         var sessionId = randomAlphaOfLength(10);
         String query = randomQuery();
-        PhysicalPlan physicalPlan = DataNodeRequestTests.mapAndMaybeOptimize(parse(query));
+        PhysicalPlan physicalPlan = DataNodeRequestSerializationTests.mapAndMaybeOptimize(parse(query));
         OriginalIndices originalIndices = new OriginalIndices(
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())

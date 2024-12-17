@@ -1365,7 +1365,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.LOOKUP_V4.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
             Set.of("languages", "languages.*", "language_code", "language_code.*"),
@@ -1374,7 +1374,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoinKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.LOOKUP_V4.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1388,7 +1388,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoinKeepWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.LOOKUP_V4.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
         assertFieldNames(
             """
                 FROM employees

@@ -149,13 +149,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         dsBackingIndexName = dataStreamInfos.get(0).getDataStream().getIndices().get(0).getName();
         otherDsBackingIndexName = dataStreamInfos.get(1).getDataStream().getIndices().get(0).getName();
         fsBackingIndexName = dataStreamInfos.get(2).getDataStream().getIndices().get(0).getName();
-        fsFailureIndexName = dataStreamInfos
-            .get(2)
-            .getDataStream()
-            .getFailureIndices()
-            .getIndices()
-            .get(0)
-            .getName();
+        fsFailureIndexName = dataStreamInfos.get(2).getDataStream().getFailureIndices().getIndices().get(0).getName();
 
         // Will be used in some tests, to test renaming while restoring a snapshot:
         ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
@@ -197,9 +191,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
-        assertAcked(
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "ds"))
-        );
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "ds")));
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
@@ -332,11 +324,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
         });
 
-       List<GetDataStreamAction.Response.DataStreamInfo> dsInfo = getDataStreamInfo("ds");
-        assertThat(
-            dsInfo.stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
-            contains(equalTo("ds"))
-        );
+        List<GetDataStreamAction.Response.DataStreamInfo> dsInfo = getDataStreamInfo("ds");
+        assertThat(dsInfo.stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()), contains(equalTo("ds")));
         List<Index> backingIndices = dsInfo.get(0).getDataStream().getIndices();
         assertThat(dsInfo.get(0).getDataStream().getIndices(), hasSize(1));
         assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(dsBackingIndexName)));
@@ -366,7 +355,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getSnapshot(REPO, SNAPSHOT).dataStreams(), containsInAnyOrder(dataStreamName));
         assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(fsBackingIndexName, fsFailureIndexName));
 
-        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, dataStreamName)));
+        assertAcked(
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, dataStreamName))
+        );
 
         {
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -467,7 +458,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
         });
 
-        List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos =getDataStreamInfo(dataStreamToSnapshot);
+        List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = getDataStreamInfo(dataStreamToSnapshot);
         assertEquals(1, dataStreamInfos.size());
         assertEquals(1, dataStreamInfos.get(0).getDataStream().getIndices().size());
         assertEquals(backingIndexName, dataStreamInfos.get(0).getDataStream().getIndices().get(0).getName());
@@ -1243,7 +1234,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
             assertThat(restoreSnapshotResponse, notNullValue());
             assertThat(restoreSnapshotResponse.successfulShards(), equalTo(restoreSnapshotResponse.totalShards()));
-            assertThat(restoreSnapshotResponse.failedShards(),is(0));
+            assertThat(restoreSnapshotResponse.failedShards(), is(0));
 
             GetDataStreamAction.Response.DataStreamInfo dataStream = getDataStreamInfo(dataStreamName).getFirst();
             assertThat(dataStream.getDataStream().getBackingIndices().getIndices(), not(empty()));
@@ -1282,10 +1273,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent(indexName);
         createFullSnapshot(REPO, snapshotName);
 
-        assertAcked(
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*"))
-                .get()
-        );
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*")).get());
         assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.lenientExpandOpenHidden()).get());
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()

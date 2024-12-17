@@ -178,6 +178,7 @@ public class IndexVersions {
      */
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final IndexVersion MINIMUM_READONLY_COMPATIBLE = MINIMUM_COMPATIBLE;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;
@@ -193,7 +194,7 @@ public class IndexVersions {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, IndexVersion> builder = new TreeMap<>();
 
-        Set<String> ignore = Set.of("ZERO", "MINIMUM_COMPATIBLE");
+        Set<String> ignore = Set.of("ZERO", "MINIMUM_COMPATIBLE", "MINIMUM_READONLY_COMPATIBLE");
 
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(IndexVersion.class)) {

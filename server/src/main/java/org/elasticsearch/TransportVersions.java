@@ -146,6 +146,8 @@ public class TransportVersions {
     public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
     public static final TransportVersion SEMANTIC_QUERY_LENIENT = def(8_807_00_0);
     public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
+    public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_809_00_0);
+    public static final TransportVersion NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION = def(8_810_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -210,7 +212,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = SOURCE_MODE_TELEMETRY_FIX_8_17;
+    public static final TransportVersion MINIMUM_CCS_VERSION = QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

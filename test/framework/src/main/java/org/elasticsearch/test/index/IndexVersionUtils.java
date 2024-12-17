@@ -31,7 +31,7 @@ public class IndexVersionUtils {
         return ALL_VERSIONS;
     }
 
-    /** Returns the oldest known {@link IndexVersion}. This version can only be read from and not writte to */
+    /** Returns the oldest known {@link IndexVersion}. This version can only be read from and not written to */
     public static IndexVersion getLowestReadCompatibleVersion() {
         return ALL_VERSIONS.get(0);
     }

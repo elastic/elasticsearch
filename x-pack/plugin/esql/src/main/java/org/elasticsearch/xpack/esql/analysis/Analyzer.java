@@ -199,12 +199,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            return resolveIndex(plan, plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution() : context.indexResolution());
+            return resolveIndex(
+                plan,
+                plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution().get(plan.table().index()) : context.indexResolution()
+            );
         }
 
         private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
-            if (indexResolution.isValid() == false) {
-                return plan.unresolvedMessage().equals(indexResolution.toString())
+            if (indexResolution == null || indexResolution.isValid() == false) {
+                String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
+                return plan.unresolvedMessage().equals(indexResolutionMessage)
                     ? plan
                     : new UnresolvedRelation(
                         plan.source(),
@@ -212,7 +216,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
-                        indexResolution.toString(),
+                        indexResolutionMessage,
                         plan.commandName()
                     );
             }

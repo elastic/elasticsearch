@@ -14,8 +14,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -122,6 +125,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -139,6 +144,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -6831,6 +6837,95 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookup.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
+    }
+
+    public void testLookupJoinFieldLoading() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V6.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndexWithFields("first_name", "foo", "bar", "baz");
+
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan("""
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP bar
+            """, data, false);
+
+        var physicalOperations = physicalOperationsFromPhysicalPlan(plan);
+
+        Set<String> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
+
+        assertThat(fields, contains("foo", "baz"));
+    }
+
+    private TestDataSource dataSetWithLookupIndexWithFields(String... fieldNames) {
+        String lookupIndexName = "lookup_index";
+
+        Map<String, EsField> lookup_fields = fields(fieldNames);
+        EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of("lookup_index", IndexMode.LOOKUP));
+
+        return makeTestDataSource(
+            "test",
+            "mapping-basic.json",
+            new EsqlFunctionRegistry(),
+            Map.of(lookupIndexName, IndexResolution.valid(lookupIndex)),
+            setupEnrichResolution(),
+            TEST_SEARCH_STATS
+        );
+    }
+
+    private Map<String, EsField> fields(String... fieldNames) {
+        Map<String, EsField> fields = new HashMap<>();
+
+        for (String fieldName : fieldNames) {
+            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false));
+        }
+
+        return fields;
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan physicalOperationsFromPhysicalPlan(PhysicalPlan plan) {
+        // The TopN needs an estimated row size for the planner to work
+        plan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config).v1();
+        plan = PlannerUtils.localPlan(List.of(), config, plan);
+        LocalExecutionPlanner planner = new LocalExecutionPlanner(
+            "test",
+            "",
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            Settings.EMPTY,
+            config,
+            new ExchangeSourceHandler(10, null, null),
+            null,
+            null,
+            null,
+            new EsPhysicalOperationProviders(List.of(), null)
+        );
+
+        return planner.plan(plan);
+    }
+
+    private Set<String> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
+
+        String[] descriptionLines = physicalOperations.describe().split("\\r?\\n|\\r");
+
+        // Capture the inside of "...load_fields=[field{f}#19, other_field{f}#20]".
+        String insidePattern = "[^\\]]*";
+        Pattern expected = Pattern.compile("\\\\_LookupOperator.*load_fields=\\[(" + insidePattern + ")].*");
+
+        String allFields = null;
+        for (String line : descriptionLines) {
+            var matcher = expected.matcher(line);
+            if (matcher.find()) {
+                allFields = matcher.group(1);
+                break;
+            }
+        }
+        assertNotNull(allFields);
+
+        return Arrays.stream(allFields.split(",")).map(name -> name.trim().split("\\{f}#")[0]).collect(Collectors.toSet());
     }
 
     public void testScore() {

@@ -40,7 +40,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
         testBoundsBlockLoaderAux(
             CoordinateEncoder.CARTESIAN,
             () -> ShapeTestUtils.randomGeometryWithoutCircle(0, false),
-            field -> new CartesianShapeIndexer(field),
+            CartesianShapeIndexer::new,
             SpatialEnvelopeVisitor::visitCartesian
         );
     }

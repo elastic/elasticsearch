@@ -776,5 +776,9 @@ public final class ServiceUtils {
         return requestValue == null ? originalSettingsValue : requestValue;
     }
 
+    public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+    }
+
     private ServiceUtils() {}
 }

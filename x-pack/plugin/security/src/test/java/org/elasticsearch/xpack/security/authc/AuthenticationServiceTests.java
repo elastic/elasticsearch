@@ -1960,14 +1960,15 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
 
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         // An invalid token might decode to something that looks like a UUID
         // Randomise it being invalid because the index doesn't exist, or the document doesn't exist
         if (randomBoolean()) {
-            when(securityIndex.isAvailable(any())).thenReturn(false);
-            when(securityIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
+            when(projectIndex.isAvailable(any())).thenReturn(false);
+            when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
         } else {
-            when(securityIndex.isAvailable(any())).thenReturn(true);
+            when(projectIndex.isAvailable(any())).thenReturn(true);
             doAnswer(inv -> {
                 final GetRequest request = inv.getArgument(0);
                 final ActionListener<GetResponse> listener = inv.getArgument(1);

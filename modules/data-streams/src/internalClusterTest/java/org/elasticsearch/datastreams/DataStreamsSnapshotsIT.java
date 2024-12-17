@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
@@ -1226,8 +1227,27 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
             assertEquals(RestStatus.OK, status);
 
-            assertThat(getSnapshot(REPO, SNAPSHOT).dataStreams(), empty());
-            assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(fsBackingIndexName));
+            SnapshotInfo retrievedSnapshot = getSnapshot(REPO, SNAPSHOT);
+            assertThat(retrievedSnapshot.dataStreams(), contains(dataStreamName));
+            assertThat(retrievedSnapshot.indices(), containsInAnyOrder(fsBackingIndexName));
+
+            assertAcked(
+                safeGet(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*")))
+            );
+
+            RestoreInfo restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices(dataStreamName)
+                .get()
+                .getRestoreInfo();
+
+            assertThat(restoreSnapshotResponse, notNullValue());
+            assertThat(restoreSnapshotResponse.successfulShards(), equalTo(restoreSnapshotResponse.totalShards()));
+            assertThat(restoreSnapshotResponse.failedShards(),is(0));
+
+            GetDataStreamAction.Response.DataStreamInfo dataStream = getDataStreamInfo(dataStreamName).getFirst();
+            assertThat(dataStream.getDataStream().getBackingIndices().getIndices(), not(empty()));
+            assertThat(dataStream.getDataStream().getFailureIndices().getIndices(), empty());
         }
     }
 
@@ -1461,4 +1481,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     }
 
+    protected List<GetDataStreamAction.Response.DataStreamInfo> getDataStreamInfo(String... dataStreamNames) {
+        GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, dataStreamNames);
+        return safeGet(client.execute(GetDataStreamAction.INSTANCE, getRequest)).getDataStreams();
+    }
 }

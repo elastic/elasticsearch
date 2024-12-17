@@ -156,9 +156,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117473
 - class: org.elasticsearch.repositories.s3.RepositoryS3EcsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117525
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: "org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT"
   method: "test {scoring.*}"
   issue: https://github.com/elastic/elasticsearch/issues/117641
@@ -305,6 +302,8 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
   issue: https://github.com/elastic/elasticsearch/issues/118806
+- class: org.elasticsearch.xpack.esql.session.IndexResolverFieldNamesTests
+  issue: https://github.com/elastic/elasticsearch/issues/118814
 
 # Examples:
 #

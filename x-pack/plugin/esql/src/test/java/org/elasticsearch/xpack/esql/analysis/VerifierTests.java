@@ -1974,33 +1974,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN mode verification capability", EsqlCapabilities.Cap.JOIN_LOOKUP_VERIFY_MODE.isEnabled());
-
-        var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
-        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
-        var indexResolutionAsLookup = Map.of("test", indexResolution);
-        var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
-
-        query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
-        query(
-            "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
-            AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
-        );
-
-        assertEquals(
-            "1:70: invalid [test] resolution in lookup mode to an index in [standard] mode",
-            error(
-                "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
-                AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
-            )
-        );
-        assertEquals(
-            "1:25: invalid [test] resolution in lookup mode to an index in [standard] mode",
-            error("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
-        );
-    }
-
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

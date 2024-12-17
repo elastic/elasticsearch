@@ -37,7 +37,7 @@ For example:
 
 [source,sh,subs="attributes"]
 ----
-docker pull {wolfi-docker-image}
+docker pull {docker-wolfi-image}
 ----
 
 ===== Start a single-node cluster

@@ -36,7 +36,6 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
-    // TODO handle geo as well, this is actually bugged, since extracting the result ignores minneg etc.
     public void testCartesianBoundsBlockLoader() throws IOException {
         testBoundsBlockLoaderAux(
             CoordinateEncoder.CARTESIAN,
@@ -46,7 +45,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
         );
     }
 
-    // TODO when we turn this optimization on for geo, handle this as well.
+    // TODO when we turn this optimization on for geo, this test should pass.
     public void ignoreTestGeoBoundsBlockLoader() throws IOException {
         testBoundsBlockLoaderAux(
             CoordinateEncoder.GEO,

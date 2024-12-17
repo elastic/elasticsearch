@@ -112,7 +112,12 @@ public class JobRenormalizedResultsPersister {
                     }
                     if (response.getFailureMessage().contains(IndexMetadata.INDEX_READ_ONLY_BLOCK.desription())) {
                         // We expect this to happen when the old index is made read-only and being reindexed
-                        logger.debug("[{}] Ignoring failure to write renormalized results read-only index [{}]: {}", jobId, response.getFailure().getIndex(), response.getFailureMessage());
+                        logger.debug(
+                            "[{}] Ignoring failure to write renormalized results read-only index [{}]: {}",
+                            jobId,
+                            response.getFailure().getIndex(),
+                            response.getFailureMessage()
+                        );
                     } else {
                         hasNonReadOnlyFailures = true;
                         break;

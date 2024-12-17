@@ -388,17 +388,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 );
             }
             if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
-                if (isReadOnlySupportedVersion(idxMetadata, minSupportedVersion, minReadOnlySupportedVersion)) {
-                    continue;
+                boolean isReadOnlySupported = isReadOnlySupportedVersion(idxMetadata, minSupportedVersion, minReadOnlySupportedVersion);
+                if (isReadOnlySupported == false) {
+                    throw new IllegalStateException(
+                        "index "
+                            + idxMetadata.getIndex()
+                            + " version not supported: "
+                            + idxMetadata.getCompatibilityVersion().toReleaseVersion()
+                            + " minimum compatible index version is: "
+                            + minSupportedVersion.toReleaseVersion()
+                    );
                 }
-                throw new IllegalStateException(
-                    "index "
-                        + idxMetadata.getIndex()
-                        + " version not supported: "
-                        + idxMetadata.getCompatibilityVersion().toReleaseVersion()
-                        + " minimum compatible index version is: "
-                        + minSupportedVersion.toReleaseVersion()
-                );
             }
         }
     }

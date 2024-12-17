@@ -91,10 +91,10 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             false,
             ofEntries(
                 entry("reindex_required", true),
-                entry("total_backing_indicies", oldIndexCount + newIndexCount),
-                entry("indicies_requiring_upgrade_count", oldIndexCount),
+                entry("total_backing_indices", oldIndexCount + newIndexCount),
+                entry("indices_requiring_upgrade_count", oldIndexCount),
                 entry(
-                    "indicies_requiring_upgrade",
+                    "indices_requiring_upgrade",
                     nameToIndexMetadata.keySet()
                         .stream()
                         .filter(name -> name.startsWith("old-data-stream-index-"))

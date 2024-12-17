@@ -24,12 +24,12 @@ public class DataStreamDeprecationChecks {
     static DeprecationIssue oldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
         List<Index> backingIndices = dataStream.getIndices();
 
-        Set<String> indiciesNeedingUpgrade = backingIndices.stream()
-            .filter(index -> clusterState.metadata().index(index).getCompatibilityVersion().before(IndexVersions.V_8_0_0))
+        Set<String> indicesNeedingUpgrade = backingIndices.stream()
+            .filter(index -> clusterState.metadata().index(index).getCreationVersion().onOrBefore(IndexVersions.UPGRADE_TO_LUCENE_10_0_0))
             .map(Index::getName)
             .collect(Collectors.toUnmodifiableSet());
 
-        if (indiciesNeedingUpgrade.isEmpty() == false) {
+        if (indicesNeedingUpgrade.isEmpty() == false) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old data stream with a compatibility version < 8.0",
@@ -38,9 +38,9 @@ public class DataStreamDeprecationChecks {
                 false,
                 ofEntries(
                     entry("reindex_required", true),
-                    entry("total_backing_indicies", backingIndices.size()),
-                    entry("indicies_requiring_upgrade_count", indiciesNeedingUpgrade.size()),
-                    entry("indicies_requiring_upgrade", indiciesNeedingUpgrade)
+                    entry("total_backing_indices", backingIndices.size()),
+                    entry("indices_requiring_upgrade_count", indicesNeedingUpgrade.size()),
+                    entry("indices_requiring_upgrade", indicesNeedingUpgrade)
                 )
             );
         }

@@ -317,6 +317,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         GetStackTracesResponseBuilder responseBuilder,
         EventsIndex eventsIndex
     ) {
+        // We have nested aggregations, which in theory might blow up to MAX_TRACE_EVENTS_RESULT_SIZE^2 items
+        // reported. But we know that the total number of items is limited by our down-sampling to
+        // a maximum of ~100k (MAX_TRACE_EVENTS_RESULT_SIZE is higher to be on the safe side).
         responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
         TermsAggregationBuilder groupByStackTraceId = new TermsAggregationBuilder("group_by")
             // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
@@ -326,6 +329,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
+        TermsAggregationBuilder groupByHostId = new TermsAggregationBuilder("group_by")
+            // 'size' specifies the max number of host ID we support per request.
+            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
+            .field("host.id")
+            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
+            // Especially with high cardinality fields, this makes aggregations really slow.
+            .executionHint("map")
+            .subAggregation(groupByStackTraceId);
         SubGroupCollector subGroups = SubGroupCollector.attach(
             groupByStackTraceId,
             request.getAggregationFields(),
@@ -341,62 +352,74 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(
-                // We have nested aggregations, which in theory might blow up to MAX_TRACE_EVENTS_RESULT_SIZE^2 items
-                // reported. But we know that the total number of items is limited by our down-sampling to
-                // a maximum of ~100k (MAX_TRACE_EVENTS_RESULT_SIZE is higher to be on the safe side).
                 new TermsAggregationBuilder("group_by")
                     // 'size' specifies the max number of host ID we support per request.
                     .size(MAX_TRACE_EVENTS_RESULT_SIZE)
-                    .field("host.id")
+                    .field("process.executable.name")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
-                    .subAggregation(groupByStackTraceId)
+                    .subAggregation(groupByHostId)
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 long totalCount = getAggValueAsLong(searchResponse, "total_count");
 
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
-                Terms hosts = searchResponse.getAggregations().get("group_by");
 
                 // Sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
                 // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
                 // needed to load it.
                 long totalFinalCount = 0;
                 List<HostEventCount> hostEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
+                List<ExecutableEventCount> executableEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
-                for (Terms.Bucket hostBucket : hosts.getBuckets()) {
-                    String hostid = hostBucket.getKeyAsString();
 
-                    Terms stacktraces = hostBucket.getAggregations().get("group_by");
-                    for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
-                        Sum count = stacktraceBucket.getAggregations().get("count");
-                        int finalCount = resampler.adjustSampleCount((int) count.value());
-                        if (finalCount <= 0) {
-                            continue;
+                Terms executableNames = searchResponse.getAggregations().get("group_by");
+                for (Terms.Bucket executableBucket : executableNames.getBuckets()) {
+                    String executableName = executableBucket.getKeyAsString();
+
+                    Terms hosts = executableBucket.getAggregations().get("group_by");
+                    for (Terms.Bucket hostBucket : hosts.getBuckets()) {
+                        String hostid = hostBucket.getKeyAsString();
+
+                        Terms stacktraces = hostBucket.getAggregations().get("group_by");
+                        for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                            Sum count = stacktraceBucket.getAggregations().get("count");
+                            int finalCount = resampler.adjustSampleCount((int) count.value());
+                            if (finalCount <= 0) {
+                                continue;
+                            }
+                            totalFinalCount += finalCount;
+
+                            String stackTraceID = stacktraceBucket.getKeyAsString();
+
+                            /*
+                            The same stacktraces may come from different executables.
+                            We make a list of the triples here.
+                             */
+                            executableEventCounts.add(new ExecutableEventCount(executableName, stackTraceID, finalCount));
+
+                            /*
+                            The same stacktraces may come from different hosts (eventually from different datacenters).
+                            We make a list of the triples here. As soon as we have the host metadata, we can calculate
+                            the CO2 emission and the costs for each TraceEvent.
+                             */
+                            hostEventCounts.add(new HostEventCount(hostid, stackTraceID, finalCount));
+
+                            TraceEvent event = stackTraceEvents.get(stackTraceID);
+                            if (event == null) {
+                                event = new TraceEvent(stackTraceID);
+                                stackTraceEvents.put(stackTraceID, event);
+                            }
+                            event.count += finalCount;
+                            subGroups.collectResults(stacktraceBucket, event);
                         }
-                        totalFinalCount += finalCount;
-
-                        /*
-                        The same stacktraces may come from different hosts (eventually from different datacenters).
-                        We make a list of the triples here. As soon as we have the host metadata, we can calculate
-                        the CO2 emission and the costs for each TraceEvent.
-                         */
-                        String stackTraceID = stacktraceBucket.getKeyAsString();
-                        hostEventCounts.add(new HostEventCount(hostid, stackTraceID, finalCount));
-
-                        TraceEvent event = stackTraceEvents.get(stackTraceID);
-                        if (event == null) {
-                            event = new TraceEvent(stackTraceID);
-                            stackTraceEvents.put(stackTraceID, event);
-                        }
-                        event.count += finalCount;
-                        subGroups.collectResults(stacktraceBucket, event);
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);
                 responseBuilder.setHostEventCounts(hostEventCounts);
+                responseBuilder.setExecutableEventCounts(executableEventCounts);
                 log.debug(
                     "Found [{}] stacktrace events, resampled with sample rate [{}] to [{}] events ([{}] unique stack traces).",
                     totalCount,
@@ -834,4 +857,6 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     record HostEventCount(String hostID, String stacktraceID, int count) {}
+
+    record ExecutableEventCount(String executableName, String stacktraceID, int count) {}
 }

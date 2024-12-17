@@ -1,0 +1,5 @@
+pr: 118802
+summary: ST_EXTENT_AGG binary extent optimization
+area: "ES|QL, Geo"
+type: enhancement
+issues: []

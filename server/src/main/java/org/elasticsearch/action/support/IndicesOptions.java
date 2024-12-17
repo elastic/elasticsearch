@@ -883,8 +883,10 @@ public record IndicesOptions(
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
-            if (allowSelectors()) {
+        if (allowSelectors()) {
+            if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+                backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
                 backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
             }
         }
@@ -924,8 +926,12 @@ public record IndicesOptions(
             options.contains(Option.EXCLUDE_ALIASES)
         );
         boolean allowSelectors = true;
-        // PRTODO: Lets be smarter about allowSelectors default here.
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+        if (in.getTransportVersion()
+            .between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+            // We've effectively replaced the allow failure indices setting with allow selectors. If it is configured on an older version
+            // then use its value for allow selectors.
+            allowSelectors = options.contains(Option.ALLOW_FAILURE_INDICES);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
             allowSelectors = options.contains(Option.ALLOW_SELECTORS);
         }
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
@@ -1309,14 +1315,6 @@ public record IndicesOptions(
      */
     public static IndicesOptions strictExpandOpen() {
         return STRICT_EXPAND_OPEN;
-    }
-
-    /**
-     * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
-     * allows that no indices are resolved from wildcard expressions (not returning an error).
-     */
-    public static IndicesOptions strictExpandOpenIncludeFailureStore() {
-        return STRICT_EXPAND_OPEN_FAILURE_STORE;
     }
 
     /**

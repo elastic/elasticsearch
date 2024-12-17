@@ -70,14 +70,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(resolveAbstractionsSelectorNotAllowed(List.of("index1")), contains("index1"));
         // No selectors allowed, valid selector given
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("index1::data")));
-        // Selectors allowed, valid selector given
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::data")), contains("index1::data"));
-        // Selectors allowed, wildcard selector provided
+        // Selectors allowed, valid selector given, data selector stripped off in result since it is the default
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::data")), contains("index1"));
+        // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
         // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::*")), contains("index1::data"));
-        // Selectors allowed, none given, default to both selectors
-        // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsDefaultBothSelector(List.of("index1::*")), contains("index1::data"));
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::*")), contains("index1"));
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index1::custom")));
 
@@ -93,24 +90,18 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // Selectors allowed, none given
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("<datetime-{now/M}>")),
-            contains(either(equalTo(dateTimeIndexToday + "::data")).or(equalTo(dateTimeIndexTomorrow + "::data")))
+            contains(either(equalTo(dateTimeIndexToday)).or(equalTo(dateTimeIndexTomorrow)))
         );
-        // Selectors allowed, valid selector provided
+        // Selectors allowed, valid selector provided, data selector stripped off in result since it is the default
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("<datetime-{now/M}>::data")),
-            contains(either(equalTo(dateTimeIndexToday + "::data")).or(equalTo(dateTimeIndexTomorrow + "::data")))
+            contains(either(equalTo(dateTimeIndexToday)).or(equalTo(dateTimeIndexTomorrow)))
         );
-        // Selectors allowed, wildcard selector provided
+        // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
         // ** only returns ::data since expression is an index
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("<datetime-{now/M}>::data")),
-            contains(either(equalTo(dateTimeIndexToday + "::data")).or(equalTo(dateTimeIndexTomorrow + "::data")))
-        );
-        // Selectors allowed, none given, default to both selectors
-        // ** only returns ::data since expression is an index
-        assertThat(
-            resolveAbstractionsDefaultBothSelector(List.of("<datetime-{now/M}>::data")),
-            contains(either(equalTo(dateTimeIndexToday + "::data")).or(equalTo(dateTimeIndexTomorrow + "::data")))
+            contains(either(equalTo(dateTimeIndexToday)).or(equalTo(dateTimeIndexTomorrow)))
         );
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("<datetime-{now/M}>::custom")));
@@ -121,14 +112,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(resolveAbstractionsSelectorNotAllowed(List.of("index*")), containsInAnyOrder("index1", "index2"));
         // No selectors allowed, valid selector given
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("index*::data")));
-        // Selectors allowed, valid selector given
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::data")), containsInAnyOrder("index1::data", "index2::data"));
-        // Selectors allowed, wildcard selector provided
+        // Selectors allowed, valid selector given, data selector stripped off in result since it is the default
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::data")), containsInAnyOrder("index1", "index2"));
+        // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
         // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::*")), containsInAnyOrder("index1::data", "index2::data"));
-        // Selectors allowed, none given, default to both selectors
-        // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsDefaultBothSelector(List.of("index*::*")), containsInAnyOrder("index1::data", "index2::data"));
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::*")), containsInAnyOrder("index1", "index2"));
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index*::custom")));
 
@@ -142,15 +130,10 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(resolveAbstractionsSelectorAllowed(List.of("data-stream1::failures")), contains("data-stream1::failures"));
         // Selectors allowed, wildcard selector provided
         // ** returns both ::data and ::failures since expression is a data stream
+        // ** data selector stripped off in result since it is the default
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("data-stream1::*")),
-            containsInAnyOrder("data-stream1::data", "data-stream1::failures")
-        );
-        // Selectors allowed, none given, default to both selectors
-        // ** returns both ::data and ::failures since expression is a data stream
-        assertThat(
-            resolveAbstractionsDefaultBothSelector(List.of("data-stream1::*")),
-            containsInAnyOrder("data-stream1::data", "data-stream1::failures")
+            containsInAnyOrder("data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("data-stream1::custom")));
@@ -167,13 +150,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // ** returns both ::data and ::failures since expression is a data stream
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("data-stream*::*")),
-            containsInAnyOrder("data-stream1::data", "data-stream1::failures")
-        );
-        // Selectors allowed, none given, default to both selectors
-        // ** returns both ::data and ::failures since expression is a data stream
-        assertThat(
-            resolveAbstractionsDefaultBothSelector(List.of("data-stream*::*")),
-            containsInAnyOrder("data-stream1::data", "data-stream1::failures")
+            containsInAnyOrder("data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("data-stream*::custom")));
@@ -188,7 +165,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // ::data selector returns all values with data component
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("*::data")),
-            containsInAnyOrder("index1::data", "index2::data", "data-stream1::data")
+            containsInAnyOrder("index1", "index2", "data-stream1")
         );
         // Selectors allowed, valid selector given
         // ::failures selector returns only data streams, which can have failure components
@@ -197,13 +174,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // ** returns both ::data and ::failures for applicable abstractions
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("*::*")),
-            containsInAnyOrder("index1::data", "index2::data", "data-stream1::data", "data-stream1::failures")
-        );
-        // Selectors allowed, none given, default to both selectors
-        // ** returns both ::data and ::failures for applicable abstractions
-        assertThat(
-            resolveAbstractionsDefaultBothSelector(List.of("*")),
-            containsInAnyOrder("index1::data", "index2::data", "data-stream1::data", "data-stream1::failures")
+            containsInAnyOrder("index1", "index2", "data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("*::custom")));
@@ -222,16 +193,13 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // ** limits the returned values based on selectors
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("*::*", "-*::failures")),
-            containsInAnyOrder("index1::data", "index2::data", "data-stream1::data")
+            containsInAnyOrder("index1", "index2", "data-stream1")
         );
-        // Selectors allowed, none given, default to both selectors
-        // ** limits the returned values based on selectors
-        assertThat(resolveAbstractionsDefaultBothSelector(List.of("*", "-*::data")), containsInAnyOrder("data-stream1::failures"));
         // Selectors allowed, none given, default to both selectors
         // ** limits the returned values based on selectors
         assertThat(
             resolveAbstractionsSelectorAllowed(List.of("*", "-*::failures")),
-            containsInAnyOrder("index1::data", "index2::data", "data-stream1::data")
+            containsInAnyOrder("index1", "index2", "data-stream1")
         );
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("*", "-*::custom")));
@@ -268,10 +236,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
     private List<String> resolveAbstractionsSelectorAllowed(List<String> expressions) {
         return resolveAbstractions(expressions, IndicesOptions.strictExpandOpen(), defaultMask);
-    }
-
-    private List<String> resolveAbstractionsDefaultBothSelector(List<String> expressions) {
-        return resolveAbstractions(expressions, IndicesOptions.strictExpandOpenIncludeFailureStore(), defaultMask);
     }
 
     private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {

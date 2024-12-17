@@ -44,7 +44,7 @@ public class RepositoryS3ImdsV1CredentialsRestIT extends AbstractRepositoryS3Res
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME, ec2ImdsHttpFixture::getAddress)
+        .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", ec2ImdsHttpFixture::getAddress)
         .build();
 
     @ClassRule

@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.querydsl.query;
+package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Booleans;
@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;

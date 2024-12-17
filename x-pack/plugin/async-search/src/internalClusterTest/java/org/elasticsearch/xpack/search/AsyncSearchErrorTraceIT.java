@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,7 +38,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         return List.of(AsyncSearch.class);
     }
 
-    private AtomicBoolean hasStackTrace;
+    private AtomicBoolean transportMessageHasStackTrace;
 
     @Before
     private void setupMessageListener() {
@@ -51,7 +52,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                             error,
                             t -> t.getStackTrace().length > 0
                         );
-                        hasStackTrace.set(throwable.isPresent());
+                        transportMessageHasStackTrace.set(throwable.isPresent());
                     }
                 }
             });
@@ -69,7 +70,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     }
 
     public void testAsyncSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
+        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -83,18 +84,18 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
                 }
             }
             """);
-        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        searchRequest.addParameter("keep_on_completion", "true");
         Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
         String asyncExecutionId = (String) responseEntity.get("id");
         Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
         while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
             responseEntity = performRequestAndGetResponseEntity(request);
         }
-        assertFalse(hasStackTrace.get());
+        assertFalse(transportMessageHasStackTrace.get());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
+        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -109,7 +110,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "true");
-        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        searchRequest.addParameter("keep_on_completion", "true");
         Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
         String asyncExecutionId = (String) responseEntity.get("id");
         Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -117,11 +118,11 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
             responseEntity = performRequestAndGetResponseEntity(request);
         }
-        assertTrue(hasStackTrace.get());
+        assertTrue(transportMessageHasStackTrace.get());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
+        transportMessageHasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_async_search");
@@ -136,7 +137,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "false");
-        searchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        searchRequest.addParameter("keep_on_completion", "true");
         Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
         String asyncExecutionId = (String) responseEntity.get("id");
         Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -144,11 +145,66 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
             responseEntity = performRequestAndGetResponseEntity(request);
         }
-        assertFalse(hasStackTrace.get());
+        assertFalse(transportMessageHasStackTrace.get());
+    }
+
+    public void testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet() throws IOException {
+        transportMessageHasStackTrace = new AtomicBoolean();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_async_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
+            }
+            """);
+        searchRequest.addParameter("error_trace", "false");
+        searchRequest.addParameter("keep_on_completion", "true");
+        Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
+        String asyncExecutionId = (String) responseEntity.get("id");
+        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+        request.addParameter("error_trace", "true");
+        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+            responseEntity = performRequestAndGetResponseEntity(request);
+        }
+        assertFalse(transportMessageHasStackTrace.get());
+    }
+
+    public void testAsyncSearchFailingQueryErrorTraceTrueOnSubmitAndFalseOnGet() throws IOException {
+        transportMessageHasStackTrace = new AtomicBoolean();
+        setupIndexWithDocs();
+
+        Request searchRequest = new Request("POST", "/_async_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "simple_query_string" : {
+                        "query": "foo",
+                        "fields": ["field"]
+                    }
+                }
+            }
+            """);
+        searchRequest.addParameter("error_trace", "true");
+        searchRequest.addParameter("keep_on_completion", "true");
+        Map<String, Object> responseEntity = performRequestAndGetResponseEntity(searchRequest);
+        String asyncExecutionId = (String) responseEntity.get("id");
+        Request request = new Request("GET", "/_async_search/" + asyncExecutionId);
+        request.addParameter("error_trace", "false");
+        while (responseEntity.get("is_running") instanceof Boolean isRunning && isRunning) {
+            responseEntity = performRequestAndGetResponseEntity(request);
+        }
+        assertTrue(transportMessageHasStackTrace.get());
     }
 
     private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {
         Response response = getRestClient().performRequest(r);
+        ObjectPath.createFromResponse(response);
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         return XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(), false);
     }

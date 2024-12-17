@@ -58,7 +58,7 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(VERSION_MINUS_2)
-        .nodes(1)
+        .nodes(2)
         .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")

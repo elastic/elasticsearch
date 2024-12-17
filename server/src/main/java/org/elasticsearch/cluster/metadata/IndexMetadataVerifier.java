@@ -144,16 +144,16 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * Returns {@code true} if the index version is compatible in read-only mode. As of today, only searchable snapshots indices in version
-     * N-2 with a write block are read-only compatible. This method throws an {@link IllegalStateException} is the index is a searchable
-     * snapshot index with a read-only compatible version but is missing the write block.
+     * Returns {@code true} if the index version is compatible in read-only mode. As of today, only searchable snapshots and archive indices
+     * in version N-2 with a write block are read-only compatible. This method throws an {@link IllegalStateException} if the index is
+     * either a searchable snapshot or an archive index with a read-only compatible version but is missing the write block.
      *
      * @param indexMetadata                         the index metadata
      * @param minimumIndexCompatibilityVersion      the min. index compatible version for reading and writing indices (used in assertion)
      * @param minReadOnlyIndexCompatibilityVersion  the min. index compatible version for only reading indices
      *
      * @return {@code true} if the index version is compatible in read-only mode, {@code false} otherwise.
-     * @throws IllegalStateException if the index has no write block in place.
+     * @throws IllegalStateException if the index is read-only compatible but has no write block in place.
      */
     public static boolean isReadOnlySupportedVersion(
         IndexMetadata indexMetadata,
@@ -163,13 +163,16 @@ public class IndexMetadataVerifier {
         boolean isReadOnlySupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minReadOnlyIndexCompatibilityVersion);
         assert isFullySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion) == false;
 
-        if (isReadOnlySupportedVersion && indexMetadata.isSearchableSnapshot()) {
+        if (isReadOnlySupportedVersion
+            && (indexMetadata.isSearchableSnapshot() || indexMetadata.getCreationVersion().isLegacyIndexVersion())) {
             boolean isReadOnly = IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
             if (isReadOnly == false) {
                 throw new IllegalStateException(
                     "The index "
                         + indexMetadata.getIndex()
-                        + " with current compatibility version ["
+                        + " created in version ["
+                        + indexMetadata.getCreationVersion()
+                        + "] with current compatibility version ["
                         + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                         + "] must be marked as read-only using the setting ["
                         + IndexMetadata.SETTING_BLOCKS_WRITE

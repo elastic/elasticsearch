@@ -555,7 +555,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY yr = BUCKET(nanos, 1 year);
+| STATS ct = count(*) BY yr = BUCKET(nanos, 1 year)
+| SORT yr DESC;
 
 ct:long | yr:date_nanos
 8       | 2023-01-01T00:00:00.000000000Z 
@@ -567,7 +568,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW());
+| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW())
+| SORT yr DESC;
 
 ct:long | yr:date_nanos
 8       | 2023-01-01T00:00:00.000000000Z 
@@ -579,7 +581,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mo = BUCKET(nanos, 1 month);
+| STATS ct = count(*) BY mo = BUCKET(nanos, 1 month)
+| SORT mo DESC;
 
 ct:long | mo:date_nanos
 8       | 2023-10-01T00:00:00.000000000Z 
@@ -591,7 +594,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31");
+| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31")
+| SORT mo DESC;
 
 ct:long | mo:date_nanos
 8       | 2023-10-01T00:00:00.000000000Z 
@@ -603,18 +607,21 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31");
+| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31")
+| SORT mo DESC;
 
 ct:long | mo:date_nanos
 8       | 2023-10-23T00:00:00.000000000Z 
 ;
+
 Bucket Date nanos by 10 minutes
 required_capability: date_trunc_date_nanos
 required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mn = BUCKET(nanos, 10 minutes);
+| STATS ct = count(*) BY mn = BUCKET(nanos, 10 minutes)
+| SORT mn DESC;
 
 ct:long | mn:date_nanos                 
 4       | 2023-10-23T13:50:00.000000000Z

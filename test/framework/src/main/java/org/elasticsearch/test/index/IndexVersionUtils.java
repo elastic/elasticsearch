@@ -53,7 +53,7 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion(Random random) {
-        //TODO provide a variant of this that includes read only versions?
+        // TODO provide a variant of this that includes read only versions?
         return WRITE_VERSIONS.get(random.nextInt(WRITE_VERSIONS.size()));
     }
 

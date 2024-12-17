@@ -177,9 +177,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     /**
      * This creates a temporary index with the mappings of the index in the request, and then attempts to index the source from the request
      * into it. If there is a mapping exception, that exception is returned. On success the returned exception is null.
-     * @parem componentTemplateSubstitutions The component template definitions to use in place of existing ones for validation
+     * @param componentTemplateSubstitutions The component template definitions to use in place of existing ones for validation
      * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
-     * @return a mapping exception if the source does not match the mappings, otherwise null
+     * @return a Tuple containing: (1) in v1 the names of any fields that would be ignored upon indexing and (2) in v2 the mapping
+     * exception if the source does not match the mappings, otherwise null
      */
     private Tuple<Collection<String>, Exception> validateMappings(
         Map<String, ComponentTemplate> componentTemplateSubstitutions,
@@ -327,7 +328,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     /*
-     * Validates that when updatedMappings are applied
+     * Validates that when updatedMappings are applied. If any fields would be ignored while indexing, then those field names are returned.
+     * Otherwise the returned Collection is empty.
      */
     private Collection<String> validateUpdatedMappings(
         @Nullable CompressedXContent originalMappings,

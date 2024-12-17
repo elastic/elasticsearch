@@ -12,11 +12,13 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -49,7 +51,6 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
                 project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, elasticsearchCoreProject);
             }
         }
-
         TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()
             .register("thirdPartyAuditResources", ExportElasticsearchBuildResourcesTask.class);
         Path resourcesDir = project.getBuildDir().toPath().resolve("third-party-audit-config");

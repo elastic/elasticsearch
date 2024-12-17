@@ -18,6 +18,7 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.AndSpec;
 import org.gradle.api.specs.Spec;
 
@@ -32,7 +33,7 @@ public class DependenciesUtils {
     ) {
         ResolvableDependencies incoming = configuration.getIncoming();
         return incoming.artifactView(viewConfiguration -> {
-            Set<ComponentIdentifier> firstLevelDependencyComponents = incoming.getResolutionResult()
+            Provider<Set<ComponentIdentifier>> firstLevelDependencyComponents = incoming.getResolutionResult()
                 .getRootComponent()
                 .map(
                     rootComponent -> rootComponent.getDependencies()
@@ -42,10 +43,9 @@ public class DependenciesUtils {
                         .filter(dependency -> dependency.getSelected() instanceof ResolvedComponentResult)
                         .map(dependency -> dependency.getSelected().getId())
                         .collect(Collectors.toSet())
-                )
-                .get();
+                );
             viewConfiguration.componentFilter(
-                new AndSpec<>(identifier -> firstLevelDependencyComponents.contains(identifier), componentFilter)
+                new AndSpec<>(identifier -> firstLevelDependencyComponents.get().contains(identifier), componentFilter)
             );
         }).getFiles();
     }
@@ -59,7 +59,7 @@ public class DependenciesUtils {
         ResolvableDependencies incoming = configuration.getIncoming();
         return incoming.artifactView(v -> {
             // resolve componentIdentifier for all shadowed project dependencies
-            Set<ComponentIdentifier> shadowedDependencies = incoming.getResolutionResult()
+            Provider<Set<ComponentIdentifier>> shadowedDependencies = incoming.getResolutionResult()
                 .getRootComponent()
                 .map(
                     root -> root.getDependencies()
@@ -70,10 +70,9 @@ public class DependenciesUtils {
                         .filter(dep -> dep.getSelected() instanceof ResolvedComponentResult)
                         .map(dep -> dep.getSelected().getId())
                         .collect(Collectors.toSet())
-                )
-                .get();
+                );
             // filter out project dependencies if they are not a shadowed dependency
-            v.componentFilter(i -> (i instanceof ProjectComponentIdentifier == false || shadowedDependencies.contains(i)));
+            v.componentFilter(i -> (i instanceof ProjectComponentIdentifier == false || shadowedDependencies.get().contains(i)));
         }).getFiles();
     }
 }

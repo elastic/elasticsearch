@@ -17,7 +17,7 @@ Refer to the <<logs-data-stream,documentation>> for further information.
 
 [discrete]
 [[elastic-rerank]]
-==== Elastic Rerank
+=== Elastic Rerank
 In 8.17, we are introducing {ml-docs}/ml-nlp-rerank.html[Elastic Rerank], Elastic’s new model for semantic reranking. Reranking can be used as the second stage on top of your existing search approach, whether this is lexical search, ELSER, or dense embeddings, resulting in significant semantic relevance gains mainly via recall improvements. This is very important for RAG applications, where you want to send the most relevant information to an LLM in order to generate the possible responses.
 
 Elastic Rerank is a cross-encoder architecture and it is in technical preview in 8.17.
@@ -30,12 +30,12 @@ For more information on the Elastic Rerank model architecture and how it compare
 
 [discrete]
 [[pre-configured-elser-endpoint]]
-==== Pre-configured default ELSER endpoint
+=== Pre-configured default ELSER endpoint
 With this release, we are introducing a pre-configured default ELSER endpoint. This removes the need for any inference configuration in order to use ELSER. There is no more need for an inference endpoint setup or for downloading the model and configuring threads and allocations through the trained models UI. Simply create a <<semantic-text,semantic text>> mapping with your indices and start using it. The default inference endpoint will download, deploy and start using ELSER for inference with  {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations] out of the box.
 
 [discrete]
 [[full-text-search-esql]]
-==== Full-text search for ES|QL
+=== Full-text search for ES|QL
 
 The technical preview of the new `MATCH` and `QSTR` (query string) functions in ES|QL makes log searches easier and more intuitive. `MATCH` delivers full-text search functionality in ES|QL using a Lucene match query, while `QTSR` aids in more advanced filtering of log data by enabling Lucene query string queries. 
 

@@ -9,7 +9,7 @@ setup:
           capabilities: [ 'failure_store_in_template' ]
         - method: POST
           path: /{index}/_rollover
-          capabilities: [ 'lazy-rollover-failure-store' ]
+          capabilities: [ 'lazy-rollover-failure-store', 'index-expression-selectors' ]
 
   - do:
       allowed_warnings:

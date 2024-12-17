@@ -1322,10 +1322,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         // wildcards get replaced on each single action
-        assertThat(
-            request.indices(),
-            arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "foofoo-closed")
-        );
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "foofoo-closed"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
@@ -1353,15 +1350,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
-        assertThat(
-            indices,
-            containsInAnyOrder("alias1", "foofoo", "foofoobar", "foobarfoo", "bar", "missing")
-        );
+        assertThat(indices, containsInAnyOrder("alias1", "foofoo", "foofoobar", "foobarfoo", "bar", "missing"));
         // wildcards get replaced on each single action
-        assertThat(
-            request.indices(),
-            arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "bar", "missing")
-        );
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "bar", "missing"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
@@ -2081,10 +2072,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             metadata,
             authorizedIndices
         );
-        assertThat(
-            resolvedIndices.getLocal(),
-            contains(oneOf("date-hidden-" + todaySuffix, "date-hidden-" + tomorrowSuffix))
-        );
+        assertThat(resolvedIndices.getLocal(), contains(oneOf("date-hidden-" + todaySuffix, "date-hidden-" + tomorrowSuffix)));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
     }
 
@@ -2148,10 +2136,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             metadata,
             authorizedIndices
         );
-        assertThat(
-            resolvedIndices.getLocal(),
-            containsInAnyOrder(".alias-hidden", ".alias-hidden-datemath-" + todaySuffix)
-        );
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden", ".alias-hidden-datemath-" + todaySuffix));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (visible only)

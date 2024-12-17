@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
@@ -50,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -936,6 +939,82 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         assertEquals(1, indices.size());
         assertEquals(DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp), indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
+    }
+
+    /**
+     * Tests that a single document survives. Super basic smoke test.
+     */
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // Can be removed
+    public void testDisableFieldNameField() throws IOException {
+        assumeFalse(
+            "can only disable field names field before 8.0",
+            oldClusterHasFeature(RestTestLegacyFeatures.DISABLE_FIELD_NAMES_FIELD_REMOVED)
+        );
+
+        String docLocation = "/nofnf/_doc/1";
+        String doc = """
+            {
+              "dv": "test",
+              "no_dv": "test"
+            }""";
+
+        if (isRunningAgainstOldCluster()) {
+            Request createIndex = new Request("PUT", "/nofnf");
+            createIndex.setJsonEntity("""
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_replicas": 1
+                    }
+                  },
+                  "mappings": {
+                    "_field_names": { "enabled": false },
+                    "properties": {
+                      "dv": { "type": "keyword" },
+                      "no_dv": { "type": "keyword", "doc_values": false }
+                    }
+                  }
+                }""");
+            createIndex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
+            client().performRequest(createIndex);
+
+            Request createDoc = new Request("PUT", docLocation);
+            createDoc.addParameter("refresh", "true");
+            createDoc.setJsonEntity(doc);
+            client().performRequest(createDoc);
+        }
+
+        Request getRequest = new Request("GET", docLocation);
+        assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
+
+        if (isRunningAgainstOldCluster() == false) {
+            Request esql = new Request("POST", "_query");
+            esql.setJsonEntity("""
+                {
+                  "query": "FROM nofnf | LIMIT 1"
+                }""");
+            // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
+            try {
+                Map<String, Object> result = entityAsMap(client().performRequest(esql));
+                MapMatcher mapMatcher = matchesMap();
+                if (result.get("took") != null) {
+                    mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
+                }
+                assertMap(
+                    result,
+                    mapMatcher.entry(
+                        "columns",
+                        List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
+                    ).entry("values", List.of(List.of("test", "test")))
+                );
+            } catch (ResponseException e) {
+                logger.error(
+                    "failed to query index without field name field. Existing indices:\n{}",
+                    EntityUtils.toString(client().performRequest(new Request("GET", "_cat/indices")).getEntity())
+                );
+                throw e;
+            }
+        }
     }
 
     /**

@@ -70,6 +70,8 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.authc.support to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.rest.action.apikey to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.support to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.authz.store to org.elasticsearch.internal.security;
 
     provides org.elasticsearch.index.SlowLogFieldProvider with org.elasticsearch.xpack.security.slowlog.SecuritySlowLogFieldProvider;
 

@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -101,11 +100,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("Setting write block on source index [{}]", sourceIndexName);
-        final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
-        var updateSettingsRequest = new UpdateSettingsRequest(readOnlySettings, sourceIndexName);
-        client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
+        addBlockToIndex(WRITE, sourceIndexName, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse response) {
+            public void onResponse(AddIndexBlockResponse response) {
                 if (response.isAcknowledged()) {
                     listener.onResponse(null);
                 } else {
@@ -117,7 +114,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof ClusterBlockException || e.getCause() instanceof ClusterBlockException) {
-                    // It's fine if read-only is already set
+                    // It's fine if block-writes is already set
                     listener.onResponse(null);
                 } else {
                     listener.onFailure(e);
@@ -170,19 +167,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         ActionListener<AddIndexBlockResponse> listener
     ) {
         if (settingsBefore.getAsBoolean(block.settingName(), false)) {
-            var errorMessage = String.format(
-                Locale.ROOT,
-                "Attempt to add [%s] block to index [%s] was not acknowledged",
-                block.name(),
-                destIndexName
-            );
-            client.admin()
-                .indices()
-                .execute(
-                    TransportAddIndexBlockAction.TYPE,
-                    new AddIndexBlockRequest(block, destIndexName),
-                    failIfNotAcknowledged(listener, errorMessage)
-                );
+            var errorMessage = String.format(Locale.ROOT, "Add [%s] block to index [%s] was not acknowledged", block.name(), destIndexName);
+            addBlockToIndex(block, destIndexName, failIfNotAcknowledged(listener, errorMessage));
         } else {
             listener.onResponse(null);
         }
@@ -203,5 +189,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                 delegate.onFailure(new ElasticsearchException(errorMessage));
             }
         });
+    }
+
+    private void addBlockToIndex(IndexMetadata.APIBlock block, String index, ActionListener<AddIndexBlockResponse> listener) {
+        client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(block, index), listener);
     }
 }

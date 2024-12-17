@@ -126,12 +126,14 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
     }
 
-    public void testSetSourceToReadOnly() throws Exception {
+    public void testSetSourceToBlockWrites() throws Exception {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var settings = randomBoolean() ? Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build() : Settings.EMPTY;
 
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).get();
 
         // call reindex
         client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();

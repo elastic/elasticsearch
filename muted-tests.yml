@@ -449,3 +449,6 @@ tests:
 - class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
   method: testPruneSome
   issue: https://github.com/elastic/elasticsearch/issues/118728
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
+  method: test {docs.testFilterToday}
+  issue: https://github.com/elastic/elasticsearch/issues/118810

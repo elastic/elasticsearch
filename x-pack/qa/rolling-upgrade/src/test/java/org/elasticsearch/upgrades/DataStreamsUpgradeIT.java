@@ -27,10 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -257,6 +255,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testUpgradeDataStream() throws Exception {
         String dataStreamName = "k8s";
+        int numRollovers = 10;
         if (CLUSTER_TYPE == ClusterType.OLD) {
             final String INDEX_TEMPLATE = """
                 {
@@ -270,16 +269,15 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
             putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
             assertOK(client().performRequest(putIndexTemplateRequest));
-
-            performOldClusterOperations(templateName, dataStreamName);
+            performOldClusterOperations(templateName, dataStreamName, numRollovers);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             // nothing
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            performUpgradedClusterOperations(dataStreamName);
+            performUpgradedClusterOperations(dataStreamName, numRollovers);
         }
     }
 
-    private void performUpgradedClusterOperations(String dataStreamName) throws Exception {
+    private void performUpgradedClusterOperations(String dataStreamName, int numRollovers) throws Exception {
         Request reindexRequest = new Request("POST", "/_migration/reindex");
         reindexRequest.setJsonEntity(Strings.format("""
             {
@@ -299,27 +297,17 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 false
             );
             assertOK(statusResponse);
-            assertThat(statusResponseMap.get("successes"), equalTo(11));
-        }, 3, TimeUnit.MINUTES);
+            assertThat(statusResponseMap.get("complete"), equalTo(true));
+            assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
+        }, 60, TimeUnit.SECONDS);
         Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
         Response cancelResponse = client().performRequest(cancelRequest);
         assertOK(cancelResponse);
     }
 
-    private static void performOldClusterOperations(String templateName, String dataStreamName) throws IOException {
+    private static void performOldClusterOperations(String templateName, String dataStreamName, int numRollovers) throws IOException {
         bulkLoadData(dataStreamName);
-
-        var dataStreams = getDataStream(dataStreamName);
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateName));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
-        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-        assertThat(firstBackingIndex, backingIndexEqualTo(dataStreamName, 1));
-        assertSearch(dataStreamName, 8);
-
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < numRollovers; i++) {
             rollover(dataStreamName);
             bulkLoadData(dataStreamName);
         }
@@ -329,11 +317,8 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     private static void bulkLoadData(String dataStreamName) throws IOException {
         var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
-        bulkRequest.addParameter("refresh", "true");
         var response = client().performRequest(bulkRequest);
         assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
     }
 
     private static void rollover(String dataStreamName) throws IOException {

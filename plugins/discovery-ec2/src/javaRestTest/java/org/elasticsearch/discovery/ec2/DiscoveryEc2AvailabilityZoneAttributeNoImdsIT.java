@@ -9,6 +9,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.util.EC2MetadataUtils;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -29,6 +31,8 @@ public class DiscoveryEc2AvailabilityZoneAttributeNoImdsIT extends ESRestTestCas
     }
 
     public void testAvailabilityZoneAttribute() throws IOException {
+        assumeTrue("test only in non-AWS environment", EC2MetadataUtils.getInstanceId() == null);
+
         final var nodesInfoResponse = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "/_nodes/_all/_none")));
         for (final var nodeId : nodesInfoResponse.evaluateMapKeys("nodes")) {
             assertNull(nodesInfoResponse.evaluateExact("nodes", nodeId, "attributes", "aws_availability_zone"));

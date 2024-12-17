@@ -207,6 +207,7 @@ public class IndexNameExpressionResolver {
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         // PRTODO: We should assert that callers of this have selectors disallowed, and direct them to the other method if they do.
+        // SnapshotService CreateSnapshotRequest
         return dataStreams(state, options, indexExpressions).stream().map(ResolvedExpression::resource).distinct().toList();
     }
 
@@ -249,8 +250,8 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-
-        // PRTODO: FIXME We will likely want to return an abstraction here that respects the selector returned from expression resolution
+        assert request.indicesOptions().allowSelectors() == false
+            : "Cannot resolve write abstractions on an API that allows index selectors";
         final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.index());
 
         if (expressions.size() == 1) {
@@ -591,15 +592,11 @@ public class IndexNameExpressionResolver {
             }
         }
         if (shouldIncludeFailureIndices(context.getOptions(), selector)) {
-            // We short-circuit here, if failure indices are not allowed and they can be skipped
-            // PRTODO: Not sure why we have this ignore unavailable and allow selectors is now always true at this point in the logic
-            if (context.getOptions().allowSelectors() || context.getOptions().ignoreUnavailable() == false) {
-                List<Index> failureIndices = dataStream.getFailureIndices().getIndices();
-                for (int i = 0, n = failureIndices.size(); i < n; i++) {
-                    Index index = failureIndices.get(i);
-                    if (shouldTrackConcreteIndex(context, index)) {
-                        concreteIndicesResult.add(index);
-                    }
+            List<Index> failureIndices = dataStream.getFailureIndices().getIndices();
+            for (int i = 0, n = failureIndices.size(); i < n; i++) {
+                Index index = failureIndices.get(i);
+                if (shouldTrackConcreteIndex(context, index)) {
+                    concreteIndicesResult.add(index);
                 }
             }
         }

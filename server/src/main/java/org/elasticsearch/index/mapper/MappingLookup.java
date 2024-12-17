@@ -131,7 +131,7 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
         Collection<PassThroughObjectMapper> passThroughMappers,
-        IndexSettings indexSettings
+        @Nullable IndexSettings indexSettings
     ) {
         return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers, indexSettings);
     }
@@ -140,7 +140,7 @@ public final class MappingLookup {
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        IndexSettings indexSettings
+        @Nullable IndexSettings indexSettings
     ) {
         return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexSettings);
     }
@@ -151,7 +151,7 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
         Collection<PassThroughObjectMapper> passThroughMappers,
-        IndexSettings indexSettings
+        @Nullable IndexSettings indexSettings
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;

@@ -470,8 +470,8 @@ public abstract class DocumentParserContext {
         return copyToFields;
     }
 
-    public DocumentParser.Listeners.AutoEndEventSender publishEvent(DocumentParserListener.Event event) throws IOException {
-        return listeners.publish(event, this);
+    public void publishEvent(DocumentParserListener.Event event) throws IOException {
+        listeners.publish(event, this);
     }
 
     public void finishListeners() {

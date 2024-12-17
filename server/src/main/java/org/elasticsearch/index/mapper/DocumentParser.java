@@ -45,6 +45,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -62,10 +63,22 @@ public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
+    private final BiFunction<MappingLookup, XContentType, Listeners> listenersFactory;
 
     DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+        this.listenersFactory = this::createDefaultListeners;
+    }
+
+    DocumentParser(
+        XContentParserConfiguration parserConfiguration,
+        MappingParserContext mappingParserContext,
+        BiFunction<MappingLookup, XContentType, Listeners> listenersFactory
+    ) {
+        this.mappingParserContext = mappingParserContext;
+        this.parserConfiguration = parserConfiguration;
+        this.listenersFactory = listenersFactory;
     }
 
     /**
@@ -83,12 +96,7 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        Listeners listeners = Listeners.NOOP;
-        if (mappingLookup.isSourceSynthetic() && mappingParserContext.getIndexSettings().getSkipIgnoredSourceWrite() == false) {
-            listeners = new Listeners.ListenerCollection(
-                List.of(new SyntheticSourceDocumentParserListener(mappingLookup, mappingParserContext.getIndexSettings(), xContentType))
-            );
-        }
+        Listeners listeners = listenersFactory.apply(mappingLookup, xContentType);
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (XContentParser parser = meteringParserDecorator.decorate(createParser(source, xContentType, listeners))) {
@@ -124,6 +132,14 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    private Listeners createDefaultListeners(MappingLookup mappingLookup, XContentType xContentType) {
+        if (mappingLookup.isSourceSynthetic() && mappingParserContext.getIndexSettings().getSkipIgnoredSourceWrite() == false) {
+            return new Listeners.ListenerCollection(List.of(new SyntheticSourceDocumentParserListener(mappingLookup, xContentType)));
+        }
+
+        return Listeners.NOOP;
     }
 
     private XContentParser createParser(SourceToParse sourceToParse, XContentType xContentType, Listeners listeners) throws IOException {
@@ -182,8 +198,12 @@ public final class DocumentParser {
         }
     }
 
+    /**
+     * Encapsulates listeners that are subscribed to this document parser. This allows to generalize logic without knowing
+     * how many listeners are present (and if they are present at all).
+     */
     public interface Listeners {
-        AutoEndEventSender publish(DocumentParserListener.Event event, DocumentParserContext context) throws IOException;
+        void publish(DocumentParserListener.Event event, DocumentParserContext context) throws IOException;
 
         void publish(DocumentParserListener.Token token) throws IOException;
 
@@ -193,15 +213,12 @@ public final class DocumentParser {
 
         boolean anyActive();
 
-        interface AutoEndEventSender extends AutoCloseable {
-            void close() throws IOException;
-        }
-
+        /**
+         * No listeners are present.
+         */
         Listeners NOOP = new Listeners() {
             @Override
-            public AutoEndEventSender publish(DocumentParserListener.Event event, DocumentParserContext context) {
-                return null;
-            }
+            public void publish(DocumentParserListener.Event event, DocumentParserContext context) {}
 
             @Override
             public void publish(DocumentParserListener.Token token) {
@@ -224,6 +241,9 @@ public final class DocumentParser {
             }
         };
 
+        /**
+         * One or more listeners are present.
+         */
         class ListenerCollection implements Listeners {
             private final Collection<DocumentParserListener> listeners;
 
@@ -234,14 +254,12 @@ public final class DocumentParser {
             }
 
             @Override
-            public AutoEndEventSender publish(DocumentParserListener.Event event, DocumentParserContext context) throws IOException {
+            public void publish(DocumentParserListener.Event event, DocumentParserContext context) throws IOException {
                 anyActive = false;
                 for (DocumentParserListener l : listeners) {
                     l.consume(event);
                     anyActive |= l.isActive();
                 }
-
-                return null;
             }
 
             @Override
@@ -273,25 +291,6 @@ public final class DocumentParser {
             @Override
             public boolean anyActive() {
                 return anyActive;
-            }
-
-            private void sendCorrespondingEndEvent(DocumentParserListener.Event event) throws IOException {
-                switch (event) {
-                    case DocumentParserListener.Event.ObjectArrayStart objectArrayStart -> publish(
-                        new DocumentParserListener.Event.ObjectArrayEnd(),
-                        null
-                    );
-                    case DocumentParserListener.Event.ObjectStart objectStart -> publish(
-                        new DocumentParserListener.Event.ObjectEnd(objectStart.objectMapper()),
-                        null
-                    );
-                    case DocumentParserListener.Event.LeafArrayStart leafArrayStart -> publish(
-                        new DocumentParserListener.Event.LeafArrayEnd(),
-                        null
-                    );
-                    default -> {
-                    }
-                }
             }
         }
     }
@@ -583,13 +582,10 @@ public final class DocumentParser {
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper objectMapper) {
-            try (
-                var endSender = context.publishEvent(
-                    new DocumentParserListener.Event.ObjectStart(objectMapper, context.inArrayScope(), context.parent(), context.doc())
-                )
-            ) {
-                parseObjectOrNested(context.createChildContext(objectMapper));
-            }
+            context.publishEvent(
+                new DocumentParserListener.Event.ObjectStart(objectMapper, context.inArrayScope(), context.parent(), context.doc())
+            );
+            parseObjectOrNested(context.createChildContext(objectMapper));
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (shouldFlattenObject(context, fieldMapper)) {
                 // we pass the mapper's simpleName as parentName to the new DocumentParserContext
@@ -840,56 +836,49 @@ public final class DocumentParser {
     ) throws IOException {
         String fullPath = context.path().pathAsText(arrayFieldName);
 
-        Listeners.AutoEndEventSender autoEndEventSender = null;
         if (mapper instanceof ObjectMapper objectMapper) {
-            autoEndEventSender = context.publishEvent(
-                new DocumentParserListener.Event.ObjectArrayStart(objectMapper, context.parent(), context.doc())
-            );
+            context.publishEvent(new DocumentParserListener.Event.ObjectArrayStart(objectMapper, context.parent(), context.doc()));
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            autoEndEventSender = context.publishEvent(
-                new DocumentParserListener.Event.LeafArrayStart(fieldMapper, context.parent(), context.doc())
-            );
+            context.publishEvent(new DocumentParserListener.Event.LeafArrayStart(fieldMapper, context.parent(), context.doc()));
         }
 
-        try (var endSender = autoEndEventSender) {
-            // Check if we need to record the array source. This only applies to synthetic source.
-            if (context.canAddIgnoredField()) {
-                boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-                if (copyToFieldHasValuesInDocument) {
-                    context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
-                } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
-                    // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
-                    // get tracked through ignored source.
-                    // context.addIgnoredField(
-                    // IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken())
-                    // );
-                    return;
-                }
+        // Check if we need to record the array source. This only applies to synthetic source.
+        if (context.canAddIgnoredField()) {
+            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
+            if (copyToFieldHasValuesInDocument) {
+                context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
+            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
+                // get tracked through ignored source.
+                // context.addIgnoredField(
+                // IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken())
+                // );
+                return;
             }
-
-            // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-            // elements from regular source loading that are then skipped from the synthesized array source.
-            // To prevent this, we track that parsing sub-context is within array scope.
-            context = context.maybeCloneForArray(mapper);
-
-            XContentParser parser = context.parser();
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    parseObject(context, lastFieldName);
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    parseArray(context, lastFieldName);
-                } else if (token == XContentParser.Token.VALUE_NULL) {
-                    parseNullValue(context, lastFieldName);
-                } else if (token == null) {
-                    throwEOFOnParseArray(arrayFieldName, context);
-                } else {
-                    assert token.isValue();
-                    parseValue(context, lastFieldName);
-                }
-            }
-            postProcessDynamicArrayMapping(context, lastFieldName);
         }
+
+        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+        // elements from regular source loading that are then skipped from the synthesized array source.
+        // To prevent this, we track that parsing sub-context is within array scope.
+        context = context.maybeCloneForArray(mapper);
+
+        XContentParser parser = context.parser();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                parseObject(context, lastFieldName);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                parseArray(context, lastFieldName);
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                parseNullValue(context, lastFieldName);
+            } else if (token == null) {
+                throwEOFOnParseArray(arrayFieldName, context);
+            } else {
+                assert token.isValue();
+                parseValue(context, lastFieldName);
+            }
+        }
+        postProcessDynamicArrayMapping(context, lastFieldName);
     }
 
     /**

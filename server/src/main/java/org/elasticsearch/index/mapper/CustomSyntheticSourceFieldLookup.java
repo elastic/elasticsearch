@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.HashMap;
@@ -22,11 +23,12 @@ import java.util.Map;
 public class CustomSyntheticSourceFieldLookup {
     private final Map<String, Reason> fieldsWithCustomSyntheticSourceHandling;
 
-    public CustomSyntheticSourceFieldLookup(Mapping mapping, IndexSettings indexSettings, boolean isSourceSynthetic) {
-        this.fieldsWithCustomSyntheticSourceHandling = new HashMap<>();
-        if (isSourceSynthetic) {
-            populateFields(fieldsWithCustomSyntheticSourceHandling, mapping.getRoot(), indexSettings.sourceKeepMode());
+    public CustomSyntheticSourceFieldLookup(Mapping mapping, @Nullable IndexSettings indexSettings, boolean isSourceSynthetic) {
+        var fields = new HashMap<String, Reason>();
+        if (isSourceSynthetic && indexSettings != null) {
+            populateFields(fields, mapping.getRoot(), indexSettings.sourceKeepMode());
         }
+        this.fieldsWithCustomSyntheticSourceHandling = Map.copyOf(fields);
     }
 
     private void populateFields(Map<String, Reason> fields, ObjectMapper currentLevel, Mapper.SourceKeepMode defaultSourceKeepMode) {
@@ -46,6 +48,11 @@ public class CustomSyntheticSourceFieldLookup {
             if (child instanceof ObjectMapper objectMapper) {
                 populateFields(fields, objectMapper, defaultSourceKeepMode);
             } else if (child instanceof FieldMapper fieldMapper) {
+                // The order here is important.
+                // If fallback logic is used, it should be always correctly marked as FALLBACK_SYNTHETIC_SOURCE.
+                // This allows us to apply an optimization for SOURCE_KEEP_ARRAYS and don't store arrays that have one element.
+                // If this order is changed and a field that both has SOURCE_KEEP_ARRAYS and FALLBACK_SYNTHETIC_SOURCE
+                // is marked as SOURCE_KEEP_ARRAYS we would lose data for this field by applying such an optimization.
                 if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                     fields.put(fieldMapper.fullPath(), Reason.FALLBACK_SYNTHETIC_SOURCE);
                 } else if (sourceKeepMode(fieldMapper, defaultSourceKeepMode) == Mapper.SourceKeepMode.ALL) {

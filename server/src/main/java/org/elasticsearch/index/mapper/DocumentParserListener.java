@@ -96,19 +96,14 @@ public interface DocumentParserListener {
         }
     }
 
-    sealed interface Event permits Event.DocumentStart, Event.ObjectStart, Event.ObjectEnd, Event.ObjectArrayStart, Event.ObjectArrayEnd,
-        Event.LeafArrayStart, Event.LeafArrayEnd, Event.LeafValue {
+    sealed interface Event permits Event.DocumentStart, Event.ObjectStart, Event.ObjectArrayStart, Event.LeafArrayStart, Event.LeafValue {
         record DocumentStart(RootObjectMapper rootObjectMapper, LuceneDocument document) implements Event {}
 
         record ObjectStart(ObjectMapper objectMapper, boolean insideObjectArray, ObjectMapper parentMapper, LuceneDocument document)
             implements
                 Event {}
 
-        record ObjectEnd(ObjectMapper objectMapper) implements Event {}
-
         record ObjectArrayStart(ObjectMapper objectMapper, ObjectMapper parentMapper, LuceneDocument document) implements Event {}
-
-        record ObjectArrayEnd() implements Event {}
 
         final class LeafValue implements Event {
             private final FieldMapper fieldMapper;
@@ -116,6 +111,8 @@ public interface DocumentParserListener {
             private final ObjectMapper parentMapper;
             private final LuceneDocument document;
             private final XContentParser parser;
+            private final boolean isObjectOrArray;
+            private final boolean isArray;
 
             public LeafValue(
                 FieldMapper fieldMapper,
@@ -129,6 +126,8 @@ public interface DocumentParserListener {
                 this.parentMapper = parentMapper;
                 this.document = document;
                 this.parser = parser;
+                this.isObjectOrArray = parser.currentToken().isValue() == false && parser.currentToken() != XContentParser.Token.VALUE_NULL;
+                this.isArray = parser.currentToken() == XContentParser.Token.START_ARRAY;
             }
 
             public FieldMapper fieldMapper() {
@@ -147,24 +146,22 @@ public interface DocumentParserListener {
                 return document;
             }
 
-            boolean isComplexValue() {
-                return parser.currentToken().isValue() == false && parser.currentToken() != XContentParser.Token.VALUE_NULL;
+            boolean isObjectOrArray() {
+                return isObjectOrArray;
             }
 
             boolean isArray() {
-                return parser.currentToken() == XContentParser.Token.START_ARRAY;
+                return isArray;
             }
 
             BytesRef encodeValue() throws IOException {
-                assert isComplexValue() == false : "Objects should not be handled with direct encoding";
+                assert isObjectOrArray() == false : "Objects should not be handled with direct encoding";
 
                 return XContentDataHelper.encodeToken(parser);
             }
         }
 
         record LeafArrayStart(FieldMapper fieldMapper, ObjectMapper parentMapper, LuceneDocument document) implements Event {}
-
-        record LeafArrayEnd() implements Event {}
     }
 
     record Output(List<IgnoredSourceFieldMapper.NameValue> ignoredSourceValues) {

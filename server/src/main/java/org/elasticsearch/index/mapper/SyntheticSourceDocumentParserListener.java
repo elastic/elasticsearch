@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -19,18 +18,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Listens for document parsing events and stores an additional copy of source data when it is needed for synthetic _source.
+ * <br>
+ * Note that synthetic source logic for dynamic fields and fields involved in copy_to logic is still handled in {@link DocumentParser}.
+ */
 class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     private final CustomSyntheticSourceFieldLookup customSyntheticSourceFieldLookup;
-    private final IndexSettings indexSettings;
     private final XContentType xContentType;
 
     private final Map<LuceneDocument, Map<String, List<StoredValue>>> ignoredSourceValues;
 
     private State state;
 
-    SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, IndexSettings indexSettings, XContentType xContentType) {
+    SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, XContentType xContentType) {
         this.customSyntheticSourceFieldLookup = mappingLookup.getCustomSyntheticSourceFieldLookup();
-        this.indexSettings = indexSettings;
         this.xContentType = xContentType;
 
         this.ignoredSourceValues = new HashMap<>();
@@ -60,39 +62,6 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
         this.state = state.consume(event);
     }
 
-    private boolean shouldSkipEvent(Event event) {
-        return switch (event) {
-            case Event.LeafValue leafValue -> {
-                var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
-                    .get(leafValue.fieldMapper().fullPath());
-
-                if (reason == null) {
-                    yield true;
-                }
-
-                if (reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS && leafValue.insideObjectArray() == false) {
-                    yield true;
-                }
-
-                yield false;
-            }
-            case Event.ObjectStart objectStart -> {
-                var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
-                    .get(objectStart.objectMapper().fullPath());
-                if (reason == null) {
-                    yield true;
-                }
-
-                if (reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS && objectStart.insideObjectArray() == false) {
-                    yield true;
-                }
-
-                yield false;
-            }
-            default -> false;
-        };
-    }
-
     @Override
     public Output finish() {
         var values = new ArrayList<IgnoredSourceFieldMapper.NameValue>();
@@ -104,11 +73,22 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
 
                 for (var fieldValue : fieldValues) {
                     if (fieldValue instanceof StoredValue.Array arr) {
+                        // Arrays are stored to preserve the order of elements.
+                        // If there is a single element it does not matter and we can drop such data.
                         if (arr.length == 1 && arr.reason() == StoreReason.LEAF_STORED_ARRAY) {
                             singleElementArrays += 1;
                         }
                     }
                     if (fieldValue instanceof StoredValue.Singleton singleton) {
+                        // Stash values are values of fields that are inside object arrays and have synthetic_source_keep: "arrays".
+                        // With current logic either all field values should be in ignored source
+                        // or none of them.
+                        // With object arrays the same field can be parsed multiple times (one time for every object array entry)
+                        // and it is possible that one of the value is an array.
+                        // Due to the rule above we need to proactively store all values of such fields because we may later discover
+                        // that there is an array and we need to "switch" to ignored source usage.
+                        // However if we stored all values but the array is not there, the field will be correctly constructed
+                        // using regular logic and therefore we can drop this and save some space.
                         if (singleton.reason() == StoreReason.LEAF_VALUE_STASH_FOR_STORED_ARRAYS) {
                             stashedValuesForSourceKeepArrays += 1;
                         }
@@ -184,8 +164,10 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
         private final StoreReason reason;
         private final LuceneDocument document;
 
-        private final XContentBuilder data;
+        private final XContentBuilder builder;
+        // Current object/array depth, needed to understand when the top-most object/arrays ends vs a nested one.
         private int depth;
+        // If we are storing an array this is the length of the array.
         private int length;
 
         Storing(
@@ -202,7 +184,7 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
             this.reason = reason;
             this.document = document;
 
-            this.data = XContentBuilder.builder(xContentType.xContent());
+            this.builder = XContentBuilder.builder(xContentType.xContent());
 
             this.depth = 0;
             this.length = 0;
@@ -213,49 +195,49 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
         public State consume(Token token) throws IOException {
             switch (token) {
                 case Token.StartObject startObject -> {
-                    data.startObject();
+                    builder.startObject();
                     if (depth == 1) {
                         length += 1;
                     }
                     depth += 1;
                 }
                 case Token.EndObject endObject -> {
-                    data.endObject();
+                    builder.endObject();
 
                     if (processEndObjectOrArray(endObject)) {
                         return returnState;
                     }
                 }
                 case Token.StartArray startArray -> {
-                    data.startArray();
+                    builder.startArray();
                     depth += 1;
                 }
                 case Token.EndArray endArray -> {
-                    data.endArray();
+                    builder.endArray();
 
                     if (processEndObjectOrArray(endArray)) {
                         return returnState;
                     }
                 }
-                case Token.FieldName fieldName -> data.field(fieldName.name());
+                case Token.FieldName fieldName -> builder.field(fieldName.name());
                 case Token.StringAsCharArrayValue stringAsCharArrayValue -> {
                     if (depth == 1) {
                         length += 1;
                     }
-                    data.generator()
+                    builder.generator()
                         .writeString(stringAsCharArrayValue.buffer(), stringAsCharArrayValue.offset(), stringAsCharArrayValue.length());
                 }
                 case Token.ValueToken<?> valueToken -> {
                     if (depth == 1) {
                         length += 1;
                     }
-                    data.value(valueToken.value());
+                    builder.value(valueToken.value());
                 }
                 case Token.NullValue nullValue -> {
                     if (depth == 1) {
                         length += 1;
                     }
-                    data.nullValue();
+                    builder.nullValue();
                 }
                 case null -> {
                 }
@@ -265,12 +247,7 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
         }
 
         public State consume(Event event) {
-            // When nested objects are store we will receive `Event.DocumentSwitch` here.
-            // However, ignored source value needs to be stored in the parent document to take precedence
-            // properly.
-            // So it's ignored.
-            // Other event types are not relevant to storage logic as well (at the time of writing).
-
+            // We are currently storing something so events are not relevant.
             return this;
         }
 
@@ -284,7 +261,7 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                 var nameValue = new IgnoredSourceFieldMapper.NameValue(
                     fullPath,
                     parentOffset,
-                    XContentDataHelper.encodeXContentBuilder(data),
+                    XContentDataHelper.encodeXContentBuilder(builder),
                     document
                 );
                 var storedValue = token instanceof Token.EndObject
@@ -338,8 +315,6 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                         objectStart.document()
                     );
                 }
-                case Event.ObjectEnd objectEnd -> {
-                }
                 case Event.ObjectArrayStart objectArrayStart -> {
                     var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
                         .get(objectArrayStart.objectMapper().fullPath());
@@ -356,8 +331,6 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                         objectArrayStart.document()
                     );
                 }
-                case Event.ObjectArrayEnd objectArrayEnd -> {
-                }
                 case Event.LeafValue leafValue -> {
                     var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
                         .get(leafValue.fieldMapper().fullPath());
@@ -372,7 +345,7 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                         ? StoreReason.LEAF_VALUE_STASH_FOR_STORED_ARRAYS
                         : StoreReason.OTHER;
 
-                    if (leafValue.isComplexValue()) {
+                    if (leafValue.isObjectOrArray()) {
                         return new Storing(
                             this,
                             leafValue.isArray() ? Token.START_ARRAY : Token.START_OBJECT,
@@ -408,7 +381,6 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                     var storeReason = reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS
                         ? StoreReason.LEAF_STORED_ARRAY
                         : StoreReason.OTHER;
-                    // TODO generalize this
                     return new Storing(
                         this,
                         Token.START_ARRAY,
@@ -417,8 +389,6 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                         storeReason,
                         leafArrayStart.document()
                     );
-                }
-                case Event.LeafArrayEnd leafArrayEnd -> {
                 }
             }
 

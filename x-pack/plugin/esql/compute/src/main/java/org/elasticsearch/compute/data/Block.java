@@ -212,9 +212,43 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /**
      * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
      * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
-     * TODO: pass BlockFactory
      */
     Block expand();
+
+    /**
+     * Build a {@link Block} with a {@code null} inserted {@code before} each
+     * listed position.
+     * <p>
+     *     Note: {@code before} must be non-decreasing.
+     * </p>
+     */
+    default Block insertNulls(IntVector before) {
+        // TODO remove default and scatter to implementation where it can be a lot more efficient
+        try (Builder builder = elementType().newBlockBuilder(getPositionCount() + before.getPositionCount(), blockFactory())) {
+            int beforeP = 0;
+            int nextNull = before.getInt(beforeP);
+            for (int mainP = 0; mainP < getPositionCount(); mainP++) {
+                while (mainP == nextNull) {
+                    builder.appendNull();
+                    beforeP++;
+                    if (beforeP >= before.getPositionCount()) {
+                        builder.copyFrom(this, mainP, getPositionCount());
+                        return builder.build();
+                    }
+                    nextNull = before.getInt(beforeP);
+                }
+                // This line right below this is the super inefficient one.
+                builder.copyFrom(this, mainP, mainP + 1);
+            }
+            assert nextNull == getPositionCount();
+            while (beforeP < before.getPositionCount()) {
+                nextNull = before.getInt(beforeP++);
+                assert nextNull == getPositionCount();
+                builder.appendNull();
+            }
+            return builder.build();
+        }
+    }
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.

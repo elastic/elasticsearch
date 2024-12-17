@@ -45,6 +45,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -68,14 +69,60 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.empty;
 
+@TestLogging(value = "org.elasticsearch.compute.operator.lookup:TRACE", reason = "debugging")
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
+    // TODO should we remove this now that this is integrated into ESQL proper?
     /**
      * Quick and dirty test for looking up data from a lookup index.
      */
     public void testLookupIndex() throws IOException {
+        runLookup((docCount, expected) -> {
+            String[] data = new String[] { "aa", "bb", "cc", "dd" };
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                docs.add(client().prepareIndex("source").setSource(Map.of("data", data[i % data.length])));
+                expected.add(data[i % data.length] + ":" + (i % data.length));
+            }
+            for (int i = 0; i < data.length; i++) {
+                docs.add(client().prepareIndex("lookup").setSource(Map.of("data", data[i], "l", i)));
+            }
+            Collections.sort(expected);
+            indexRandom(true, true, docs);
+        });
+    }
+
+    /**
+     * Tests when multiple results match.
+     */
+    public void testLookupIndexMultiResults() throws IOException {
+        runLookup((docCount, expected) -> {
+            Object[] data = new Object[] { "aa", new String[] { "bb", "ff" }, "cc", "dd" };
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                docs.add(client().prepareIndex("source").setSource(Map.of("data", data[i % data.length])));
+                Object d = data[i % data.length];
+                if (d instanceof String s) {
+                    expected.add(s + ":" + (i % data.length));
+                } else if (d instanceof String[] ss) {
+                    for (String s : ss) {
+                        expected.add(s + ":" + (i % data.length));
+                    }
+                }
+            }
+            for (int i = 0; i < data.length; i++) {
+                docs.add(client().prepareIndex("lookup").setSource(Map.of("data", data[i], "l", i)));
+            }
+            Collections.sort(expected);
+            indexRandom(true, true, docs);
+        });
+    }
+
+    interface PopulateIndices {
+        void populate(int docCount, List<String> expected) throws IOException;
+    }
+
+    private void runLookup(PopulateIndices populateIndices) throws IOException {
         // TODO this should *fail* if the target index isn't a lookup type index - it doesn't now.
-        int docCount = between(10, 1000);
-        List<String> expected = new ArrayList<>(docCount);
         client().admin()
             .indices()
             .prepareCreate("source")
@@ -95,17 +142,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             .get();
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
-        String[] data = new String[] { "aa", "bb", "cc", "dd" };
-        List<IndexRequestBuilder> docs = new ArrayList<>();
-        for (int i = 0; i < docCount; i++) {
-            docs.add(client().prepareIndex("source").setSource(Map.of("data", data[i % data.length])));
-            expected.add(data[i % data.length] + ":" + (i % data.length));
-        }
-        for (int i = 0; i < data.length; i++) {
-            docs.add(client().prepareIndex("lookup").setSource(Map.of("data", data[i], "l", i)));
-        }
-        Collections.sort(expected);
-        indexRandom(true, true, docs);
+        int docCount = between(10, 1000);
+        List<String> expected = new ArrayList<>(docCount);
+        populateIndices.populate(docCount, expected);
 
         /*
          * Find the data node hosting the only shard of the source index.

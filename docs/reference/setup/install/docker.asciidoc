@@ -55,6 +55,12 @@ docker pull {docker-image}
 // REVIEWED[DEC.10.24]
 --
 
+Alternatevely, you can use the Wolfi based image. Using Wolfi based images requires Docker version 20.10.10 or superior.
+[source,sh,subs="attributes"]
+----
+docker pull {docker-wolfi-image}
+----
+
 . Optional: Install
 https://docs.sigstore.dev/cosign/system_config/installation/[Cosign] for your
 environment. Then use Cosign to verify the {es} image's signature.

@@ -649,7 +649,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(initialScheduling.getIncremental(), equalTo(indexedConnector.getScheduling().getIncremental()));
     }
 
-    public void testUpdateConnectorIndexName() throws Exception {
+    public void testUpdateConnectorIndexName_ForSelfManagedConnector() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomSelfManagedConnector();
         String connectorId = randomUUID();
 
@@ -670,7 +670,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newIndexName, equalTo(indexedConnector.getIndexName()));
     }
 
-    public void testUpdateConnectorIndexName_WithTheSameIndexName() throws Exception {
+    public void testUpdateConnectorIndexName_ForSelfManagedConnector_WithTheSameIndexName() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomSelfManagedConnector();
         String connectorId = randomUUID();
 

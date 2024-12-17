@@ -932,9 +932,10 @@ public class ConnectorIndexService {
 
                 getConnector(connectorId, l.delegateFailure((ll, connector) -> {
 
-                    Boolean isManagedConnector = getConnectorIsNativeFlagFromSearchResult(connector);
+                    Boolean isNativeConnector = getConnectorIsNativeFlagFromSearchResult(connector);
+                    Boolean doesNotHaveContentPrefix = isValidManagedConnectorIndexName(indexName) == false;
 
-                    if (isManagedConnector && (isValidManagedConnectorIndexName(indexName) == false)) {
+                    if (isNativeConnector && doesNotHaveContentPrefix) {
                         ll.onFailure(
                             new ElasticsearchStatusException(
                                 "Index attached to an Elastic-managed connector must start with the prefix: ["

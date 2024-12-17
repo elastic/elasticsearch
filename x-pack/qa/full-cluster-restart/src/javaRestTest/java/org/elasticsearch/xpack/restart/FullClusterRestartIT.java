@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -944,12 +943,8 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // Can be removed
     public void testDisableFieldNameField() throws IOException {
-        assumeFalse(
-            "can only disable field names field before 8.0",
-            oldClusterHasFeature(RestTestLegacyFeatures.DISABLE_FIELD_NAMES_FIELD_REMOVED)
-        );
+        assumeFalse("can only disable field names field before 8.0", getOldClusterTestVersion().onOrAfter("8.0.0"));
 
         String docLocation = "/nofnf/_doc/1";
         String doc = """

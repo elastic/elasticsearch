@@ -270,7 +270,7 @@ public class BwcVersions implements Serializable {
      * Return versions of Elasticsearch which are index compatible with the current version.
      */
     public List<Version> getIndexCompatible() {
-        return versions.stream().filter(v -> v.getMajor() >= (currentVersion.getMajor() - 1)).toList();
+        return versions.stream().filter(v -> v.getMajor() >= (currentVersion.getMajor() - 2)).toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {

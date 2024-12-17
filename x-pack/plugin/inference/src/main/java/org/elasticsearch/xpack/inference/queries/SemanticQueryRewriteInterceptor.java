@@ -33,27 +33,28 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        QueryBuilder rewritten = queryBuilder;
         String fieldName = getFieldName(queryBuilder);
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
-        if (resolvedIndices != null) {
-            InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
-            if (indexInformation.getInferenceIndices().isEmpty()) {
-                // No inference fields were identified, so return the original query.
-                return rewritten;
-            } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-                // Combined case where the field name requested by this query contains both
-                // semantic_text and non-inference fields, so we have to combine queries per index
-                // containing each field type.
-                rewritten = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
-            } else {
-                // The only fields we've identified are inference fields (e.g. semantic_text),
-                // so rewrite the entire query to work on a semantic_text field.
-                rewritten = buildInferenceQuery(queryBuilder, indexInformation);
-            }
+
+        if (resolvedIndices == null) {
+            // No resolved indices, so return the original query.
+            return queryBuilder;
         }
 
-        return rewritten;
+        InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
+        if (indexInformation.getInferenceIndices().isEmpty()) {
+            // No inference fields were identified, so return the original query.
+            return queryBuilder;
+        } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
+            // Combined case where the field name requested by this query contains both
+            // semantic_text and non-inference fields, so we have to combine queries per index
+            // containing each field type.
+            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+        } else {
+            // The only fields we've identified are inference fields (e.g. semantic_text),
+            // so rewrite the entire query to work on a semantic_text field.
+            return buildInferenceQuery(queryBuilder, indexInformation);
+        }
     }
 
     /**

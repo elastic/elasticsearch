@@ -100,7 +100,7 @@ teardown:
       cluster.put_settings:
         body:
           persistent:
-            data_streams.failure_store.enabled: ''
+            data_streams.failure_store.enabled: null
 
 ---
 "Redirect ingest failure when auto-creating data stream to failure store when enabled by setting":

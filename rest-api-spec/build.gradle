@@ -247,4 +247,5 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set", "Can't work until auto-expand replicas is 0-1 for synonyms index")
 })

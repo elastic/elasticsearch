@@ -1,5 +1,5 @@
 pr: 118837
 summary: Add missing timeouts to rest-api-spec ILM APIs
-area: "Cluster Coordination, ILM+SLM"
+area: "Cluster Coordination"
 type: bug
 issues: []

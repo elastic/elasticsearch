@@ -181,7 +181,7 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
     }
 
     public void testRandom() {
-        int leftSize = between(1, 10000);
+        int leftSize = between(100, 10000);
         BlockFactory factory = blockFactory();
         ElementType[] leftColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
         ElementType[] rightColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);

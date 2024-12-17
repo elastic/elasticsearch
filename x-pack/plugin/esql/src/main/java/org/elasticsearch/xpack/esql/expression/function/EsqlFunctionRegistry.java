@@ -71,8 +71,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapKeys;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -429,8 +429,10 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, uni(Kql::new), "kql"),
+                // The map_count and log_with_base_in_map are for debug/snapshot environments only
+                // and should never be enabled in a non-snapshot build. They are for the purpose of testing MapExpression only.
                 def(MapCount.class, MapCount::new, "map_count"),
-                def(MapKeys.class, MapKeys::new, "map_keys"),
+                def(LogWithBaseInMap.class, LogWithBaseInMap::new, "log_with_base_in_map"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Term.class, bi(Term::new), "term") } };
     }
@@ -549,7 +551,7 @@ public class EsqlFunctionRegistry {
                 MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
                 if (mapParamInfo != null) {
                     String name = mapParamInfo == null ? params[i].getName() : mapParamInfo.name();
-                    String[] valueType = mapParamInfo == null ? new String[] { "?" } : removeUnderConstruction(mapParamInfo.valueType());
+                    String[] valueType = mapParamInfo == null ? new String[] { "?" } : removeUnderConstruction(mapParamInfo.type());
                     String desc = mapParamInfo == null ? "" : mapParamInfo.description().replace('\n', ' ');
                     boolean optional = mapParamInfo == null ? false : mapParamInfo.optional();
                     DataType targetDataType = getTargetType(valueType);

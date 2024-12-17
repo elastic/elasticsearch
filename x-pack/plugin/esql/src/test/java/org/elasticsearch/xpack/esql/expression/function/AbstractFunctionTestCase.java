@@ -1083,7 +1083,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
                 if (mapParamInfo != null) {
                     String paramName = mapParamInfo.name();
-                    String[] valueType = mapParamInfo.valueType();
+                    String[] valueType = mapParamInfo.type();
                     String desc = mapParamInfo.description().replace('\n', ' ');
                     boolean optional = mapParamInfo.optional();
                     args.add(new EsqlFunctionRegistry.ArgSignature(paramName, valueType, desc, optional));

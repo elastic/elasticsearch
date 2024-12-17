@@ -25,24 +25,30 @@ public class EntryExpression extends Expression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "EntryExpression",
-        EntryExpression::new
+        EntryExpression::readFrom
     );
 
-    private final Literal key;
+    static final NamedWriteableRegistry.Entry ENTRY_EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
+        EntryExpression.class,
+        "EntryExpression",
+        EntryExpression::readFrom
+    );
 
-    private final Literal value;
+    private final Expression key;
 
-    public EntryExpression(Source source, Literal key, Literal value) {
+    private final Expression value;
+
+    public EntryExpression(Source source, Expression key, Expression value) {
         super(source, List.of(key, value));
         this.key = key;
         this.value = value;
     }
 
-    private EntryExpression(StreamInput in) throws IOException {
-        this(
+    private static EntryExpression readFrom(StreamInput in) throws IOException {
+        return new EntryExpression(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readNamedWriteable(Literal.class),
-            in.readNamedWriteable(Literal.class)
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -60,7 +66,7 @@ public class EntryExpression extends Expression {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new EntryExpression(source(), (Literal) newChildren.get(0), (Literal) newChildren.get(1));
+        return new EntryExpression(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
@@ -79,16 +85,6 @@ public class EntryExpression extends Expression {
     @Override
     public DataType dataType() {
         return value.dataType();
-    }
-
-    @Override
-    public boolean foldable() {
-        return key.foldable() && value.foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return toString();
     }
 
     @Override

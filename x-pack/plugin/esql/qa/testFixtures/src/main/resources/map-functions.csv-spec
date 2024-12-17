@@ -50,61 +50,62 @@ c:long
 1
 ;
 
-mapKeysEvalIndex
+logWithBaseInMapEval
 required_capability: optional_named_argument_map_for_function
-FROM employees
-| EVAL k = map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[3.0, 4.0]})
-| WHERE emp_no == 10001
-| KEEP emp_no, k
+ROW value = 8.0
+| EVAL l = log_with_base_in_map(value, {"base":2.0})
 ;
 
-emp_no:integer |k:keyword
-10001          |"option1, option2, option3, option4, option5"
+value: double |l:double
+8.0           |3.0
 ;
 
-mapKeysWhereTrueIndex
+logWithBaseInMapEvalIndex
 required_capability: optional_named_argument_map_for_function
 FROM employees
-| WHERE map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[1, 2]}) like "option*"
-  AND emp_no == 10001
+| WHERE emp_no IN (10001, 10003)
+| EVAL l = log_with_base_in_map(languages, {"base":2.0})
+| KEEP emp_no, languages, l
+| SORT emp_no
+;
+
+emp_no:integer |languages:integer |l:double
+10001          |2                 |1.0
+10003          |4                 |2.0
+;
+
+logWithBaseInMapWhereTrueIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| WHERE emp_no IN (10001, 10003) AND log_with_base_in_map(languages, {"base":2.0}) > 1
+| KEEP emp_no, languages
+| SORT emp_no
+;
+
+emp_no:integer |languages:integer
+10003          |4
+;
+
+logWithBaseInMapWhereFalseIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| WHERE emp_no IN (10001, 10003) AND log_with_base_in_map(languages, {"base":2.0}) < 0
+| KEEP emp_no, languages
+| SORT emp_no
+;
+
+emp_no:integer |languages:integer
+;
+
+logWithBaseInMapSortIndex
+required_capability: optional_named_argument_map_for_function
+FROM employees
+| WHERE emp_no IN (10001, 10003)
+| SORT log_with_base_in_map(languages, {"base":2.0}) desc
 | KEEP emp_no
 ;
 
 emp_no:integer
+10003
 10001
-;
-
-mapKeysWhereFalseIndex
-required_capability: optional_named_argument_map_for_function
-FROM employees
-| WHERE map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":["a", "b"]}) like "false*"
-  AND emp_no == 10001
-| KEEP emp_no
-;
-
-emp_no:integer
-;
-
-mapKeysSortIndex
-required_capability: optional_named_argument_map_for_function
-FROM employees
-| SORT emp_no, map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[true, false]}) desc
-| KEEP emp_no
-| LIMIT 2
-;
-
-emp_no:integer
-10001
-10002
-;
-
-mapKeysStatsIndex
-required_capability: optional_named_argument_map_for_function
-FROM employees
-| STATS c = count(*) BY map_keys({"option1":"value1", "option2":2, "option3":3.0, "option4":true, "option5":[3.0, 4.0]})
-| KEEP c
-;
-
-c:long
-100
 ;

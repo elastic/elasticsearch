@@ -35,8 +35,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapKeys;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -2532,46 +2532,60 @@ public class AnalyzerTests extends ESTestCase {
         // positive
         LogicalPlan plan = analyze("""
             from test
-            | EVAL c = map_count({"option1":"value1", "option2":[1,2,3]}), k = map_keys({"option1":"value1", "option2":[1,2,3]})
-            | KEEP c, k
+            | EVAL c = map_count({"option1":"value1", "option2":[1,2,3]})
+            | KEEP c
             """, "mapping-default.json");
         var limit = as(plan, Limit.class);
         var proj = as(limit.child(), EsqlProject.class);
         List<?> fields = proj.projections();
-        assertEquals(2, fields.size());
+        assertEquals(1, fields.size());
         ReferenceAttribute ra = as(fields.get(0), ReferenceAttribute.class);
         assertEquals("c", ra.name());
         assertEquals(DataType.LONG, ra.dataType());
-        ra = as(fields.get(1), ReferenceAttribute.class);
-        assertEquals("k", ra.name());
-        assertEquals(DataType.KEYWORD, ra.dataType());
         var eval = as(proj.child(), Eval.class);
-        assertEquals(2, eval.fields().size());
+        assertEquals(1, eval.fields().size());
         Alias a = as(eval.fields().get(0), Alias.class);
         MapCount mc = as(a.child(), MapCount.class);
         MapExpression me = as(mc.map(), MapExpression.class);
         verifyMapExpression(me);
-        a = as(eval.fields().get(1), Alias.class);
-        MapKeys mk = as(a.child(), MapKeys.class);
-        me = as(mk.map(), MapExpression.class);
-        verifyMapExpression(me);
         var esRelation = as(eval.child(), EsRelation.class);
+        assertEquals(esRelation.index().name(), "test");
+
+        plan = analyze("""
+            from test
+            | EVAL l = log_with_base_in_map(languages, {"base":2.0})
+            | KEEP l
+            """, "mapping-default.json");
+        limit = as(plan, Limit.class);
+        proj = as(limit.child(), EsqlProject.class);
+        fields = proj.projections();
+        assertEquals(1, fields.size());
+        ra = as(fields.get(0), ReferenceAttribute.class);
+        assertEquals("l", ra.name());
+        assertEquals(DataType.DOUBLE, ra.dataType());
+        eval = as(proj.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        a = as(eval.fields().get(0), Alias.class);
+        LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
+        me = as(l.map(), MapExpression.class);
+        assertEquals(1, me.entries().size());
+        EntryExpression ee = as(me.entries().get(0), EntryExpression.class);
+        assertEquals(new Literal(EMPTY, "base", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
+        esRelation = as(eval.child(), EsRelation.class);
         assertEquals(esRelation.index().name(), "test");
 
         // negative MapCount and MapKeys do not take fields, alias, non-map constants or null as inputs
         for (String arg : List.of("1", "emp_no", "x", "null")) {
-            for (String function : List.of("map_count", "map_keys")) {
-                Exception e = expectThrows(
-                    VerificationException.class,
-                    () -> analyze("from test | EVAL x = languages, f = " + function + "(" + arg + ")")
-                );
-                assertThat(
-                    e.getMessage(),
-                    containsString(
-                        "line 1:37: argument of [" + function + "(" + arg + ")] must be a map expression, received [" + arg + "]"
-                    )
-                );
-            }
+            Exception e = expectThrows(
+                VerificationException.class,
+                () -> analyze("from test | EVAL x = languages, f = map_count(" + arg + ")")
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("line 1:37: argument of [map_count(" + arg + ")] must be a map expression, received [" + arg + "]")
+            );
         }
     }
 

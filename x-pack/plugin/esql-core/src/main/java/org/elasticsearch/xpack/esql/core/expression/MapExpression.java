@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,7 @@ public class MapExpression extends Expression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MapExpression",
-        MapExpression::new
+        MapExpression::readFrom
     );
 
     private final List<EntryExpression> entries;
@@ -44,14 +45,17 @@ public class MapExpression extends Expression {
             .collect(Collectors.toMap(EntryExpression::key, EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
     }
 
-    private MapExpression(StreamInput in) throws IOException {
-        this(Source.readFrom((StreamInput & PlanStreamInput) in), in.readNamedWriteableCollectionAsList(EntryExpression.class));
+    private static MapExpression readFrom(StreamInput in) throws IOException {
+        return new MapExpression(
+            Source.readFrom((StreamInput & PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(EntryExpression.class)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteableCollection(children());
+        out.writeNamedWriteableCollection(entries);
     }
 
     @Override
@@ -77,24 +81,25 @@ public class MapExpression extends Expression {
         return map;
     }
 
+    public Expression getKey(String key) {
+        for (EntryExpression entry : entries) {
+            Expression k = entry.key();
+            if (k.foldable()) {
+                Object o = k.fold();
+                if (o instanceof BytesRef br) {
+                    o = br.utf8ToString();
+                }
+                if (o.toString().equalsIgnoreCase(key)) {
+                    return entry.value();
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     public DataType dataType() {
         return UNSUPPORTED;
-    }
-
-    @Override
-    public boolean foldable() {
-        for (EntryExpression ee : entries) {
-            if (ee.foldable() == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
-    public Object fold() {
-        return map();
     }
 
     @Override

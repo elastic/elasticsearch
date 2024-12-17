@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.map;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,20 +17,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 public class MapCount extends ScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MapCount", MapCount::new);
-
     private final Expression map;
 
     @FunctionInfo(returnType = "long", description = "Count the number of entries in a map")
@@ -48,19 +42,14 @@ public class MapCount extends ScalarFunction {
         this.map = v;
     }
 
-    private MapCount(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
-    }
-
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(map);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
@@ -69,7 +58,7 @@ public class MapCount extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
         // MapExpression does not have a DataType associated with it
-        return isMapExpression(map, sourceText(), DEFAULT).and(isFoldable(map, sourceText(), DEFAULT));
+        return isMapExpression(map, sourceText(), DEFAULT);
     }
 
     @Override
@@ -79,7 +68,7 @@ public class MapCount extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return map.foldable();
+        return true;
     }
 
     @Override
@@ -102,7 +91,7 @@ public class MapCount extends ScalarFunction {
                     null,
                     "Invalid format for [{}], expect a map of constant values but got {}",
                     sourceText(),
-                    map.fold()
+                    map.toString()
                 )
             );
         }

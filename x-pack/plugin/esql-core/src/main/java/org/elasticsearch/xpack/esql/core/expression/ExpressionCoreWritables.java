@@ -19,7 +19,6 @@ public class ExpressionCoreWritables {
         entries.addAll(expressions());
         entries.addAll(namedExpressions());
         entries.addAll(attributes());
-        entries.addAll(mapExpressions());
         return entries;
     }
 
@@ -30,6 +29,7 @@ public class ExpressionCoreWritables {
             entries.add(new NamedWriteableRegistry.Entry(Expression.class, e.name, in -> (Expression) e.reader.read(in)));
         }
         entries.add(Literal.ENTRY);
+        entries.addAll(mapExpressions());
         return entries;
     }
 
@@ -48,6 +48,6 @@ public class ExpressionCoreWritables {
     }
 
     public static List<NamedWriteableRegistry.Entry> mapExpressions() {
-        return List.of(EntryExpression.ENTRY, MapExpression.ENTRY);
+        return List.of(EntryExpression.ENTRY_EXPRESSION_ENTRY, EntryExpression.ENTRY, MapExpression.ENTRY);
     }
 }

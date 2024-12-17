@@ -20,9 +20,7 @@ import java.lang.annotation.Target;
 public @interface MapParam {
     String name();
 
-    String keyType() default "keyword";
-
-    String[] valueType() default { "keyword", "integer", "double", "boolean" };
+    String[] type() default "map";
 
     MapEntry[] paramHint() default {};
 
@@ -33,8 +31,10 @@ public @interface MapParam {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
     @interface MapEntry {
-        String key();
+        String key() default "";
 
-        String value();
+        String[] type() default {};
+
+        String[] value() default {};
     }
 }

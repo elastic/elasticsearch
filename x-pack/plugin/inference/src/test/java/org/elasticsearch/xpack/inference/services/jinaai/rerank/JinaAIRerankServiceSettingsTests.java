@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -18,7 +17,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
@@ -29,15 +27,11 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 
 public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIRerankServiceSettings> {
     public static JinaAIRerankServiceSettings createRandom() {
-        return createRandom(randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }));
-    }
-
-    public static JinaAIRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
         return new JinaAIRerankServiceSettings(
             new JinaAIServiceSettings(
                 randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
                 randomFrom(new String[] { null, randomAlphaOfLength(10) }),
-                rateLimitSettings
+                RateLimitSettingsTests.createRandom()
             )
         );
     }
@@ -80,16 +74,6 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected JinaAIRerankServiceSettings mutateInstanceForVersion(JinaAIRerankServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.JINA_AI_INTEGRATION_ADDED)) {
-            // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
-            return new JinaAIRerankServiceSettings(
-                new JinaAIServiceSettings(
-                    instance.getCommonSettings().uri(),
-                    instance.modelId(),
-                    JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
-                )
-            );
-        }
         return instance;
     }
 

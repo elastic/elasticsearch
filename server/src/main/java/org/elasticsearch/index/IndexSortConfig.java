@@ -133,8 +133,9 @@ public final class IndexSortConfig {
     }
 
     // visible for tests
-    final FieldSortSpec[] sortSpecs;
+    FieldSortSpec[] sortSpecs;
     private final IndexMode indexMode;
+    private boolean defaultForLogsdb = false;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
@@ -148,10 +149,11 @@ public final class IndexSortConfig {
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         if (this.indexMode == IndexMode.LOGSDB && fields.isEmpty()) {
             fields = List.of("host.name", DataStream.TIMESTAMP_FIELD_NAME);
+            defaultForLogsdb = true;
         }
         this.sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
-        if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+        if (INDEX_SORT_ORDER_SETTING.exists(settings) || defaultForLogsdb) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
             if (this.indexMode == IndexMode.LOGSDB && orders.isEmpty()) {
                 orders = List.of(SortOrder.DESC, SortOrder.DESC);
@@ -166,7 +168,7 @@ public final class IndexSortConfig {
             }
         }
 
-        if (INDEX_SORT_MODE_SETTING.exists(settings)) {
+        if (INDEX_SORT_MODE_SETTING.exists(settings) || defaultForLogsdb) {
             List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
             if (this.indexMode == IndexMode.LOGSDB && modes.isEmpty()) {
                 modes = List.of(MultiValueMode.MIN, MultiValueMode.MIN);
@@ -179,7 +181,7 @@ public final class IndexSortConfig {
             }
         }
 
-        if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
+        if (INDEX_SORT_MISSING_SETTING.exists(settings) || defaultForLogsdb) {
             List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
             if (this.indexMode == IndexMode.LOGSDB && missingValues.isEmpty()) {
                 missingValues = List.of("_first", "_first");
@@ -193,6 +195,19 @@ public final class IndexSortConfig {
                 sortSpecs[i].missingValue = missingValues.get(i);
             }
         }
+    }
+
+    /**
+     * Sort config for LogsDB injects sorting on "host.name" and "@timestamp", if there's no sort config spec.
+     * However, "host.name" may not be available, e.g. "host" may be a leaf field. In this case, the config needs to
+     * trimmed and only include the "@timestamp" field.
+     */
+    IndexSortConfig maybeTrimForLogsdb(boolean trim) {
+        if (defaultForLogsdb && trim && sortSpecs.length == 2) {
+            assert sortSpecs[1].field.equals(DataStream.TIMESTAMP_FIELD_NAME) : sortSpecs[1].field;
+            sortSpecs = new FieldSortSpec[]{sortSpecs[1]};
+        }
+        return this;
     }
 
     /**

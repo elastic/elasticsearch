@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
+import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -53,6 +53,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -92,7 +94,7 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.MultiMatches(),
+        new MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
         new KqlFunctionTranslator(),
@@ -534,6 +536,18 @@ public final class EsqlExpressionTranslators {
                 format,
                 r.zoneId()
             );
+        }
+    }
+
+    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+
+        @Override
+        protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return doTranslate(q, handler);
+        }
+
+        public static Query doTranslate(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return new MultiMatchQuery(q.source(), q.query(), q.fields(), q);
         }
     }
 

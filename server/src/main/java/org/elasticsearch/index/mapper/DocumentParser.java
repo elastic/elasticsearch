@@ -847,13 +847,6 @@ public final class DocumentParser {
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
             if (copyToFieldHasValuesInDocument) {
                 context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
-            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
-                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
-                // get tracked through ignored source.
-                // context.addIgnoredField(
-                // IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken())
-                // );
-                return;
             }
         }
 

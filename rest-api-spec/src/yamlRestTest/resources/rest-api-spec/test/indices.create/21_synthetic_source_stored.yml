@@ -1211,7 +1211,6 @@ index param - nested object with stored array:
   - match: { hits.hits.1._source.nested.1.b.1.c: 400 }
 
 
-
 ---
 index param - flattened fields:
   - requires:

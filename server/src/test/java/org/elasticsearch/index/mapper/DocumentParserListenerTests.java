@@ -219,7 +219,7 @@ public class DocumentParserListenerTests extends MapperServiceTestCase {
         assertEquals(prefix + "leaf", leafValue.fieldMapper().fullPath());
         assertEquals(parent, leafValue.parentMapper().fullPath());
         assertFalse(leafValue.isArray());
-        assertFalse(leafValue.isObjectOrArray());
+        assertFalse(leafValue.isContainer());
         assertEquals(inObjectArray, leafValue.insideObjectArray());
 
         var leafArray = (DocumentParserListener.Event.LeafArrayStart) events.get(start + 1);
@@ -230,14 +230,14 @@ public class DocumentParserListenerTests extends MapperServiceTestCase {
         assertEquals(prefix + "leaf_array", arrayValue1.fieldMapper().fullPath());
         assertEquals(parent, arrayValue1.parentMapper().fullPath());
         assertFalse(arrayValue1.isArray());
-        assertFalse(arrayValue1.isObjectOrArray());
+        assertFalse(arrayValue1.isContainer());
         assertEquals(inObjectArray, leafValue.insideObjectArray());
 
         var arrayValue2 = (DocumentParserListener.Event.LeafValue) events.get(start + 3);
         assertEquals(prefix + "leaf_array", arrayValue2.fieldMapper().fullPath());
         assertEquals(parent, arrayValue2.parentMapper().fullPath());
         assertFalse(arrayValue2.isArray());
-        assertFalse(arrayValue2.isObjectOrArray());
+        assertFalse(arrayValue2.isContainer());
         assertEquals(inObjectArray, leafValue.insideObjectArray());
     }
 

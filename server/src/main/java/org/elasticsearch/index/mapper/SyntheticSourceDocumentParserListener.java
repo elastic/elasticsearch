@@ -345,7 +345,7 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                         ? StoreReason.LEAF_VALUE_STASH_FOR_STORED_ARRAYS
                         : StoreReason.OTHER;
 
-                    if (leafValue.isObjectOrArray()) {
+                    if (leafValue.isContainer()) {
                         return new Storing(
                             this,
                             leafValue.isArray() ? Token.START_ARRAY : Token.START_OBJECT,

@@ -18,6 +18,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 public interface DocumentParserListener {
+    /**
+     * Specifies if this listener is currently actively consuming tokens.
+     * This is used to avoid doing unnecessary work.
+     * @return
+     */
+    boolean isActive();
+
+    void consume(Token token) throws IOException;
+
+    void consume(Event event) throws IOException;
+
+    Output finish();
+
     sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray,
         Token.StringAsCharArrayValue, Token.NullValue, Token.ValueToken {
 
@@ -146,7 +159,10 @@ public interface DocumentParserListener {
                 return document;
             }
 
-            boolean isObjectOrArray() {
+            /**
+             * @return whether a value is an object or an array vs a single value like a long.
+             */
+            boolean isContainer() {
                 return isObjectOrArray;
             }
 
@@ -155,7 +171,7 @@ public interface DocumentParserListener {
             }
 
             BytesRef encodeValue() throws IOException {
-                assert isObjectOrArray() == false : "Objects should not be handled with direct encoding";
+                assert isContainer() == false : "Objects should not be handled with direct encoding";
 
                 return XContentDataHelper.encodeToken(parser);
             }
@@ -173,17 +189,4 @@ public interface DocumentParserListener {
             this.ignoredSourceValues.addAll(part.ignoredSourceValues);
         }
     }
-
-    /**
-     * Specifies if this listener is currently actively consuming tokens.
-     * This is used to avoid doing unnecessary work.
-     * @return
-     */
-    boolean isActive();
-
-    void consume(Token token) throws IOException;
-
-    void consume(Event event) throws IOException;
-
-    Output finish();
 }

@@ -240,7 +240,8 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             error.getMessage(),
             containsString(
                 "Invalid condition [match(content, \"fox\") OR to_upper(content) == \"FOX\"]. "
-                    + "Full text functions can be used in an OR condition, but only if just full text functions are used in the OR condition"
+                    + "Full text functions can be used in an OR condition,"
+                    + " but only if just full text functions are used in the OR condition"
             )
         );
     }

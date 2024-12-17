@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,12 +53,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                 in.setTransportVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
-                // indices options are not equivalent when sent to an older version and re-read due
-                // to the addition of hidden indices as expand to hidden indices is always true when
-                // read from a prior version
-                if (version.onOrAfter(TransportVersions.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
-                    assertEquals(request.indicesOptions(), deserialized.indicesOptions());
-                }
+                assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 assertEquals(request.routing(), deserialized.routing());
                 assertEquals(request.preference(), deserialized.preference());
             }

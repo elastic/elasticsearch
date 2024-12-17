@@ -111,6 +111,26 @@ public class ParsingTests extends ESTestCase {
         assertEquals("-1:-1: ESQL statement is too large [1000011 characters > 1000000]", error(query.toString()));
     }
 
+    public void testJoinOnConstant() {
+        assertEquals("1:55: JOIN ON clause only supports fields at the moment, found [123]",
+            error("row languages = 1, gender = \"f\" | lookup join test on 123"));
+    }
+
+    public void testJoinOnMultipleFields() {
+        assertEquals("1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            error("row languages = 1, gender = \"f\" | lookup join test on gender, languages"));
+    }
+
+    public void testJoinTwiceOnTheSameField() {
+        assertEquals("1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            error("row languages = 1, gender = \"f\" | lookup join test on languages, languages"));
+    }
+
+    public void testJoinTwiceOnTheSameField_TwoLookups() {
+        assertEquals("1:80: JOIN ON clause only supports one field at the moment, found [2]",
+            error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender"));
+    }
+
     private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {
         for (FunctionDefinition def : registry.listFunctions()) {
             if (functionCall.getClass().equals(def.clazz())) {

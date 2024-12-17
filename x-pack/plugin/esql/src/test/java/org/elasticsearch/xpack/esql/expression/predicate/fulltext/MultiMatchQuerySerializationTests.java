@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.predicate.operator.fulltext;
-
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
+package org.elasticsearch.xpack.esql.expression.predicate.fulltext;
 
 import java.io.IOException;
 import java.util.HashMap;

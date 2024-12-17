@@ -1410,18 +1410,20 @@ public class MetadataCreateIndexService {
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
+        if (indexMode == IndexMode.LOGSDB) {
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
+        }
         final CompressedXContent defaultMapping = indexMode.getDefaultMapping(
             indexService.getIndexSettings(),
             mapperService.mappingLookup()
         );
+        List<CompressedXContent> allMappings = new ArrayList<>();
         if (defaultMapping != null) {
-            List<CompressedXContent> allMappings = new ArrayList<>();
             allMappings.add(defaultMapping);
-            allMappings.addAll(mappings);
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MergeReason.INDEX_TEMPLATE);
         }
+        allMappings.addAll(mappings);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MergeReason.INDEX_TEMPLATE);
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {

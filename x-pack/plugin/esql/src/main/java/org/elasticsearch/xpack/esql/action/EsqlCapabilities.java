@@ -352,7 +352,10 @@ public class EsqlCapabilities {
          * Support for mixed comparisons between nanosecond and millisecond dates
          */
         DATE_NANOS_COMPARE_TO_MILLIS(),
-
+        /**
+         * Support implicit casting of strings to date nanos
+         */
+        DATE_NANOS_IMPLICIT_CASTING(),
         /**
          * Support Least and Greatest functions on Date Nanos type
          */

@@ -13,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -204,7 +203,6 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {
         Response response = getRestClient().performRequest(r);
-        ObjectPath.createFromResponse(response);
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         return XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(), false);
     }

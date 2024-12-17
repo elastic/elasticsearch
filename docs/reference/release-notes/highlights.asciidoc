@@ -4,11 +4,6 @@
 Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::["{release-state}"!="unreleased"]
 
-[IMPORTANT]
-====
-The 8.17.0 release contains a fix for a potential security vulnerability. See our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
-====
-
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
 

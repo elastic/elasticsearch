@@ -70,11 +70,7 @@ public class EsqlParser {
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         if (query.length() > MAX_LENGTH) {
-            throw new org.elasticsearch.xpack.esql.core.ParsingException(
-                "ESQL statement is too large [{} characters > {}]",
-                query.length(),
-                MAX_LENGTH
-            );
+            throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
         }
         try {
             EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));

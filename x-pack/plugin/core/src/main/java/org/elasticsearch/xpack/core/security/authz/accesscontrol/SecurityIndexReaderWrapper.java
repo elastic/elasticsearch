@@ -82,7 +82,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 throw new IllegalStateException(LoggerMessageFormat.format("couldn't extract shardId from reader [{}]", reader));
             }
 
-            assert indicesAccessControl != ALLOW_NO_INDICES : "unexpected allow no indices marker found during shard-level access";
+            assert indicesAccessControl != ALLOW_NO_INDICES;
             final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {

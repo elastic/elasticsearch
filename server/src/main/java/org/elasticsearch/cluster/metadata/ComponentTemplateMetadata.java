@@ -89,7 +89,7 @@ public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_7_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -166,7 +166,7 @@ public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_7_0;
+            return TransportVersions.ZERO;
         }
     }
 }

@@ -50,9 +50,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.StoreRecovery;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.tasks.Task;
@@ -386,15 +384,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
-                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                        // for archives indices mounted as searchable snapshots, we need to call this
                         indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                        final Store store = indexShard.store();
-                        store.incRef();
-                        try {
-                            StoreRecovery.bootstrap(indexShard, store);
-                        } finally {
-                            store.decRef();
-                        }
                     }
                     indexShard.recoverLocallyUpToGlobalCheckpoint(ActionListener.assertOnce(l));
                 })
@@ -489,8 +480,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene
                 // index.
                 try {
-                    final String expectedTranslogUUID = metadataSnapshot.commitUserData().get(Translog.TRANSLOG_UUID_KEY);
-                    final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                    final long globalCheckpoint = recoveryTarget.indexShard()
+                        .readGlobalCheckpointForRecovery(metadataSnapshot.commitUserData());
                     assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
                 } catch (IOException | TranslogCorruptedException e) {
                     logGlobalCheckpointWarning(logger, startingSeqNo, e);

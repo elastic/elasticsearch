@@ -20,15 +20,14 @@ import org.junit.Before;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
-import java.lang.reflect.AccessFlag;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
@@ -324,8 +323,8 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     private static CheckMethod getCheckMethod(String methodName, Executable targetMethod) throws NoSuchMethodException {
-        Set<AccessFlag> flags = targetMethod.accessFlags();
-        boolean isInstance = flags.contains(AccessFlag.STATIC) == false && targetMethod instanceof Method;
+        boolean isStatic = Modifier.isStatic(targetMethod.getModifiers());
+        boolean isInstance = isStatic == false && targetMethod instanceof Method;
         int extraArgs = 1; // caller class
         if (isInstance) {
             ++extraArgs;

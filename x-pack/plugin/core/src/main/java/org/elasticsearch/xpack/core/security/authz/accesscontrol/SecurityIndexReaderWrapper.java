@@ -86,6 +86,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
+                assert false : "no permissions";
                 return reader;
             }
 

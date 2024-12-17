@@ -43,9 +43,10 @@ public class ConnectTransportException extends ActionTransportException {
     }
 
     /**
-      * The ES REST API is a gateway to a single or multiple clusters. If there is an error connecting to other servers, then we should
-      * return a 502 BAD_GATEWAY status code instead of the parent class' 500 INTERNAL_SERVER_ERROR. Clients tend to retry on a 502 but not
-      * on a 500, and retrying may help on a connection error.
+     * The ES REST API is a gateway to a single or multiple clusters. If there is an error connecting to other servers, then we should
+     * return a 502 BAD_GATEWAY status code instead of the parent class' 500 INTERNAL_SERVER_ERROR. Clients tend to retry on a 502 but not
+     * on a 500, and retrying may help on a connection error.
+     *
      * @return a {@link RestStatus#BAD_GATEWAY} code
      */
     @Override

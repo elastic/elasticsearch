@@ -73,7 +73,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.*;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;

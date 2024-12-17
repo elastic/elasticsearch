@@ -24,3 +24,4 @@ org.elasticsearch.script.ScriptFeatures
 org.elasticsearch.reservedstate.service.FileSettingsFeatures
 org.elasticsearch.cluster.routing.RoutingFeatures
 org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures
+org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettingsFeatureSpecification

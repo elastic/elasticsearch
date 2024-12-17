@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
@@ -141,14 +143,14 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
+    static final class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
 
         AggregateMetricFieldProducer(String name, Metric metric) {
             super(name, new LastValueLabel(metric.name()));
         }
     }
 
-    public static class HistogramLastLabelFieldProducer extends LabelLastValueFieldProducer {
+    static final class HistogramLastLabelFieldProducer extends LabelLastValueFieldProducer {
         HistogramLastLabelFieldProducer(String name) {
             super(name);
         }
@@ -164,6 +166,49 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
                     counts.add(histogramValue.count());
                 }
                 builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+            }
+        }
+    }
+
+    static final class FlattenedLastValueFieldProducer extends LabelLastValueFieldProducer {
+
+        FlattenedLastValueFieldProducer(String name) {
+            super(name);
+        }
+
+        @Override
+        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+            if (isEmpty() == false) {
+                return;
+            }
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+
+            int docValuesCount = docValues.docValueCount();
+            assert docValuesCount > 0;
+            isEmpty = false;
+            List<BytesRef> values = new ArrayList<>(docValuesCount);
+            for (int i = 0; i < docValuesCount; i++) {
+                values.add(new BytesRef(docValues.nextValue().toString()));
+            }
+            label.collect(values);
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.startObject(name());
+                var iterator = ((List<?>) label.get()).iterator();
+                var helper = new FlattenedFieldSyntheticWriterHelper(() -> {
+                    if (iterator.hasNext()) {
+                        return (BytesRef) iterator.next();
+                    } else {
+                        return null;
+                    }
+                });
+                helper.write(builder);
+                builder.endObject();
             }
         }
     }

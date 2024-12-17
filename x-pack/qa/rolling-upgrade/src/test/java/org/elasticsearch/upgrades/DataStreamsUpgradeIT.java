@@ -247,7 +247,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testUpgradeDataStream() throws Exception {
-        String dataStreamName = "k8s";
+        String dataStreamName = "reindex_test_data_stream";
         int numRollovers = 10;
         if (CLUSTER_TYPE == ClusterType.OLD) {
             final String INDEX_TEMPLATE = """
@@ -258,7 +258,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     }
                 }""";
             // Add composable index template
-            String templateName = "1";
+            String templateName = "reindex_test_data_stream_template";
             var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
             putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
             assertOK(client().performRequest(putIndexTemplateRequest));

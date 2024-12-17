@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +41,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TransportGetDataStreamsActionTests extends ESTestCase {
@@ -403,10 +406,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             emptyDataStreamFailureStoreSettings,
             null
         );
-        assertThat(
-            response.getDataStreams().stream().map(GetDataStreamAction.Response.DataStreamInfo::isFailureStoreEffectivelyEnabled).toList(),
-            contains(false)
-        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(false));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledExplicitly() {
@@ -434,10 +435,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             emptyDataStreamFailureStoreSettings,
             null
         );
-        assertThat(
-            response.getDataStreams().stream().map(GetDataStreamAction.Response.DataStreamInfo::isFailureStoreEffectivelyEnabled).toList(),
-            contains(true)
-        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledByClusterSetting() {
@@ -471,9 +470,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ),
             null
         );
-        assertThat(
-            response.getDataStreams().stream().map(GetDataStreamAction.Response.DataStreamInfo::isFailureStoreEffectivelyEnabled).toList(),
-            contains(true)
-        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
     }
 }

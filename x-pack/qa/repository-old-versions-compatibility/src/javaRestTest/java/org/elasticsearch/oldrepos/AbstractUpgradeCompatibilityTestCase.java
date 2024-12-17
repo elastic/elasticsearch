@@ -141,7 +141,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public final void verifyArchiveIndexCompatibility(String version) throws Exception {
+    public final void verifyCompatibility(String version) throws Exception {
         final String repository = "repository";
         final String snapshot = "snapshot";
         final String index = "index";

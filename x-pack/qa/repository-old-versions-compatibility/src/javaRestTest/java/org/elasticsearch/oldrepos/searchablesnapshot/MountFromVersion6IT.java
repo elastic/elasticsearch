@@ -7,10 +7,9 @@
 
 package org.elasticsearch.oldrepos.searchablesnapshot;
 
-import org.elasticsearch.oldrepos.archiveindex.ArchiveIndexTestCase;
 import org.elasticsearch.test.cluster.util.Version;
 
-public class MountFromVersion6IT extends ArchiveIndexTestCase {
+public class MountFromVersion6IT extends SearchableSnapshotTestCase {
 
     public MountFromVersion6IT(Version version) {
         super(version);

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -90,6 +91,13 @@ public class Categorize extends GroupingFunction implements Validatable {
     public boolean foldable() {
         // Categorize cannot be currently folded
         return false;
+    }
+
+    @Override
+    public Nullability nullable() {
+        // Null strings and strings that don't produce tokens after analysis lead to null values.
+        // This includes empty strings, only whitespace, (hexa)decimal numbers and stopwords.
+        return Nullability.TRUE;
     }
 
     @Override

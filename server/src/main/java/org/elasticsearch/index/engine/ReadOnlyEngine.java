@@ -98,7 +98,7 @@ public class ReadOnlyEngine extends Engine {
     public ReadOnlyEngine(
         EngineConfig config,
         SeqNoStats seqNoStats,
-        TranslogStats translogStats,
+        @Nullable TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
         boolean requireCompleteHistory,
@@ -251,6 +251,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
+        assert config.getTranslogConfig().hasTranslog();
         final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");
@@ -356,7 +357,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true)) {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true, -1)) {
             return snapshot.totalOperations();
         }
     }
@@ -368,7 +369,8 @@ public class ReadOnlyEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) {
         return Translog.Snapshot.EMPTY;
     }

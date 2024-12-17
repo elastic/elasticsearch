@@ -11,6 +11,7 @@ package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -218,7 +219,7 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(read), equalTo(-1));
     }
 
-    public void testMarkRest() throws Exception {
+    public void testMarkReset() throws Exception {
         Directory dir = new ByteBuffersDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
         for (int i = 0; i < 3; i++) {
@@ -242,6 +243,71 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(), equalTo(1));
         assertThat(is.read(), equalTo(2));
     }
+
+    public void testSkipBytes() throws Exception {
+        Directory dir = new ByteBuffersDirectory();
+        IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
+        int bytes = randomIntBetween(10, 100);
+        for (int i = 0; i < bytes; i++) {
+            output.writeByte((byte) i);
+        }
+        output.close();
+
+        int limit = randomIntBetween(0, bytes * 2);
+        int initialReadBytes = randomIntBetween(0, limit);
+        int skipBytes = randomIntBetween(0, limit);
+        int seekExpected = Math.min(Math.min(initialReadBytes + skipBytes, limit), bytes);
+        int skipBytesExpected = Math.max(seekExpected - initialReadBytes, 0);
+        logger.debug(
+            "bytes: {}, limit: {}, initialReadBytes: {}, skipBytes: {}, seekExpected: {}, skipBytesExpected: {}",
+            bytes,
+            limit,
+            initialReadBytes,
+            skipBytes,
+            seekExpected,
+            skipBytesExpected
+        );
+
+        var countingInput = new CountingReadBytesIndexInput("test", dir.openInput("test", IOContext.DEFAULT));
+        InputStreamIndexInput is = new InputStreamIndexInput(countingInput, limit);
+        is.readNBytes(initialReadBytes);
+        assertThat(is.skip(skipBytes), equalTo((long) skipBytesExpected));
+        long expectedActualInitialBytesRead = Math.min(Math.min(initialReadBytes, limit), bytes);
+        assertThat(countingInput.getBytesRead(), equalTo(expectedActualInitialBytesRead));
+
+        int remainingBytes = Math.min(bytes, limit) - seekExpected;
+        for (int i = seekExpected; i < seekExpected + remainingBytes; i++) {
+            assertThat(is.read(), equalTo(i));
+        }
+        assertThat(countingInput.getBytesRead(), equalTo(expectedActualInitialBytesRead + remainingBytes));
+    }
+
+    protected static class CountingReadBytesIndexInput extends FilterIndexInput {
+        private long bytesRead = 0;
+
+        public CountingReadBytesIndexInput(String resourceDescription, IndexInput in) {
+            super(resourceDescription, in);
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            long filePointerBefore = getFilePointer();
+            byte b = super.readByte();
+            bytesRead += getFilePointer() - filePointerBefore;
+            return b;
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            long filePointerBefore = getFilePointer();
+            super.readBytes(b, offset, len);
+            bytesRead += getFilePointer() - filePointerBefore;
+        }
+
+        public long getBytesRead() {
+            return bytesRead;
+        }
+    };
 
     public void testReadZeroShouldReturnZero() throws IOException {
         try (Directory dir = new ByteBuffersDirectory()) {

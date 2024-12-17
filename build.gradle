@@ -364,7 +364,7 @@ tasks.register("verifyBwcTestsEnabled") {
 }
 
 tasks.register("branchConsistency") {
-  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  description = 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
   dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }

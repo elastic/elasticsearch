@@ -256,7 +256,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
             IndicesOptions.GatekeeperOptions.DEFAULT
         );
-        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(resolvedRolloverTarget.resource())
+        // Make sure to recombine any selectors on the stats request
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(resolvedRolloverTarget.combined())
             .clear()
             .indicesOptions(statsIndicesOptions)
             .docs(true)

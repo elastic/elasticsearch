@@ -4,12 +4,13 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.querydsl.query;
+package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 

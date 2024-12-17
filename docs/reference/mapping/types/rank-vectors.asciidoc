@@ -20,7 +20,7 @@ PUT my-rank-vectors-float
   "mappings": {
     "properties": {
       "my_vector": {
-        "type": "rank_vector"
+        "type": "rank_vectors"
       }
     }
   }
@@ -44,7 +44,7 @@ PUT my-rank-vectors-byte
   "mappings": {
     "properties": {
       "my_vector": {
-        "type": "rank_vector",
+        "type": "rank_vectors",
         "element_type": "byte"
       }
     }
@@ -66,7 +66,7 @@ PUT my-rank-vectors-bit
   "mappings": {
     "properties": {
       "my_vector": {
-        "type": "rank_vector",
+        "type": "rank_vectors",
         "element_type": "bit"
       }
     }

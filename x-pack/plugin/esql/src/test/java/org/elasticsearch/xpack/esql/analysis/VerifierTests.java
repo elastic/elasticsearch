@@ -1166,14 +1166,14 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFilter() throws Exception {
         assertEquals(
             "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
-                + "[:] operator can be used in an OR condition, "
+                + "Full text functions can be used in an OR condition, "
                 + "but only if just full text functions are used in the OR condition",
             error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. [:] operator can be used in an OR "
-                + "condition, but only if just full text functions are used in the OR condition",
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. Full text functions can be"
+                + " used in an OR condition, but only if just full text functions are used in the OR condition",
             error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
     }
@@ -1423,12 +1423,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "{}: Invalid condition [{}]. [{}] {} can be used in an OR condition, "
+                "{}: Invalid condition [{}]. Full text functions can be used in an OR condition, "
                     + "but only if just full text functions are used in the OR condition",
                 position,
-                expression,
-                functionName,
-                functionType
+                expression
             ),
             error("from test | where " + expression)
         );

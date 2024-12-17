@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -786,48 +785,21 @@ public class Verifier {
                 // Exit early if we already have a failures
                 return;
             }
-            Expression left = or.left();
-            boolean leftHasFullText = left.anyMatch(FullTextFunction.class::isInstance);
-            boolean leftHasOnlyFullText = onlyFullTextFunctionsInExpression(left);
-            Expression right = or.right();
-            boolean rightHasFullText = right.anyMatch(FullTextFunction.class::isInstance);
-            boolean rightHasOnlyFullText = onlyFullTextFunctionsInExpression(right);
-
-            if (leftHasFullText && leftHasOnlyFullText == false) {
-                disjunctionFailure(or, left, typeNameProvider, failures);
-            } else if (rightHasFullText && rightHasOnlyFullText == false) {
-                disjunctionFailure(or, right, typeNameProvider, failures);
-            } else if (leftHasFullText ^ rightHasFullText) {
-                disjunctionFailure(or, leftHasFullText ? left : right, typeNameProvider, failures);
+            boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
+            if (hasFullText) {
+                boolean hasOnlyFullText = onlyFullTextFunctionsInExpression(or);
+                if (hasOnlyFullText == false) {
+                    failures.add(
+                        fail(
+                            or,
+                            "Invalid condition [{}]. Full text functions can be used in an OR condition, "
+                                + "but only if just full text functions are used in the OR condition",
+                            or.sourceText()
+                        )
+                    );
+                }
             }
         });
-    }
-
-    /**
-     * Add a disjunction failure to the failures collection.
-     * @param parentExpression parent expression to include in the failure
-     * @param expressionWithError expression that provoked the failure
-     * @param typeNameProvider provider for the type name to add in the failure message
-     * @param failures failures collection to add to
-     */
-    private static void disjunctionFailure(
-        Expression parentExpression,
-        Expression expressionWithError,
-        java.util.function.Function<FullTextFunction, String> typeNameProvider,
-        Set<Failure> failures
-    ) {
-        Holder<String> elementName = new Holder<>();
-        // Get first function name to add to the failure message
-        expressionWithError.forEachDown(FullTextFunction.class, ftf -> elementName.set(typeNameProvider.apply(ftf)));
-        failures.add(
-            fail(
-                parentExpression,
-                "Invalid condition [{}]. {} can be used in an OR condition, "
-                    + "but only if just full text functions are used in the OR condition",
-                parentExpression.sourceText(),
-                elementName.get()
-            )
-        );
     }
 
     /**

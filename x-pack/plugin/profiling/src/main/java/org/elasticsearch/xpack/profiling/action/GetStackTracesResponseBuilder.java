@@ -20,6 +20,7 @@ class GetStackTracesResponseBuilder {
     private Map<String, String> executables;
     private Map<String, TraceEvent> stackTraceEvents;
     private List<TransportGetStackTracesAction.HostEventCount> hostEventCounts;
+    private List<TransportGetStackTracesAction.ExecutableEventCount> executableEventCounts;
     private double samplingRate;
     private long totalSamples;
     private Double requestedDuration;
@@ -75,8 +76,16 @@ class GetStackTracesResponseBuilder {
         this.hostEventCounts = hostEventCounts;
     }
 
+    public void setExecutableEventCounts(List<TransportGetStackTracesAction.ExecutableEventCount> executableEventCounts) {
+        this.executableEventCounts = executableEventCounts;
+    }
+
     public List<TransportGetStackTracesAction.HostEventCount> getHostEventCounts() {
         return hostEventCounts;
+    }
+
+    public List<TransportGetStackTracesAction.ExecutableEventCount> getExecutableEventCounts() {
+        return executableEventCounts;
     }
 
     public Map<String, TraceEvent> getStackTraceEvents() {

@@ -133,7 +133,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
+                ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME,
                 ConnectorTemplateRegistry.REGISTRY_VERSION
             ),
             Collections.emptyMap(),
@@ -170,7 +170,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
                 ConnectorTemplateRegistry.REGISTRY_VERSION - 1
             ),
             Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
+                ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME,
                 ConnectorTemplateRegistry.REGISTRY_VERSION
             ),
             Collections.emptyMap(),
@@ -190,7 +190,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             Collections.emptyMap(),
             Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", null),
             Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
+                ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME,
                 ConnectorTemplateRegistry.REGISTRY_VERSION
             ),
             Collections.emptyMap(),

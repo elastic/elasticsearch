@@ -243,9 +243,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         rolloverRequest.dryRun(true);
         rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
         if (targetFailureStore) {
-            rolloverRequest.setRolloverTarget(
-                IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES)
-            );
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES));
         }
         return rolloverRequest;
     }

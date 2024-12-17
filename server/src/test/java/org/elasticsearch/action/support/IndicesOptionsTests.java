@@ -11,7 +11,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
-import org.elasticsearch.action.support.IndicesOptions.SelectorOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

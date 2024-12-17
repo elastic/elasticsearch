@@ -1533,9 +1533,7 @@ public record IndicesOptions(
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
-            + (DataStream.isFailureStoreFeatureFlagEnabled()
-                ? ", allow_selectors=" + allowSelectors()
-                : "")
+            + (DataStream.isFailureStoreFeatureFlagEnabled() ? ", allow_selectors=" + allowSelectors() : "")
             + ']';
     }
 }

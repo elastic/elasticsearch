@@ -161,9 +161,7 @@ public class SelectorResolverTests extends ESTestCase {
     }
 
     private static IndicesOptions getOptionsForSelectors() {
-        return IndicesOptions.builder()
-            .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(true))
-            .build();
+        return IndicesOptions.builder().gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(true)).build();
     }
 
     private static IndicesOptions getDisabledSelectorOptions() {

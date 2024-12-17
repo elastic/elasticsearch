@@ -105,6 +105,39 @@ public class SimulateIndexResponseTests extends ESTestCase {
             ),
             Strings.toString(indexResponseWithException)
         );
+
+        SimulateIndexResponse indexResponseWithIgnoredFields = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            List.of("abc", "def"),
+            null
+        );
+
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s],
+                          "ignored_fields": ["abc", "def"]
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            Strings.toString(indexResponseWithIgnoredFields)
+        );
     }
 
     public void testSerialization() throws IOException {
@@ -137,7 +170,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             xContentType,
             pipelines,
-            List.of(),
+            randomList(0, 20, () -> randomAlphaOfLength(15)),
             randomBoolean() ? null : new ElasticsearchException("failed")
         );
     }

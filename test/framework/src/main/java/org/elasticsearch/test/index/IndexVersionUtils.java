@@ -30,11 +30,12 @@ public class IndexVersionUtils {
         return ALL_VERSIONS;
     }
 
-    /** Returns the oldest known {@link IndexVersion} */
+    /** Returns the oldest known {@link IndexVersion}. This version can only be read from and not writte to */
     public static IndexVersion getLowestReadCompatibleVersion() {
         return ALL_VERSIONS.get(0);
     }
 
+    /** Returns the oldest known {@link IndexVersion} that can be written to */
     public static IndexVersion getLowestWriteCompatibleVersion() {
         return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).findFirst().get();
     }

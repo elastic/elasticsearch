@@ -183,7 +183,7 @@ language_code:integer | language_name:keyword       | country:keyword
 ;
 
 repeatedIndexOnFrom
-required_capability: join_lookup_v6
+required_capability: join_lookup_v7
 required_capability: join_lookup_repeated_index_from
 
 FROM languages_lookup

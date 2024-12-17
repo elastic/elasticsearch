@@ -15,6 +15,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -28,12 +30,15 @@ import org.junit.rules.TestRule;
 
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -53,7 +58,7 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(VERSION_MINUS_2)
-        .nodes(2)
+        .nodes(1)
         .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
@@ -113,6 +118,12 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
         return name + '-' + getTestName().split(" ")[0].toLowerCase(Locale.ROOT);
     }
 
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put("location", REPOSITORY_PATH.getRoot().toPath().resolve(suffix("location")).toFile().getPath())
+            .build();
+    }
+
     protected static Version clusterVersion() throws Exception {
         var response = assertOK(client().performRequest(new Request("GET", "/")));
         var responseBody = createFromResponse(response);
@@ -121,10 +132,22 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
         return version;
     }
 
-    protected static Version indexLuceneVersion(String indexName) throws Exception {
+    protected static Version indexVersion(String indexName) throws Exception {
         var response = assertOK(client().performRequest(new Request("GET", "/" + indexName + "/_settings")));
         int id = Integer.parseInt(createFromResponse(response).evaluate(indexName + ".settings.index.version.created"));
         return new Version((byte) ((id / 1000000) % 100), (byte) ((id / 10000) % 100), (byte) ((id / 100) % 100));
+    }
+
+    protected static void indexDocs(String indexName, int numDocs) throws Exception {
+        var request = new Request("POST", "/_bulk");
+        var docs = new StringBuilder();
+        IntStream.range(0, numDocs).forEach(n -> docs.append(Strings.format("""
+            {"index":{"_id":"%s","_index":"%s"}}
+            {"test":"test"}
+            """, n, indexName)));
+        request.setJsonEntity(docs.toString());
+        var response = assertOK(client().performRequest(request));
+        assertThat(entityAsMap(response).get("errors"), allOf(notNullValue(), is(false)));
     }
 
     /**

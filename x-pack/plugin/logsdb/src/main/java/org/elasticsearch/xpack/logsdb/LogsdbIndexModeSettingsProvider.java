@@ -120,8 +120,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         }
 
         // Inject routing path matching sort fields.
-        if ((isLogsDB)
-            && settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+        if ((isLogsDB) && settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
             List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
             sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
             if (sortFields.size() < 2) {

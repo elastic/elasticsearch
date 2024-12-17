@@ -49,7 +49,7 @@ public class ConnectTransportException extends ActionTransportException {
      * @return a {@link RestStatus#BAD_GATEWAY} code
      */
     @Override
-    public RestStatus status() {
+    public final RestStatus status() {
         return RestStatus.BAD_GATEWAY;
     }
 

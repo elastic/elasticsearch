@@ -401,5 +401,8 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
+  if (buildParams.isSnapshotBuild()) {
+    systemProperty('tests.jvm.argline', '-Des.inference_metadata_fields=true')
+  }
 }
 

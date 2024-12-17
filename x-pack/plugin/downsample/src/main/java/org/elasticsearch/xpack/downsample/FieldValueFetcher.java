@@ -91,7 +91,7 @@ class FieldValueFetcher {
                         fetchers.add(new AggregateMetricFieldValueFetcher(metricSubField, aggMetricFieldType, fieldData));
                     }
                 }
-            }  else {
+            } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;
                     if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType flattenedFieldType) {

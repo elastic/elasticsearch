@@ -416,7 +416,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             } else {
                 Map<String, List<String>> inputTextMap = Map.of(field, List.of(inputText));
                 semanticTextField = randomSemanticText(indexVersion, field, model, List.of(inputText), requestContentType);
-                model.putResult(inputText, toChunkedResult(inputTextMap, semanticTextField));
+                model.putResult(inputText, toChunkedResult(indexVersion, inputTextMap, semanticTextField));
             }
 
             if (useInferenceMetadataFieldsFormat) {

@@ -7,10 +7,19 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class LabelFieldProducerTests extends AggregatorTestCase {
 
@@ -89,6 +98,52 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
         // producer.collect("dummy", "aaaa");
         assertFalse(producer.isEmpty());
         assertEquals("aaaa", producer.label().get());
+        producer.reset();
+        assertTrue(producer.isEmpty());
+        assertNull(producer.label().get());
+    }
+
+    public void testFlattenedLastValueFieldProducer() throws IOException {
+        var producer = new LabelFieldProducer.FlattenedLastValueFieldProducer("dummy");
+        assertTrue(producer.isEmpty());
+        assertEquals("dummy", producer.name());
+        assertEquals("last_value", producer.label().name());
+
+        var bytes = List.of("a\0value_a", "b\0value_b", "c\0value_c", "d\0value_d");
+        var docValues = new FormattedDocValues() {
+
+            Iterator<String> iterator = bytes.iterator();
+
+            @Override
+            public boolean advanceExact(int docId) {
+                return true;
+            }
+
+            @Override
+            public int docValueCount() {
+                return bytes.size();
+            }
+
+            @Override
+            public Object nextValue() {
+                return iterator.next();
+            }
+        };
+
+        producer.collect(docValues, 1);
+        assertFalse(producer.isEmpty());
+        assertEquals("a\0value_a", ((BytesRef) ((List<?>) producer.label().get()).get(0)).utf8ToString());
+        assertEquals("b\0value_b", ((BytesRef) ((List<?>) producer.label().get()).get(1)).utf8ToString());
+        assertEquals("c\0value_c", ((BytesRef) ((List<?>) producer.label().get()).get(2)).utf8ToString());
+        assertEquals("d\0value_d", ((BytesRef) ((List<?>) producer.label().get()).get(3)).utf8ToString());
+
+        var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
+        builder.startObject();
+        producer.write(builder);
+        builder.endObject();
+        var content = Strings.toString(builder);
+        assertThat(content, equalTo("{\"dummy\":{\"a\":\"value_a\",\"b\":\"value_b\",\"c\":\"value_c\",\"d\":\"value_d\"}}"));
+
         producer.reset();
         assertTrue(producer.isEmpty());
         assertNull(producer.label().get());

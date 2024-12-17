@@ -17,6 +17,6 @@ breaking:
     to the node. Nodes will fail to start if a bind DN is specified without a password.
   impact: -|
     If you have a bind DN configured for an LDAP or AD authentication
-    realm, set a bind password for [LDAP]({ref}/ldap-realm.html#ldap-realm-configuration)
-    or [Active Directory]({ref}/active-directory-realm.html#ad-realm-configuration).
+    realm, set a bind password for {ref}/ldap-realm.html#ldap-realm-configuration[LDAP]
+    or {ref}/active-directory-realm.html#ad-realm-configuration[Active Directory].
     Configuring a bind DN without a password prevents the misconfigured node from starting.

@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.predicate.operator.fulltext;
+package org.elasticsearch.xpack.esql.expression.predicate.fulltext;
 
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.util.HashMap;

@@ -33,12 +33,6 @@ public class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase {
 
     /**
      * Overrides the snapshot-restore operation for archive-indices scenario.
-     *
-     * @param client
-     * @param repository
-     * @param snapshot
-     * @param index
-     * @throws Exception
      */
     @Override
     public void recover(RestClient client, String repository, String snapshot, String index) throws Exception {

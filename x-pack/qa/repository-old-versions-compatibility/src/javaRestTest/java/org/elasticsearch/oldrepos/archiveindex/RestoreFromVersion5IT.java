@@ -15,7 +15,7 @@ public class RestoreFromVersion5IT extends ArchiveIndexTestCase {
         super(version);
     }
 
-    public void testArchiveIndicesV6() throws Exception {
-        verifyArchiveIndexCompatibility("6");
+    public void testArchiveIndex() throws Exception {
+        verifyCompatibility("5");
     }
 }

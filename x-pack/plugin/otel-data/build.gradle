@@ -9,9 +9,9 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'x-pack-otel-data'
-  description 'The OTEL plugin defines OTEL data streams and ingest pipelines.'
-  classname 'org.elasticsearch.xpack.oteldata.OTelPlugin'
+  name = 'x-pack-otel-data'
+  description = 'The OTEL plugin defines OTEL data streams and ingest pipelines.'
+  classname ='org.elasticsearch.xpack.oteldata.OTelPlugin'
   extendedPlugins = ['x-pack-core']
 }
 

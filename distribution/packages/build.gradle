@@ -289,15 +289,15 @@ def commonPackageConfig(String type, String architecture) {
 
 // this is package independent configuration
 ospackage {
-  maintainer 'Elasticsearch Team <info@elastic.co>'
-  summary 'Distributed RESTful search engine built for the cloud'
-  packageDescription '''
+  maintainer = 'Elasticsearch Team <info@elastic.co>'
+  summary = 'Distributed RESTful search engine built for the cloud'
+  packageDescription = '''
     Reference documentation can be found at
     https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
     and the 'Elasticsearch: The Definitive Guide' book can be found at
     https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
   '''.stripIndent().trim()
-  url 'https://www.elastic.co/'
+  url = 'https://www.elastic.co/'
 
   // signing setup
   if (project.hasProperty('signing.password') && buildParams.isSnapshotBuild() == false) {
@@ -311,10 +311,10 @@ ospackage {
   // version found on oldest supported distro, centos-6
   requires('coreutils', '8.4', GREATER | EQUAL)
 
-  fileMode 0644
-  dirMode 0755
-  user 'root'
-  permissionGroup 'root'
+  fileMode = 0644
+  dirMode = 0755
+  user = 'root'
+  permissionGroup = 'root'
 
   into '/usr/share/elasticsearch'
 }

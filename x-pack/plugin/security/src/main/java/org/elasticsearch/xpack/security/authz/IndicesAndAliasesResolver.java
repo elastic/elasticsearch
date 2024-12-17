@@ -141,8 +141,6 @@ class IndicesAndAliasesResolver {
             return null;
         }
         // It's safe to cast IndicesRequest since the above test guarantees it
-        // PRTODO It seems like this should not try to resolve selectors since they could have "*" characters present
-        // But a lot of logic that calls this probably doesn't expect selectors present
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
     }
 

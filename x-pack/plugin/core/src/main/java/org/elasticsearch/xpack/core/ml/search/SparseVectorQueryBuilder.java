@@ -99,25 +99,24 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     + QUERY_VECTOR_FIELD.getPreferredName()
                     + "] or ["
                     + INFERENCE_ID_FIELD.getPreferredName()
-                    + "]"
+                    + "] for "
+                    + ALLOWED_FIELD_TYPE
+                    + " fields"
             );
         }
 
+        // Preserve BWC error messaging
         if ((queryVectors == null) == (query == null)) {
-            throw new IllegalArgumentException(
-                "[" + NAME + "] requires one of [" + QUERY_VECTOR_FIELD.getPreferredName() + "] or [" + QUERY_FIELD.getPreferredName() + "]"
-            );
-        }
-
-        if (inferenceId != null && query == null) {
             throw new IllegalArgumentException(
                 "["
                     + NAME
-                    + "] requires ["
-                    + QUERY_FIELD.getPreferredName()
-                    + "] when ["
+                    + "] requires one of ["
+                    + QUERY_VECTOR_FIELD.getPreferredName()
+                    + "] or ["
                     + INFERENCE_ID_FIELD.getPreferredName()
-                    + "] is specified"
+                    + "] for "
+                    + ALLOWED_FIELD_TYPE
+                    + " fields"
             );
         }
     }

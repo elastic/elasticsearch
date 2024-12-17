@@ -205,7 +205,7 @@ public final class IndexSortConfig {
     IndexSortConfig maybeTrimForLogsdb(boolean trim) {
         if (defaultForLogsdb && trim && sortSpecs.length == 2) {
             assert sortSpecs[1].field.equals(DataStream.TIMESTAMP_FIELD_NAME) : sortSpecs[1].field;
-            sortSpecs = new FieldSortSpec[]{sortSpecs[1]};
+            sortSpecs = new FieldSortSpec[] { sortSpecs[1] };
         }
         return this;
     }

@@ -8,7 +8,7 @@
  */
 
 apply plugin: 'elasticsearch.java'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 

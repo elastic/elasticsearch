@@ -580,14 +580,16 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
             return;
         }
-        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final Map<String, LifecyclePolicy> policies = metadata != null ? metadata.getPolicies() : Map.of();
+
         for (LifecyclePolicy policy : getLifecyclePolicies()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
                 policy.getName(),
                 key -> new AtomicBoolean(false)
             );
             if (creationCheck.compareAndSet(false, true)) {
-                final LifecyclePolicy currentPolicy = metadata != null ? metadata.getPolicies().get(policy.getName()) : null;
+                final LifecyclePolicy currentPolicy = policies.get(policy.getName());
                 if (Objects.isNull(currentPolicy)) {
                     logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
                     putPolicy(policy, creationCheck);

@@ -1,0 +1,5 @@
+pr: 117287
+summary: Fixing bug setting index when parsing Google Vertex AI results
+area: Machine Learning
+type: bug
+issues: []

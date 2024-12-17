@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -86,6 +87,14 @@ public class FailureCollectorTests extends ESTestCase {
         assertNotNull(failure);
         assertThat(failure, Matchers.in(nonCancelledExceptions));
         assertThat(failure.getSuppressed().length, lessThan(maxExceptions));
+        assertTrue(
+            "cancellation exceptions must be ignored",
+            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TaskCancelledException).isEmpty()
+        );
+        assertTrue(
+            "remote transport exception must be unwrapped",
+            ExceptionsHelper.unwrapCausesAndSuppressed(failure, t -> t instanceof TransportException).isEmpty()
+        );
     }
 
     public void testEmpty() {

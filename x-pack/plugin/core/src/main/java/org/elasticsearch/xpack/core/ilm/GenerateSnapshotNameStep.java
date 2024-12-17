@@ -130,11 +130,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
      * still result in unique snapshot names.
      */
     public static String generateSnapshotName(String name) {
-        return generateSnapshotName(name, new IndexNameExpressionResolver.ResolverContext());
+        return generateSnapshotName(name, System.currentTimeMillis());
     }
 
-    public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, context.getStartTime());
+    public static String generateSnapshotName(String name, long now) {
+        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, now);
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
         return candidate + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
     }

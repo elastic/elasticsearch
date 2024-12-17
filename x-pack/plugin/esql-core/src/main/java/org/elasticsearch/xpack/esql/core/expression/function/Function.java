@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -40,6 +41,11 @@ public abstract class Function extends Expression {
     @Override
     public Nullability nullable() {
         return Expressions.nullable(children());
+    }
+
+    /** Return true if this function can be executed under the provided {@link XPackLicenseState}, otherwise false.*/
+    public boolean checkLicense(XPackLicenseState state) {
+        return true;
     }
 
     @Override

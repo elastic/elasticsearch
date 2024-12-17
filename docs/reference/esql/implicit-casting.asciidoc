@@ -5,7 +5,7 @@
 <titleabbrev>Implicit casting</titleabbrev>
 ++++
 
-Often users will input `date`, `ip`, `version`, `date_period` or `time_duration` as simple strings in their queries for use in predicates, functions, or expressions. {esql} provides <<esql-type-conversion-functions, type conversion functions>> to explicitly convert these strings into the desired data types.
+Often users will input `date`, `date_period`, `time_duration`, `ip` or `version` as simple strings in their queries for use in predicates, functions, or expressions. {esql} provides <<esql-type-conversion-functions, type conversion functions>> to explicitly convert these strings into the desired data types.
 
 Without implicit casting users must explicitly code these `to_X` functions in their queries, when string literals don't match the target data types they are assigned or compared to. Here is an example of using `to_datetime` to explicitly perform a data type conversion.
 
@@ -18,7 +18,10 @@ FROM employees
 | LIMIT 1
 ----
 
-Implicit casting improves usability, by automatically converting string literals to the target data type. This is most useful when the target data type is `date`, `ip`, `version`, `date_period` or `time_duration`. It is natural to specify these as a string in queries.
+[discrete]
+[[esql-implicit-casting-example]]
+==== Implicit casting example
+Implicit casting automatically converts string literals to the target data type. This allows users to specify string values for types like `date`, `date_period`, `time_duration`, `ip` and `version` in their queries.
 
 The first query can be coded without calling the `to_datetime` function, as follows:
 
@@ -31,35 +34,36 @@ FROM employees
 | LIMIT 1
 ----
 
-[float]
-=== Implicit casting support
+[discrete]
+[[esql-implicit-casting-supported-operations]]
+==== Operations that support implicit casting
 
 The following table details which {esql} operations support implicit casting for different data types.
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-||ScalarFunction*|Operator*|<<esql-group-functions, GroupingFunction>>|<<esql-agg-functions, AggregateFunction>>
-|DATE|Y|Y|Y|N
-|IP|Y|Y|Y|N
-|VERSION|Y|Y|Y|N
-|BOOLEAN|Y|Y|Y|N
-|DATE_PERIOD/TIME_DURATION|Y|N|Y|N
+|ScalarFunctions|Operators|<<esql-group-functions, GroupingFunctions>>|<<esql-agg-functions, AggregateFunctions>>
+DATE|Y|Y|Y|N
+DATE_PERIOD/TIME_DURATION|Y|N|Y|N
+IP|Y|Y|Y|N
+VERSION|Y|Y|Y|N
+BOOLEAN|Y|Y|Y|N
 |===
 
-ScalarFunction* includes:
+ScalarFunctions includes:
 
-<<esql-conditional-functions-and-expressions, Conditional Functions and Expressions>>
+* <<esql-conditional-functions-and-expressions, Conditional Functions and Expressions>>
 
-<<esql-date-time-functions, Date and Time Functions>>
+* <<esql-date-time-functions, Date and Time Functions>>
 
-<<esql-ip-functions, IP Functions>>
+* <<esql-ip-functions, IP Functions>>
 
 
-Operator* includes:
+Operators includes:
 
-<<esql-binary-operators, Binary Operators>>
+* <<esql-binary-operators, Binary Operators>>
 
-<<esql-unary-operators, Unary Operator>>
+* <<esql-unary-operators, Unary Operator>>
 
-<<esql-in-operator, IN>>
+* <<esql-in-operator, IN>>
 

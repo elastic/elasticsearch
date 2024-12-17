@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -38,7 +39,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static Analyzer expandedDefaultAnalyzer() {
-        return analyzer(analyzerExpandedDefaultMapping());
+        return analyzer(expandedDefaultIndexResolution());
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution) {
@@ -47,18 +48,33 @@ public final class AnalyzerTestUtils {
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
             verifier
         );
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
-        return new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()), verifier);
+        return new Analyzer(
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
+            verifier
+        );
     }
 
     public static Analyzer analyzer(Verifier verifier) {
         return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), analyzerDefaultMapping(), defaultEnrichResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                analyzerDefaultMapping(),
+                defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
             verifier
         );
     }
@@ -89,6 +105,11 @@ public final class AnalyzerTestUtils {
         return analyzer.analyze(plan);
     }
 
+    public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode));
+        return IndexResolution.valid(test);
+    }
+
     public static IndexResolution loadMapping(String resource, String indexName) {
         EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
         return IndexResolution.valid(test);
@@ -98,8 +119,12 @@ public final class AnalyzerTestUtils {
         return loadMapping("mapping-basic.json", "test");
     }
 
-    public static IndexResolution analyzerExpandedDefaultMapping() {
+    public static IndexResolution expandedDefaultIndexResolution() {
         return loadMapping("mapping-default.json", "test");
+    }
+
+    public static Map<String, IndexResolution> defaultLookupResolution() {
+        return Map.of("languages_lookup", loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP));
     }
 
     public static EnrichResolution defaultEnrichResolution() {

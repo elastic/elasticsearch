@@ -10,7 +10,6 @@ Creates an {infer} endpoint to perform an {infer} task.
 * For built-in models and models uploaded through Eland, the {infer} APIs offer an alternative way to use and manage trained models. However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 ====
 
-
 [discrete]
 [[put-inference-api-request]]
 ==== {api-request-title}
@@ -47,6 +46,14 @@ Refer to the service list in the <<put-inference-api-desc,API description sectio
 
 The create {infer} API enables you to create an {infer} endpoint and configure a {ml} model to perform a specific {infer} task.
 
+[IMPORTANT]
+====
+* When creating an inference endpoint, the associated machine learning model is automatically deployed if it is not already running.
+* After creating the endpoint, wait for the model deployment to complete before using it. You can verify the deployment status by using the <<get-trained-models-stats, Get trained model statistics>> API. In the response, look for `"state": "fully_allocated"` and ensure the `"allocation_count"` matches the `"target_allocation_count"`.
+* Avoid creating multiple endpoints for the same model unless required, as each endpoint consumes significant resources.
+====
+
+
 The following services are available through the {infer} API.
 You can find the available task types next to the service name. 
 Click the links to review the configuration details of the services:
@@ -68,3 +75,16 @@ Click the links to review the configuration details of the services:
 
 The {es} and ELSER services run on a {ml} node in your {es} cluster. The rest of
 the services connect to external providers.
+
+[discrete]
+[[adaptive-allocations-put-inference]]
+==== Adaptive allocations
+
+Adaptive allocations allow inference services to dynamically adjust the number of model allocations based on the current load.
+
+When adaptive allocations are enabled:
+
+- The number of allocations scales up automatically when the load increases.
+- Allocations scale down to a minimum of 0 when the load decreases, saving resources.
+
+For more information about adaptive allocations and resources, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] documentation.

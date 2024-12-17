@@ -12,6 +12,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
@@ -44,7 +45,7 @@ public interface RestRequestFilter {
                 }
 
                 @Override
-                public BytesReference content() {
+                public ReleasableBytesReference content() {
                     if (filteredBytes == null) {
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(
                             restRequest.requiredContent(),
@@ -63,7 +64,7 @@ public interface RestRequestFilter {
                             throw new ElasticsearchException("failed to parse request", e);
                         }
                     }
-                    return filteredBytes;
+                    return ReleasableBytesReference.wrap(filteredBytes);
                 }
             };
         } else {

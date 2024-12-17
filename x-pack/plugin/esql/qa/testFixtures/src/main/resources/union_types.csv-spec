@@ -626,6 +626,65 @@ sample_data_ts_nanos | 2023-10-23T12:27:28.948123456Z  |  172.21.2.113  |  27648
 sample_data_ts_nanos | 2023-10-23T12:15:03.360123456Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
 ;
 
+multiIndex sort millis and nanos as nanos
+required_capability: to_date_nanos
+required_capability: union_types
+required_capability: metadata_fields
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_ts_nanos METADATA _index
+| EVAL ts = TO_DATE_NANOS(@timestamp)
+| KEEP _index, ts, client_ip, event_duration, message
+| SORT ts DESC
+;
+
+_index:keyword       | ts:date_nanos             |  client_ip:ip  |  event_duration:long  |  message:keyword
+sample_data_ts_nanos | 2023-10-23T13:55:01.543123456Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data          | 2023-10-23T13:55:01.543000000Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos | 2023-10-23T13:53:55.832123456Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data          | 2023-10-23T13:53:55.832000000Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:52:55.015123456Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data          | 2023-10-23T13:52:55.015000000Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:51:54.732123456Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data          | 2023-10-23T13:51:54.732000000Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:33:34.937123456Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data          | 2023-10-23T13:33:34.937000000Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_ts_nanos | 2023-10-23T12:27:28.948123456Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data          | 2023-10-23T12:27:28.948000000Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos | 2023-10-23T12:15:03.360123456Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data          | 2023-10-23T12:15:03.360000000Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+;
+
+multiIndex sort millis and nanos as millis
+required_capability: to_date_nanos
+required_capability: union_types
+required_capability: metadata_fields
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_ts_nanos METADATA _index
+| EVAL ts = TO_DATETIME(@timestamp)
+| KEEP _index, ts, client_ip, event_duration, message
+| SORT ts DESC, _index DESC
+;
+
+_index:keyword       | ts:datetime               |  client_ip:ip  |  event_duration:long  |  message:keyword
+sample_data_ts_nanos | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data          | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data          | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data          | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data          | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data          | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_ts_nanos | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data          | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data          | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+;
+
+
 multiIndexTsNanosRenameToNanosWithFiltering
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
@@ -718,6 +777,7 @@ count:long  |  @timestamp:date
 multiIndexTsNanosToDatetimeStats
 required_capability: union_types
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data, sample_data_ts_nanos
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
@@ -734,6 +794,8 @@ count:long  |  @timestamp:date
 Multi Index millis to nanos stats
 required_capability: union_types
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
+required_capability: date_trunc_date_nanos
 
 FROM sample_data, sample_data_ts_nanos
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATE_NANOS(@timestamp))
@@ -752,6 +814,7 @@ multiIndexTsLongStatsDrop
 required_capability: union_types
 required_capability: union_types_agg_cast
 required_capability: casting_operator
+required_capability: to_date_nanos
 
 FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
 | STATS count=count(*) BY @timestamp::datetime
@@ -772,6 +835,7 @@ multiIndexTsLongStatsInline2
 required_capability: union_types
 required_capability: union_types_agg_cast
 required_capability: casting_operator
+required_capability: to_date_nanos
 
 FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
 | STATS count=count(*) BY @timestamp::datetime
@@ -915,6 +979,7 @@ multiIndexIpStringTsLong
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | EVAL @timestamp = TO_DATETIME(@timestamp), client_ip = TO_IP(client_ip)
@@ -956,6 +1021,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 multiIndexIpStringTsLongDropped
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | EVAL @timestamp = TO_DATETIME(@timestamp), client_ip = TO_IP(client_ip)
@@ -998,6 +1064,7 @@ multiIndexIpStringTsLongRename
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | EVAL ts = TO_DATETIME(@timestamp), host_ip = TO_IP(client_ip)
@@ -1039,6 +1106,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 multiIndexIpStringTsLongRenameDropped
 required_capability: union_types
 required_capability: metadata_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | EVAL ts = TO_DATETIME(@timestamp), host_ip = TO_IP(client_ip)
@@ -1081,6 +1149,7 @@ multiIndexIpStringTsLongRenameToString
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | EVAL ts = TO_STRING(TO_DATETIME(@timestamp)), host_ip = TO_STRING(TO_IP(client_ip))
@@ -1123,6 +1192,7 @@ multiIndexWhereIpStringTsLong
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) == "172.21.2.162"
@@ -1139,6 +1209,7 @@ sample_data_ts_long  |  3450233              |  Connected to 10.1.0.3
 multiIndexWhereIpStringTsLongStats
 required_capability: union_types
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data*
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) == "172.21.2.162"
@@ -1155,6 +1226,7 @@ multiIndexWhereIpStringLikeTsLong
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) LIKE "172.21.2.16?"
@@ -1171,6 +1243,7 @@ sample_data_ts_long  |  3450233              |  Connected to 10.1.0.3
 multiIndexWhereIpStringLikeTsLongStats
 required_capability: union_types
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data*
 | WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) LIKE "172.21.2.16?"
@@ -1187,6 +1260,7 @@ multiIndexMultiColumnTypesRename
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | WHERE event_duration > 8000000
@@ -1205,6 +1279,7 @@ multiIndexMultiColumnTypesRenameAndKeep
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | WHERE event_duration > 8000000
@@ -1224,6 +1299,7 @@ multiIndexMultiColumnTypesRenameAndDrop
 required_capability: union_types
 required_capability: metadata_fields
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
 | WHERE event_duration > 8000000
@@ -1515,7 +1591,7 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected    |  8268153
 ;
 
-multiIndexIndirectUseOfUnionTypesInLookup
+multiIndexIndirectUseOfUnionTypesInLookup-Ignore
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types
@@ -1524,7 +1600,7 @@ FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
 | LIMIT 1
 | EVAL int = (event_duration - 1232380)::integer
-| LOOKUP int_number_names ON int
+| LOOKUP_🐔 int_number_names ON int
 ;
 
 @timestamp:null | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword

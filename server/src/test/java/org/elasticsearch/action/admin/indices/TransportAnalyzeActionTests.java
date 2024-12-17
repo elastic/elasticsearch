@@ -42,6 +42,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -86,7 +87,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 final CharacterRunAutomaton stopset;
 
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(name, settings);
+                    super(name);
                     if (settings.hasValue("stopword")) {
                         this.stopset = new CharacterRunAutomaton(Automata.makeString(settings.get("stopword")));
                     } else {
@@ -248,6 +249,32 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals(15, tokens.get(3).getEndOffset());
         assertEquals(3, tokens.get(3).getPosition());
         assertEquals("<ALPHANUM>", tokens.get(3).getType());
+    }
+
+    public void testAnalyzerWithTwoTextsAndNoIndexName() throws IOException {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+
+        for (String analyzer : Arrays.asList("standard", "simple", "stop", "keyword", "whitespace", "classic")) {
+            request.analyzer(analyzer);
+            request.text("a a", "b b");
+
+            AnalyzeAction.Response analyzeIndex = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokensIndex = analyzeIndex.getTokens();
+
+            AnalyzeAction.Response analyzeNoIndex = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokensNoIndex = analyzeNoIndex.getTokens();
+
+            assertEquals(tokensIndex.size(), tokensNoIndex.size());
+            for (int i = 0; i < tokensIndex.size(); i++) {
+                AnalyzeAction.AnalyzeToken withIndex = tokensIndex.get(i);
+                AnalyzeAction.AnalyzeToken withNoIndex = tokensNoIndex.get(i);
+
+                assertEquals(withIndex.getStartOffset(), withNoIndex.getStartOffset());
+                assertEquals(withIndex.getEndOffset(), withNoIndex.getEndOffset());
+                assertEquals(withIndex.getPosition(), withNoIndex.getPosition());
+                assertEquals(withIndex.getType(), withNoIndex.getType());
+            }
+        }
     }
 
     public void testWithIndexAnalyzers() throws IOException {

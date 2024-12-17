@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,8 +24,10 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -68,14 +71,25 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.inputPage,
             null,
             request.extractFields,
-            request.matchField
+            request.matchField,
+            request.source
         );
     }
 
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
+        validateTypes(request.inputDataType, fieldType);
         return termQueryList(fieldType, context, inputBlock, inputDataType);
+    }
+
+    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
+        // TODO: consider supporting implicit type conversion as done in ENRICH for some types
+        if (fieldType.typeName().equals(inputDataType.typeName()) == false) {
+            throw new EsqlIllegalArgumentException(
+                "LOOKUP JOIN match and input types are incompatible: match[" + fieldType.typeName() + "], input[" + inputDataType + "]"
+            );
+        }
     }
 
     public static class Request extends AbstractLookupService.Request {
@@ -87,9 +101,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             DataType inputDataType,
             String matchField,
             Page inputPage,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields);
+            super(sessionId, index, inputDataType, inputPage, extractFields, source);
             this.matchField = matchField;
         }
     }
@@ -104,9 +119,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
-            String matchField
+            String matchField,
+            Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields);
+            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
             this.matchField = matchField;
         }
 
@@ -122,6 +138,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
+            var source = Source.EMPTY;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+                source = Source.readFrom(planIn);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -129,7 +149,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 inputPage,
                 inputPage,
                 extractFields,
-                matchField
+                matchField,
+                source
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -145,6 +166,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
             out.writeString(matchField);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+                source.writeTo(planOut);
+            }
         }
 
         @Override

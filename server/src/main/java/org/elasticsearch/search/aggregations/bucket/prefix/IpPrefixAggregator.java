@@ -12,6 +12,8 @@ package org.elasticsearch.search.aggregations.bucket.prefix;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -160,57 +162,60 @@ public final class IpPrefixAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         long totalOrdsToCollect = 0;
-        final int[] bucketsInOrd = new int[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            final long bucketCount = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
-            bucketsInOrd[ordIdx] = (int) bucketCount;
-            totalOrdsToCollect += bucketCount;
-        }
-
-        long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
-        int b = 0;
-        for (long owningBucketOrd : owningBucketOrds) {
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-            while (ordsEnum.next()) {
-                bucketOrdsToCollect[b++] = ordsEnum.ord();
+        try (IntArray bucketsInOrd = bigArrays().newIntArray(owningBucketOrds.size())) {
+            for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                final long bucketCount = bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx));
+                bucketsInOrd.set(ordIdx, (int) bucketCount);
+                totalOrdsToCollect += bucketCount;
             }
-        }
 
-        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        b = 0;
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            List<InternalIpPrefix.Bucket> buckets = new ArrayList<>(bucketsInOrd[ordIdx]);
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            while (ordsEnum.next()) {
-                long ordinal = ordsEnum.ord();
-                if (bucketOrdsToCollect[b] != ordinal) {
-                    throw AggregationErrors.iterationOrderChangedWithoutMutating(bucketOrds.toString(), ordinal, bucketOrdsToCollect[b]);
+            try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(totalOrdsToCollect)) {
+                int[] b = new int[] { 0 };
+                for (long i = 0; i < owningBucketOrds.size(); i++) {
+                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(i));
+                    while (ordsEnum.next()) {
+                        bucketOrdsToCollect.set(b[0]++, ordsEnum.ord());
+                    }
                 }
-                BytesRef ipAddress = new BytesRef();
-                ordsEnum.readValue(ipAddress);
-                long docCount = bucketDocCount(ordinal);
-                buckets.add(
-                    new InternalIpPrefix.Bucket(
-                        config.format(),
-                        BytesRef.deepCopyOf(ipAddress),
-                        keyed,
-                        ipPrefix.isIpv6,
-                        ipPrefix.prefixLength,
-                        ipPrefix.appendPrefixLength,
-                        docCount,
-                        subAggregationResults.apply(b++)
-                    )
-                );
 
-                // NOTE: the aggregator is expected to return sorted results
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+                var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+                b[0] = 0;
+                return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
+                    List<InternalIpPrefix.Bucket> buckets = new ArrayList<>(bucketsInOrd.get(ordIdx));
+                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
+                    while (ordsEnum.next()) {
+                        long ordinal = ordsEnum.ord();
+                        if (bucketOrdsToCollect.get(b[0]) != ordinal) {
+                            throw AggregationErrors.iterationOrderChangedWithoutMutating(
+                                bucketOrds.toString(),
+                                ordinal,
+                                bucketOrdsToCollect.get(b[0])
+                            );
+                        }
+                        BytesRef ipAddress = new BytesRef();
+                        ordsEnum.readValue(ipAddress);
+                        long docCount = bucketDocCount(ordinal);
+                        checkRealMemoryCBForInternalBucket();
+                        buckets.add(
+                            new InternalIpPrefix.Bucket(
+                                BytesRef.deepCopyOf(ipAddress),
+                                ipPrefix.isIpv6,
+                                ipPrefix.prefixLength,
+                                ipPrefix.appendPrefixLength,
+                                docCount,
+                                subAggregationResults.apply(b[0]++)
+                            )
+                        );
+
+                        // NOTE: the aggregator is expected to return sorted results
+                        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+                    }
+                    return new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
+                });
             }
-            results[ordIdx] = new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
         }
-        return results;
     }
 
     @Override

@@ -1,23 +1,21 @@
 [[how-to]]
-= How to
+= Optimizations
 
-[partintro]
---
-Elasticsearch ships with defaults which are intended to give a good out of
-the box experience. Full text search, highlighting, aggregations, and indexing
-should all just work without the user having to change anything.
+Elasticsearch's default settings provide a good out-of-box experience for basic operations like full text search, highlighting, aggregations, and indexing. 
 
-Once you better understand how you want to use Elasticsearch, however,
-there are a number of optimizations you can make to improve performance
-for your use case.
+However, there are a number of optimizations you can make to improve performance for your use case.
 
-This section provides guidance about which changes should and shouldn't be
-made.
---
+This section provides recommendations for various use cases.
+
+* <<general-recommendations>>
+* <<tune-for-indexing-speed>>
+* <<tune-for-search-speed>>
+* <<tune-knn-search>>
+* <<tune-for-disk-usage>>
+* <<size-your-shards>>
+* <<use-elasticsearch-for-time-series-data>>
 
 include::how-to/general.asciidoc[]
-
-include::how-to/recipes.asciidoc[]
 
 include::how-to/indexing-speed.asciidoc[]
 

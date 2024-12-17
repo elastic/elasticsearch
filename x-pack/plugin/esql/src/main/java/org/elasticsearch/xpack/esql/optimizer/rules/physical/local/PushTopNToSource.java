@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -57,6 +58,7 @@ import java.util.List;
  * </ol>
  */
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
+
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
         Pushable pushable = evaluatePushable(topNExec, LucenePushdownPredicates.from(ctx.searchStats()));
@@ -155,6 +157,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             order.nullsPosition()
                         )
                     );
+                } else if (lucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
+                    pushableSorts.add(new EsQueryExec.ScoreSort(order.direction()));
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
                     Attribute resolvedAttribute = aliasReplacedBy.resolve(referenceAttribute, referenceAttribute);
                     if (distances.containsKey(resolvedAttribute.id())) {
@@ -192,13 +196,23 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child()));
+        return orders.stream()
+            .allMatch(
+                o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child())
+                    || lucenePushdownPredicates.isPushableMetadataAttribute(o.child())
+            );
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {
         List<EsQueryExec.Sort> sorts = new ArrayList<>(orders.size());
         for (Order o : orders) {
-            sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
+            if (o.child() instanceof FieldAttribute fa) {
+                sorts.add(new EsQueryExec.FieldSort(fa.exactAttribute(), o.direction(), o.nullsPosition()));
+            } else if (o.child() instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name())) {
+                sorts.add(new EsQueryExec.ScoreSort(o.direction()));
+            } else {
+                assert false : "unexpected ordering on expression type " + o.child().getClass();
+            }
         }
         return sorts;
     }

@@ -48,9 +48,10 @@ public class ClusterStatsRequest extends BaseNodesRequest {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
-    public ClusterStatsRequest asRemoteStats() {
-        this.remoteStats = true;
-        return this;
+    public static ClusterStatsRequest newRemoteClusterStatsRequest() {
+        final var request = new ClusterStatsRequest();
+        request.remoteStats = true;
+        return request;
     }
 
     /**

@@ -1,0 +1,5 @@
+pr: 117095
+summary: Add version prefix to Inference Service API path
+area: Inference
+type: enhancement
+issues: []

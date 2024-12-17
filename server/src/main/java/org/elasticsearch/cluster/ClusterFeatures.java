@@ -80,7 +80,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         return nodeFeatures;
     }
 
-    private Set<String> allNodeFeatures() {
+    public Set<String> allNodeFeatures() {
         if (allNodeFeatures == null) {
             allNodeFeatures = Set.copyOf(calculateAllNodeFeatures(nodeFeatures.values()));
         }

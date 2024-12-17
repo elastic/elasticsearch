@@ -75,8 +75,9 @@ public record ReindexDataStreamStatus(
         builder.field("complete", complete);
         builder.field("total_indices_in_data_stream", totalIndices);
         builder.field("total_indices_requiring_upgrade", totalIndicesToBeUpgraded);
-        builder.field("successes", totalIndicesToBeUpgraded - (inProgress.size() + pending + errors.size()));
-        builder.field("in_progress", inProgress.size());
+        final int inProgressSize = inProgress.size();
+        builder.field("successes", totalIndicesToBeUpgraded - (inProgressSize + pending + errors.size()));
+        builder.field("in_progress", inProgressSize);
         builder.field("pending", pending);
         builder.startArray("errors");
         for (Tuple<String, Exception> error : errors) {

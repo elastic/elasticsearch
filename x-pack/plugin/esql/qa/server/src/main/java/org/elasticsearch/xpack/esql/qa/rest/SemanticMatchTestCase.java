@@ -11,8 +11,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,8 +44,10 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
     }
 
-    @Before
-    public void setUpIndices() throws IOException {
+    @BeforeClass
+    public static void setUpIndices() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+
         var settings = Settings.builder().build();
 
         String mapping1 = """
@@ -78,8 +81,9 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         createIndex("test-semantic3", settings, mapping3);
     }
 
-    @Before
-    public void setUpTextEmbeddingInferenceEndpoint() throws IOException {
+    @BeforeClass
+    public static void setUpTextEmbeddingInferenceEndpoint() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
         Request request = new Request("PUT", "_inference/text_embedding/test_dense_inference");
         request.setJsonEntity("""
                   {
@@ -95,8 +99,9 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    @After
-    public void wipeData() throws IOException {
+    @AfterClass
+    public static void wipeData() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
         client().performRequest(new Request("DELETE", "*"));
 
         try {

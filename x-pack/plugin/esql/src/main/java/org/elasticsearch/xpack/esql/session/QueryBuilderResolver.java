@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -58,6 +59,12 @@ public class QueryBuilderResolver {
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
+        // TODO: remove once SEMANTIC_TEXT_TYPE is enabled outside of snapshots
+        if (false == EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            callback.accept(plan, listener);
+            return;
+        }
+
         if (plan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan before query builder rewrite.");
         }

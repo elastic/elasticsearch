@@ -1,5 +1,4 @@
----
-"Reload analyzers for specific synonym set":
+setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Reloading analyzers for specific synonym set is introduced in 8.10.0

@@ -206,8 +206,6 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        // PRTODO: We should assert that callers of this have selectors disallowed, and direct them to the other method if they do.
-        // SnapshotService CreateSnapshotRequest
         return dataStreams(state, options, indexExpressions).stream().map(ResolvedExpression::resource).distinct().toList();
     }
 

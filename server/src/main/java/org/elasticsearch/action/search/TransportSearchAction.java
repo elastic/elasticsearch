@@ -1595,7 +1595,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                     @Override
                     public IndicesOptions indicesOptions() {
-                        // PRTODO: What should this allow?
                         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
                     }
                 });

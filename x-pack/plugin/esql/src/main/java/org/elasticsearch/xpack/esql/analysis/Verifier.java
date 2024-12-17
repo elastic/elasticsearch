@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -58,7 +57,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
@@ -829,31 +827,6 @@ public class Verifier {
                         )
                     );
                 }
-            }
-
-            if (join instanceof LookupJoin) {
-                join.right().forEachDown(EsRelation.class, relation -> {
-                    var indicesWithModes = relation.index().indexNameWithModes();
-                    if (indicesWithModes.size() != 1) {
-                        failures.add(
-                            fail(
-                                relation,
-                                "LOOKUP JOIN index [{}] must resolve to a single index, found [{}]",
-                                relation.sourceText(),
-                                indicesWithModes.size()
-                            )
-                        );
-                    } else if (indicesWithModes.values().iterator().next() != IndexMode.LOOKUP) {
-                        failures.add(
-                            fail(
-                                relation,
-                                "LOOKUP JOIN index [{}] must have LOOKUP mode, has mode [{}]",
-                                relation.sourceText(),
-                                indicesWithModes.values().iterator().next()
-                            )
-                        );
-                    }
-                });
             }
         }
     }

@@ -1979,23 +1979,25 @@ public class VerifierTests extends ESTestCase {
 
         var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
         var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
+        var indexResolutionAsLookup = Map.of("test", indexResolution);
+        var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
         query(
             "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
-            AnalyzerTestUtils.analyzer(lookupResolution, lookupResolution)
+            AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
         );
 
         assertEquals(
-            "1:70: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
+            "1:70: invalid [test] resolution in lookup mode to an index in [standard] mode",
             error(
                 "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
-                AnalyzerTestUtils.analyzer(lookupResolution, indexResolution)
+                AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
             )
         );
         assertEquals(
-            "1:25: LOOKUP JOIN index [test] must have LOOKUP mode, has mode [standard]",
-            error("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolution))
+            "1:25: invalid [test] resolution in lookup mode to an index in [standard] mode",
+            error("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
         );
     }
 

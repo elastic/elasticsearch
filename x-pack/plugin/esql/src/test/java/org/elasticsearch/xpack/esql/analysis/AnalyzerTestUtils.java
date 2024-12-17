@@ -46,7 +46,7 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
-    public static Analyzer analyzer(IndexResolution indexResolution, IndexResolution lookupResolution) {
+    public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution) {
         return analyzer(indexResolution, lookupResolution, TEST_VERIFIER);
     }
 
@@ -63,7 +63,7 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    public static Analyzer analyzer(IndexResolution indexResolution, IndexResolution lookupResolution, Verifier verifier) {
+    public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution, Verifier verifier) {
         return new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,

@@ -53,7 +53,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, url, JinaAIServiceSettings.OLD_MODEL_ID_FIELD, model)),
+            new HashMap<>(Map.of(ServiceFields.URL, url, JinaAIServiceSettings.MODEL_ID, model)),
             ConfigurationParseContext.REQUEST
         );
 
@@ -68,7 +68,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
+                    JinaAIServiceSettings.MODEL_ID,
                     model,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
@@ -88,19 +88,6 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.URL, url, JinaAIServiceSettings.MODEL_ID, model)),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        MatcherAssert.assertThat(serviceSettings, is(new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null)));
-    }
-
-    public void testFromMap_PrefersModelId_OverModel() {
-        var url = "https://www.abc.com";
-        var model = "model";
-        var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(ServiceFields.URL, url, JinaAIServiceSettings.OLD_MODEL_ID_FIELD, "old_model", JinaAIServiceSettings.MODEL_ID, model)
-            ),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -178,7 +165,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         }
 
         if (model != null) {
-            map.put(JinaAIServiceSettings.OLD_MODEL_ID_FIELD, model);
+            map.put(JinaAIServiceSettings.MODEL_ID, model);
         }
 
         return map;

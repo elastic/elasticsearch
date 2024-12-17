@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.external.jinaai;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -18,8 +16,6 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
-import java.util.concurrent.Flow;
-
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 /**
@@ -27,8 +23,7 @@ import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkFor
  *
  */
 public class JinaAIResponseHandler extends BaseResponseHandler {
-    static final String INPUTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER = "is larger than the largest allowed size";
-    static final String INPUTS_ARRAY_ERROR_MESSAGE = "Received an inputs array too large response";
+    static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
     static final String PAYMENT_ERROR_MESSAGE = "Payment required";
 
     public JinaAIResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -40,17 +35,6 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
         throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return false;
-    }
-
-    @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
-        // TODO (JoanFM): Check this logic
-        return new StreamingChatCompletionResults(null);
     }
 
     /**
@@ -74,8 +58,8 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));
-        } else if (statusCode == 400 && isTextsArrayTooLarge(result, statusCode)) {
-            throw new RetryException(false, buildError(INPUTS_ARRAY_ERROR_MESSAGE, request, result));
+        } else if (statusCode == 400) {
+            throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode == 402) {
@@ -83,16 +67,5 @@ public class JinaAIResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
-    }
-
-    private static boolean isTextsArrayTooLarge(HttpResult result, int statusCode) {
-
-        if (statusCode == 400) {
-            var errorEntity = JinaAIErrorResponseEntity.fromResponse(result);
-
-            return errorEntity != null && errorEntity.getErrorMessage().contains(INPUTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER);
-        }
-
-        return false;
     }
 }

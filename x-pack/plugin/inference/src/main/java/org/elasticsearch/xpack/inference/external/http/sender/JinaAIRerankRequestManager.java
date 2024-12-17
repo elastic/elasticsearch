@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIRankedResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.jinaai.JinaAIRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 
 import java.util.Objects;
@@ -27,7 +27,7 @@ public class JinaAIRerankRequestManager extends JinaAIRequestManager {
     private static final ResponseHandler HANDLER = createJinaAIResponseHandler();
 
     private static ResponseHandler createJinaAIResponseHandler() {
-        return new JinaAIResponseHandler("jinaai rerank", (request, response) -> JinaAIRankedResponseEntity.fromResponse(response));
+        return new JinaAIResponseHandler("jinaai rerank", (request, response) -> JinaAIRerankResponseEntity.fromResponse(response));
     }
 
     public static JinaAIRerankRequestManager of(JinaAIRerankModel model, ThreadPool threadPool) {

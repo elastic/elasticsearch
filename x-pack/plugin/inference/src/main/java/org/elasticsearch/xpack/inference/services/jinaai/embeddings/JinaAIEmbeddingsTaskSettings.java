@@ -150,7 +150,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
     }
 
     @Override

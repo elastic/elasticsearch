@@ -45,7 +45,10 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(AssertionError.class, () -> JinaAIEmbeddingsRequestEntity.covertToString(InputType.UNSPECIFIED));
+        var thrownException = expectThrows(
+            AssertionError.class,
+            () -> JinaAIEmbeddingsRequestEntity.convertToString(InputType.UNSPECIFIED)
+        );
         MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 }

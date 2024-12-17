@@ -68,7 +68,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
+                    JinaAIServiceSettings.MODEL_ID,
                     model
                 )
             ),
@@ -105,7 +105,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
+                    JinaAIServiceSettings.MODEL_ID,
                     model
                 )
             ),
@@ -142,8 +142,6 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.OLD_MODEL_ID_FIELD,
-                    "old_model",
                     JinaAIServiceSettings.MODEL_ID,
                     model
                 )

@@ -23,10 +23,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class JinaAIRankedResponseEntityTests extends ESTestCase {
+public class JinaAIRerankResponseEntityTests extends ESTestCase {
 
     public void testResponseLiteral() throws IOException {
-        InferenceServiceResults parsedResults = JinaAIRankedResponseEntity.fromResponse(
+        InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseLiteral.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -65,7 +65,7 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
         responseBuilder.append("\"total_tokens\": 15}");
         responseBuilder.append("}");
 
-        InferenceServiceResults parsedResults = JinaAIRankedResponseEntity.fromResponse(
+        InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseBuilder.toString().getBytes(StandardCharsets.UTF_8))
         );
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
@@ -108,7 +108,7 @@ public class JinaAIRankedResponseEntityTests extends ESTestCase {
         """;
 
     public void testResponseLiteralWithDocuments() throws IOException {
-        InferenceServiceResults parsedResults = JinaAIRankedResponseEntity.fromResponse(
+        InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseLiteralWithDocuments.getBytes(StandardCharsets.UTF_8))
         );
 

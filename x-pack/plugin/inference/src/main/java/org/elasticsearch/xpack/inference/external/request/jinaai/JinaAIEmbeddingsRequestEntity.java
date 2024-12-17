@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.io.IOException;
@@ -29,6 +28,7 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
     private static final String CLUSTERING = "separation";
     private static final String CLASSIFICATION = "classification";
     private static final String INPUT_FIELD = "input";
+    private static final String MODEL_FIELD = "model";
     public static final String TASK_TYPE_FIELD = "task";
 
     public JinaAIEmbeddingsRequestEntity {
@@ -41,11 +41,11 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
         builder.startObject();
         builder.field(INPUT_FIELD, input);
         if (model != null) {
-            builder.field(JinaAIServiceSettings.OLD_MODEL_ID_FIELD, model);
+            builder.field(MODEL_FIELD, model);
         }
 
         if (taskSettings.getInputType() != null) {
-            builder.field(TASK_TYPE_FIELD, covertToString(taskSettings.getInputType()));
+            builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
         builder.endObject();
@@ -53,7 +53,7 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
     }
 
     // default for testing
-    static String covertToString(InputType inputType) {
+    static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;

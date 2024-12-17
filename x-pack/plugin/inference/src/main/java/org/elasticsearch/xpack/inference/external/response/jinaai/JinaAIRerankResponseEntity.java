@@ -29,12 +29,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
-public class JinaAIRankedResponseEntity {
+public class JinaAIRerankResponseEntity {
 
-    private static final Logger logger = LogManager.getLogger(JinaAIRankedResponseEntity.class);
+    private static final Logger logger = LogManager.getLogger(JinaAIRerankResponseEntity.class);
 
     /**
-     * //TODO(JoanFM): Edit documentation
      * Parses the JinaAI ranked response.
      *
      * For a request like:
@@ -88,11 +87,11 @@ public class JinaAIRankedResponseEntity {
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, "results", FAILED_TO_FIND_FIELD_TEMPLATE); // TODO error message
+            positionParserAtTokenAfterField(jsonParser, "results", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             token = jsonParser.currentToken();
             if (token == XContentParser.Token.START_ARRAY) {
-                return new RankedDocsResults(parseList(jsonParser, JinaAIRankedResponseEntity::parseRankedDocObject));
+                return new RankedDocsResults(parseList(jsonParser, JinaAIRerankResponseEntity::parseRankedDocObject));
             } else {
                 throwUnknownToken(token, jsonParser);
             }
@@ -153,7 +152,7 @@ public class JinaAIRankedResponseEntity {
         return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
     }
 
-    private JinaAIRankedResponseEntity() {}
+    private JinaAIRerankResponseEntity() {}
 
     static String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in JinaAI rerank response";
 }

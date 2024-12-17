@@ -69,7 +69,7 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
+            containsString("Received an input validation error response for request from inference entity id [id] status [400]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
@@ -82,7 +82,7 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an inputs array too large response for request from inference entity id [id] status [400]")
+            containsString("Received an input validation error response for request from inference entity id [id] status [400]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }

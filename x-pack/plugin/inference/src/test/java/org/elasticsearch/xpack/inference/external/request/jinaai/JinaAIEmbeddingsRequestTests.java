@@ -72,7 +72,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.passage")));
     }
 
-    public void testCreateRequest_InputTypeSearch_EmbeddingTypeBinary() throws IOException {
+    public void testCreateRequest_InputTypeSearch() throws IOException {
         var request = createRequest(
             List.of("abc"),
             JinaAIEmbeddingsModelTests.createModel("url", "secret", new JinaAIEmbeddingsTaskSettings(InputType.SEARCH), null, null, "model")

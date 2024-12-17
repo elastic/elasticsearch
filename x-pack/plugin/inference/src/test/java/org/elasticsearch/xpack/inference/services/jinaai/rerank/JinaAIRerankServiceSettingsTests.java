@@ -80,7 +80,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected JinaAIRerankServiceSettings mutateInstanceForVersion(JinaAIRerankServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_15_0)) {
+        if (version.before(TransportVersions.JINA_AI_INTEGRATION_ADDED)) {
             // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
             return new JinaAIRerankServiceSettings(
                 new JinaAIServiceSettings(

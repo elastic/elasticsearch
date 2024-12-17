@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class JinaAIServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
 
     public static final String NAME = "jinaai_service_settings";
-    public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
@@ -45,7 +44,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -56,19 +54,11 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
-            logger.info("The JinaAI [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
-        }
-
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new JinaAIServiceSettings(uri, modelId(oldModelId, modelId), rateLimitSettings);
-    }
-
-    private static String modelId(@Nullable String model, @Nullable String modelId) {
-        return modelId != null ? modelId : model;
+        return new JinaAIServiceSettings(uri, modelId, rateLimitSettings);
     }
 
     private final URI uri;
@@ -88,12 +78,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     public JinaAIServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
         modelId = in.readOptionalString();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     // should only be used for testing, public because it's accessed outside of the package
@@ -149,7 +134,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
     }
 
     @Override
@@ -157,10 +142,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(modelId);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

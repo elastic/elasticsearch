@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -50,7 +50,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -260,7 +259,7 @@ public class JinaAIService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof JinaAIModel == false) {
             listener.onFailure(createInvalidModelException(model));
@@ -323,7 +322,7 @@ public class JinaAIService extends SenderService {
 
     /**
      * Return the default similarity measure for the embedding type.
-     * JinaAI embeddings are normalized to unit vectors therefor Dot
+     * JinaAI embeddings are normalized to unit vectors therefore Dot
      * Product similarity can be used and is the default for all JinaAI
      * models.
      *
@@ -335,12 +334,7 @@ public class JinaAIService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
-    }
-
-    @Override
-    public Set<TaskType> supportedStreamingTasks() {
-        return Set.of();
+        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
     }
 
     public static class Configuration {

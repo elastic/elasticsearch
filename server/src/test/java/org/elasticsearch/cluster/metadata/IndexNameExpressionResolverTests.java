@@ -2330,8 +2330,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndicesOptions(
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
                     IndicesOptions.WildcardOptions.DEFAULT,
-                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build(),
-                    IndicesOptions.SelectorOptions.DEFAULT
+                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build()
                 ),
                 "ind*",
                 "test-index"

@@ -151,8 +151,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .matchOpen(request.indicesOptions().expandWildcardsOpen())
                 .matchClosed(request.indicesOptions().expandWildcardsClosed())
                 .build(),
-            IndicesOptions.GatekeeperOptions.DEFAULT,
-            request.indicesOptions().selectorOptions()
+            IndicesOptions.GatekeeperOptions.DEFAULT
         );
 
         return state.blocks()
@@ -255,8 +254,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final var statsIndicesOptions = new IndicesOptions(
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
-            IndicesOptions.GatekeeperOptions.DEFAULT,
-            rolloverRequest.indicesOptions().selectorOptions()
+            IndicesOptions.GatekeeperOptions.DEFAULT
         );
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(resolvedRolloverTarget.resource())
             .clear()

@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -2227,61 +2226,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 authorizedIndices
             );
             assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo::data", "logs-foobar::data"));
-            assertThat(resolvedIndices.getRemote(), emptyIterable());
-        }
-        IndicesOptions includeAllSelectorsByDefault = IndicesOptions.builder()
-            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-            .wildcardOptions(
-                IndicesOptions.WildcardOptions.builder()
-                    .matchOpen(true)
-                    .matchClosed(false)
-                    .includeHidden(false)
-                    .allowEmptyExpressions(false)
-                    .resolveAliases(false)
-                    .build()
-            )
-            .gatekeeperOptions(
-                IndicesOptions.GatekeeperOptions.builder()
-                    .allowAliasToMultipleIndices(true)
-                    .allowClosedIndices(false)
-                    .allowSelectors(true)
-                    .ignoreThrottled(true)
-                    .build()
-            )
-            .selectorOptions(new IndicesOptions.SelectorOptions(IndexComponentSelector.ALL_APPLICABLE))
-            .build();
-        {
-            final User user = new User("data-stream-tester2", "data_stream_test2");
-
-            // Resolve all data streams but remove any failure stores:
-            SearchRequest searchRequest = new SearchRequest();
-            searchRequest.indices("logs-*", "-*::failures");
-            searchRequest.indicesOptions(includeAllSelectorsByDefault);
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), searchRequest);
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
-                TransportSearchAction.TYPE.name(),
-                searchRequest,
-                metadata,
-                authorizedIndices
-            );
-            assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo::data", "logs-foobar::data"));
-            assertThat(resolvedIndices.getRemote(), emptyIterable());
-        }
-        {
-            final User user = new User("data-stream-tester2", "data_stream_test2");
-
-            // Resolve all data streams but remove any failure stores:
-            SearchRequest searchRequest = new SearchRequest();
-            searchRequest.indices("logs-*", "-*::data");
-            searchRequest.indicesOptions(includeAllSelectorsByDefault);
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), searchRequest);
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
-                TransportSearchAction.TYPE.name(),
-                searchRequest,
-                metadata,
-                authorizedIndices
-            );
-            assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo::failures", "logs-foobar::failures"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
         }
     }

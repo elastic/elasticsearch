@@ -139,7 +139,7 @@ public class TransportVersions {
     public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
     public static final TransportVersion SEMANTIC_QUERY_LENIENT = def(8_807_00_0);
     public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
-    public static final TransportVersion CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS = def(8_809_00_0);
+    public static final TransportVersion REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX = def(8_809_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

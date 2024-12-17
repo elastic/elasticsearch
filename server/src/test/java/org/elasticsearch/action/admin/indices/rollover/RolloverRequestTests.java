@@ -182,7 +182,6 @@ public class RolloverRequestTests extends ESTestCase {
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 assertThat(cloneRequest.isLazy(), equalTo(originalRequest.isLazy()));
-                assertThat(cloneRequest.indicesOptions().selectorOptions(), equalTo(originalRequest.indicesOptions().selectorOptions()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing

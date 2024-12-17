@@ -547,7 +547,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V6(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V7(Build.current().isSnapshot()),
 
         /**
          * LOOKUP JOIN with index mode verification

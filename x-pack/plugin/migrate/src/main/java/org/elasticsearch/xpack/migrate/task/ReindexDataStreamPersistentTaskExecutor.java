@@ -118,7 +118,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             completeSuccessfulPersistentTask(reindexDataStreamTask);
         }, exception -> { completeFailedPersistentTask(reindexDataStreamTask, exception); }));
         List<Index> indicesRemaining = Collections.synchronizedList(new ArrayList<>(indicesToBeReindexed));
-        final int maxConcurrentIndices = 5;
+        final int maxConcurrentIndices = 1;
         for (int i = 0; i < maxConcurrentIndices; i++) {
             maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener);
         }
@@ -204,6 +204,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
             reindexDataStreamTask.getPersistentTaskId()
         );
+        if (persistentTask == null) {
+            return TimeValue.timeValueMillis(0);
+        }
         PersistentTaskState state = persistentTask.getState();
         final long completionTime;
         if (state == null) {

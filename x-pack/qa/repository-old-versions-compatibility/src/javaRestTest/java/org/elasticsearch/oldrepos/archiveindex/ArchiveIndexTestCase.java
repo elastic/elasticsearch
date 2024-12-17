@@ -20,6 +20,10 @@ import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
  * The test suite creates a cluster in the N-1 version, where N is the current version.
  * Restores snapshots from old-clusters (version 5/6) and upgrades it to the current version.
  * Test methods are executed after each upgrade.
+ *
+ * For example the test suite creates a cluster of version 8, then restores a snapshot of an index created
+ * when deployed ES version 5/6. The cluster then upgrades to version 9, verifying that the archive index
+ * is successfully restored.
  */
 public class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase {
 

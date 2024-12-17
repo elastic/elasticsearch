@@ -13,6 +13,7 @@
             "orchestrator.resource.name",
             "host.name",
             "container.name",
+            "process.executable.name",
             "process.thread.name"
           ]
         },
@@ -57,6 +58,9 @@
           "type": "keyword"
         },
         "process.thread.name": {
+          "type": "keyword"
+        },
+        "process.executable.name": {
           "type": "keyword"
         },
         "Stacktrace.count": {

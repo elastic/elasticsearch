@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -102,6 +104,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     }
                 } else if (p instanceof Project) {
                     seenProjection.set(Boolean.TRUE);
+                } else if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                    var remaining = seenProjection.get() ? removeUnused(esRelation.output(), used) : null;
+                    // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet.
+                    if (remaining != null && remaining.isEmpty() == false) {
+                        p = new EsRelation(esRelation.source(), esRelation.index(), remaining, esRelation.indexMode(), esRelation.frozen());
+                    }
                 }
             } while (recheck);
 

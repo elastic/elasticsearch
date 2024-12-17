@@ -333,11 +333,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-                waitForCompletion = in.readBoolean();
-            } else {
-                waitForCompletion = false;
-            }
+            waitForCompletion = in.readBoolean();
         }
 
         @Override
@@ -348,9 +344,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-                out.writeBoolean(waitForCompletion);
-            }
+            out.writeBoolean(waitForCompletion);
         }
     }
 

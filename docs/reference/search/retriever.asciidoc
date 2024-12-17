@@ -23,7 +23,7 @@ A <<standard-retriever, retriever>> that replaces the functionality of a traditi
 A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api-knn, knn search>>.
 
 `rescorer`::
-A <<rescorer-retriever, retriever>> that replaces the functionality of the <<query-rescorer, query rescorer>>.
+A <<rescorer-retriever, retriever>> that replaces the functionality of the <<rescore, query rescorer>>.
 
 `rrf`::
 A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciprocal rank fusion (RRF)>>.
@@ -394,9 +394,9 @@ When using the `rescorer`, an error is returned if the following conditions are 
 ===== Parameters
 
 `rescore`::
-(Required. <<query-rescorer, A rescorer definition or an array of rescorer definitions>>)
+(Required. <<rescore, A rescorer definition or an array of rescorer definitions>>)
 +
-Defines the <<query-rescorer, rescorers>> applied sequentially to the top documents returned by the child retriever.
+Defines the <<rescore, rescorers>> applied sequentially to the top documents returned by the child retriever.
 
 `retriever`::
 (Required. <<retriever, retriever>>)

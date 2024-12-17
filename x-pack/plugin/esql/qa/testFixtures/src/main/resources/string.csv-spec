@@ -1231,6 +1231,124 @@ a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
 
+equalsToUpperPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(first_name) == "GEORGI"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+notEqualsToUpperPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| sort emp_no
+| where to_upper(first_name) != "GEORGI"
+| keep emp_no, first_name
+| limit 1
+;
+
+emp_no:integer  | first_name:keyword
+10002           | Bezalel
+;
+
+equalsToUpperFolded
+from employees
+| where to_upper(first_name) == "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+equalsToUpperNullFolded
+from employees
+| where to_upper(null) == "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+equalsNullToUpperFolded
+from employees
+| where to_upper(first_name) == null::keyword
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToUpperNullFolded
+from employees
+| where to_upper(null) != "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsNullToUpperFolded
+from employees
+| where to_upper(first_name) != null::keyword
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToUpperFolded
+from employees
+| where to_upper(first_name) != "Georgi"
+| stats c = count()
+;
+
+c:long
+100
+;
+
+equalsToLowerPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_lower(first_name) == "georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+notEqualsToLowerPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| sort emp_no
+| where to_lower(first_name) != "georgi"
+| keep emp_no, first_name
+| limit 1
+;
+
+emp_no:integer  | first_name:keyword
+10002           | Bezalel
+;
+
+equalsToLowerFolded
+from employees
+| where to_lower(first_name) == "Georgi"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToLowerFolded
+from employees
+| where to_lower(first_name) != "Georgi"
+| stats c = count()
+;
+
+c:long
+100
+;
+
 reverse
 required_capability: fn_reverse
 from employees | sort emp_no | eval name_reversed = REVERSE(first_name) | keep emp_no, first_name, name_reversed | limit 1;

@@ -823,8 +823,9 @@ public class ConnectorIndexService {
 
                 String indexName = getConnectorIndexNameFromSearchResult(connector);
 
+                boolean doesNotHaveContentPrefix = indexName != null && isValidManagedConnectorIndexName(indexName) == false;
                 // Ensure attached content index is prefixed correctly
-                if (isNative && indexName != null && isValidManagedConnectorIndexName(indexName) == false) {
+                if (isNative && doesNotHaveContentPrefix) {
                     l.onFailure(
                         new ElasticsearchStatusException(
                             "The index name ["
@@ -843,23 +844,27 @@ public class ConnectorIndexService {
                 ConnectorStatus status = getConnectorStatusFromSearchResult(connector);
 
                 // If connector was connected already, change its status to CONFIGURED as we need to re-connect
-                if (status == ConnectorStatus.CONNECTED) {
+                boolean isConnected = status == ConnectorStatus.CONNECTED;
+                boolean isValidTransitionToConfigured = ConnectorStateMachine.isValidTransition(status, ConnectorStatus.CONFIGURED);
+                if (isConnected && isValidTransitionToConfigured) {
                     status = ConnectorStatus.CONFIGURED;
                 }
 
-                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
-                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                        .id(connectorId)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .source(
-                            Map.of(
-                                Connector.IS_NATIVE_FIELD.getPreferredName(),
-                                isNative,
-                                Connector.STATUS_FIELD.getPreferredName(),
-                                status.toString()
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                )
+                    .doc(
+                        new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                            .id(connectorId)
+                            .source(
+                                Map.of(
+                                    Connector.IS_NATIVE_FIELD.getPreferredName(),
+                                    isNative,
+                                    Connector.STATUS_FIELD.getPreferredName(),
+                                    status.toString()
+                                )
                             )
-                        )
-                );
+                    );
                 client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
                         ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));

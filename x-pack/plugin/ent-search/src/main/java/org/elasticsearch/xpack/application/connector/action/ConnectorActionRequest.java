@@ -66,13 +66,15 @@ public abstract class ConnectorActionRequest extends ActionRequest implements In
         String indexName,
         ActionRequestValidationException validationException
     ) {
-        if (indexName != null) {
-            if (indexName.startsWith(MANAGED_CONNECTOR_INDEX_PREFIX) == false) {
-                return addValidationError(
-                    "Index attached to an Elastic-managed connector must start with the prefix: [" + MANAGED_CONNECTOR_INDEX_PREFIX + "]",
-                    validationException
-                );
-            }
+        if (indexName != null && indexName.startsWith(MANAGED_CONNECTOR_INDEX_PREFIX) == false) {
+            return addValidationError(
+                "Index ["
+                    + indexName
+                    + "] is invalid. Index attached to an Elastic-managed connector must start with the prefix: ["
+                    + MANAGED_CONNECTOR_INDEX_PREFIX
+                    + "]",
+                validationException
+            );
         }
         return validationException;
     }

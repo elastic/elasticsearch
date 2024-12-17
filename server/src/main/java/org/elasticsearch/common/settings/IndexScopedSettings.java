@@ -189,6 +189,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
         SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
+        IndexMetadata.IGNORE_INDEX_DEPRECATION_WARNING_FOR_VERSION_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

@@ -1,368 +1,365 @@
 tests:
-- class: "org.elasticsearch.upgrades.SearchStatesIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108991"
-  method: "testCanMatch"
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-async-query-api/line_17}
-  issue: https://github.com/elastic/elasticsearch/issues/109260
-- class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/102717"
-  method: "testRequestResetAndAbort"
-- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
-  method: testStoreDirectory
-  issue: https://github.com/elastic/elasticsearch/issues/110210
-- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
-  method: testPreload
-  issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
-  method: testMetadataMigratedAfterUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
-  method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
-  issue: https://github.com/elastic/elasticsearch/issues/110789
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
-  method: testCacheFileCreatedAsSparseFile
-  issue: https://github.com/elastic/elasticsearch/issues/110801
-- class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
-  method: testSystemPropertyDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  method: testAuthenticateWithImplicitFlow
-  issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  method: testAuthenticateWithCodeFlowAndClientPost
-  issue: https://github.com/elastic/elasticsearch/issues/111396
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testSingleDoc {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111434
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testDataStreams {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111448
-- class: org.elasticsearch.search.SearchServiceTests
-  issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111798
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
-  issue: https://github.com/elastic/elasticsearch/issues/111999
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testDeleteJobAfterMissingIndex
-  issue: https://github.com/elastic/elasticsearch/issues/112088
-- class: org.elasticsearch.smoketest.WatcherYamlRestIT
-  method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
-  issue: https://github.com/elastic/elasticsearch/issues/112189
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=ml/inference_processor/Test create processor with missing mandatory fields}
-  issue: https://github.com/elastic/elasticsearch/issues/112191
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testDeleteJobAsync
-  issue: https://github.com/elastic/elasticsearch/issues/112212
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testMultiIndexDelete
-  issue: https://github.com/elastic/elasticsearch/issues/112381
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/112461
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: testAggregateIntermediate {TestCase=<geo_point>}
-  issue: https://github.com/elastic/elasticsearch/issues/112463
-- class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
-  method: testLoopOneAtATime
-  issue: https://github.com/elastic/elasticsearch/issues/112471
-- class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/111497
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testPutJob_GivenFarequoteConfig
-  issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
-  method: test20SecurityNotAutoConfiguredOnReInstallation
-  issue: https://github.com/elastic/elasticsearch/issues/112635
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
-  issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline1}
-  issue: https://github.com/elastic/elasticsearch/issues/112641
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
-  issue: https://github.com/elastic/elasticsearch/issues/112640
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline3}
-  issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testDelete_multipleRequest
-  issue: https://github.com/elastic/elasticsearch/issues/112701
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testCreateJobInSharedIndexUpdatesMapping
-  issue: https://github.com/elastic/elasticsearch/issues/112729
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testGetJob_GivenNoSuchJob
-  issue: https://github.com/elastic/elasticsearch/issues/112730
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testDeleteJobAfterMissingAliases
-  issue: https://github.com/elastic/elasticsearch/issues/112823
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testCreateJob_WithClashingFieldMappingsFails
-  issue: https://github.com/elastic/elasticsearch/issues/113046
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline1}
-  issue: https://github.com/elastic/elasticsearch/issues/112641
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline3}
-  issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
-  issue: https://github.com/elastic/elasticsearch/issues/112640
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
-  issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
-  method: testResponse
-  issue: https://github.com/elastic/elasticsearch/issues/113148
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test30StartStop
-  issue: https://github.com/elastic/elasticsearch/issues/113160
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test33JavaChanged
-  issue: https://github.com/elastic/elasticsearch/issues/113177
-- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
-  method: testErrorMidStream
-  issue: https://github.com/elastic/elasticsearch/issues/113179
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
-  issue: https://github.com/elastic/elasticsearch/issues/108997
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test80JavaOptsInEnvVar
-  issue: https://github.com/elastic/elasticsearch/issues/113219
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test81JavaOptsInJvmOptions
-  issue: https://github.com/elastic/elasticsearch/issues/113313
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/113325
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testDeleteJob_TimingStatsDocumentIsDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/113370
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/500_date_range/from, to, include_lower, include_upper deprecated}
-  issue: https://github.com/elastic/elasticsearch/pull/113286
-- class: org.elasticsearch.index.mapper.extras.TokenCountFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/113427
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testOutOfOrderData
-  issue: https://github.com/elastic/elasticsearch/issues/113477
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testCreateJobsWithIndexNameOption
-  issue: https://github.com/elastic/elasticsearch/issues/113528
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
-  issue: https://github.com/elastic/elasticsearch/issues/113537
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testCantCreateJobWithSameID
-  issue: https://github.com/elastic/elasticsearch/issues/113581
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testFieldMappings
-  issue: https://github.com/elastic/elasticsearch/issues/113592
-- class: org.elasticsearch.integration.KibanaUserRoleIntegTests
-  method: testSearchAndMSearch
-  issue: https://github.com/elastic/elasticsearch/issues/113593
-- class: org.elasticsearch.xpack.transform.integration.TransformIT
-  method: testStopWaitForCheckpoint
-  issue: https://github.com/elastic/elasticsearch/issues/106113
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
-  issue: https://github.com/elastic/elasticsearch/issues/113648
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testGetJobs_GivenMultipleJobs
-  issue: https://github.com/elastic/elasticsearch/issues/113654
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testGetJobs_GivenSingleJob
-  issue: https://github.com/elastic/elasticsearch/issues/113655
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
-  issue: https://github.com/elastic/elasticsearch/issues/113661
-- class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
-  method: testRewrite
-  issue: https://github.com/elastic/elasticsearch/issues/114467
-- class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
-  issue: https://github.com/elastic/elasticsearch/issues/114492
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.split/40_routing_partition_size/nested}
-  issue: https://github.com/elastic/elasticsearch/issues/113842
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.split/40_routing_partition_size/more than 1}
-  issue: https://github.com/elastic/elasticsearch/issues/113841
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113722
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/116373
-- class: org.elasticsearch.kibana.KibanaThreadPoolIT
-  method: testBlockedThreadPoolsRejectUserRequests
-  issue: https://github.com/elastic/elasticsearch/issues/113939
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5WithTrainedModelAndInference
-  issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformAgnosticVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113983
-- class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
-  method: testRolloverIsExecutedOnce
-  issue: https://github.com/elastic/elasticsearch/issues/112634
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
-  issue: https://github.com/elastic/elasticsearch/issues/114757
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
-  method: testTracingCrossCluster
-  issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformSpecificVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/usage/line_38}
-  issue: https://github.com/elastic/elasticsearch/issues/113694
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
-  issue: https://github.com/elastic/elasticsearch/issues/115475
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
-  method: testProcessFileChanges
-  issue: https://github.com/elastic/elasticsearch/issues/115280
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultE5
-  issue: https://github.com/elastic/elasticsearch/issues/115361
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testSupportedStream
-  issue: https://github.com/elastic/elasticsearch/issues/113430
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoShapeGeoHash
-  issue: https://github.com/elastic/elasticsearch/issues/115664
-- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
-  issue: https://github.com/elastic/elasticsearch/issues/116126
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/111319
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  method: testLookbackWithIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/116127
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
-  issue: https://github.com/elastic/elasticsearch/issues/116221
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113054
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113054
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover}
-  issue: https://github.com/elastic/elasticsearch/issues/116158
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template}
-  issue: https://github.com/elastic/elasticsearch/issues/116157
-- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderTask
-  issue: https://github.com/elastic/elasticsearch/issues/115163
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/117027
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/117349
-- class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
-  method: testDeprecatedSettingsReturnWarnings
-  issue: https://github.com/elastic/elasticsearch/issues/108628
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {categorize.Categorize}
-  issue: https://github.com/elastic/elasticsearch/issues/116434
-- class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
-  method: test {yaml=/10_apm/Test template reinstallation}
-  issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.action.admin.HotThreadsIT
-  method: testHotThreadsDontFail
-  issue: https://github.com/elastic/elasticsearch/issues/115754
-- class: org.elasticsearch.action.search.PointInTimeIT
-  method: testPITTiebreak
-  issue: https://github.com/elastic/elasticsearch/issues/115810
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/61_enrich_ip/IP strings}
-  issue: https://github.com/elastic/elasticsearch/issues/116529
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultElser
-  issue: https://github.com/elastic/elasticsearch/issues/114913
-- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
-  method: testThreadPoolMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/108320
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/60_enrich/Enrich on keyword with fields alias}
-  issue: https://github.com/elastic/elasticsearch/issues/116592
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/60_enrich/Enrich on keyword with fields}
-  issue: https://github.com/elastic/elasticsearch/issues/116593
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoShapeGeoTile
-  issue: https://github.com/elastic/elasticsearch/issues/115717
-- class: org.elasticsearch.search.StressSearchServiceReaperIT
-  method: testStressReaper
-  issue: https://github.com/elastic/elasticsearch/issues/115816
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoShapeGeoHex
-  issue: https://github.com/elastic/elasticsearch/issues/115705
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues}
-  issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues}
-  issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
-  method: testRandomDirectoryIOExceptions
-  issue: https://github.com/elastic/elasticsearch/issues/114824
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testRerank {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/116973
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testCohereEmbeddings {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/116974
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testCohereEmbeddings {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/116975
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testRetryPointInTime
-  issue: https://github.com/elastic/elasticsearch/issues/117116
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoPointGeoTile
-  issue: https://github.com/elastic/elasticsearch/issues/115818
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
-- class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
-  method: testFallbackIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/117937
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
-  issue: https://github.com/elastic/elasticsearch/issues/118414
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/116788
+  - class: "org.elasticsearch.upgrades.SearchStatesIT"
+    issue: "https://github.com/elastic/elasticsearch/issues/108991"
+    method: "testCanMatch"
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/esql/esql-async-query-api/line_17}
+    issue: https://github.com/elastic/elasticsearch/issues/109260
+  - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
+    issue: "https://github.com/elastic/elasticsearch/issues/102717"
+    method: "testRequestResetAndAbort"
+  - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+    method: testStoreDirectory
+    issue: https://github.com/elastic/elasticsearch/issues/110210
+  - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+    method: testPreload
+    issue: https://github.com/elastic/elasticsearch/issues/110211
+  - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
+    method: testMetadataMigratedAfterUpgrade
+    issue: https://github.com/elastic/elasticsearch/issues/110232
+  - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
+    method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
+    issue: https://github.com/elastic/elasticsearch/issues/110789
+  - class: org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFileTests
+    method: testCacheFileCreatedAsSparseFile
+    issue: https://github.com/elastic/elasticsearch/issues/110801
+  - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
+    method: testSystemPropertyDisabled
+    issue: https://github.com/elastic/elasticsearch/issues/110949
+  - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+    method: testAuthenticateWithImplicitFlow
+    issue: https://github.com/elastic/elasticsearch/issues/111191
+  - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
+    method: testAuthenticateWithCodeFlowAndClientPost
+    issue: https://github.com/elastic/elasticsearch/issues/111396
+  - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+    method: testSingleDoc {cluster=UPGRADED}
+    issue: https://github.com/elastic/elasticsearch/issues/111434
+  - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+    method: testDataStreams {cluster=UPGRADED}
+    issue: https://github.com/elastic/elasticsearch/issues/111448
+  - class: org.elasticsearch.search.SearchServiceTests
+    issue: https://github.com/elastic/elasticsearch/issues/111529
+  - class: org.elasticsearch.upgrades.FullClusterRestartIT
+    method: testSnapshotRestore {cluster=UPGRADED}
+    issue: https://github.com/elastic/elasticsearch/issues/111798
+  - class: org.elasticsearch.xpack.inference.InferenceRestIT
+    method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
+    issue: https://github.com/elastic/elasticsearch/issues/111999
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testDeleteJobAfterMissingIndex
+    issue: https://github.com/elastic/elasticsearch/issues/112088
+  - class: org.elasticsearch.smoketest.WatcherYamlRestIT
+    method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
+    issue: https://github.com/elastic/elasticsearch/issues/112189
+  - class: org.elasticsearch.xpack.test.rest.XPackRestIT
+    method: test {p0=ml/inference_processor/Test create processor with missing mandatory fields}
+    issue: https://github.com/elastic/elasticsearch/issues/112191
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testDeleteJobAsync
+    issue: https://github.com/elastic/elasticsearch/issues/112212
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testMultiIndexDelete
+    issue: https://github.com/elastic/elasticsearch/issues/112381
+  - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
+    method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
+    issue: https://github.com/elastic/elasticsearch/issues/112461
+  - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
+    method: testAggregateIntermediate {TestCase=<geo_point>}
+    issue: https://github.com/elastic/elasticsearch/issues/112463
+  - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
+    method: testLoopOneAtATime
+    issue: https://github.com/elastic/elasticsearch/issues/112471
+  - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
+    issue: https://github.com/elastic/elasticsearch/issues/111497
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testPutJob_GivenFarequoteConfig
+    issue: https://github.com/elastic/elasticsearch/issues/112382
+  - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
+    method: test20SecurityNotAutoConfiguredOnReInstallation
+    issue: https://github.com/elastic/elasticsearch/issues/112635
+  - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+    method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
+    issue: https://github.com/elastic/elasticsearch/issues/112642
+  - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+    method: test {case-functions.testUcaseInline1}
+    issue: https://github.com/elastic/elasticsearch/issues/112641
+  - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+    method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
+    issue: https://github.com/elastic/elasticsearch/issues/112640
+  - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
+    method: test {case-functions.testUcaseInline3}
+    issue: https://github.com/elastic/elasticsearch/issues/112643
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testDelete_multipleRequest
+    issue: https://github.com/elastic/elasticsearch/issues/112701
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testCreateJobInSharedIndexUpdatesMapping
+    issue: https://github.com/elastic/elasticsearch/issues/112729
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testGetJob_GivenNoSuchJob
+    issue: https://github.com/elastic/elasticsearch/issues/112730
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testDeleteJobAfterMissingAliases
+    issue: https://github.com/elastic/elasticsearch/issues/112823
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testCreateJob_WithClashingFieldMappingsFails
+    issue: https://github.com/elastic/elasticsearch/issues/113046
+  - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+    method: test {case-functions.testUcaseInline1}
+    issue: https://github.com/elastic/elasticsearch/issues/112641
+  - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+    method: test {case-functions.testUcaseInline3}
+    issue: https://github.com/elastic/elasticsearch/issues/112643
+  - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+    method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
+    issue: https://github.com/elastic/elasticsearch/issues/112640
+  - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
+    method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
+    issue: https://github.com/elastic/elasticsearch/issues/112642
+  - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+    method: testResponse
+    issue: https://github.com/elastic/elasticsearch/issues/113148
+  - class: org.elasticsearch.packaging.test.WindowsServiceTests
+    method: test30StartStop
+    issue: https://github.com/elastic/elasticsearch/issues/113160
+  - class: org.elasticsearch.packaging.test.WindowsServiceTests
+    method: test33JavaChanged
+    issue: https://github.com/elastic/elasticsearch/issues/113177
+  - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+    method: testErrorMidStream
+    issue: https://github.com/elastic/elasticsearch/issues/113179
+  - class: org.elasticsearch.smoketest.MlWithSecurityIT
+    method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+    issue: https://github.com/elastic/elasticsearch/issues/108997
+  - class: org.elasticsearch.packaging.test.WindowsServiceTests
+    method: test80JavaOptsInEnvVar
+    issue: https://github.com/elastic/elasticsearch/issues/113219
+  - class: org.elasticsearch.packaging.test.WindowsServiceTests
+    method: test81JavaOptsInJvmOptions
+    issue: https://github.com/elastic/elasticsearch/issues/113313
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
+    issue: https://github.com/elastic/elasticsearch/issues/113325
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testDeleteJob_TimingStatsDocumentIsDeleted
+    issue: https://github.com/elastic/elasticsearch/issues/113370
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=search/500_date_range/from, to, include_lower, include_upper deprecated}
+    issue: https://github.com/elastic/elasticsearch/pull/113286
+  - class: org.elasticsearch.index.mapper.extras.TokenCountFieldMapperTests
+    method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+    issue: https://github.com/elastic/elasticsearch/issues/113427
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testOutOfOrderData
+    issue: https://github.com/elastic/elasticsearch/issues/113477
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testCreateJobsWithIndexNameOption
+    issue: https://github.com/elastic/elasticsearch/issues/113528
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}
+    issue: https://github.com/elastic/elasticsearch/issues/113537
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testCantCreateJobWithSameID
+    issue: https://github.com/elastic/elasticsearch/issues/113581
+  - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+    method: testFieldMappings
+    issue: https://github.com/elastic/elasticsearch/issues/113592
+  - class: org.elasticsearch.integration.KibanaUserRoleIntegTests
+    method: testSearchAndMSearch
+    issue: https://github.com/elastic/elasticsearch/issues/113593
+  - class: org.elasticsearch.xpack.transform.integration.TransformIT
+    method: testStopWaitForCheckpoint
+    issue: https://github.com/elastic/elasticsearch/issues/106113
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
+    issue: https://github.com/elastic/elasticsearch/issues/113648
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testGetJobs_GivenMultipleJobs
+    issue: https://github.com/elastic/elasticsearch/issues/113654
+  - class: org.elasticsearch.xpack.ml.integration.MlJobIT
+    method: testGetJobs_GivenSingleJob
+    issue: https://github.com/elastic/elasticsearch/issues/113655
+  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
+    issue: https://github.com/elastic/elasticsearch/issues/113661
+  - class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
+    method: testRewrite
+    issue: https://github.com/elastic/elasticsearch/issues/114467
+  - class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
+    issue: https://github.com/elastic/elasticsearch/issues/114492
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=indices.split/40_routing_partition_size/nested}
+    issue: https://github.com/elastic/elasticsearch/issues/113842
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=indices.split/40_routing_partition_size/more than 1}
+    issue: https://github.com/elastic/elasticsearch/issues/113841
+  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+    method: test {categorize.Categorize SYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/113722
+  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+    method: test {categorize.Categorize ASYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/116373
+  - class: org.elasticsearch.kibana.KibanaThreadPoolIT
+    method: testBlockedThreadPoolsRejectUserRequests
+    issue: https://github.com/elastic/elasticsearch/issues/113939
+  - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+    method: testPutE5WithTrainedModelAndInference
+    issue: https://github.com/elastic/elasticsearch/issues/114023
+  - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+    method: testPutE5Small_withPlatformAgnosticVariant
+    issue: https://github.com/elastic/elasticsearch/issues/113983
+  - class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
+    method: testRolloverIsExecutedOnce
+    issue: https://github.com/elastic/elasticsearch/issues/112634
+  - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+    method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
+    issue: https://github.com/elastic/elasticsearch/issues/114757
+  - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+    method: testTracingCrossCluster
+    issue: https://github.com/elastic/elasticsearch/issues/112731
+  - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
+    method: testPutE5Small_withPlatformSpecificVariant
+    issue: https://github.com/elastic/elasticsearch/issues/113950
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/rest-api/usage/line_38}
+    issue: https://github.com/elastic/elasticsearch/issues/113694
+  - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+    method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
+    issue: https://github.com/elastic/elasticsearch/issues/115475
+  - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+    method: testProcessFileChanges
+    issue: https://github.com/elastic/elasticsearch/issues/115280
+  - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+    method: testInferDeploysDefaultE5
+    issue: https://github.com/elastic/elasticsearch/issues/115361
+  - class: org.elasticsearch.xpack.inference.InferenceCrudIT
+    method: testSupportedStream
+    issue: https://github.com/elastic/elasticsearch/issues/113430
+  - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+    method: testGeoShapeGeoHash
+    issue: https://github.com/elastic/elasticsearch/issues/115664
+  - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
+    issue: https://github.com/elastic/elasticsearch/issues/116126
+  - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+    issue: https://github.com/elastic/elasticsearch/issues/111319
+  - class: org.elasticsearch.upgrades.FullClusterRestartIT
+    method: testSnapshotRestore {cluster=OLD}
+    issue: https://github.com/elastic/elasticsearch/issues/111777
+  - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+    method: testLookbackWithIndicesOptions
+    issue: https://github.com/elastic/elasticsearch/issues/116127
+  - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+    method: testSnapshotRestore {cluster=UPGRADED}
+    issue: https://github.com/elastic/elasticsearch/issues/111799
+  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+    method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
+    issue: https://github.com/elastic/elasticsearch/issues/116221
+  - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+    method: test {categorize.Categorize SYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/113054
+  - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+    method: test {categorize.Categorize ASYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/113054
+  - class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
+    method: test {yaml=ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover}
+    issue: https://github.com/elastic/elasticsearch/issues/116158
+  - class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
+    method: test {yaml=ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template}
+    issue: https://github.com/elastic/elasticsearch/issues/116157
+  - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+    method: testEnterpriseDownloaderTask
+    issue: https://github.com/elastic/elasticsearch/issues/115163
+  - class: org.elasticsearch.xpack.inference.InferenceRestIT
+    method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+    issue: https://github.com/elastic/elasticsearch/issues/117027
+  - class: org.elasticsearch.xpack.inference.InferenceRestIT
+    method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+    issue: https://github.com/elastic/elasticsearch/issues/117349
+  - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
+    method: testDeprecatedSettingsReturnWarnings
+    issue: https://github.com/elastic/elasticsearch/issues/108628
+  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+    method: test {categorize.Categorize}
+    issue: https://github.com/elastic/elasticsearch/issues/116434
+  - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
+    method: test {yaml=/10_apm/Test template reinstallation}
+    issue: https://github.com/elastic/elasticsearch/issues/116445
+  - class: org.elasticsearch.action.admin.HotThreadsIT
+    method: testHotThreadsDontFail
+    issue: https://github.com/elastic/elasticsearch/issues/115754
+  - class: org.elasticsearch.action.search.PointInTimeIT
+    method: testPITTiebreak
+    issue: https://github.com/elastic/elasticsearch/issues/115810
+  - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+    method: test {p0=esql/61_enrich_ip/IP strings}
+    issue: https://github.com/elastic/elasticsearch/issues/116529
+  - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+    method: testInferDeploysDefaultElser
+    issue: https://github.com/elastic/elasticsearch/issues/114913
+  - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+    method: testThreadPoolMetrics
+    issue: https://github.com/elastic/elasticsearch/issues/108320
+  - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+    method: test {p0=esql/60_enrich/Enrich on keyword with fields alias}
+    issue: https://github.com/elastic/elasticsearch/issues/116592
+  - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+    method: test {p0=esql/60_enrich/Enrich on keyword with fields}
+    issue: https://github.com/elastic/elasticsearch/issues/116593
+  - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+    method: testGeoShapeGeoTile
+    issue: https://github.com/elastic/elasticsearch/issues/115717
+  - class: org.elasticsearch.search.StressSearchServiceReaperIT
+    method: testStressReaper
+    issue: https://github.com/elastic/elasticsearch/issues/115816
+  - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+    method: testGeoShapeGeoHex
+    issue: https://github.com/elastic/elasticsearch/issues/115705
+  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/116945
+  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/116945
+  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues}
+    issue: https://github.com/elastic/elasticsearch/issues/116945
+  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/116945
+  - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
+    issue: https://github.com/elastic/elasticsearch/issues/116945
+  - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+    method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues}
+    issue: https://github.com/elastic/elasticsearch/issues/116945
+  - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
+    method: testRandomDirectoryIOExceptions
+    issue: https://github.com/elastic/elasticsearch/issues/114824
+  - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+    method: testRerank {upgradedNodes=1}
+    issue: https://github.com/elastic/elasticsearch/issues/116973
+  - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+    method: testCohereEmbeddings {upgradedNodes=1}
+    issue: https://github.com/elastic/elasticsearch/issues/116974
+  - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+    method: testCohereEmbeddings {upgradedNodes=2}
+    issue: https://github.com/elastic/elasticsearch/issues/116975
+  - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+    method: testRetryPointInTime
+    issue: https://github.com/elastic/elasticsearch/issues/117116
+  - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+    method: testMultipleInferencesTriggeringDownloadAndDeploy
+    issue: https://github.com/elastic/elasticsearch/issues/117208
+  - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+    method: testGeoPointGeoTile
+    issue: https://github.com/elastic/elasticsearch/issues/115818
+  - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
+    method: testFallbackIndicesOptions
+    issue: https://github.com/elastic/elasticsearch/issues/117937
+  - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
+    issue: https://github.com/elastic/elasticsearch/issues/118414
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    issue: https://github.com/elastic/elasticsearch/issues/116788
 
 # Examples:
 #

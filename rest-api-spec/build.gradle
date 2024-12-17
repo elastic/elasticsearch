@@ -253,4 +253,5 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
   task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
   task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
+  task.skipTest("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set", "Can't work until auto-expand replicas is 0-1 for synonyms index")
 })

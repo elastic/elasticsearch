@@ -117,6 +117,7 @@ setup:
               field: vector
               query_vector: [-1, -1, -1]
               num_candidates: 1
+              k: 1
           size: 10
 
   - match: { hits.total: 1 }

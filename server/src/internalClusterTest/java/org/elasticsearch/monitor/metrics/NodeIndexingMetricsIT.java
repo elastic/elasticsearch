@@ -29,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -51,6 +52,7 @@ import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.index.IndexingPressure.MAX_PRIMARY_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -83,7 +85,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testEmptyIndexingVersionConflictMetricsForGets() {
+    public void testZeroMetricsForVersionConflictsForNonIndexingOperations() {
         final String dataNode = internalCluster().startNode();
         ensureStableCluster(1);
 
@@ -113,6 +115,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                                         .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
                         ).actionGet()
                 );
+                assertThat(e.getMessage(), containsString("version conflict"));
                 assertThat(e.status(), is(RestStatus.CONFLICT));
             }
             if (randomBoolean()) {
@@ -128,6 +131,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                                         .realtime(false)
                         ).actionGet()
                 );
+                assertThat(e.getMessage(), containsString("version conflict"));
                 assertThat(e.status(), is(RestStatus.CONFLICT));
             }
             // updates
@@ -140,6 +144,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                             .doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))
                     ).actionGet()
                 );
+                assertThat(e.getMessage(), containsString("version conflict"));
                 assertThat(e.status(), is(RestStatus.CONFLICT));
             }
             // deletes
@@ -150,6 +155,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                         new DeleteRequest(indexName, docId).setIfPrimaryTerm(randomIntBetween(2, 5)).setIfSeqNo(0)
                     ).actionGet()
                 );
+                assertThat(e.getMessage(), containsString("version conflict"));
                 assertThat(e.status(), is(RestStatus.CONFLICT));
             }
         }
@@ -158,11 +164,92 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.collect();
 
         List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement("es.indexing.indexing.failed.total");
-        // there are no indexing failures reported because only gets/updates/deletes generated the conflicts above
+        // there are no indexing (version conflict) failures reported because only gets/updates/deletes generated the conflicts
+        // and those are not indexing operations
         assertThat(measurements, iterableWithSize(2));
         assertThat(measurements.get(0).value(), is(0L));
         assertThat(measurements.get(0).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "any")));
         assertThat(measurements.get(1).value(), is(0L));
+        assertThat(measurements.get(1).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "version_conflict")));
+    }
+
+    public void testMetricsForIndexingVersionConflicts() {
+        final String dataNode = internalCluster().startNode();
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+                .filterPlugins(TestTelemetryPlugin.class)
+                .findFirst()
+                .orElseThrow();
+        plugin.resetMeter();
+
+        if (randomBoolean()) {
+            assertAcked(prepareCreate("test").get());
+        } else {
+            assertAcked(prepareCreate("test", Settings.builder().put("index.refresh_interval", "-1")).get());
+        }
+
+        String docId = randomUUID();
+        // successful index (with version)
+        client(dataNode).index(
+            new IndexRequest("test").id(docId)
+                .version(10)
+                .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                .source(Map.of("test_date", "2025/01/01"))
+        ).actionGet();
+        // if_primary_term conflict
+        {
+            var e = expectThrows(
+                VersionConflictEngineException.class,
+                () -> client(dataNode).index(new IndexRequest("test").id(docId).source(Map.of()).setIfSeqNo(0).setIfPrimaryTerm(2))
+                    .actionGet()
+            );
+            assertThat(e.getMessage(), containsString("version conflict"));
+            assertThat(e.status(), is(RestStatus.CONFLICT));
+        }
+        // if_seq_no conflict
+        {
+            var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).index(new IndexRequest("test").id(docId).source(Map.of()).setIfSeqNo(1).setIfPrimaryTerm(1))
+                            .actionGet()
+            );
+            assertThat(e.getMessage(), containsString("version conflict"));
+            assertThat(e.status(), is(RestStatus.CONFLICT));
+        }
+        // version conflict
+        {
+            var e = expectThrows(
+                VersionConflictEngineException.class,
+                () -> client(dataNode).index(
+                    new IndexRequest("test").id(docId)
+                        .source(Map.of())
+                        .version(3)
+                        .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                ).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("version conflict"));
+            assertThat(e.status(), is(RestStatus.CONFLICT));
+        }
+        // indexing failure that is NOT a version conflict (date parsing failure)
+        {
+            var e = expectThrows(
+                    DocumentParsingException.class,
+                    () -> client(dataNode).index(
+                    new IndexRequest("test").id(docId)
+                            .source(Map.of())
+//                            .source(Map.of("test_date", "foo"))
+            ).actionGet());
+            assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        }
+
+        plugin.collect();
+
+        List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement("es.indexing.indexing.failed.total");
+        assertThat(measurements, iterableWithSize(2));
+        assertThat(measurements.get(0).value(), is(3L));
+        assertThat(measurements.get(0).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "any")));
+        assertThat(measurements.get(1).value(), is(3L));
         assertThat(measurements.get(1).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "version_conflict")));
     }
 

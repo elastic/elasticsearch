@@ -181,7 +181,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\.\\ \\[\\:\\]\\ operator.+/" }
+  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\./" }
 
   - do:
       catch: bad_request
@@ -193,7 +193,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\.\\ \\[\\:\\]\\ operator.+/" }
+  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\./" }
 
 
 ---

@@ -4,13 +4,13 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
+package org.elasticsearch.xpack.esql.expression.predicate.fulltext;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xpack.esql.core.ParsingException;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate.Operator;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -86,7 +86,7 @@ abstract class FullTextUtils {
         return split;
     }
 
-    static FullTextPredicate.Operator operator(Map<String, String> options, String key) {
+    static Operator operator(Map<String, String> options, String key) {
         String value = options.get(key);
         return value != null ? Operator.valueOf(value.toUpperCase(Locale.ROOT)) : null;
     }

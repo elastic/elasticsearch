@@ -177,32 +177,25 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-            if (docValues.advanceExact(docId) == false) {
-                return;
-            }
-
-            int docValuesCount = docValues.docValueCount();
-            assert docValuesCount > 0;
-            isEmpty = false;
-            List<BytesRef> values = new ArrayList<>(docValuesCount);
-            for (int i = 0; i < docValuesCount; i++) {
-                values.add(new BytesRef(docValues.nextValue().toString()));
-            }
-            label.collect(values);
-        }
-
-        @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 builder.startObject(name());
-                var iterator = ((List<?>) label.get()).iterator();
+
+                var value = label.get();
+                List<BytesRef> list;
+                if (value instanceof Object[] values) {
+                    list = new ArrayList<>(values.length);
+                    for (Object v : values) {
+                        list.add(new BytesRef(v.toString()));
+                    }
+                } else {
+                    list = List.of(new BytesRef(value.toString()));
+                }
+
+                var iterator = list.iterator();
                 var helper = new FlattenedFieldSyntheticWriterHelper(() -> {
                     if (iterator.hasNext()) {
-                        return (BytesRef) iterator.next();
+                        return iterator.next();
                     } else {
                         return null;
                     }

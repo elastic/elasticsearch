@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -132,10 +131,10 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
 
         producer.collect(docValues, 1);
         assertFalse(producer.isEmpty());
-        assertEquals("a\0value_a", ((BytesRef) ((List<?>) producer.label().get()).get(0)).utf8ToString());
-        assertEquals("b\0value_b", ((BytesRef) ((List<?>) producer.label().get()).get(1)).utf8ToString());
-        assertEquals("c\0value_c", ((BytesRef) ((List<?>) producer.label().get()).get(2)).utf8ToString());
-        assertEquals("d\0value_d", ((BytesRef) ((List<?>) producer.label().get()).get(3)).utf8ToString());
+        assertEquals("a\0value_a", (((Object[]) producer.label().get())[0]).toString());
+        assertEquals("b\0value_b", (((Object[]) producer.label().get())[1]).toString());
+        assertEquals("c\0value_c", (((Object[]) producer.label().get())[2]).toString());
+        assertEquals("d\0value_d", (((Object[]) producer.label().get())[3]).toString());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
         builder.startObject();

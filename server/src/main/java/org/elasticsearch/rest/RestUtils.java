@@ -9,11 +9,16 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -314,5 +319,22 @@ public class RestUtils {
     public static TimeValue getTimeout(RestRequest restRequest) {
         assert restRequest != null;
         return restRequest.paramAsTime(REST_TIMEOUT_PARAM, null);
+    }
+
+    // Remove the BWC support for the deprecated ?local parameter.
+    // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    public static void consumeDeprecatedLocalParameter(RestRequest request) {
+        if (request.getRestApiVersion() == RestApiVersion.V_8) {
+            return;
+        }
+        if (request.paramAsBoolean("local", false)) {
+            DeprecationLogger.getLogger(TransportLocalClusterStateAction.class)
+                .critical(
+                    DeprecationCategory.API,
+                    "TransportLocalClusterStateAction-local-parameter",
+                    "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+                );
+        }
     }
 }

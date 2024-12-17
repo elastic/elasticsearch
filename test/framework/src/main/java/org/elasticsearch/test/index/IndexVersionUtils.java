@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class IndexVersionUtils {
 
     private static final List<IndexVersion> ALL_VERSIONS = KnownIndexVersions.ALL_VERSIONS;
+    private static final List<IndexVersion> WRITE_VERSIONS = KnownIndexVersions.WRITE_VERSIONS;
 
     /** Returns all released versions */
     public static List<IndexVersion> allReleasedVersions() {
@@ -52,7 +53,8 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion(Random random) {
-        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+        //TODO provide a variant of this that includes read only versions?
+        return WRITE_VERSIONS.get(random.nextInt(WRITE_VERSIONS.size()));
     }
 
     /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

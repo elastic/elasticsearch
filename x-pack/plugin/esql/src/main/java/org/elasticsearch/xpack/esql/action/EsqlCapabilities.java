@@ -580,6 +580,11 @@ public class EsqlCapabilities {
         MATCH_ADDITIONAL_TYPES,
 
         /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD,
+
+        /**
          * Full text functions can be used in disjunctions
          */
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS;

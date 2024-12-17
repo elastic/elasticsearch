@@ -168,8 +168,14 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                 Map<String, Tuple<Long, Long>> inProgressMap = new HashMap<>();
                 for (String index : inProgressIndices) {
-                    DocsStats totalDocsStats = indicesStatsResponse.getIndex(index).getTotal().getDocs();
-                    final long totalDocsInIndex = totalDocsStats == null ? 0 : totalDocsStats.getCount();
+                    IndexStats sourceIndexStats = indicesStatsResponse.getIndex(index);
+                    final long totalDocsInIndex;
+                    if (sourceIndexStats == null) {
+                        totalDocsInIndex = 0;
+                    } else {
+                        DocsStats totalDocsStats = sourceIndexStats.getTotal().getDocs();
+                        totalDocsInIndex = totalDocsStats == null ? 0 : totalDocsStats.getCount();
+                    }
                     IndexStats migratedIndexStats = indicesStatsResponse.getIndex(
                         ReindexDataStreamIndexTransportAction.generateDestIndexName(index)
                     );

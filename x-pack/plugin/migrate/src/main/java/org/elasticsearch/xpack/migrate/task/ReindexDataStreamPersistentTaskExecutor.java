@@ -114,6 +114,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             .filter(index -> index.getName().equals(dataStream.getWriteIndex().getName()) == false)
             .toList();
         reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
+        // The CountDownActionListener is 1 more than the number of indices so that the count is not 0 if we have no indices
         CountDownActionListener listener = new CountDownActionListener(indicesToBeReindexed.size() + 1, ActionListener.wrap(response1 -> {
             completeSuccessfulPersistentTask(reindexDataStreamTask);
         }, exception -> { completeFailedPersistentTask(reindexDataStreamTask, exception); }));
@@ -122,6 +123,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         for (int i = 0; i < maxConcurrentIndices; i++) {
             maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener);
         }
+        // This takes care of the additional latch count referenced above:
         listener.onResponse(null);
     }
 

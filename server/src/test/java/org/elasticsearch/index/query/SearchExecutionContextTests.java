@@ -389,10 +389,13 @@ public class SearchExecutionContextTests extends ESTestCase {
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        MappingLookup lookup = MappingLookup.fromMapping(
-            mapping,
-            new IndexSettings(IndexMetadata.builder("index").build(), Settings.EMPTY)
-        );
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, indexSettings);
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
         assertTrue(sec.isSourceSynthetic());

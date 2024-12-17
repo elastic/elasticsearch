@@ -18,6 +18,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -52,12 +53,13 @@ public class MappingLookupTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(
-            mapping,
-            fieldMappers,
-            objectMappers,
-            new IndexSettings(IndexMetadata.builder("index").build(), Settings.EMPTY)
-        );
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, indexSettings);
     }
 
     public void testOnlyRuntimeField() {

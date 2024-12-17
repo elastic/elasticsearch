@@ -358,7 +358,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
             .setWaitForCompletion(true)
-            .setIndices("with-fs")
+            .setIndices("with-fs::*")
             .setIncludeGlobalState(false)
             .get();
 

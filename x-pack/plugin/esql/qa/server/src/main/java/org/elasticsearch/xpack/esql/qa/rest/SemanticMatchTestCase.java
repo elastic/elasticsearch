@@ -12,8 +12,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,8 +44,8 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
     }
 
-    @BeforeClass
-    public static void setUpIndices() throws IOException {
+    @Before
+    public void setUpIndices() throws IOException {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
 
         var settings = Settings.builder().build();
@@ -58,7 +58,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                   }
                 }
             """;
-        createIndex("test-semantic1", settings, mapping1);
+        createIndex(adminClient(), "test-semantic1", settings, mapping1);
 
         String mapping2 = """
                  "properties": {
@@ -68,7 +68,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                    }
                  }
             """;
-        createIndex("test-semantic2", settings, mapping2);
+        createIndex(adminClient(), "test-semantic2", settings, mapping2);
 
         String mapping3 = """
                  "properties": {
@@ -78,11 +78,11 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                    }
                  }
             """;
-        createIndex("test-semantic3", settings, mapping3);
+        createIndex(adminClient(), "test-semantic3", settings, mapping3);
     }
 
-    @BeforeClass
-    public static void setUpTextEmbeddingInferenceEndpoint() throws IOException {
+    @Before
+    public void setUpTextEmbeddingInferenceEndpoint() throws IOException {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
         Request request = new Request("PUT", "_inference/text_embedding/test_dense_inference");
         request.setJsonEntity("""
@@ -96,16 +96,16 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                    }
                  }
             """);
-        client().performRequest(request);
+        adminClient().performRequest(request);
     }
 
-    @AfterClass
-    public static void wipeData() throws IOException {
+    @After
+    public void wipeData() throws IOException {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
-        client().performRequest(new Request("DELETE", "*"));
+        adminClient().performRequest(new Request("DELETE", "*"));
 
         try {
-            client().performRequest(new Request("DELETE", "_inference/test_dense_inference"));
+            adminClient().performRequest(new Request("DELETE", "_inference/test_dense_inference"));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

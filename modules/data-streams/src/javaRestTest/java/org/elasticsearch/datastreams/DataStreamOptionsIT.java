@@ -137,6 +137,10 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
             assertDataStreamOptions(null);
             assertFailureStoreValuesInGetDataStreamResponse(false, 1);
             assertFailsDocWithBadMapping();
+            setDataStreamFailureStoreClusterSetting(null); // should get same behaviour as when we set it to something non-matching
+            assertDataStreamOptions(null);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
         }
         {
             // Data stream options with failure store enabled
@@ -156,6 +160,10 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
             assertDataStreamOptions(true);
             assertFailureStoreValuesInGetDataStreamResponse(true, 1);
             assertRedirectsDocWithBadMappingToFailureStore();
+            setDataStreamFailureStoreClusterSetting(null); // same as previous
+            assertDataStreamOptions(true);
+            assertFailureStoreValuesInGetDataStreamResponse(true, 1);
+            assertRedirectsDocWithBadMappingToFailureStore();
         }
         {
             // Data stream options with failure store disabled
@@ -172,6 +180,10 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
             assertFailureStoreValuesInGetDataStreamResponse(false, 1);
             assertFailsDocWithBadMapping();
             setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream");
+            assertDataStreamOptions(false);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
+            setDataStreamFailureStoreClusterSetting(null);
             assertDataStreamOptions(false);
             assertFailureStoreValuesInGetDataStreamResponse(false, 1);
             assertFailsDocWithBadMapping();

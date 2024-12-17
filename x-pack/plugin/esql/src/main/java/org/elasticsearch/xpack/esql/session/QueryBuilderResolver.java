@@ -66,7 +66,8 @@ public class QueryBuilderResolver {
         }
 
         if (plan.optimized() == false) {
-            throw new IllegalStateException("Expected optimized plan before query builder rewrite.");
+            listener.onFailure(new IllegalStateException("Expected optimized plan before query builder rewrite."));
+            return;
         }
 
         Set<FullTextFunction> unresolved = fullTextFunctions(plan);

@@ -56,7 +56,6 @@ public class TransportVersions {
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
     public static final TransportVersion V_7_6_0 = def(7_06_00_99);
-    public static final TransportVersion V_7_7_0 = def(7_07_00_99);
     public static final TransportVersion V_7_8_0 = def(7_08_00_99);
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
@@ -140,6 +139,7 @@ public class TransportVersions {
     public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
     public static final TransportVersion SEMANTIC_QUERY_LENIENT = def(8_807_00_0);
     public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
+    public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_809_00_0);
 
     /*
      * WARNING: DO NOT MERGE INTO MAIN!

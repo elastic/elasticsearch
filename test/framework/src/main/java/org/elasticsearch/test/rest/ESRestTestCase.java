@@ -1138,7 +1138,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+    protected static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
         for (String warning : warnings) {
             if (warning.startsWith("this request accesses system indices:")) {
                 SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);

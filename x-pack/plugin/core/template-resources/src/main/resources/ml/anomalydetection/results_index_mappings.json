@@ -13,7 +13,7 @@
       }
     },
     {
-      "strings_as_keywords" : {
+      "non_objects_as_keywords" : {
         "match" : "*",
         "mapping" : {
           "type" : "keyword"

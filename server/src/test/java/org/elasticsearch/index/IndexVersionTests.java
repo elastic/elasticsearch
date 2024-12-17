@@ -207,7 +207,7 @@ public class IndexVersionTests extends ESTestCase {
 
         // too old version, major should be the oldest supported lucene version minus 1
         IndexVersion oldVersion = IndexVersion.fromId(5020199);
-        assertThat(oldVersion.luceneVersion().major, equalTo(IndexVersionUtils.getFirstVersion().luceneVersion().major - 1));
+        assertThat(oldVersion.luceneVersion().major, equalTo(IndexVersionUtils.getLowestReadCompatibleVersion().luceneVersion().major - 1));
 
         // future version, should be the same version as today
         IndexVersion futureVersion = IndexVersion.fromId(currentVersion.id() + 100);

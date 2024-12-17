@@ -31,8 +31,12 @@ public class IndexVersionUtils {
     }
 
     /** Returns the oldest known {@link IndexVersion} */
-    public static IndexVersion getFirstVersion() {
+    public static IndexVersion getLowestReadCompatibleVersion() {
         return ALL_VERSIONS.get(0);
+    }
+
+    public static IndexVersion getLowestWriteCompatibleVersion() {
+        return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).findFirst().get();
     }
 
     /** Returns a random {@link IndexVersion} from all available versions. */

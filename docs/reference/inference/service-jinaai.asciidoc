@@ -166,6 +166,7 @@ PUT _inference/text_embedding/jinaai-embeddings
     "task_settings": {}
 }
 ------------------------------------------------------------
+// TEST[skip:uses ML]
 
 Then, we create the `rerank` service:
 [source,console]

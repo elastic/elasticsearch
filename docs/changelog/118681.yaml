@@ -2,4 +2,5 @@ pr: 118681
 summary: '`ConnectTransportException` returns retryable BAD_GATEWAY'
 area: Network
 type: enhancement
-issues: []
+issues:
+ - 118320

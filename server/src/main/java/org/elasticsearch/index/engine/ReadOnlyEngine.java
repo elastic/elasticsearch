@@ -98,7 +98,7 @@ public class ReadOnlyEngine extends Engine {
     public ReadOnlyEngine(
         EngineConfig config,
         SeqNoStats seqNoStats,
-        TranslogStats translogStats,
+        @Nullable TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
         boolean requireCompleteHistory,
@@ -251,6 +251,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
+        assert config.getTranslogConfig().hasTranslog();
         final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");

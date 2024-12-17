@@ -118,14 +118,8 @@ teardown:
 ---
 "Redirect ingest failure into pre-existing data stream to failure store when enabled by setting":
   - do:
-      index:
-        index:  default-fs-matching
-        refresh: true
-        body:
-          '@timestamp': '2020-12-11'
-          foo: bar
-  - match: { failure_store: null }
-  - match: { _index: '/\.ds-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+      indices.create_data_stream:
+        name: default-fs-matching
 
   - do:
       index:
@@ -153,14 +147,8 @@ teardown:
 ---
 "Do not redirect ingest failure into pre-existing data stream to failure store when enabled by setting but disabled in template":
   - do:
-      index:
-        index:  disabled-fs-matching
-        refresh: true
-        body:
-          '@timestamp': '2020-12-11'
-          foo: bar
-  - match: { failure_store: null }
-  - match: { _index: '/\.ds-disabled-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+      indices.create_data_stream:
+        name: disabled-fs-matching
 
   - do:
       index:
@@ -187,14 +175,8 @@ teardown:
 ---
 "Redirect mapping failure into pre-existing data stream to failure store when enabled by setting":
   - do:
-      index:
-        index:  default-fs-matching
-        refresh: true
-        body:
-          '@timestamp': '2020-12-11'
-          foo: bar
-  - match: { failure_store: null }
-  - match: { _index: '/\.ds-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+      indices.create_data_stream:
+        name: default-fs-matching
 
   - do:
       index:
@@ -220,14 +202,8 @@ teardown:
 ---
 "Do not redirect mapping failure into pre-existing data stream to failure store when enabled by setting but disabled in template":
   - do:
-      index:
-        index:  disabled-fs-matching
-        refresh: true
-        body:
-          '@timestamp': '2020-12-11'
-          foo: bar
-  - match: { failure_store: null }
-  - match: { _index: '/\.ds-disabled-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+      indices.create_data_stream:
+        name: disabled-fs-matching
 
   - do:
       index:

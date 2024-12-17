@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -80,6 +81,12 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
         return nodeFeatures;
     }
 
+    /**
+     * The features in all nodes in the cluster.
+     * <p>
+     * NOTE: This should not be used directly.
+     * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
+     */
     public Set<String> allNodeFeatures() {
         if (allNodeFeatures == null) {
             allNodeFeatures = Set.copyOf(calculateAllNodeFeatures(nodeFeatures.values()));
@@ -109,6 +116,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * NOTE: This should not be used directly, as it does not read historical features.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
+    @SuppressForbidden(reason = "directly reading cluster features")
     public boolean clusterHasFeature(DiscoveryNodes nodes, NodeFeature feature) {
         assert nodes.getNodes().keySet().equals(nodeFeatures.keySet())
             : "Cluster features nodes " + nodeFeatures.keySet() + " is different to discovery nodes " + nodes.getNodes().keySet();

@@ -111,7 +111,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         List<Index> indices = dataStream.getIndices();
         List<Index> indicesToBeReindexed = indices.stream()
             .filter(getOldIndexVersionPredicate(clusterService.state().metadata()))
-            .filter(index -> index.getName().equals(dataStream.getWriteIndex().getName()) == false)
             .toList();
         reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
         // The CountDownActionListener is 1 more than the number of indices so that the count is not 0 if we have no indices

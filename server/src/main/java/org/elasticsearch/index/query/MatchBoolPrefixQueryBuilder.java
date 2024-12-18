@@ -377,6 +377,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_2_0;
+        return TransportVersions.ZERO;
     }
 }

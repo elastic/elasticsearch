@@ -30,6 +30,7 @@ final class StackTrace implements ToXContentObject {
     double annualCO2Tons;
     double annualCostsUSD;
     long count;
+    String executableName;
 
     StackTrace(
         int[] addressOrLines,
@@ -47,6 +48,7 @@ final class StackTrace implements ToXContentObject {
         this.annualCO2Tons = annualCO2Tons;
         this.annualCostsUSD = annualCostsUSD;
         this.count = count;
+        this.executableName = "";
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -222,6 +224,14 @@ final class StackTrace implements ToXContentObject {
         }
     }
 
+    public String getExecutableName() {
+        if (executableName.isEmpty() && this.typeIds.length > 0 && this.typeIds[0] == KERNEL_FRAME_TYPE) {
+            // kernel threads are not associated with an executable
+            return "kernel";
+        }
+        return executableName;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -232,6 +242,7 @@ final class StackTrace implements ToXContentObject {
         builder.field("annual_co2_tons", this.annualCO2Tons);
         builder.field("annual_costs_usd", this.annualCostsUSD);
         builder.field("count", this.count);
+        builder.field("executable_name", this.executableName);
         builder.endObject();
         return builder;
     }
@@ -246,7 +257,8 @@ final class StackTrace implements ToXContentObject {
         return Arrays.equals(addressOrLines, that.addressOrLines)
             && Arrays.equals(fileIds, that.fileIds)
             && Arrays.equals(frameIds, that.frameIds)
-            && Arrays.equals(typeIds, that.typeIds);
+            && Arrays.equals(typeIds, that.typeIds)
+            && executableName.equals(that.executableName);
         // Don't compare metadata like annualized co2, annualized costs, subGroups and count.
     }
 
@@ -257,6 +269,7 @@ final class StackTrace implements ToXContentObject {
         result = 31 * result + Arrays.hashCode(fileIds);
         result = 31 * result + Arrays.hashCode(frameIds);
         result = 31 * result + Arrays.hashCode(typeIds);
+        result = 31 * result + executableName.hashCode();
         return result;
     }
 }

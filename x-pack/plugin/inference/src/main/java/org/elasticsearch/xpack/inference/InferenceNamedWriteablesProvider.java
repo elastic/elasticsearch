@@ -16,6 +16,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -132,9 +133,16 @@ public class InferenceNamedWriteablesProvider {
         addEisNamedWriteables(namedWriteables);
         addAlibabaCloudSearchNamedWriteables(namedWriteables);
 
+        addUnifiedNamedWriteables(namedWriteables);
+
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
 
         return namedWriteables;
+    }
+
+    private static void addUnifiedNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        var writeables = UnifiedCompletionRequest.getNamedWriteables();
+        namedWriteables.addAll(writeables);
     }
 
     private static void addAmazonBedrockNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

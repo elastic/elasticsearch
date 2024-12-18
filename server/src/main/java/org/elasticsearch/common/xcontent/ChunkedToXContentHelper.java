@@ -12,6 +12,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.util.Collections;
 import java.util.Iterator;
 
 public enum ChunkedToXContentHelper {
@@ -51,6 +52,14 @@ public enum ChunkedToXContentHelper {
 
     public static Iterator<ToXContent> field(String name, String value) {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> optionalField(String name, String value) {
+        if (value == null) {
+            return Collections.emptyIterator();
+        } else {
+            return field(name, value);
+        }
     }
 
     /**

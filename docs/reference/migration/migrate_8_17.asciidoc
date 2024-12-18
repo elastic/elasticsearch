@@ -9,9 +9,6 @@ your application to {es} 8.17.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.17.0]
-
-
 [discrete]
 [[breaking-changes-8.17]]
 === Breaking changes

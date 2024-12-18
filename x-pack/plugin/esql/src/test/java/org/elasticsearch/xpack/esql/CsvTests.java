@@ -260,7 +260,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V5.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V8.capabilityName())
             );
             assumeFalse(
                 "can't use TERM function in csv tests",
@@ -319,13 +319,14 @@ public class CsvTests extends ESTestCase {
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
         /*
-         * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
+         * Enable the next two lines to see the results returned by ES.
          * This is useful when creating a new test or trying to figure out what are the actual results.
          */
         // CsvTestUtils.logMetaData(actual.columnNames(), actual.columnTypes(), LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
+
+        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
     }
 
     private static IndexResolution loadIndexResolution(String mappingName, String indexName, Map<String, String> typeMapping) {
@@ -442,7 +443,8 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanningMetrics(),
-            null
+            null,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

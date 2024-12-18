@@ -2684,7 +2684,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         service.executeQueryPhase(
             new QuerySearchRequest(null, context.id(), request, new AggregatedDfs(Map.of(), Map.of(), 10)),
             new SearchShardTask(42L, "", "", "", null, emptyMap()),
-            plainActionFuture
+            plainActionFuture,
+            TransportVersion.current()
         );
 
         plainActionFuture.actionGet();

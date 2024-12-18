@@ -219,11 +219,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
-        var lookupMapping = loadMapping("mapping-languages.json");
-        IndexResolution lookupResolution = IndexResolution.valid(
-            new EsIndex("language_code", lookupMapping, Map.of("language_code", IndexMode.LOOKUP))
-        );
-
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
@@ -4911,7 +4906,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPlanSanityCheckWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         var plan = optimizedPlan("""
               FROM test
@@ -5913,15 +5908,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     | \_Limit[1000[INTEGER]]
      *     |  \_Filter[languages{f}#10 > 1[INTEGER]]
      *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_code > 1
             """;
         var plan = optimizedPlan(query);
@@ -5956,15 +5951,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     | \_Limit[1000[INTEGER]]
      *     |  \_Filter[emp_no{f}#7 > 1[INTEGER]]
      *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE emp_no > 1
             """;
 
@@ -6000,15 +5995,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
      *       | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *       \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name == "English"
             """;
 
@@ -6045,15 +6040,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
      *       | \_Filter[emp_no{f}#8 > 1[INTEGER]]
      *       |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name == "English" AND emp_no > 1
             """;
 
@@ -6098,15 +6093,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
      * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
      *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name == "English" OR emp_no > 1
             """;
 

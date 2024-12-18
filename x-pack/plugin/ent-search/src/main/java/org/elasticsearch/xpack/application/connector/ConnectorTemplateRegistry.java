@@ -45,6 +45,8 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
     public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
 
+    public static final String MANAGED_CONNECTOR_INDEX_PREFIX = "content-";
+
     // Pipeline constants
 
     public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";

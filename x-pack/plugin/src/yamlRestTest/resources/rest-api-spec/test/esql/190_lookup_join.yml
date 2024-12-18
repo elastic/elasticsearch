@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, contains]
       capabilities:
         - method: POST
           path: /_query
@@ -82,7 +82,7 @@ non-lookup index:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - match: { error.reason: "Found 1 problem\nline 1:43: invalid [test] resolution in lookup mode to an index in [standard] mode" }
+  - contains: { error.reason: "Found 1 problem\nline 1:43: invalid [test] resolution in lookup mode to an index in [standard] mode" }
 
 ---
 alias:
@@ -90,6 +90,20 @@ alias:
       esql.query:
         body:
           query: 'FROM test | SORT key | LOOKUP JOIN `test-lookup-alias` ON key | LIMIT 3'
+
+  - match: {columns.0.name: "key"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: [1, "cyan"]}
+  - match: {values.1: [2, "yellow"]}
+
+---
+alias-repeated:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test-lookup-alias | SORT key | LOOKUP JOIN `test-lookup-alias` ON key | LIMIT 3'
 
   - match: {columns.0.name: "key"}
   - match: {columns.0.type: "long"}

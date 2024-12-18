@@ -163,6 +163,17 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     grouping part, or that it is invoked with the exact same expression:""",
                 file = "bucket",
                 tag = "reuseGroupingFunctionWithExpression"
+            ),
+            @Example(
+                description = """
+                    Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
+                    aggregation's <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
+                    take into account how the language handles expressions within the `STATS` command: if these contain functions or
+                    arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
+                    compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,
+                    inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
+                file = "bucket",
+                tag = "bucketWithOffset"
             ) }
     )
     public Bucket(

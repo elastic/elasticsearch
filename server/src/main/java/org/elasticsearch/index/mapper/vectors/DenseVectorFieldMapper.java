@@ -2512,8 +2512,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * @FunctionalInterface for a function that takes a int and boolean
+     * Interface for a function that takes a int and boolean
      */
+    @FunctionalInterface
     public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
     }

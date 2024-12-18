@@ -865,7 +865,6 @@ public class Verifier {
                     );
                 }
             }
-
         }
     }
 

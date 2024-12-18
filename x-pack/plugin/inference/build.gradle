@@ -399,7 +399,17 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
+tasks.named('test') {
+  if (buildParams.isSnapshotBuild()) {
+    systemProperty('es.inference_metadata_fields', 'true')
+    systemProperty('tests.jvm.argline', '-Des.inference_metadata_fields=true')
+  }
+}
+
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
+  if (buildParams.isSnapshotBuild()) {
+    systemProperty('tests.jvm.argline', '-Des.inference_metadata_fields=true')
+  }
 }
 

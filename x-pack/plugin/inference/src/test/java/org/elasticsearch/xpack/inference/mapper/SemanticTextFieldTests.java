@@ -286,7 +286,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
     }
 
-    public static ChunkedInference toChunkedResult(Map<String, List<String>> matchedTextMap, SemanticTextField field) throws IOException {
+    public static ChunkedInference toChunkedResult(
+        IndexVersion indexVersion,
+        Map<String, List<String>> matchedTextMap,
+        SemanticTextField field
+    ) {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
                 List<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk> chunks = new ArrayList<>();
@@ -297,14 +301,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
                     ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
                     for (var chunk : entryChunks) {
+                        String matchedText = matchedTextIt.next();
+                        ChunkedInference.TextOffset offset = createOffset(indexVersion, chunk, matchedText);
                         var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                        chunks.add(
-                            new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
-                                tokens,
-                                matchedTextIt.next(),
-                                new ChunkedInference.TextOffset(chunk.startOffset(), chunk.endOffset())
-                            )
-                        );
+                        chunks.add(new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, matchedText, offset));
                     }
                 }
                 return new ChunkedInferenceEmbeddingSparse(chunks);
@@ -318,6 +318,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
                     ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
                     for (var chunk : entryChunks) {
+                        String matchedText = matchedTextIt.next();
+                        ChunkedInference.TextOffset offset = createOffset(indexVersion, chunk, matchedText);
                         double[] values = parseDenseVector(
                             chunk.rawEmbeddings(),
                             field.inference().modelSettings().dimensions(),
@@ -326,8 +328,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         chunks.add(
                             new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                                 FloatConversionUtils.floatArrayOf(values),
-                                matchedTextIt.next(),
-                                new ChunkedInference.TextOffset(chunk.startOffset(), chunk.endOffset())
+                                matchedText,
+                                offset
                             )
                         );
                     }
@@ -351,6 +353,24 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
 
         return fieldMatchedText;
+    }
+
+    /**
+     * Create a {@link ChunkedInference.TextOffset} instance with valid offset values. When using the legacy semantic text format, the
+     * offset values are not written to {@link SemanticTextField.Chunk}, so we cannot read them from there. Instead, use the knowledge that
+     * the matched text corresponds to one complete input value (i.e. one input value -> one chunk) to calculate the offset values.
+     *
+     * @param indexVersion The index version
+     * @param chunk The chunk to get/calculate offset values for
+     * @param matchedText The matched text to calculate offset values for
+     * @return A {@link ChunkedInference.TextOffset} instance with valid offset values
+     */
+    private static ChunkedInference.TextOffset createOffset(IndexVersion indexVersion, SemanticTextField.Chunk chunk, String matchedText) {
+        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
+        final int startOffset = useInferenceMetadataFields ? chunk.startOffset() : 0;
+        final int endOffset = useInferenceMetadataFields ? chunk.endOffset() : matchedText.length();
+
+        return new ChunkedInference.TextOffset(startOffset, endOffset);
     }
 
     private static double[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {

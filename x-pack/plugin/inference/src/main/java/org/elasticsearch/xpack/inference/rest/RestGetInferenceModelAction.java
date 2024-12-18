@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_SYSTEM_PROPERTY;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_PATH;
@@ -72,7 +72,7 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         Set<String> capabilities = new HashSet<>();
         capabilities.add(DEFAULT_ELSER_2_CAPABILITY);
-        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (INFERENCE_METADATA_FIELDS_SYSTEM_PROPERTY.isEnabled()) {
             capabilities.add(INFERENCE_METADATA_FIELDS_CAPABILITY);
         }
 

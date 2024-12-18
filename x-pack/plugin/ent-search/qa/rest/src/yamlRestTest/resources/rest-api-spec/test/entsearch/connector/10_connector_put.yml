@@ -153,6 +153,19 @@ setup:
 
 
 ---
+'Create Connector - Invalid Managed Connector Index Prefix':
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-test-managed
+        body:
+          index_name: wrong-prefix-index
+          name: my-connector
+          language: pl
+          is_native: true
+          service_type: super-connector
+
+---
 'Create Connector - Id returned as part of response':
   - do:
       connector.put:

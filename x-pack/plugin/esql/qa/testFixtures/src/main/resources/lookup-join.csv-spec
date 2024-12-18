@@ -424,7 +424,7 @@ joinOnNestedField
 required_capability: join_lookup_v8
 
 FROM employees
-| WHERE 10000 < emp_no AND emp_no < 10005
+| WHERE 10000 < emp_no AND emp_no < 10006
 | EVAL language.id = emp_no % 10
 | LOOKUP JOIN languages_nested_fields ON language.id
 | SORT emp_no
@@ -436,6 +436,7 @@ emp_no:integer | language.id:integer | language.name:keyword
 10002          | 2                   | French
 10003          | 3                   | Spanish
 10004          | 4                   | German
+10005          | 5                   | null
 ;
 
 ###############################################

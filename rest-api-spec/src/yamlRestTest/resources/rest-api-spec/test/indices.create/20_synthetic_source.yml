@@ -2049,5 +2049,6 @@ create index with use_synthetic_source:
       indices.disk_usage:
         index: test
         run_expensive_tasks: true
+        flush: false
   - gt: { test.fields.field.total_in_bytes: 0 }
   - is_false: test.fields.field._recovery_source

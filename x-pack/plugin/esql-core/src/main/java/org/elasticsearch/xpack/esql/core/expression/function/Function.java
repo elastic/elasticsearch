@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;

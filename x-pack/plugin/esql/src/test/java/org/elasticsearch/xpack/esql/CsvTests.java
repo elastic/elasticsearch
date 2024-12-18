@@ -263,7 +263,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V7.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V8.capabilityName())
             );
             assumeFalse(
                 "can't use TERM function in csv tests",
@@ -445,7 +445,8 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanningMetrics(),
-            null
+            null,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

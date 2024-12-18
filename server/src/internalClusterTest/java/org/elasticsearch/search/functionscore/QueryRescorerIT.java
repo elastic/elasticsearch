@@ -870,7 +870,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50),
             response -> {
-                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
+                assertThat(response.getHits().getTotalHits().value, equalTo(5L));
                 assertThat(response.getHits().getHits().length, equalTo(5));
                 for (SearchHit hit : response.getHits().getHits()) {
                     assertThat(hit.getScore(), equalTo(101f));

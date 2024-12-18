@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -59,6 +62,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringValidati
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -77,6 +81,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -85,13 +90,48 @@ public class ConnectorIndexService {
 
     private final Client client;
 
-    public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
-
+    public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";
+    private static final int CONNECTORS_INDEX_VERSION = 1;
+    private static final String CONNECTORS_MAPPING_VERSION_VARIABLE = "elastic-connectors.version";
+    private static final String CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors.managed.index.version";
+    private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "connectors", "enterprise-search");
     /**
      * @param client A client for executing actions on the connector index
      */
     public ConnectorIndexService(Client client) {
         this.client = client;
+    }
+
+    /**
+     * Returns the {@link SystemIndexDescriptor} for the Connector system index.
+     *
+     * @return The {@link SystemIndexDescriptor} for the Connector system index.
+     */
+    public static SystemIndexDescriptor getSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+
+        // TODO get rid of templates for everything but acl indices
+        String templateSource = TemplateUtils.loadTemplate(
+            "/elastic-connectors.json",
+            Version.CURRENT.toString(),
+            CONNECTORS_MAPPING_VERSION_VARIABLE,
+            Map.of(CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CONNECTORS_INDEX_VERSION))
+        );
+        request.source(templateSource, XContentType.JSON);
+
+        // The index pattern needs a strict regex to prevent conflicts with .elastic-connectors-sync-jobs
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(CONNECTOR_INDEX_NAME + "-v*")
+            .setPrimaryIndex(CONNECTOR_INDEX_NAME + "-v" + CONNECTORS_INDEX_VERSION)
+            .setAliasName(CONNECTOR_INDEX_NAME)
+            .setDescription("Search connectors")
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setOrigin(CONNECTORS_ORIGIN)
+            .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setNetNew()
+            .build();
     }
 
     /**
@@ -808,8 +848,8 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the is_native property of a {@link Connector}. It sets the {@link ConnectorStatus} to
-     * CONFIGURED when connector is in CONNECTED state to indicate that connector needs to reconnect.
+     * Updates the is_native property of a {@link Connector}. It always sets the {@link ConnectorStatus} to
+     * CONFIGURED.
      *
      * @param request  The request for updating the connector's is_native property.
      * @param listener The listener for handling responses, including successful updates or errors.
@@ -817,62 +857,29 @@ public class ConnectorIndexService {
     public void updateConnectorNative(UpdateConnectorNativeAction.Request request, ActionListener<UpdateResponse> listener) {
         try {
             String connectorId = request.getConnectorId();
-            boolean isNative = request.isNative();
 
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
-
-                String indexName = getConnectorIndexNameFromSearchResult(connector);
-
-                boolean doesNotHaveContentPrefix = indexName != null && isValidManagedConnectorIndexName(indexName) == false;
-                // Ensure attached content index is prefixed correctly
-                if (isNative && doesNotHaveContentPrefix) {
-                    l.onFailure(
-                        new ElasticsearchStatusException(
-                            "The index name ["
-                                + indexName
-                                + "] attached to the connector ["
-                                + connectorId
-                                + "] must start with the required prefix: ["
-                                + MANAGED_CONNECTOR_INDEX_PREFIX
-                                + "] to be Elastic-managed. Please update the attached index first to comply with this requirement.",
-                            RestStatus.BAD_REQUEST
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(
+                        Map.of(
+                            Connector.IS_NATIVE_FIELD.getPreferredName(),
+                            request.isNative(),
+                            Connector.STATUS_FIELD.getPreferredName(),
+                            ConnectorStatus.CONFIGURED.toString()
                         )
-                    );
+                    )
+
+            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
-
-                ConnectorStatus status = getConnectorStatusFromSearchResult(connector);
-
-                // If connector was connected already, change its status to CONFIGURED as we need to re-connect
-                boolean isConnected = status == ConnectorStatus.CONNECTED;
-                boolean isValidTransitionToConfigured = ConnectorStateMachine.isValidTransition(status, ConnectorStatus.CONFIGURED);
-                if (isConnected && isValidTransitionToConfigured) {
-                    status = ConnectorStatus.CONFIGURED;
-                }
-
-                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
-                    WriteRequest.RefreshPolicy.IMMEDIATE
-                )
-                    .doc(
-                        new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                            .id(connectorId)
-                            .source(
-                                Map.of(
-                                    Connector.IS_NATIVE_FIELD.getPreferredName(),
-                                    isNative,
-                                    Connector.STATUS_FIELD.getPreferredName(),
-                                    status.toString()
-                                )
-                            )
-                    );
-                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    ll.onResponse(updateResponse);
-                }));
+                l.onResponse(updateResponse);
             }));
+
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -930,45 +937,22 @@ public class ConnectorIndexService {
                     return;
                 }
 
-                getConnector(connectorId, l.delegateFailure((ll, connector) -> {
-
-                    Boolean isNativeConnector = getConnectorIsNativeFlagFromSearchResult(connector);
-                    Boolean doesNotHaveContentPrefix = indexName != null && isValidManagedConnectorIndexName(indexName) == false;
-
-                    if (isNativeConnector && doesNotHaveContentPrefix) {
-                        ll.onFailure(
-                            new ElasticsearchStatusException(
-                                "Index attached to an Elastic-managed connector must start with the prefix: ["
-                                    + MANAGED_CONNECTOR_INDEX_PREFIX
-                                    + "]. The index name in the payload ["
-                                    + indexName
-                                    + "] doesn't comply with this requirement.",
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(new HashMap<>() {
+                            {
+                                put(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName());
+                            }
+                        })
+                );
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
-
-                    final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
-                        new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                            .id(connectorId)
-                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                            .source(new HashMap<>() {
-                                {
-                                    put(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName());
-                                }
-                            })
-                    );
-                    client.update(
-                        updateRequest,
-                        new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (lll, updateResponse) -> {
-                            if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                                lll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                                return;
-                            }
-                            lll.onResponse(updateResponse);
-                        })
-                    );
+                    ll.onResponse(updateResponse);
                 }));
             }));
 
@@ -1119,18 +1103,6 @@ public class ConnectorIndexService {
 
     private ConnectorStatus getConnectorStatusFromSearchResult(ConnectorSearchResult searchResult) {
         return ConnectorStatus.connectorStatus((String) searchResult.getResultMap().get(Connector.STATUS_FIELD.getPreferredName()));
-    }
-
-    private Boolean getConnectorIsNativeFlagFromSearchResult(ConnectorSearchResult searchResult) {
-        return (Boolean) searchResult.getResultMap().get(Connector.IS_NATIVE_FIELD.getPreferredName());
-    }
-
-    private String getConnectorIndexNameFromSearchResult(ConnectorSearchResult searchResult) {
-        return (String) searchResult.getResultMap().get(Connector.INDEX_NAME_FIELD.getPreferredName());
-    }
-
-    private boolean isValidManagedConnectorIndexName(String indexName) {
-        return indexName.startsWith(MANAGED_CONNECTOR_INDEX_PREFIX);
     }
 
     @SuppressWarnings("unchecked")

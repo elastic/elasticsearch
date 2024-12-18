@@ -16,8 +16,9 @@ with this endpoint.
 
 For each cluster in the index expression, information is returned about:
 
-1. whether the querying ("local") cluster is currently connected to each remote cluster
-   in the index expression scope
+1. whether the querying ("local") cluster was able to connect to each remote cluster
+   specified in the index expression. Note that this endpoint actively attempts to
+   contact the remote clusters, unlike the <<cluster-remote-info,remote/info>> endpoint.
 2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
    the index expression
@@ -110,8 +111,21 @@ ignored when frozen. Defaults to `false`.
 deprecated:[7.16.0]
 
 
-[discrete]
 [[usecases-for-resolve-cluster]]
+
+=== Test availability of remote clusters
+
+The <<cluster-remote-info,remote/info>> endpoint is commonly used to test whether the "local"
+cluster (the cluster being queried) is connected to its remote clusters, but it does not
+necessarily reflect whether the remote cluster is available or not. The remote cluster may
+be available, while the local cluster is not currently connected to it.
+
+You can use this API to force a reconnection (for example with `GET _resolve/cluster/*:*`) and
+examine the `connected` field in the response for each remote. This will also cause the
+<<cluster-remote-info,remote/info>> endpoint to now reflect the fact that a connection has
+been (re-)established.
+
+
 === Advantages of using this endpoint before a {ccs}
 
 You may want to exclude a cluster or index from a search when:
@@ -195,7 +209,6 @@ The API returns the following response:
 <5> The Elasticsearch server version.
 
 
-[discrete]
 [[resolve-cluster-api-error-example]]
 ==== Identifying potential problems with your {ccs}
 

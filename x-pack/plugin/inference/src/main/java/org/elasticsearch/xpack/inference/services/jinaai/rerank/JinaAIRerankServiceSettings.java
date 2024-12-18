@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -27,11 +26,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
-
 public class JinaAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
     public static final String NAME = "jinaai_rerank_service_settings";
 
@@ -39,15 +33,12 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
-        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
-        // We need to extract/remove those fields to avoid unknown service settings errors
-        extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        removeAsType(map, DIMENSIONS, Integer.class);
-        removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
+
+        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
 
         return new JinaAIRerankServiceSettings(commonServiceSettings);
     }

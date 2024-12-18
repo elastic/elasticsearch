@@ -1,5 +1,0 @@
-pr: 116423
-summary: Support mTLS for the Elastic Inference Service integration inside the inference API
-area: Machine Learning
-type: feature
-issues: []

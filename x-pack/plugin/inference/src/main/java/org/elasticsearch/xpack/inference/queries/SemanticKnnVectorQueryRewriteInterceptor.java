@@ -86,7 +86,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             )
         );
         // We always perform nested subqueries on semantic_text fields, to support
-        // sparse_vector queries using query vectors.
+        // knn queries using query vectors.
         for (String inferenceId : inferenceIdsIndices.keySet()) {
             boolQueryBuilder.should(
                 createSubQueryForIndices(inferenceIdsIndices.get(inferenceId), buildNestedQueryFromKnnVectorQuery(knnVec, inferenceId))
@@ -99,19 +99,33 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         QueryVectorBuilder queryVectorBuilder = knnVectorQueryBuilder.queryVectorBuilder();
-        TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder = (TextEmbeddingQueryVectorBuilder) queryVectorBuilder;
+        if (queryVectorBuilder != null) {
+            assert (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder);
+            TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder = (TextEmbeddingQueryVectorBuilder) queryVectorBuilder;
+            if (searchInferenceId != null) {
+                queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(searchInferenceId, textEmbeddingQueryVectorBuilder.getModelText());
+            }
+        }
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(knnVectorQueryBuilder.getFieldName()),
-            buildNewKnnVectorQuery(SemanticTextField.getEmbeddingsFieldName(knnVectorQueryBuilder.getFieldName()), knnVectorQueryBuilder),
+            buildNewKnnVectorQuery(
+                SemanticTextField.getEmbeddingsFieldName(knnVectorQueryBuilder.getFieldName()),
+                knnVectorQueryBuilder,
+                queryVectorBuilder
+            ),
             ScoreMode.Max
         );
     }
 
-    private KnnVectorQueryBuilder buildNewKnnVectorQuery(String fieldName, KnnVectorQueryBuilder original) {
+    private KnnVectorQueryBuilder buildNewKnnVectorQuery(
+        String fieldName,
+        KnnVectorQueryBuilder original,
+        QueryVectorBuilder queryVectorBuilder
+    ) {
         if (original.queryVectorBuilder() != null) {
             return new KnnVectorQueryBuilder(
                 fieldName,
-                original.queryVectorBuilder(),
+                queryVectorBuilder,
                 original.k(),
                 original.numCands(),
                 original.getVectorSimilarity()

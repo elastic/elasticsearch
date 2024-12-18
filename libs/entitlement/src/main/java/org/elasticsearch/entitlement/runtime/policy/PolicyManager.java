@@ -187,6 +187,15 @@ public class PolicyManager {
         return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
     }
 
+    /**
+     * Walks the stack to determine which module's entitlements should be checked.
+     *
+     * @param callerClass when non-null will be used if its module is suitable;
+     *                    this is a fast-path check that can avoid the stack walk
+     *                    in cases where the caller class is available.
+     * @return the requesting module, or {@code null} if the entire call stack
+     * comes from modules that are trusted.
+     */
     static Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
             Module callerModule = callerClass.getModule();
@@ -196,11 +205,14 @@ public class PolicyManager {
             }
         }
         Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(s -> findRequestingModule(s.map(f -> moduleOf(f.getDeclaringClass()))));
+            .walk(frames -> findRequestingModule(frames.map(frame -> moduleOf(frame.getDeclaringClass()))));
         return module.orElse(null);
     }
 
     /**
+     * Given a stream of modules corresponding to the frames from a {@link StackWalker},
+     * returns the one whose entitlements should be checked.
+     *
      * @throws NullPointerException if the requesting module is {@code null}
      */
     static Optional<Module> findRequestingModule(Stream<Module> modules) {

@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
+import static java.util.function.Predicate.not;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
@@ -66,7 +67,11 @@ public class PolicyManager {
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
     private static final Set<Module> systemModules = findSystemModules();
-    private final Module entitlementsRuntimeModule;
+
+    /**
+     * Frames originating from this module are ignored in the permission logic.
+     */
+    private final Module entitlementsModule;
 
     private static Set<Module> findSystemModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
@@ -86,14 +91,14 @@ public class PolicyManager {
         Policy defaultPolicy,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        Module entitlementsRuntimeModule
+        Module entitlementsModule
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(defaultPolicy));
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
-        this.entitlementsRuntimeModule = entitlementsRuntimeModule;
+        this.entitlementsModule = entitlementsModule;
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
@@ -226,8 +231,8 @@ public class PolicyManager {
     Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
         return classes.map(Objects::requireNonNull)
             .map(PolicyManager::moduleOf)
-            .dropWhile(m -> m == entitlementsRuntimeModule) // Skip the entitlements runtime
-            .dropWhile(systemModules::contains)             // Skip trusted JDK modules
+            .filter(m -> m != entitlementsModule)  // Ignore the entitlements library itself
+            .filter(not(systemModules::contains))  // Skip trusted JDK modules
             .findFirst();
     }
 

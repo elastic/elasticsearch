@@ -231,6 +231,9 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
+        if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("Rank Vectors");
+        }
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["

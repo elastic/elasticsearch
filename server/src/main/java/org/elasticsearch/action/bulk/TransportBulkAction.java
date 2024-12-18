@@ -652,10 +652,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * a data stream feature, the method returns true/false only if it is a data stream template, otherwise null.
      * @param indexName The index name to check.
      * @param metadata Cluster state metadata.
-     * @return true the associated index template has failure store enabled, false if the failure store is disabled or it's not specified,
-     * and null if the template is not a data stream template.
-     * Visible for testing
+     * @return true the associated index template has failure store enabled, false if the failure store is disabled, true or false according
+     *     to the cluster setting if there is a data stream template with no failure store option specified, and null if no template is
+     *     found or if the template is not a data stream template.
      */
+    // Visible for testing
     @Nullable
     Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
         if (indexName == null) {

@@ -87,12 +87,28 @@ public class HashTests extends AbstractScalarFunctionTestCase {
         });
     }
 
+    static List<TestCaseSupplier> createHashFunctionTestCases(String algorithm) {
+        return List.of(createHashFunctionTestCase(algorithm, DataType.KEYWORD), createHashFunctionTestCase(algorithm, DataType.TEXT));
+    }
+
+    private static TestCaseSupplier createHashFunctionTestCase(String algorithm, DataType inputType) {
+        return new TestCaseSupplier(algorithm + " with " + inputType, List.of(inputType), () -> {
+            var input = randomFrom(TestCaseSupplier.stringCases(inputType)).get();
+            return new TestCaseSupplier.TestCase(
+                List.of(input),
+                "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef(HashTests.hash(algorithm, BytesRefs.toString(input.data()))))
+            );
+        });
+    }
+
     private static TestCaseSupplier.TypedData createTypedData(String value, boolean forceLiteral, DataType type, String name) {
         var data = new TestCaseSupplier.TypedData(new BytesRef(value), type, name);
         return forceLiteral ? data.forceLiteral() : data;
     }
 
-    private static String hash(String algorithm, String input) {
+    static String hash(String algorithm, String input) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(input.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {

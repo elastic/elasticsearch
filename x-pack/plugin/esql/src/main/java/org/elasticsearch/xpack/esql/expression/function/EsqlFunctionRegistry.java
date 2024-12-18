@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
@@ -333,6 +334,7 @@ public class EsqlFunctionRegistry {
                 def(Left.class, Left::new, "left"),
                 def(Length.class, Length::new, "length"),
                 def(Locate.class, Locate::new, "locate"),
+                def(Md5.class, uni(Md5::new), "md5"),
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Repeat.class, Repeat::new, "repeat"),
                 def(Replace.class, Replace::new, "replace"),

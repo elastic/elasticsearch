@@ -186,10 +186,18 @@ public class Hash extends EsqlScalarFunction {
 
     public record HashFunction(String algorithm, MessageDigest digest) {
 
+        public static HashFunction create(String algorithm) {
+            try {
+                return new HashFunction(algorithm, MessageDigest.getInstance(algorithm));
+            } catch (NoSuchAlgorithmException e) {
+                assert false : "Expected to create a valid hashing algorithm";
+                throw new IllegalStateException(e);
+            }
+        }
+
         public static HashFunction create(BytesRef literal) throws NoSuchAlgorithmException {
             var algorithm = literal.utf8ToString();
-            var digest = MessageDigest.getInstance(algorithm);
-            return new HashFunction(algorithm, digest);
+            return new HashFunction(algorithm, MessageDigest.getInstance(algorithm));
         }
 
         public HashFunction copy() {

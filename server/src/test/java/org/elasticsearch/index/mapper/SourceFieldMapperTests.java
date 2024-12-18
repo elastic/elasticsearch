@@ -465,60 +465,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 )
             );
         }
-        {
-            Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
-                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
-                .build();
-            IllegalArgumentException exc = expectThrows(
-                IllegalArgumentException.class,
-                () -> createMapperService(
-                    IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT),
-                    settings,
-                    () -> false,
-                    topMapping(b -> {})
-                )
-            );
-            assertThat(
-                exc.getMessage(),
-                containsString(
-                    String.format(
-                        Locale.ROOT,
-                        "The setting [%s] is unavailable on this cluster",
-                        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
-                    )
-                )
-            );
-        }
-        {
-            Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
-                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
-                .build();
-            IllegalArgumentException exc = expectThrows(
-                IllegalArgumentException.class,
-                () -> createMapperService(
-                    IndexVersionUtils.randomVersionBetween(
-                        random(),
-                        IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-                        IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER
-                    ),
-                    settings,
-                    () -> false,
-                    topMapping(b -> {})
-                )
-            );
-            assertThat(
-                exc.getMessage(),
-                containsString(
-                    String.format(
-                        Locale.ROOT,
-                        "The setting [%s] is unavailable on this cluster",
-                        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
-                    )
-                )
-            );
-        }
     }
 
     public void testRecoverySourceWithSyntheticSource() throws IOException {

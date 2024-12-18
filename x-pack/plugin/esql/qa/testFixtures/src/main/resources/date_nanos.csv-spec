@@ -216,6 +216,137 @@ millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
 ;
 
+implicit casting to nanos, date only
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date only, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+;
+
+
+implicit casting to nanos, date plus time to seconds
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23T00:00:00" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to seconds, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+;
+
+implicit casting to nanos, date plus time to millis
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23T00:00:00.000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to millis, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28.948" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
+implicit casting to nanos, date plus time to nanos
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23T00:00:00.000000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to nanos, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28.948000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
 date nanos greater than millis
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
@@ -555,7 +686,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY yr = BUCKET(nanos, 1 year);
+| STATS ct = count(*) BY yr = BUCKET(nanos, 1 year)
+| SORT yr DESC;
 
 ct:long | yr:date_nanos
 8       | 2023-01-01T00:00:00.000000000Z 
@@ -567,7 +699,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW());
+| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW())
+| SORT yr DESC;
 
 ct:long | yr:date_nanos
 8       | 2023-01-01T00:00:00.000000000Z 
@@ -579,7 +712,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mo = BUCKET(nanos, 1 month);
+| STATS ct = count(*) BY mo = BUCKET(nanos, 1 month)
+| SORT mo DESC;
 
 ct:long | mo:date_nanos
 8       | 2023-10-01T00:00:00.000000000Z 
@@ -591,7 +725,8 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31");
+| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31")
+| SORT mo DESC;
 
 ct:long | mo:date_nanos
 8       | 2023-10-01T00:00:00.000000000Z 
@@ -603,18 +738,21 @@ required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31");
+| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31")
+| SORT mo DESC;
 
 ct:long | mo:date_nanos
 8       | 2023-10-23T00:00:00.000000000Z 
 ;
+
 Bucket Date nanos by 10 minutes
 required_capability: date_trunc_date_nanos
 required_capability: date_nanos_bucket
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
-| STATS ct = count(*) BY mn = BUCKET(nanos, 10 minutes);
+| STATS ct = count(*) BY mn = BUCKET(nanos, 10 minutes)
+| SORT mn DESC;
 
 ct:long | mn:date_nanos                 
 4       | 2023-10-23T13:50:00.000000000Z

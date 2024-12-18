@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
@@ -501,6 +502,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public Version getVersion() {
         return this.versionInfo.nodeVersion();
+    }
+
+    public BuildVersion getBuildVersion() {
+        return BuildVersion.fromVersionId(getVersion().id);
     }
 
     public OptionalInt getPre811VersionId() {

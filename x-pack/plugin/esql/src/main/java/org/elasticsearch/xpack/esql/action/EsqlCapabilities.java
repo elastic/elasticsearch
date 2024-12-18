@@ -443,6 +443,11 @@ public class EsqlCapabilities {
         KQL_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Hash function
+         */
+        HASH_FUNCTION,
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
@@ -546,6 +551,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V7(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN with the same index as the FROM
+         */
+        JOIN_LOOKUP_REPEATED_INDEX_FROM(JOIN_LOOKUP_V7.isEnabled()),
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
@@ -573,7 +583,12 @@ public class EsqlCapabilities {
         /**
          * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
          */
-        FIXED_REGEX_FOLD;
+        FIXED_REGEX_FOLD,
+
+        /**
+         * Full text functions can be used in disjunctions
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
 
         private final boolean enabled;
 

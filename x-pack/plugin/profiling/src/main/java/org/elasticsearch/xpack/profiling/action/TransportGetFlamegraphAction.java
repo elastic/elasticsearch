@@ -94,7 +94,7 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                 annualCostsUSD,
                 FRAMETYPE_EXECUTABLE
             );
-            // builder.addOrUpdateAggregationNode(stackTrace.getThreadName(), samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_THREAD);
+            builder.addOrUpdateAggregationNode(stackTrace.getThreadName(), samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_THREAD);
 
             int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {

@@ -31,6 +31,7 @@ final class StackTrace implements ToXContentObject {
     double annualCostsUSD;
     long count;
     String executableName;
+    String threadName;
 
     StackTrace(
         int[] addressOrLines,
@@ -49,6 +50,7 @@ final class StackTrace implements ToXContentObject {
         this.annualCostsUSD = annualCostsUSD;
         this.count = count;
         this.executableName = "";
+        this.threadName = "";
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -232,6 +234,14 @@ final class StackTrace implements ToXContentObject {
         return executableName;
     }
 
+    public String getThreadName() {
+        if (threadName.isEmpty()) {
+            // kernel threads are not associated with an executable
+            return executableName;
+        }
+        return threadName;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -243,6 +253,7 @@ final class StackTrace implements ToXContentObject {
         builder.field("annual_costs_usd", this.annualCostsUSD);
         builder.field("count", this.count);
         builder.field("executable_name", this.executableName);
+        builder.field("thread_name", this.threadName);
         builder.endObject();
         return builder;
     }
@@ -258,7 +269,8 @@ final class StackTrace implements ToXContentObject {
             && Arrays.equals(fileIds, that.fileIds)
             && Arrays.equals(frameIds, that.frameIds)
             && Arrays.equals(typeIds, that.typeIds)
-            && executableName.equals(that.executableName);
+            && executableName.equals(that.executableName)
+            && threadName.equals(that.threadName);
         // Don't compare metadata like annualized co2, annualized costs, subGroups and count.
     }
 
@@ -270,6 +282,7 @@ final class StackTrace implements ToXContentObject {
         result = 31 * result + Arrays.hashCode(frameIds);
         result = 31 * result + Arrays.hashCode(typeIds);
         result = 31 * result + executableName.hashCode();
+        result = 31 * result + threadName.hashCode();
         return result;
     }
 }

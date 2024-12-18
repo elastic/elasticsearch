@@ -337,6 +337,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(groupByStackTraceId);
+        TermsAggregationBuilder groupByThreadName = new TermsAggregationBuilder("group_by")
+            // 'size' specifies the max number of host ID we support per request.
+            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
+            .field("process.thread.name")
+            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
+            // Especially with high cardinality fields, this makes aggregations really slow.
+            .executionHint("map")
+            .subAggregation(groupByHostId);
         SubGroupCollector subGroups = SubGroupCollector.attach(
             groupByStackTraceId,
             request.getAggregationFields(),
@@ -359,7 +367,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
-                    .subAggregation(groupByHostId)
+                    .subAggregation(groupByThreadName)
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
@@ -379,39 +387,45 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 for (Terms.Bucket executableBucket : executableNames.getBuckets()) {
                     String executableName = executableBucket.getKeyAsString();
 
-                    Terms hosts = executableBucket.getAggregations().get("group_by");
-                    for (Terms.Bucket hostBucket : hosts.getBuckets()) {
-                        String hostid = hostBucket.getKeyAsString();
+                    Terms threads = executableBucket.getAggregations().get("group_by");
+                    for (Terms.Bucket threadBucket : threads.getBuckets()) {
+                        String threadName = threadBucket.getKeyAsString();
 
-                        Terms stacktraces = hostBucket.getAggregations().get("group_by");
-                        for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
-                            Sum count = stacktraceBucket.getAggregations().get("count");
-                            int finalCount = resampler.adjustSampleCount((int) count.value());
-                            if (finalCount <= 0) {
-                                continue;
+                        Terms hosts = threadBucket.getAggregations().get("group_by");
+                        for (Terms.Bucket hostBucket : hosts.getBuckets()) {
+                            String hostid = hostBucket.getKeyAsString();
+
+                            Terms stacktraces = hostBucket.getAggregations().get("group_by");
+                            for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                                Sum count = stacktraceBucket.getAggregations().get("count");
+                                int finalCount = resampler.adjustSampleCount((int) count.value());
+                                if (finalCount <= 0) {
+                                    continue;
+                                }
+                                totalFinalCount += finalCount;
+
+                                String stackTraceID = stacktraceBucket.getKeyAsString();
+
+                                /*
+                                The same stacktraces may come from different hosts (eventually from different datacenters).
+                                We make a list of the triples here. As soon as we have the host metadata, we can calculate
+                                the CO2 emission and the costs for each TraceEvent.
+                                 */
+                                hostEventCounts.add(new HostEventCount(hostid, stackTraceID, finalCount));
+
+                                TraceEvent event = stackTraceEvents.get(stackTraceID);
+                                if (event == null) {
+                                    event = new TraceEvent(stackTraceID);
+                                    event.executableName = executableName; // THIS IS A HACK (need a proper data model)
+                                    event.threadName = threadName; // THIS IS A HACK (need a proper data model)
+                                    stackTraceEvents.put(stackTraceID, event);
+                                }
+                                event.count += finalCount;
+                                subGroups.collectResults(stacktraceBucket, event);
+
+                                TraceEventMetadata meta = new TraceEventMetadata(executableName, stackTraceID);
+                                executableEvents.putIfAbsent(meta, event);
                             }
-                            totalFinalCount += finalCount;
-
-                            String stackTraceID = stacktraceBucket.getKeyAsString();
-
-                            /*
-                            The same stacktraces may come from different hosts (eventually from different datacenters).
-                            We make a list of the triples here. As soon as we have the host metadata, we can calculate
-                            the CO2 emission and the costs for each TraceEvent.
-                             */
-                            hostEventCounts.add(new HostEventCount(hostid, stackTraceID, finalCount));
-
-                            TraceEvent event = stackTraceEvents.get(stackTraceID);
-                            if (event == null) {
-                                event = new TraceEvent(stackTraceID);
-                                event.executableName = executableName; // THIS IS A HACK (need a proper data model)
-                                stackTraceEvents.put(stackTraceID, event);
-                            }
-                            event.count += finalCount;
-                            subGroups.collectResults(stacktraceBucket, event);
-
-                            TraceEventMetadata meta = new TraceEventMetadata(executableName, stackTraceID);
-                            executableEvents.putIfAbsent(meta, event);
                         }
                     }
                 }

@@ -247,7 +247,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 if (rankWindowSize > compoundChild.rankWindowSize) {
                     String errorMessage = String.format(
                         Locale.ROOT,
-                        "[%s] requires [%s: %d] to be smaller than or equal to its sub retriever's %s [%s: %d]",
+                        "%s requires [%s: %d] to be smaller than or equal to its sub retriever's %s [%s: %d]",
                         this.getName(),
                         getRankWindowSizeField().getPreferredName(),
                         rankWindowSize,

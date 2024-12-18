@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
-  issue: https://github.com/elastic/elasticsearch/issues/118806
 - class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
   method: testPruneSome
   issue: https://github.com/elastic/elasticsearch/issues/118728

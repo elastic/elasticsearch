@@ -153,24 +153,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117473
 - class: org.elasticsearch.repositories.s3.RepositoryS3EcsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117525
-- class: "org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.mixed.MultiClusterEsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/118460
-- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/118460
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {scoring.QstrWithFieldAndScoringSortedEval}
-  issue: https://github.com/elastic/elasticsearch/issues/117751
 - class: org.elasticsearch.search.ccs.CrossClusterIT
   method: testCancel
   issue: https://github.com/elastic/elasticsearch/issues/108061
@@ -256,8 +238,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/118224
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
@@ -302,6 +282,16 @@ tests:
 - class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
   method: testPruneSome
   issue: https://github.com/elastic/elasticsearch/issues/118728
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/indices/shard-stores/line_150}
+  issue: https://github.com/elastic/elasticsearch/issues/118896
+- class: org.elasticsearch.cluster.service.MasterServiceTests
+  method: testThreadContext
+  issue: https://github.com/elastic/elasticsearch/issues/118914
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/118955
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/118970
 
 # Examples:
 #

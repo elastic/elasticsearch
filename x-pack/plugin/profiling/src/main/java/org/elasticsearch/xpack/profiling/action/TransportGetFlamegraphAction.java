@@ -24,10 +24,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
+    private static final int FRAMETYPE_ROOT = 0x100;
+    private static final int FRAMETYPE_EXECUTABLE = 0x101;
+    private static final int FRAMETYPE_THREAD = 0x102;
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
     private final NodeClient nodeClient;
     private final TransportService transportService;
@@ -79,16 +83,18 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             builder.setCurrentNode(0);
 
             long samples = stackTrace.count;
-            builder.addSamplesInclusive(0, samples);
-            builder.addSamplesExclusive(0, 0L);
-
             double annualCO2Tons = stackTrace.annualCO2Tons;
-            builder.addAnnualCO2TonsInclusive(0, annualCO2Tons);
-            builder.addAnnualCO2TonsExclusive(0, 0.0d);
-
             double annualCostsUSD = stackTrace.annualCostsUSD;
-            builder.addAnnualCostsUSDInclusive(0, annualCostsUSD);
-            builder.addAnnualCostsUSDExclusive(0, 0.0d);
+
+            builder.addToRootNode(samples, annualCO2Tons, annualCostsUSD);
+            builder.addOrUpdateAggregationNode(
+                stackTrace.getExecutableName(),
+                samples,
+                annualCO2Tons,
+                annualCostsUSD,
+                FRAMETYPE_EXECUTABLE
+            );
+            // builder.addOrUpdateAggregationNode(stackTrace.getThreadName(), samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_THREAD);
 
             int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {
@@ -103,9 +109,8 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                 stackFrame.forEach(frame -> {
                     String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
-                    int nodeId;
-                    if (builder.isExists(frameGroupId)) {
-                        nodeId = builder.getNodeId(frameGroupId);
+                    int nodeId = builder.getNodeId(frameGroupId);
+                    if (nodeId != -1) {
                         builder.addSamplesInclusive(nodeId, samples);
                         builder.addAnnualCO2TonsInclusive(nodeId, annualCO2Tons);
                         builder.addAnnualCostsUSDInclusive(nodeId, annualCostsUSD);
@@ -186,10 +191,11 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             this.annualCostsUSDInclusive = new ArrayList<>(capacity);
             this.annualCostsUSDExclusive = new ArrayList<>(capacity);
             this.totalSamples = totalSamples;
-            // always insert root node
-            int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, 0.0, 0.0, null);
-            this.setCurrentNode(nodeId);
             this.samplingRate = samplingRate;
+
+            // always insert root node
+            int nodeId = this.addNode("", FRAMETYPE_ROOT, false, "", 0, "", 0, "", 0, 0, 0.0, 0.0, null);
+            this.setCurrentNode(nodeId);
         }
 
         // returns the new node's id
@@ -233,6 +239,26 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             return node;
         }
 
+        public void addToRootNode(long samples, double annualCO2Tons, double annualCostsUSD) {
+            addSamplesInclusive(0, samples);
+            addAnnualCO2TonsInclusive(0, annualCO2Tons);
+            addAnnualCostsUSDInclusive(0, annualCostsUSD);
+        }
+
+        public void addOrUpdateAggregationNode(String name, long samples, double annualCO2Tons, double annualCostsUSD, int frameType) {
+            String frameGroupId = Integer.toString(Objects.hash(name, frameType));
+            int nodeId = getNodeId(frameGroupId);
+
+            if (nodeId != -1) {
+                addSamplesInclusive(nodeId, samples);
+                addAnnualCO2TonsInclusive(nodeId, annualCO2Tons);
+                addAnnualCostsUSDInclusive(nodeId, annualCostsUSD);
+                setCurrentNode(nodeId);
+            } else {
+                setCurrentNode(addNode("", frameType, false, name, 0, "", 0, "", 0, samples, annualCO2Tons, annualCostsUSD, frameGroupId));
+            }
+        }
+
         public void setCurrentNode(int nodeId) {
             this.currentNode = nodeId;
         }
@@ -242,7 +268,7 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
         }
 
         public int getNodeId(String frameGroupId) {
-            return this.edges.get(currentNode).get(frameGroupId);
+            return this.edges.get(currentNode).getOrDefault(frameGroupId, -1);
         }
 
         public void addSamplesInclusive(int nodeId, long sampleCount) {

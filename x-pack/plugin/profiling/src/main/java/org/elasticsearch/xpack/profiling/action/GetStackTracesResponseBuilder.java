@@ -20,7 +20,7 @@ class GetStackTracesResponseBuilder {
     private Map<String, String> executables;
     private Map<String, TraceEvent> stackTraceEvents;
     private List<TransportGetStackTracesAction.HostEventCount> hostEventCounts;
-    private List<TransportGetStackTracesAction.ExecutableEventCount> executableEventCounts;
+    private Map<TransportGetStackTracesAction.TraceEventMetadata, TraceEvent> executableEvents;
     private double samplingRate;
     private long totalSamples;
     private Double requestedDuration;
@@ -76,16 +76,16 @@ class GetStackTracesResponseBuilder {
         this.hostEventCounts = hostEventCounts;
     }
 
-    public void setExecutableEventCounts(List<TransportGetStackTracesAction.ExecutableEventCount> executableEventCounts) {
-        this.executableEventCounts = executableEventCounts;
+    public void setExecutableEvents(Map<TransportGetStackTracesAction.TraceEventMetadata, TraceEvent> executableEvents) {
+        this.executableEvents = executableEvents;
     }
 
     public List<TransportGetStackTracesAction.HostEventCount> getHostEventCounts() {
         return hostEventCounts;
     }
 
-    public List<TransportGetStackTracesAction.ExecutableEventCount> getExecutableEventCounts() {
-        return executableEventCounts;
+    public Map<TransportGetStackTracesAction.TraceEventMetadata, TraceEvent> getExecutableEvents() {
+        return executableEvents;
     }
 
     public Map<String, TraceEvent> getStackTraceEvents() {
@@ -164,6 +164,7 @@ class GetStackTracesResponseBuilder {
                 if (event != null) {
                     StackTrace stackTrace = entry.getValue();
                     stackTrace.count = event.count;
+                    stackTrace.executableName = event.executableName;
                     if (event.subGroups != null) {
                         stackTrace.subGroups = event.subGroups;
                     }

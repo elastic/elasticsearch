@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -105,7 +106,12 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             boolean needsReroute = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
-                var nodeEphemeralId = initialState.nodes().getNodes().get(request.getNodeId()).getEphemeralId();
+                DiscoveryNode discoveryNode = initialState.nodes().getNodes().get(request.getNodeId());
+                if (discoveryNode == null) {
+                    // the node doesn't exist, so we can't do anything
+                    continue;
+                }
+                var nodeEphemeralId = discoveryNode.getEphemeralId();
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request, nodeEphemeralId);
                 } catch (Exception e) {

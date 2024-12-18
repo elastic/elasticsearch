@@ -391,6 +391,8 @@ When using the `rescorer`, an error is returned if the following conditions are 
 * And the maximum rescore's `window_size` is:
 ** Smaller than or equal to the `size` or `rank_window_size` of the child retriever.
 
+[discrete]
+[[rescorer-retriever-parameters]]
 ===== Parameters
 
 `rescore`::

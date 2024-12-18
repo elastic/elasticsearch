@@ -12,26 +12,34 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * A fluent builder to create {@code Iterator&lt;ToXContent&gt;} objects
  */
-public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
+public class ChunkedToXContentBuilder implements Iterator<ToXContent>, ToXContent {
 
-    private final ToXContent.Params params;
-    private final Stream.Builder<ChunkedToXContent> builder = Stream.builder();
+    private final Params params;
+    // simplistic SpinedBuffer just using arraylists
+    private final List<List<ChunkedToXContent>> buffers = new ArrayList<>();
+    private int currentBufferSize = 8;
+    private boolean iterated;
     private Iterator<ToXContent> iterator;
 
-    public ChunkedToXContentBuilder(ToXContent.Params params) {
+    public ChunkedToXContentBuilder(Params params) {
         this.params = params;
+        buffers.add(new ArrayList<>(currentBufferSize));
     }
 
     private void addChunk(ToXContent content) {
@@ -39,11 +47,18 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
     }
 
     private void addChunk(ChunkedToXContent content) {
-        assert iterator == null : "Builder has been read, cannot add any more chunks";
-        builder.add(Objects.requireNonNull(content));
+        assert iterated == false : "Builder has been read, cannot add any more chunks";
+        List<ChunkedToXContent> buffer = buffers.getLast();
+        if (buffer.size() == currentBufferSize) {
+            // add a new buffer, double the size of the previous one
+            currentBufferSize *= 2;
+            buffer = new ArrayList<>(currentBufferSize);
+            buffers.add(buffer);
+        }
+        buffer.add(Objects.requireNonNull(content));
     }
 
-    public ToXContent.Params params() {
+    public Params params() {
         return params;
     }
 
@@ -458,9 +473,23 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
         return this;
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        iterated = true;
+        for (var buffer : buffers) {
+            for (var chunk : buffer) {
+                for (var it = chunk.toXContentChunked(params); it.hasNext();) {
+                    it.next().toXContent(builder, params);
+                }
+            }
+        }
+        return builder;
+    }
+
     private Iterator<ToXContent> checkCreateIterator() {
         if (iterator == null) {
-            iterator = Iterators.flatMap(builder.build().iterator(), c -> c.toXContentChunked(params));
+            iterated = true;
+            iterator = Iterators.flatMap(Iterators.flatMap(buffers.iterator(), List::iterator), c -> c.toXContentChunked(params));
         }
         return iterator;
     }

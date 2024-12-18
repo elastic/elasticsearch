@@ -96,8 +96,13 @@ public interface ChunkedToXContent {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
-                while (serialization.hasNext()) {
-                    serialization.next().toXContent(builder, params);
+                if (serialization instanceof ToXContent directXContent) {
+                    // it knows how to produce xcontent directly
+                    directXContent.toXContent(builder, params);
+                } else {
+                    while (serialization.hasNext()) {
+                        serialization.next().toXContent(builder, params);
+                    }
                 }
                 return builder;
             }

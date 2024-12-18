@@ -1450,11 +1450,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
-            // TODO: semantic_text is not present in mapping-all-types.json so we skip it for now
-            if (fieldDataType == DataType.SEMANTIC_TEXT) {
-                continue;
-            }
-
             var queryValue = randomQueryValue(fieldDataType);
 
             String fieldName = fieldDataType == DataType.DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);

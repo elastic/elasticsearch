@@ -83,7 +83,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -553,9 +553,10 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     private static void addBwcSearchWorkerSettings(List<Setting<?>> additionalSettings) {
-        // TODO remove the below settings, they are unused and only here to enable BwC for deployments that still use them
+        // Search workers thread pool has been removed in Elasticsearch 8.16.0. These settings are deprecated and take no effect.
+        // They are here only to enable BwC for deployments that still use them
         additionalSettings.add(
             Setting.intSetting("thread_pool.search_worker.queue_size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
         );

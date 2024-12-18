@@ -53,6 +53,25 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 ex.getMessage()
             );
         }
+
+        final Settings settingsPre7 = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_6_0)
+            )
+            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
+            .put("index.analysis.filter.my_ngram.type", "nGram")
+            .build();
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
+            assertWarnings(
+                "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [ngram] instead."
+            );
+        }
     }
 
     /**
@@ -83,6 +102,26 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 ex.getMessage()
             );
         }
+
+        final Settings settingsPre7 = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_6_0)
+            )
+            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram")
+            .put("index.analysis.filter.my_ngram.type", "edgeNGram")
+            .build();
+
+        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
+            createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settingsPre7), settingsPre7, commonAnalysisPlugin);
+            assertWarnings(
+                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                    + "Please change the filter name to [edge_ngram] instead."
+            );
+        }
     }
 
     /**
@@ -90,6 +129,39 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      * disallow usages for indices created after 8.0
      */
     public void testNGramTokenizerDeprecation() throws IOException {
+        // tests for prebuilt tokenizer
+        doTestPrebuiltTokenizerDeprecation(
+            "nGram",
+            "ngram",
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2),
+            false
+        );
+        doTestPrebuiltTokenizerDeprecation(
+            "edgeNGram",
+            "edge_ngram",
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2),
+            false
+        );
+        doTestPrebuiltTokenizerDeprecation(
+            "nGram",
+            "ngram",
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_6_0,
+                IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
+            ),
+            true
+        );
+        doTestPrebuiltTokenizerDeprecation(
+            "edgeNGram",
+            "edge_ngram",
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_6_0,
+                IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
+            ),
+            true
+        );
         expectThrows(
             IllegalArgumentException.class,
             () -> doTestPrebuiltTokenizerDeprecation(
@@ -107,6 +179,40 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                 IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
+        );
+
+        // same batch of tests for custom tokenizer definition in the settings
+        doTestCustomTokenizerDeprecation(
+            "nGram",
+            "ngram",
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2),
+            false
+        );
+        doTestCustomTokenizerDeprecation(
+            "edgeNGram",
+            "edge_ngram",
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2),
+            false
+        );
+        doTestCustomTokenizerDeprecation(
+            "nGram",
+            "ngram",
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_6_0,
+                IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
+            ),
+            true
+        );
+        doTestCustomTokenizerDeprecation(
+            "edgeNGram",
+            "edge_ngram",
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_6_0,
+                IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
+            ),
+            true
         );
         expectThrows(
             IllegalArgumentException.class,

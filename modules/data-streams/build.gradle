@@ -72,4 +72,5 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("data_stream/200_rollover_failure_store/Roll over a data stream's failure store with conditions", "Configuring the failure store via data stream templates is not supported anymore.")
 
   task.skipTest("data_stream/200_rollover_failure_store/Rolling over a failure store on a data stream without the failure store enabled should work", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/200_rollover_failure_store/Rolling over an uninitialized failure store should initialize it", "Rolling over a data stream using target_failure_store is no longer supported.")
 })

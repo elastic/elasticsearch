@@ -111,14 +111,6 @@ public class Lucene {
     private Lucene() {}
 
     /**
-     * Reads the segments infos, failing if it fails to load
-     */
-    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        // Temporary workaround
-        return SegmentInfos.readLatestCommit(directory, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
-    }
-
-    /**
      * Returns an iterable that allows to iterate over all files in this segments info
      */
     public static Iterable<String> files(SegmentInfos infos) throws IOException {
@@ -142,20 +134,43 @@ public class Lucene {
     }
 
     /**
+     * Reads the segments infos, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
+        return SegmentInfos.readLatestCommit(directory, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit) throws IOException {
-        // Using commit.getSegmentsFileName() does NOT work here, have to
-        // manually create the segment filename
+        // Using commit.getSegmentsFileName() does NOT work here, have to manually create the segment filename
         String filename = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", commit.getGeneration());
-        return SegmentInfos.readCommit(commit.getDirectory(), filename);
+        return readSegmentInfos(filename, commit.getDirectory());
     }
 
     /**
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        return SegmentInfos.readCommit(directory, segmentsFileName);
+        // TODO Use readCommit(Directory directory, String segmentFileName, int minSupportedMajorVersion) once Lucene 10.1 is available
+        // and remove the try-catch block for IndexFormatTooOldException
+        try {
+            return SegmentInfos.readCommit(directory, segmentsFileName);
+        } catch (IndexFormatTooOldException e) {
+            try {
+                // Temporary workaround until Lucene 10.1 is available: try to leverage min. read-only compatibility to read the last commit
+                // and then check if this is the commit we want. This should always work for the case we are interested in (archive and
+                // searchable snapshots indices in N-2 version) as no newer commit should be ever written.
+                var segmentInfos = readSegmentInfos(directory);
+                if (segmentsFileName.equals(segmentInfos.getSegmentsFileName())) {
+                    return segmentInfos;
+                }
+            } catch (Exception suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
     }
 
     /**

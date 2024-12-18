@@ -220,8 +220,7 @@ public class ReadOnlyEngine extends Engine {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader directoryReader = DirectoryReader.open(
             commit,
-            // Temporary workaround
-            config().getIndexSettings().getIndexMetadata().getCompatibilityVersion().luceneVersion().major,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major,
             engineConfig.getLeafSorter()
         );
         if (lazilyLoadSoftDeletes) {
@@ -576,9 +575,8 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader openDirectory(Directory directory) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
-        var minVersion = engineConfig.getIndexSettings().getIndexMetadata().getCompatibilityVersion().luceneVersion().major;
-        var commit = Lucene.getIndexCommit(SegmentInfos.readLatestCommit(directory, minVersion), directory);
-        final DirectoryReader reader = DirectoryReader.open(commit, minVersion, null);
+        var commit = Lucene.getIndexCommit(Lucene.readSegmentInfos(directory), directory);
+        final DirectoryReader reader = DirectoryReader.open(commit, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major, null);
         if (lazilyLoadSoftDeletes) {
             return new LazySoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {

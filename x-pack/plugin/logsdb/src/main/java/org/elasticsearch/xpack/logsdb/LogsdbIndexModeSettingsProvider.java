@@ -154,20 +154,24 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         try {
             var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
             var indexMode = tmpIndexMetadata.getIndexMode();
-
-            if ((IndexSettings.LOGSDB_ADD_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
-                || IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false)
-                && (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
-                    || indexMode == IndexMode.LOGSDB
-                    || indexMode == IndexMode.TIME_SERIES)) {
+            boolean hasSyntheticSourceUsage = false;
+            if (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
+                || indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.TIME_SERIES) {
                 // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
                 // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,
                 // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
                 // to disabled, because that isn't allowed with logsdb/tsdb. In other words setting index.mapping.source.mode setting to
                 // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
                 var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
-                if (sourceMode == SourceFieldMapper.Mode.SYNTHETIC) {
-                    return new MappingData(true, false, IndexSettings.LOGSDB_ADD_HOST_NAME.get(indexTemplateAndCreateRequestSettings));
+                hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+                if ((IndexSettings.LOGSDB_ADD_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
+                    || IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false)) {
+                    return new MappingData(
+                        hasSyntheticSourceUsage,
+                        false,
+                        IndexSettings.LOGSDB_ADD_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
+                    );
                 }
             }
 
@@ -180,7 +184,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 }
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
                 return new MappingData(
-                    mapperService.documentMapper().sourceMapper().isSynthetic(),
+                    hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic(),
                     mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper,
                     mapperService.mappingLookup().getMapper("host") instanceof FieldMapper == false
                 );

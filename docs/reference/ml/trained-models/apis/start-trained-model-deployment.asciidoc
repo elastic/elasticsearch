@@ -138,8 +138,8 @@ normal priority deployments.
 Controls how many inference requests are allowed in the queue at a time.
 Every machine learning node in the cluster where the model can be allocated
 has a queue of this size; when the number of requests exceeds the total value,
-new requests are rejected with a 429 error. Defaults to 1024. Max allowed value
-is 1000000.
+new requests are rejected with a 429 error. Defaults to 10000. Max allowed value
+is 100000.
 
 `threads_per_allocation`::
 (Optional, integer)
@@ -173,7 +173,7 @@ The API returns the following results:
             "model_bytes": 265632637,
             "threads_per_allocation" : 1,
             "number_of_allocations" : 1,
-            "queue_capacity" : 1024,
+            "queue_capacity" : 10000,
             "priority": "normal"
         },
         "routing_table": {

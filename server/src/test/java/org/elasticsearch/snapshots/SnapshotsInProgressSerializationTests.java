@@ -134,7 +134,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             shards,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            IndexVersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion()
         );
     }
 

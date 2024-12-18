@@ -744,7 +744,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     private ClusterState createIndex(ClusterState state, String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomWriteVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

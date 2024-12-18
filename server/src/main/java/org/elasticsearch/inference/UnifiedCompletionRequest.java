@@ -122,7 +122,12 @@ public record UnifiedCompletionRequest(
         );
 
         static {
-            PARSER.declareField(optionalConstructorArg(), (p, c) -> parseContent(p), new ParseField("content"), ObjectParser.ValueType.VALUE_ARRAY);
+            PARSER.declareField(
+                optionalConstructorArg(),
+                (p, c) -> parseContent(p),
+                new ParseField("content"),
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
             PARSER.declareString(constructorArg(), new ParseField("role"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("tool_call_id"));

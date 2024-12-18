@@ -24,7 +24,7 @@ public class JinaAIErrorResponseEntity extends ErrorResponse {
      * Parse an HTTP response into a JinaAIErrorResponseEntity
      *
      * @param response The error response
-     * @return An error entity if the response is JSON with the above structure
+     * @return An error entity if the response is JSON with a `detail` field containing the error message
      * or null if the response does not contain the message field
      */
     public static JinaAIErrorResponseEntity fromResponse(HttpResult response) {

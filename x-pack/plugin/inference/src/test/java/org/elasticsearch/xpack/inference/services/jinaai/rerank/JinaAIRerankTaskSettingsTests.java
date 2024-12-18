@@ -62,7 +62,7 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
         assertThat(thrownException.getMessage(), containsString("field [top_n] is not of the expected type"));
     }
 
-    public void UpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
+    public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new JinaAIRerankTaskSettings(5, true);
         JinaAIRerankTaskSettings updatedSettings = (JinaAIRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
         assertEquals(initialSettings, updatedSettings);

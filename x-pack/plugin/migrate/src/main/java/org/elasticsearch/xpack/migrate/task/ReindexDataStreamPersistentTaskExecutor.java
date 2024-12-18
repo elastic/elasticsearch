@@ -83,7 +83,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
-                DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
+                DataStream dataStream = dataStreamInfos.get(0).getDataStream();
                 if (getOldIndexVersionPredicate(clusterService.state().metadata()).test(dataStream.getWriteIndex())) {
                     reindexClient.execute(
                         RolloverAction.INSTANCE,

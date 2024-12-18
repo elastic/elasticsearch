@@ -193,9 +193,9 @@ public class PolicyManager {
                 return callerModule;
             }
         }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
+        int framesToSkip = 1  // requestingModule (this method)
+            + 1  // the checkEntitlementPresent method
+            + 1  // the check[EntitlementType] method
             + 1  // the instrumented method
         ;
         Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)

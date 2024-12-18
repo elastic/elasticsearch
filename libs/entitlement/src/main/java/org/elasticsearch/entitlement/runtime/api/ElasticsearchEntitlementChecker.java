@@ -21,7 +21,8 @@ import java.net.URLStreamHandlerFactory;
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
-    private final PolicyManager policyManager;
+
+    protected final PolicyManager policyManager;
 
     public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
         this.policyManager = policyManager;

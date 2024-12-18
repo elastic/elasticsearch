@@ -46,6 +46,10 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
+    public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution) {
+        return analyzer(indexResolution, lookupResolution, TEST_VERIFIER);
+    }
+
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return new Analyzer(
             new AnalyzerContext(
@@ -53,6 +57,19 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
+            verifier
+        );
+    }
+
+    public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution, Verifier verifier) {
+        return new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                lookupResolution,
                 defaultEnrichResolution()
             ),
             verifier
@@ -111,7 +128,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution loadMapping(String resource, String indexName) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, IndexMode.STANDARD));
         return IndexResolution.valid(test);
     }
 

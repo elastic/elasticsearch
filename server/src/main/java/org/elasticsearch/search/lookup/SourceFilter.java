@@ -38,7 +38,6 @@ public final class SourceFilter {
     private Function<Map<String, Object>, Map<String, Object>> mapFilter = null;
     private Function<Source, Source> bytesFilter = null;
 
-    private final boolean canFilterBytes;
     private final boolean empty;
     private final String[] includes;
     private final String[] excludes;
@@ -53,10 +52,6 @@ public final class SourceFilter {
     public SourceFilter(String[] includes, String[] excludes) {
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
-        // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
-        // in exclude filtering if one of the excludes contains a wildcard '*'.
-        // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 
@@ -134,9 +129,6 @@ public final class SourceFilter {
     }
 
     private Function<Source, Source> buildBytesFilter() {
-        if (canFilterBytes == false) {
-            return this::filterMap;
-        }
         final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
             null,
             Set.copyOf(Arrays.asList(includes)),

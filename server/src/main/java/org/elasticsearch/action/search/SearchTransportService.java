@@ -45,6 +45,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -433,7 +434,7 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            (request, channel, task) -> searchService.executeDfsPhase(request, (CancellableTask) task, new ChannelActionListener<>(channel))
         );
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
 
@@ -443,7 +444,7 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel)
             )
         );
@@ -460,7 +461,7 @@ public class SearchTransportService {
             QuerySearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel),
                 channel.getVersion()
             )
@@ -473,7 +474,7 @@ public class SearchTransportService {
             InternalScrollSearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel),
                 channel.getVersion()
             )
@@ -486,14 +487,14 @@ public class SearchTransportService {
             InternalScrollSearchRequest::new,
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel)
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
 
         final TransportRequestHandler<RankFeatureShardRequest> rankShardFeatureRequest = (request, channel, task) -> searchService
-            .executeRankFeaturePhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeRankFeaturePhase(request, (CancellableTask) task, new ChannelActionListener<>(channel));
         transportService.registerRequestHandler(
             RANK_FEATURE_SHARD_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -503,7 +504,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeFetchPhase(request, (CancellableTask) task, new ChannelActionListener<>(channel));
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

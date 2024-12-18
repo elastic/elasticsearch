@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -965,7 +964,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                     request.searchRequest,
                     executor,
-                    new NoopCircuitBreaker(""),
+                    searchService.circuitBreaker(),
                     new SearchPhaseController(searchService::aggReduceContextBuilder),
                     ((CancellableTask) task)::isCancelled,
                     SearchProgressListener.NOOP,

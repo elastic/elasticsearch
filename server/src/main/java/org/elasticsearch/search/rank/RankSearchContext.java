@@ -12,7 +12,6 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -217,7 +216,7 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         throw new UnsupportedOperationException();
     }
 

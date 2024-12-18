@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -136,6 +137,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final FailureStoreMetrics failureStoreMetrics;
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+    private final ProjectResolver projectResolver;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
         return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
@@ -221,7 +223,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        FailureStoreMetrics failureStoreMetrics
+        FailureStoreMetrics failureStoreMetrics,
+        ProjectResolver projectResolver
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -243,6 +246,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
         this.failureStoreMetrics = failureStoreMetrics;
+        this.projectResolver = projectResolver;
     }
 
     /**
@@ -259,6 +263,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.pipelines = ingestService.pipelines;
         this.state = ingestService.state;
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
+        this.projectResolver = ingestService.projectResolver;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -552,10 +557,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return false;
     }
 
-    @FixForMultiProject
-    @Deprecated
+    /**
+     * This method is to be used exclusively by the {@link PipelineProcessor}. It solely exists for the pipeline processor to be able to
+     * retrieve the pipeline that it needs to execute. Processors will exclusively be executed in a context where the project id is set in
+     * the thread context, which allows us to use the project resolver here.
+     */
     public Pipeline getPipeline(String id) {
-        return getPipeline(Metadata.DEFAULT_PROJECT_ID, id);
+        return getPipeline(projectResolver.getProjectId(), id);
     }
 
     /**
@@ -771,6 +779,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     /**
      * Executes all applicable pipelines for a collection of documents.
+     * @param projectId The ID of the project we are indexing into.
      * @param numberOfActionRequests The total number of requests to process.
      * @param actionRequests The collection of requests to be processed.
      * @param onDropped A callback executed when a document is dropped by a pipeline.
@@ -790,6 +799,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param executor Which executor the bulk request should be executed on.
      */
     public void executeBulkRequest(
+        final ProjectId projectId,
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
@@ -820,7 +830,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+                        PipelineIterator pipelines = getAndResetPipelines(projectId, indexRequest);
                         Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
@@ -889,12 +899,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Returns the pipelines of the request, and updates the request so that it no longer references
      * any pipelines (both the default and final pipeline are set to the noop pipeline).
      */
-    private PipelineIterator getAndResetPipelines(IndexRequest indexRequest) {
+    private PipelineIterator getAndResetPipelines(ProjectId projectId, IndexRequest indexRequest) {
         final String pipelineId = indexRequest.getPipeline();
         indexRequest.setPipeline(NOOP_PIPELINE_NAME);
         final String finalPipelineId = indexRequest.getFinalPipeline();
         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-        return new PipelineIterator(pipelineId, finalPipelineId);
+        return new PipelineIterator(projectId, pipelineId, finalPipelineId);
     }
 
     /**
@@ -912,27 +922,29 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private class PipelineIterator implements Iterator<PipelineSlot> {
 
+        private final ProjectId projectId;
         private final String defaultPipeline;
         private final String finalPipeline;
         private final Iterator<PipelineSlot> pipelineSlotIterator;
 
-        private PipelineIterator(String defaultPipeline, String finalPipeline) {
+        private PipelineIterator(ProjectId projectId, String defaultPipeline, String finalPipeline) {
+            this.projectId = projectId;
             this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
             this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
             this.pipelineSlotIterator = iterator();
         }
 
-        public PipelineIterator withoutDefaultPipeline() {
-            return new PipelineIterator(null, finalPipeline);
+        private PipelineIterator withoutDefaultPipeline() {
+            return new PipelineIterator(projectId, null, finalPipeline);
         }
 
         private Iterator<PipelineSlot> iterator() {
             PipelineSlot defaultPipelineSlot = null, finalPipelineSlot = null;
             if (defaultPipeline != null) {
-                defaultPipelineSlot = new PipelineSlot(defaultPipeline, getPipeline(defaultPipeline), false);
+                defaultPipelineSlot = new PipelineSlot(defaultPipeline, getPipeline(projectId, defaultPipeline), false);
             }
             if (finalPipeline != null) {
-                finalPipelineSlot = new PipelineSlot(finalPipeline, getPipeline(finalPipeline), true);
+                finalPipelineSlot = new PipelineSlot(finalPipeline, getPipeline(projectId, finalPipeline), true);
             }
 
             if (defaultPipeline != null && finalPipeline != null) {
@@ -956,8 +968,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return pipelineSlotIterator.next();
         }
 
-        public Pipeline peekFirst() {
-            return getPipeline(defaultPipeline != null ? defaultPipeline : finalPipeline);
+        private Pipeline peekFirst() {
+            return getPipeline(projectId, defaultPipeline != null ? defaultPipeline : finalPipeline);
+        }
+
+        private ProjectId projectId() {
+            return projectId;
         }
     }
 
@@ -1002,6 +1018,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
+            final var project = state.metadata().projects().get(pipelines.projectId());
+            if (project == null) {
+                throw new IllegalArgumentException("project with id [" + pipelines.projectId() + "] does not exist");
+            }
             indexRequest.addPipeline(pipelineId);
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
@@ -1027,7 +1047,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // because we only want to track these metrics for data streams.
                     Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
                     if (failureStoreResolution != null) {
-                        var project = state.metadata().getProject();
                         // Get index abstraction, resolving date math if it exists
                         IndexAbstraction indexAbstraction = project.getIndicesLookup()
                             .get(IndexNameExpressionResolver.resolveDateMathExpression(originalIndex, threadPool.absoluteTimeInMillis()));
@@ -1115,8 +1134,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // clear the current pipeline, then re-resolve the pipelines for this request
                     indexRequest.setPipeline(null);
                     indexRequest.isPipelineResolved(false);
-                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata().getProject());
-                    newPipelines = getAndResetPipelines(indexRequest);
+                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, project);
+                    newPipelines = getAndResetPipelines(pipelines.projectId(), indexRequest);
 
                     // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute
                     // mechanism, do not invoke the default pipeline of the new target index

@@ -2406,7 +2406,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            FailureStoreMetrics.NOOP
+                            FailureStoreMetrics.NOOP,
+                            TestProjectResolvers.singleProjectOnly()
                         ),
                         mockFeatureService,
                         client,

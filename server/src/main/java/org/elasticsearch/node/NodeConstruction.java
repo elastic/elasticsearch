@@ -713,7 +713,8 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            failureStoreMetrics
+            failureStoreMetrics,
+            projectResolver
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);

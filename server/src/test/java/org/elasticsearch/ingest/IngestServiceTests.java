@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -157,7 +159,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -177,7 +180,8 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                FailureStoreMetrics.NOOP
+                FailureStoreMetrics.NOOP,
+                TestProjectResolvers.singleProjectOnly()
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -194,7 +198,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -213,6 +218,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
         ingestService.executeBulkRequest(
+            randomProjectIdOrDefault(),
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1147,11 +1153,14 @@ public class IngestServiceTests extends ESTestCase {
                 }
             })
         );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         String id = "_id";
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"processors\": [{\"mock\" : {}}]}");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
 
@@ -1175,6 +1184,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
         ingestService.executeBulkRequest(
+            projectId,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             indexReq -> {},
@@ -1195,9 +1205,12 @@ public class IngestServiceTests extends ESTestCase {
         );
 
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -1216,6 +1229,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             indexReq -> {},
@@ -1237,9 +1251,12 @@ public class IngestServiceTests extends ESTestCase {
             Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor())
         );
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1250,6 +1267,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1276,9 +1294,12 @@ public class IngestServiceTests extends ESTestCase {
             )
         );
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"set\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1288,6 +1309,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail", e); };
         final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1305,9 +1327,12 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(Map.of());
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
             {"processors": [], "description": "_description"}""");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1318,6 +1343,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1335,9 +1361,12 @@ public class IngestServiceTests extends ESTestCase {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final long newVersion = randomLong();
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
@@ -1377,6 +1406,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1411,10 +1441,13 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
         // given that set -> fail() above, it's a failure if a document executes against this pipeline
         PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", "{\"processors\": [{\"set\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest1, clusterState);
-        clusterState = executePut(putRequest2, clusterState);
+        clusterState = executePut(projectId, putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1427,6 +1460,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1468,9 +1502,12 @@ public class IngestServiceTests extends ESTestCase {
         );
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1481,6 +1518,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1510,9 +1548,12 @@ public class IngestServiceTests extends ESTestCase {
         );
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1529,6 +1570,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1578,9 +1620,12 @@ public class IngestServiceTests extends ESTestCase {
         }).when(processor).execute(any(), any());
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1588,6 +1633,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             numRequest,
             bulkRequest.requests(),
             indexReq -> {},
@@ -1615,10 +1661,13 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
         // given that set -> fail() above, it's a failure if a document executes against this pipeline
         PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", "{\"processors\": [{\"set\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest1, clusterState);
-        clusterState = executePut(putRequest2, clusterState);
+        clusterState = executePut(projectId, putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1634,6 +1683,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1665,9 +1715,12 @@ public class IngestServiceTests extends ESTestCase {
         );
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1687,6 +1740,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1737,9 +1791,12 @@ public class IngestServiceTests extends ESTestCase {
         }).when(processor).execute(any(), any());
         IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1749,6 +1806,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             numRequest,
             bulkRequest.requests(),
             indexReq -> {},
@@ -1800,9 +1858,12 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(map);
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
             {"processors": [{"mock": {}}], "description": "_description"}""");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1810,6 +1871,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             numRequest,
             bulkRequest.requests(),
             indexReq -> {},
@@ -1882,15 +1944,19 @@ public class IngestServiceTests extends ESTestCase {
         // n.b. this 'pipeline' processor will always run the '_id3' pipeline, see the mocking/plumbing above and below
         PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", "{\"processors\": [{\"pipeline\" : {}}]}");
         PutPipelineRequest putRequest3 = putJsonPipelineRequest("_id3", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        @FixForMultiProject(description = "Do not use default project id once stats are project aware")
+        var projectId = DEFAULT_PROJECT_ID;
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest1, clusterState);
-        clusterState = executePut(putRequest2, clusterState);
-        clusterState = executePut(putRequest3, clusterState);
+        clusterState = executePut(projectId, putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest2, clusterState);
+        clusterState = executePut(projectId, putRequest3, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         // hook up the mock ingest service to return pipeline3 when asked by the pipeline processor
-        pipelineToReturn[0] = ingestService.getPipeline("_id3");
+        pipelineToReturn[0] = ingestService.getPipeline(projectId, "_id3");
 
         {
             final IngestStats ingestStats = ingestService.stats();
@@ -1914,6 +1980,7 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
         var startSize = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1973,13 +2040,17 @@ public class IngestServiceTests extends ESTestCase {
         assertStats(initialStats.totalStats(), 0, 0, 0);
 
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        @FixForMultiProject(description = "Do not use default project id once stats are project aware")
+        var projectId = DEFAULT_PROJECT_ID;
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         putRequest = putJsonPipelineRequest("_id2", "{\"processors\": [{\"mock\" : {}}]}");
         previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1992,6 +2063,7 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
         var startSize1 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -2020,6 +2092,7 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.setPipeline("_id2");
         var startSize2 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -2044,11 +2117,12 @@ public class IngestServiceTests extends ESTestCase {
         // update cluster state and ensure that new stats are added to old stats
         putRequest = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}, {\"mock\" : {}}]}");
         previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
         startSize1 += indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -2078,11 +2152,12 @@ public class IngestServiceTests extends ESTestCase {
         putRequest = putJsonPipelineRequest("_id1", """
             {"processors": [{"failure-mock" : { "on_failure": [{"mock" : {}}]}}, {"mock" : {}}]}""");
         previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
         startSize1 += indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -2108,11 +2183,12 @@ public class IngestServiceTests extends ESTestCase {
         // test with drop processor
         putRequest = putJsonPipelineRequest("_id3", "{\"processors\": [{\"drop\" : {}}]}");
         previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id3");
         long startSize3 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -2185,9 +2261,12 @@ public class IngestServiceTests extends ESTestCase {
         });
         IngestService ingestService = createWithProcessors(factories);
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"drop\" : {}}, {\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -2207,6 +2286,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final IntConsumer dropHandler = mock(IntConsumer.class);
         ingestService.executeBulkRequest(
+            projectId,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             dropHandler,
@@ -2249,7 +2329,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2274,12 +2355,15 @@ public class IngestServiceTests extends ESTestCase {
             Map.of("foo", (factories, tag, description, config) -> new FakeProcessor("foo", tag, description, executor))
         );
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"foo\" : {}}]}");
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("_id"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "_id"), notNullValue());
 
         try (XContentBuilder builder = CborXContent.contentBuilder()) {
             builder.startObject();
@@ -2292,6 +2376,7 @@ public class IngestServiceTests extends ESTestCase {
                 .setFinalPipeline("_none");
 
             ingestService.executeBulkRequest(
+                projectId,
                 1,
                 List.of(indexRequest),
                 indexReq -> {},
@@ -2324,10 +2409,13 @@ public class IngestServiceTests extends ESTestCase {
 
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
         PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", "{\"processors\": [{\"set\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest1, clusterState);
-        clusterState = executePut(putRequest2, clusterState);
+        clusterState = executePut(projectId, putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         // feed a document with no timestamp through four scenarios
@@ -2364,6 +2452,7 @@ public class IngestServiceTests extends ESTestCase {
         bulkRequest.add(indexRequest7);
         bulkRequest.add(indexRequest8);
         ingestService.executeBulkRequest(
+            projectId,
             8,
             bulkRequest.requests(),
             indexReq -> {},
@@ -2729,7 +2818,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3062,7 +3152,8 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
         if (randomBoolean()) {
             /*

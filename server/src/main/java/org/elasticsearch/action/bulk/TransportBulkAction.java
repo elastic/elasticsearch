@@ -612,7 +612,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         if (resolution != null) {
             return resolution;
         }
-        return resolveFailureStoreFromTemplate(indexName, metadata);
+        return resolveFailureStoreFromTemplate(indexName, metadata, epochMillis);
     }
 
     @Override
@@ -652,19 +652,20 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * a data stream feature, the method returns true/false only if it is a data stream template, otherwise null.
      * @param indexName The index name to check.
      * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true the associated index template has failure store enabled, false if the failure store is disabled, true or false according
      *     to the cluster setting if there is a data stream template with no failure store option specified, and null if no template is
      *     found or if the template is not a data stream template.
      */
-    // Visible for testing
     @Nullable
-    Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
+    private Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata, long epochMillis) {
         if (indexName == null) {
             return null;
         }
 
         // Check to see if the index name matches any templates such that an index would have been attributed
         // We don't check v1 templates at all because failure stores can only exist on data streams via a v2 template
+        // N.B. This currently does date math resolution itself and does *not* use epochMillis (it gets the system time again)
         String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
         if (template != null) {
             // Check if this is a data stream template or if it is just a normal index.
@@ -678,7 +679,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 return DataStream.isFailureStoreEffectivelyEnabled(
                     dataStreamOptions,
                     dataStreamFailureStoreSettings,
-                    indexName,
+                    IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis),
                     systemIndices
                 );
             }

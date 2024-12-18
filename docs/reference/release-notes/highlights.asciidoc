@@ -15,6 +15,31 @@ The `logsdb` index mode has been GA-ed. This feature allows Elasticsearch to sto
 `logsdb` index mode allows to reduce storage usage up to ~3 times compared to storing logs in Elasticsearch using the default index mode.
 Refer to the <<logs-data-stream,documentation>> for further information.
 
+[discrete]
+[[elastic-rerank]]
+=== Elastic Rerank
+In 8.17, we are introducing {ml-docs}/ml-nlp-rerank.html[Elastic Rerank], Elastic’s new model for semantic reranking. Reranking can be used as the second stage on top of your existing search approach, whether this is lexical search, ELSER, or dense embeddings, resulting in significant semantic relevance gains mainly via recall improvements. This is very important for RAG applications, where you want to send the most relevant information to an LLM in order to generate the possible responses.
+
+Elastic Rerank is a cross-encoder architecture and it is in technical preview in 8.17.
+
+image::images/elastic-rerank.png[Diagram showing how document text is modeled for a cross encoder, width=90%]
+
+To understand reranking and how you can use it to improve your search, read https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-1[What is semantic reranking and how to use it], a blog by the creators of Elastic Rerank.
+
+For more information on the Elastic Rerank model architecture and how it compares for relevance and cost against other reranking models, see https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-2[Introducing Elastic Rerank] by the same authors.
+
+[discrete]
+[[pre-configured-elser-endpoint]]
+=== Pre-configured default ELSER endpoint
+With this release, we are introducing a pre-configured default ELSER endpoint. This removes the need for any inference configuration in order to use ELSER. There is no more need for an inference endpoint setup or for downloading the model and configuring threads and allocations through the trained models UI. Simply create a <<semantic-text,semantic text>> mapping with your indices and start using it. The default inference endpoint will download, deploy and start using ELSER for inference with  {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations] out of the box.
+
+[discrete]
+[[full-text-search-esql]]
+=== Full-text search for ES|QL
+
+The technical preview of the new `MATCH` and `QSTR` (query string) functions in ES|QL makes log searches easier and more intuitive. `MATCH` delivers full-text search functionality in ES|QL using a Lucene match query, while `QTSR` aids in more advanced filtering of log data by enabling Lucene query string queries. 
+
+Full-text search for ES|QL enables easier and more performant searching in Discover, especially when dealing with multiple terms or conditional logic. Learn more in the <<esql-search-functions, ES|QL full-text search documentation>>.
 
 // Add previous release to the list
 Other versions:

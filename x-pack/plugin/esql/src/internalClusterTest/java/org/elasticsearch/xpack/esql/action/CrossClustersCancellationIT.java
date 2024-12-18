@@ -15,18 +15,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -38,9 +31,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -82,63 +72,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
 
     @Before
     public void resetPlugin() {
-        PauseFieldPlugin.allowEmitting = new CountDownLatch(1);
-        PauseFieldPlugin.startEmitting = new CountDownLatch(1);
-    }
-
-    public static class PauseFieldPlugin extends Plugin implements ScriptPlugin {
-        public static CountDownLatch startEmitting = new CountDownLatch(1);
-        public static CountDownLatch allowEmitting = new CountDownLatch(1);
-
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-                public String getType() {
-                    return "pause";
-                }
-
-                @Override
-                @SuppressWarnings("unchecked")
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> params
-                ) {
-                    if (context == LongFieldScript.CONTEXT) {
-                        return (FactoryType) new LongFieldScript.Factory() {
-                            @Override
-                            public LongFieldScript.LeafFactory newFactory(
-                                String fieldName,
-                                Map<String, Object> params,
-                                SearchLookup searchLookup,
-                                OnScriptError onScriptError
-                            ) {
-                                return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        startEmitting.countDown();
-                                        try {
-                                            assertTrue(allowEmitting.await(30, TimeUnit.SECONDS));
-                                        } catch (InterruptedException e) {
-                                            throw new AssertionError(e);
-                                        }
-                                        emit(1);
-                                    }
-                                };
-                            }
-                        };
-                    }
-                    throw new IllegalStateException("unsupported type " + context);
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT);
-                }
-            };
-        }
+        PauseFieldPlugin.resetPlugin();
     }
 
     private void createRemoteIndex(int numDocs) throws Exception {

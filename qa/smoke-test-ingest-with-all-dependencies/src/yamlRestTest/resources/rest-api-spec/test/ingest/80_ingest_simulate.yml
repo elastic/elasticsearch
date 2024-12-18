@@ -1774,5 +1774,5 @@ setup:
   - length: { docs: 1 }
   - match: { docs.0.doc._index: "simulate-test" }
   - match: { docs.0.doc._source.abc: "sfdsfsfdsfsfdsfsfdsfsfdsfsfdsf" }
-  - match: { docs.0.doc.ignored_fields: ["abc"] }
+  - match: { docs.0.doc.ignored_fields: [ {"field": "abc"} ] }
   - not_exists: docs.0.doc.error

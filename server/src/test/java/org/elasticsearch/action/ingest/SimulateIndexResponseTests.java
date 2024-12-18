@@ -127,7 +127,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
                           "_version": %d,
                           "_source": %s,
                           "executed_pipelines": [%s],
-                          "ignored_fields": ["abc", "def"]
+                          "ignored_fields": [{"field": "abc"}, {"field": "def"}]
                         }""",
                     id,
                     index,

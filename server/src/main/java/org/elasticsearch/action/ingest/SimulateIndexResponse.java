@@ -94,7 +94,14 @@ public class SimulateIndexResponse extends IndexResponse {
         assert executedPipelines != null : "executedPipelines is null when it shouldn't be - we always list pipelines in simulate mode";
         builder.array("executed_pipelines", executedPipelines.toArray());
         if (ignoredFields.isEmpty() == false) {
-            builder.stringListField("ignored_fields", ignoredFields);
+            builder.startArray("ignored_fields");
+            for (String ignoredField : ignoredFields) {
+                builder.startObject();
+                builder.field("field", ignoredField);
+                builder.endObject();
+            }
+            ;
+            builder.endArray();
         }
         if (exception != null) {
             builder.startObject("error");

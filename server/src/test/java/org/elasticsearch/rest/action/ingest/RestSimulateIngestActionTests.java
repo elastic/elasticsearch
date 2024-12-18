@@ -177,8 +177,12 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                       "pipeline2"
                     ],
                     "ignored_fields" : [
-                      "abc",
-                      "def"
+                      {
+                        "field" : "abc"
+                      },
+                      {
+                        "field" : "def"
+                      }
                     ]
                   }
                 },
@@ -205,8 +209,12 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                       "pipeline2"
                     ],
                     "ignored_fields" : [
-                      "abc",
-                      "def"
+                      {
+                        "field" : "abc"
+                      },
+                      {
+                        "field" : "def"
+                      }
                     ]
                   }
                 }

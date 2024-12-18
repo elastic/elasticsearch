@@ -110,6 +110,9 @@ setup:
           path: /_inference
           capabilities: [ inference_metadata_fields ]
 
+  - skip:
+      features: [ "headers" ]
+
   - do:
       index:
         index: test-index
@@ -121,6 +124,9 @@ setup:
         refresh: true
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
       search:
         index: test-index
         body:
@@ -143,6 +149,9 @@ setup:
         refresh: true
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
       search:
         index: test-index
         body:

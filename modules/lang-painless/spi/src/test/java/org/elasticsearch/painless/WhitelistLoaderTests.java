@@ -22,6 +22,7 @@ import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.lang.ModuleLayer.Controller;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -127,7 +128,7 @@ public class WhitelistLoaderTests extends ESTestCase {
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("module-info.class", classToBytes.get("module-info"));
         jarEntries.put("p/TestOwner.class", classToBytes.get("p.TestOwner"));
-        jarEntries.put("p/resource.txt", "# test resource".getBytes());
+        jarEntries.put("p/resource.txt", "# test resource".getBytes(StandardCharsets.UTF_8));
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         try (var loader = JarUtils.loadJar(jar)) {

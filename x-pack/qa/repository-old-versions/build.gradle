@@ -120,7 +120,7 @@ if (OS.current() == OS.WINDOWS) {
         delete(dataPath)
         mkdir(dataPath)
       }
-      maxWaitInSeconds 60
+      maxWaitInSeconds = 60
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist

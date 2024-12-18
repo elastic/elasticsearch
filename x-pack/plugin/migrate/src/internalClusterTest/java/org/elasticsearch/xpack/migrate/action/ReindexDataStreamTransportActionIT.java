@@ -29,7 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
-import org.elasticsearch.xpack.migrate.task.ReindexDataStreamStatus;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 
 import java.util.Collection;
@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -100,7 +101,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         assertThat(task.getStatus().complete(), equalTo(true));
         assertNull(task.getStatus().exception());
         assertThat(task.getStatus().pending(), equalTo(0));
-        assertThat(task.getStatus().inProgress(), equalTo(0));
+        assertThat(task.getStatus().inProgress(), equalTo(Set.of()));
         assertThat(task.getStatus().errors().size(), equalTo(0));
 
         assertBusy(() -> {
@@ -108,12 +109,12 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
                 new ActionType<GetMigrationReindexStatusAction.Response>(GetMigrationReindexStatusAction.NAME),
                 new GetMigrationReindexStatusAction.Request(dataStreamName)
             ).actionGet();
-            ReindexDataStreamStatus status = (ReindexDataStreamStatus) statusResponse.getTask().getTask().status();
+            ReindexDataStreamEnrichedStatus status = statusResponse.getEnrichedStatus();
             assertThat(status.complete(), equalTo(true));
             assertThat(status.errors(), equalTo(List.of()));
             assertThat(status.exception(), equalTo(null));
             assertThat(status.pending(), equalTo(0));
-            assertThat(status.inProgress(), equalTo(0));
+            assertThat(status.inProgress().size(), equalTo(0));
             assertThat(status.totalIndices(), equalTo(backingIndexCount));
             assertThat(status.totalIndicesToBeUpgraded(), equalTo(0));
         });

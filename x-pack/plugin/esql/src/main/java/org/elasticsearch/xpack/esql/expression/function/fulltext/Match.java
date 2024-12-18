@@ -103,8 +103,9 @@ public class Match extends FullTextFunction implements Validatable {
             Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
 
             For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
-            `MATCH` returns true if the provided query matches the row.
-        """, examples = { @Example(file = "match-function", tag = "match-with-field") }
+
+            `MATCH` returns true if the provided query matches the row.""",
+        examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
     public Match(
         Source source,

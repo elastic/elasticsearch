@@ -195,6 +195,7 @@ public class Driver implements Releasable, Describable {
                 isBlocked = runSingleLoopIteration();
             } catch (DriverEarlyTerminationException e) {
                 drainAndCloseOperators(null);
+                finishNanos = nowSupplier.getAsLong();
                 updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE, "early termination");
                 return Operator.NOT_BLOCKED.listener();
             }

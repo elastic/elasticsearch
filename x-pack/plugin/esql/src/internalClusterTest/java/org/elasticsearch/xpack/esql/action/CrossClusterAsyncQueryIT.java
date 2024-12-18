@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -160,6 +161,26 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    private void startAsyncQuery(String q, AtomicReference<String> asyncExecutionId, Tuple<Boolean, Boolean> includeCCSMetadata) {
+        try (EsqlQueryResponse resp = runAsyncQuery(q, includeCCSMetadata.v1(), null, TimeValue.timeValueMillis(100))) {
+            assertTrue(resp.isRunning());
+            assertNotNull("async execution id is null", resp.asyncExecutionId());
+            asyncExecutionId.set(resp.asyncExecutionId().get());
+            // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
+            // so we do not check for it here
+        }
+    }
+
+    private void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster cluster, int numShards) {
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(cluster.getTotalShards(), equalTo(numShards));
+        assertThat(cluster.getSuccessfulShards(), equalTo(numShards));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(0));
+        assertThat(cluster.getFailures().size(), equalTo(0));
+    }
+
     /**
      * Includes testing for CCS metadata in the GET /_query/async/:id response while the search is still running
      */
@@ -170,20 +191,15 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         int remote2NumShards = (Integer) testClusterInfo.get("remote2.blocking_index.num_shards");
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
         AtomicReference<String> asyncExecutionId = new AtomicReference<>();
 
-        String q = "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10";
-        try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueMillis(100))) {
-            assertTrue(resp.isRunning());
-            assertNotNull("async execution id is null", resp.asyncExecutionId());
-            asyncExecutionId.set(resp.asyncExecutionId().get());
-            // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
-            // so we do not check for it here
-        }
-
+        startAsyncQuery(
+            "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10",
+            asyncExecutionId,
+            includeCCSMetadata
+        );
         // wait until we know that the query against 'remote-b:blocking' has started
         PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
@@ -213,13 +229,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL), equalTo(1));
 
             EsqlExecutionInfo.Cluster clusterA = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(clusterA.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(clusterA.getTotalShards(), greaterThanOrEqualTo(1));
-            assertThat(clusterA.getSuccessfulShards(), equalTo(clusterA.getTotalShards()));
-            assertThat(clusterA.getSkippedShards(), equalTo(0));
-            assertThat(clusterA.getFailedShards(), equalTo(0));
-            assertThat(clusterA.getFailures().size(), equalTo(0));
-            assertThat(clusterA.getTook().millis(), greaterThanOrEqualTo(0L));
+            // Should be done and successful
+            assertClusterInfoSuccess(clusterA, clusterA.getTotalShards());
 
             EsqlExecutionInfo.Cluster local = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             // should still be RUNNING since the local cluster has to do a STATS on the coordinator, waiting on remoteB
@@ -257,31 +268,23 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.isPartial(), equalTo(false));
 
             EsqlExecutionInfo.Cluster clusterA = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(clusterA.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(clusterA.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(clusterA.getTotalShards(), equalTo(remote1NumShards));
-            assertThat(clusterA.getSuccessfulShards(), equalTo(remote1NumShards));
-            assertThat(clusterA.getSkippedShards(), equalTo(0));
-            assertThat(clusterA.getFailedShards(), equalTo(0));
-            assertThat(clusterA.getFailures().size(), equalTo(0));
+            assertClusterInfoSuccess(clusterA, remote1NumShards);
 
             EsqlExecutionInfo.Cluster remoteB = executionInfo.getCluster(REMOTE_CLUSTER_2);
-            assertThat(remoteB.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteB.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteB.getTotalShards(), equalTo(remote2NumShards));
-            assertThat(remoteB.getSuccessfulShards(), equalTo(remote2NumShards));
-            assertThat(remoteB.getSkippedShards(), equalTo(0));
-            assertThat(remoteB.getFailedShards(), equalTo(0));
-            assertThat(remoteB.getFailures().size(), equalTo(0));
+            assertClusterInfoSuccess(remoteB, remote2NumShards);
 
             EsqlExecutionInfo.Cluster local = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            assertThat(local.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(local.getTotalShards(), equalTo(localNumShards));
-            assertThat(local.getSuccessfulShards(), equalTo(localNumShards));
-            assertThat(local.getSkippedShards(), equalTo(0));
-            assertThat(local.getFailedShards(), equalTo(0));
-            assertThat(local.getFailures().size(), equalTo(0));
+            assertClusterInfoSuccess(local, localNumShards);
+
+            // Check that stop produces the same result
+            try (
+                EsqlQueryResponse stopResponse = client().execute(
+                    EsqlAsyncStopAction.INSTANCE,
+                    new AsyncStopRequest(asyncExecutionId.get())
+                ).get()
+            ) {
+                assertThat(stopResponse, equalTo(asyncResponse));
+            }
         } finally {
             AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId.get());
             assertThat(acknowledgedResponse.isAcknowledged(), is(true));
@@ -320,34 +323,19 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 assertThat(executionInfo.isPartial(), equalTo(false));
 
                 EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
                 assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-                assertThat(remoteCluster.getTotalShards(), equalTo(0));
-                assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
-                assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-                assertThat(remoteCluster.getFailedShards(), equalTo(0));
+                assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
+                assertClusterInfoSuccess(remoteCluster, 0);
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
+                assertClusterInfoSuccess(remote2Cluster, 0);
                 assertThat(remote2Cluster.getIndexExpression(), equalTo("logs*"));
-                assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
                 assertThat(remote2Cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-                assertThat(remote2Cluster.getTotalShards(), equalTo(0));
-                assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
-                assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
-                assertThat(remote2Cluster.getFailedShards(), equalTo(0));
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertClusterInfoSuccess(localCluster, 0);
                 assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
                 assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-                assertThat(remote2Cluster.getTotalShards(), equalTo(0));
-                assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
-                assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
-                assertThat(remote2Cluster.getFailedShards(), equalTo(0));
 
                 assertClusterMetadataInResponse(resp, responseExpectMeta, 3);
             }
@@ -361,21 +349,20 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
     public void testStopQuery() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters(3);
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.blocking_index.num_shards");
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
         AtomicReference<String> asyncExecutionId = new AtomicReference<>();
 
-        String q = "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10";
-        try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueMillis(100))) {
-            assertTrue(resp.isRunning());
-            assertNotNull("async execution id is null", resp.asyncExecutionId());
-            asyncExecutionId.set(resp.asyncExecutionId().get());
-            // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
-            // so we do not check for it here
-        }
+        startAsyncQuery(
+            "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(coalesce(const,v)) | LIMIT 1",
+            asyncExecutionId,
+            includeCCSMetadata
+        );
 
         // wait until we know that the query against 'remote-b:blocking' has started
         PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
@@ -403,10 +390,13 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         PauseFieldPlugin.allowEmitting.countDown();
 
         // Since part of the query has not been stopped, we expect some result to emerge here
-        try (EsqlQueryResponse asyncResponse = stopAction.actionGet(1, TimeUnit.SECONDS)) {
+        try (EsqlQueryResponse asyncResponse = stopAction.actionGet(1000, TimeUnit.SECONDS)) {
             assertThat(asyncResponse.isRunning(), is(false));
             assertThat(asyncResponse.columns().size(), equalTo(1));
             assertThat(asyncResponse.values().hasNext(), is(true));
+            Iterator<Object> row = asyncResponse.values().next();
+            // sum of 0-9 is 45, and sum of 0-9 squared is 285
+            assertThat(row.next(), equalTo(330L));
 
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
             assertNotNull(executionInfo);
@@ -418,21 +408,16 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            assertClusterInfoSuccess(remoteCluster, remote1NumShards);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("blocking"));
-            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remote2Cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            // TODO: it may be wrong marking this as SUCCESS, we may need to revisit this
+            assertClusterInfoSuccess(remote2Cluster, remote2NumShards);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
+            assertClusterInfoSuccess(localCluster, localNumShards);
 
             assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
         } finally {

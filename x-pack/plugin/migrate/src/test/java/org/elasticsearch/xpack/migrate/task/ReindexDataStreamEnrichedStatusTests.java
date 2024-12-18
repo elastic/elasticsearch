@@ -25,25 +25,29 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCase<ReindexDataStreamStatus> {
+public class ReindexDataStreamEnrichedStatusTests extends AbstractWireSerializingTestCase<ReindexDataStreamEnrichedStatus> {
 
     @Override
-    protected Writeable.Reader<ReindexDataStreamStatus> instanceReader() {
-        return ReindexDataStreamStatus::new;
+    protected Writeable.Reader<ReindexDataStreamEnrichedStatus> instanceReader() {
+        return ReindexDataStreamEnrichedStatus::new;
     }
 
     @Override
-    protected ReindexDataStreamStatus createTestInstance() {
-        return new ReindexDataStreamStatus(
+    protected ReindexDataStreamEnrichedStatus createTestInstance() {
+        return new ReindexDataStreamEnrichedStatus(
             randomLong(),
             randomNegativeInt(),
             randomNegativeInt(),
             randomBoolean(),
             nullableTestException(),
-            randomSet(0),
+            randomInProgressMap(),
             randomNegativeInt(),
             randomErrorList()
         );
+    }
+
+    private Map<String, Tuple<Long, Long>> randomInProgressMap() {
+        return randomMap(1, 50, () -> Tuple.tuple(randomAlphaOfLength(50), Tuple.tuple(randomNonNegativeLong(), randomNonNegativeLong())));
     }
 
     private Exception nullableTestException() {
@@ -82,13 +86,13 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected ReindexDataStreamStatus mutateInstance(ReindexDataStreamStatus instance) throws IOException {
+    protected ReindexDataStreamEnrichedStatus mutateInstance(ReindexDataStreamEnrichedStatus instance) throws IOException {
         long startTime = instance.persistentTaskStartTime();
         int totalIndices = instance.totalIndices();
         int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
         boolean complete = instance.complete();
         Exception exception = instance.exception();
-        Set<String> inProgress = instance.inProgress();
+        Map<String, Tuple<Long, Long>> inProgress = instance.inProgress();
         int pending = instance.pending();
         List<Tuple<String, Exception>> errors = instance.errors();
         switch (randomIntBetween(0, 6)) {
@@ -96,12 +100,12 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
             case 1 -> totalIndices = totalIndices + 1;
             case 2 -> totalIndicesToBeUpgraded = totalIndicesToBeUpgraded + 1;
             case 3 -> complete = complete == false;
-            case 4 -> inProgress = randomSet(inProgress.size() + 1);
+            case 4 -> inProgress = randomInProgressMap();
             case 5 -> pending = pending + 1;
             case 6 -> errors = randomErrorList(errors.size() + 1);
             default -> throw new UnsupportedOperationException();
         }
-        return new ReindexDataStreamStatus(
+        return new ReindexDataStreamEnrichedStatus(
             startTime,
             totalIndices,
             totalIndicesToBeUpgraded,
@@ -114,13 +118,13 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
     }
 
     public void testToXContent() throws IOException {
-        ReindexDataStreamStatus status = new ReindexDataStreamStatus(
+        ReindexDataStreamEnrichedStatus status = new ReindexDataStreamEnrichedStatus(
             1234L,
             200,
             100,
             true,
             new ElasticsearchException("the whole task failed"),
-            randomSet(12, 12, () -> randomAlphaOfLength(50)),
+            Map.of("index-1", Tuple.tuple(10L, 8L)),
             8,
             List.of(
                 Tuple.tuple("index7", new ElasticsearchException("index7 failed")),
@@ -142,8 +146,8 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
                             entry("total_indices_requiring_upgrade", 100),
                             entry("complete", true),
                             entry("exception", "the whole task failed"),
-                            entry("successes", 78),
-                            entry("in_progress", 12),
+                            entry("successes", 89),
+                            entry("in_progress", List.of(Map.of("index", "index-1", "total_doc_count", 10, "reindexed_doc_count", 8))),
                             entry("pending", 8),
                             entry(
                                 "errors",

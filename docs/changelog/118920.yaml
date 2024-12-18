@@ -1,0 +1,5 @@
+pr: 118920
+summary: Remove unsupported timeout from rest-api-spec license API
+area: Machine Learning
+type: bug
+issues: []

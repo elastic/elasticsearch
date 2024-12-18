@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.security.dlsfls;
 
 import org.apache.http.HttpHeaders;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -20,6 +22,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,6 +37,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
+
+    private static final Logger logger = LogManager.getLogger(FlsRestIT.class);
 
     private static final String FLS_FILE_ROLE_USER = "fls_file_role_user";
     // defined in resources/roles.yml
@@ -144,10 +149,11 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteRole("fls_role");
     }
 
-    public void testExistingRolesWithUnderscoredFieldsInExceptListWork() throws IOException {
+    public void testExistingRolesWithUnderscoredFieldsInExceptListWork() throws Exception {
         // create valid role via API first
         assertOK(createRole("fls_role", """
             {
+              "cluster": ["manage_api_key"],
               "indices": [
                 {
                   "names": [
@@ -176,9 +182,139 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         // via security index access, update the role to exclude _field3, bypassing validation
         updateRoles(systemWriteCreds, "ctx._source['indices'][0]['field_security']['except']=['_field3'];", List.of("fls_role"));
 
+        logger.error("Updated role to exclude _field3, will search next");
         searchAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
 
+        // user with bad role can create valid API key and search
+        Response apiKeyResponse = createApiKey(FLS_FILE_ROLE_USER, """
+            {
+              "name": "fls_api_key",
+              "role_descriptors": {
+                "fls_role": {
+                  "indices": [
+                    {
+                      "names": [
+                        "index_allowed"
+                      ],
+                      "privileges": [
+                        "read"
+                      ],
+                      "field_security": {
+                        "grant": [
+                          "*"
+                        ],
+                        "except": [
+                          "field2",
+                          "_field3",
+                          "_id"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }""");
+        assertOK(apiKeyResponse);
+
+        searchAndAssertWithAuthzHeader(
+            ApiKeyService.withApiKeyPrefix(responseAsMap(apiKeyResponse).get("encoded").toString()),
+            Set.of("field1")
+        );
+
         deleteUser("superuser_with_system_write");
+        deleteRole("fls_role");
+    }
+
+    public void testCannotCreateApiKeyWithUnderscoredFieldsInExceptList() throws IOException {
+        assertThat(expectThrows(Exception.class, () -> createApiKey("x_pack_rest_user", """
+            {
+              "name": "fls_api_key",
+              "role_descriptors": {
+                "fls_role": {
+                  "indices": [
+                    {
+                      "names": [
+                        "index_allowed"
+                      ],
+                      "privileges": [
+                        "read"
+                      ],
+                      "field_security": {
+                        "grant": [
+                          "field*"
+                        ],
+                        "except": [
+                          "_field4"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }""")).getMessage(), containsString("Exceptions for field permissions must be a subset of the granted fields"));
+
+        assertThat(expectThrows(Exception.class, () -> createApiKey("x_pack_rest_user", """
+            {
+              "name": "fls_api_key",
+              "role_descriptors": {
+                "fls_role": {
+                  "indices": [
+                    {
+                      "names": [
+                        "index_allowed"
+                      ],
+                      "privileges": [
+                        "read"
+                      ],
+                      "field_security": {
+                        "grant": [
+                          "field*"
+                        ],
+                        "except": [
+                          "_id",
+                          "_field4"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }""")).getMessage(), containsString("Exceptions for field permissions must be a subset of the granted fields"));
+
+        // this is allowed since "*" covers all fields in the `except` section
+        Response apiKeyResponse = createApiKey("x_pack_rest_user", """
+            {
+              "name": "fls_api_key",
+              "role_descriptors": {
+                "fls_role": {
+                  "indices": [
+                    {
+                      "names": [
+                        "index_allowed"
+                      ],
+                      "privileges": [
+                        "read"
+                      ],
+                      "field_security": {
+                        "grant": [
+                          "*"
+                        ],
+                        "except": [
+                          "_field3",
+                          "_id"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }""");
+        assertOK(apiKeyResponse);
+
+        searchAndAssertWithAuthzHeader(
+            ApiKeyService.withApiKeyPrefix(responseAsMap(apiKeyResponse).get("encoded").toString()),
+            Set.of("hidden_field", "field1", "field2")
+        );
     }
 
     static void createSystemWriteRole(String roleName) throws IOException {
@@ -195,7 +331,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             }"""));
     }
 
-    static String createUser(String username, String[] roles) throws IOException {
+    private static String createUser(String username, String[] roles) throws IOException {
         final Request request = new Request("POST", "/_security/user/" + username);
         Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
         request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
@@ -210,15 +346,30 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         return adminClient().performRequest(createRoleRequest);
     }
 
-    private void searchAndAssert(String user, Set<String> expectedSourceFields) throws IOException {
-        final Request searchRequest = new Request("GET", INDEX_NAME + "/_search");
-        searchRequest.setOptions(
+    private static Response createApiKey(String user, String payload) throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity(payload);
+        createApiKeyRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader(
                     "Authorization",
                     UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
                 )
         );
+        return client().performRequest(createApiKeyRequest);
+    }
+
+    private void searchAndAssert(String user, Set<String> expectedSourceFields) throws IOException {
+        logger.info("Search with {} and expecting {}", user, expectedSourceFields);
+        searchAndAssertWithAuthzHeader(
+            basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
+            expectedSourceFields
+        );
+    }
+
+    private void searchAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedSourceFields) throws IOException {
+        final Request searchRequest = new Request("GET", INDEX_NAME + "/_search");
+        searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader));
         assertSearchResponse(client().performRequest(searchRequest), "1", expectedSourceFields);
     }
 
@@ -257,7 +408,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(deleteResponse);
     }
 
-    static void expectWarnings(Request request, String... expectedWarnings) {
+    private static void expectWarnings(Request request, String... expectedWarnings) {
         final Set<String> expected = Set.of(expectedWarnings);
         RequestOptions options = request.getOptions().toBuilder().setWarningsHandler(warnings -> {
             final Set<String> actual = Set.copyOf(warnings);
@@ -267,7 +418,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         request.setOptions(options);
     }
 
-    static void updateRoles(String creds, String script, Collection<String> roleNames) throws IOException {
+    private static void updateRoles(String creds, String script, Collection<String> roleNames) throws IOException {
         if (roleNames.isEmpty()) {
             return;
         }
@@ -287,7 +438,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                 }
               }
             }
-            """, script, roleNames.stream().map(id -> "\"role-" + id + "\"").collect(Collectors.toList())));
+            """, script, roleNames.stream().map(name -> "\"role-" + name + "\"").collect(Collectors.toList())));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, creds));
         expectWarnings(
             request,
@@ -296,5 +447,12 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
         Response response = client().performRequest(request);
         assertOK(response);
+
+        // Need to clear roles cache to pick up the changes above
+        Request clearRolesCacheRequest = new Request(
+            "POST",
+            "/_security/role/" + org.elasticsearch.common.Strings.collectionToCommaDelimitedString(roleNames) + "/_clear_cache"
+        );
+        adminClient().performRequest(clearRolesCacheRequest);
     }
 }

@@ -53,7 +53,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReindexDatastreamIndexIT extends ESIntegTestCase {
+public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     private static final String MAPPING = """
         {
@@ -126,12 +126,14 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
     }
 
-    public void testSetSourceToReadOnly() throws Exception {
+    public void testSetSourceToBlockWrites() throws Exception {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var settings = randomBoolean() ? Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build() : Settings.EMPTY;
 
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).get();
 
         // call reindex
         client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();

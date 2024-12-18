@@ -334,7 +334,7 @@ public class EsqlFunctionRegistry {
                 def(Left.class, Left::new, "left"),
                 def(Length.class, Length::new, "length"),
                 def(Locate.class, Locate::new, "locate"),
-                def(Md5.class, uni(Md5::new), "md5"),
+                def(Md5.class, Md5::new, "md5"),
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Repeat.class, Repeat::new, "repeat"),
                 def(Replace.class, Replace::new, "replace"),

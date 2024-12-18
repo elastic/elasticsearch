@@ -30,7 +30,7 @@ public class Md5 extends AbstractHashFunction {
         super(source, input);
     }
 
-    public Md5(StreamInput in) throws IOException {
+    private Md5(StreamInput in) throws IOException {
         super(in);
     }
 

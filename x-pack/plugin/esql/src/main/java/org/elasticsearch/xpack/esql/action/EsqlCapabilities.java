@@ -450,6 +450,11 @@ public class EsqlCapabilities {
         KQL_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Hash function
+         */
+        HASH_FUNCTION,
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
@@ -585,7 +590,12 @@ public class EsqlCapabilities {
         /**
          * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
          */
-        FIXED_REGEX_FOLD;
+        FIXED_REGEX_FOLD,
+
+        /**
+         * Full text functions can be used in disjunctions
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
 
         private final boolean enabled;
 

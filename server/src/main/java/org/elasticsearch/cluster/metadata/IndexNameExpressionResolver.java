@@ -558,7 +558,7 @@ public class IndexNameExpressionResolver {
     }
 
     private static Set<DataStream> getAliasDataStreams(IndexAbstraction indexAbstraction, Map<String, IndexAbstraction> indicesLookup) {
-        // Collect the data streams involved with the alias and resolve their failure stores
+        // Collect the data streams involved with the alias
         assert indexAbstraction.getType().equals(Type.ALIAS) && indexAbstraction.isDataStreamRelated()
             : "Non data stream alias [" + indexAbstraction.getName() + "]";
         Set<DataStream> aliasDataStreams = new HashSet<>();

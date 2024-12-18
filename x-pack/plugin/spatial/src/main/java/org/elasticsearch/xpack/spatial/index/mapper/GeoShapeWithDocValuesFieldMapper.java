@@ -208,6 +208,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
+
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
 

@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
 
 /**
  * A version of {@link org.elasticsearch.rest.action.RestChunkedToXContentListener} that reads from a {@link Flow.Publisher} and encodes
@@ -161,7 +162,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
             }
 
             var errorParams = p;
-            if (errorParams.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
+            if (errorParams.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
                 errorParams = new ToXContent.DelegatingMapParams(
                     Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false", REST_EXCEPTION_SKIP_CAUSE, "true"),
                     params

@@ -70,7 +70,7 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
     }
 
     private Set<String> randomSet(int minSize) {
-        return randomSet(minSize, 100, () -> randomAlphaOfLength(50));
+        return randomSet(minSize, 50, () -> randomAlphaOfLength(50));
     }
 
     private List<Tuple<String, Exception>> randomErrorList() {

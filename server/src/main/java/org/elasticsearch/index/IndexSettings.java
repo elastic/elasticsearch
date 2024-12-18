@@ -1037,11 +1037,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         if (recoverySourceSyntheticEnabled) {
             // Verify that all nodes can handle this setting
-            if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
-                && version.between(
-                    IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
-                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
-                ) == false) {
+            if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT)) {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,

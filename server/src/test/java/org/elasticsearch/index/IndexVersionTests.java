@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
@@ -151,9 +150,7 @@ public class IndexVersionTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "believe this fails because index version has not yet been bumped to 9.0")
-    public void testMinimumCompatibleVersion() {
+    public void testGetMinimumCompatibleIndexVersion() {
         assertThat(IndexVersion.getMinimumCompatibleIndexVersion(7170099), equalTo(IndexVersion.fromId(6000099)));
         assertThat(IndexVersion.getMinimumCompatibleIndexVersion(8000099), equalTo(IndexVersion.fromId(7000099)));
         assertThat(IndexVersion.getMinimumCompatibleIndexVersion(10000000), equalTo(IndexVersion.fromId(9000000)));
@@ -193,8 +190,6 @@ public class IndexVersionTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "can be unmuted once lucene is bumped to version 10")
     public void testLuceneVersionOnUnknownVersions() {
         // between two known versions, should use the lucene version of the previous version
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion();

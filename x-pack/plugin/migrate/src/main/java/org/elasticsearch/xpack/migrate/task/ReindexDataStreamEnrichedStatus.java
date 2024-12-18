@@ -9,48 +9,46 @@ package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
-public record ReindexDataStreamStatus(
+/*
+ * This class represents information similar to that in ReindexDataStreamStatus, but enriched from other sources besides just the task
+ * itself.
+ */
+public record ReindexDataStreamEnrichedStatus(
     long persistentTaskStartTime,
     int totalIndices,
     int totalIndicesToBeUpgraded,
     boolean complete,
     Exception exception,
-    Set<String> inProgress,
+    Map<String, Tuple<Long, Long>> inProgress,
     int pending,
     List<Tuple<String, Exception>> errors
-) implements Task.Status {
-    public ReindexDataStreamStatus {
+) implements ToXContentObject, Writeable {
+    public ReindexDataStreamEnrichedStatus {
         Objects.requireNonNull(inProgress);
         Objects.requireNonNull(errors);
     }
 
-    public static final String NAME = "ReindexDataStreamStatus";
-
-    public ReindexDataStreamStatus(StreamInput in) throws IOException {
+    public ReindexDataStreamEnrichedStatus(StreamInput in) throws IOException {
         this(
             in.readLong(),
             in.readInt(),
             in.readInt(),
             in.readBoolean(),
             in.readException(),
-            in.readCollectionAsSet((Reader<String>) StreamInput::readString),
+            in.readMap(StreamInput::readString, in2 -> Tuple.tuple(in2.readLong(), in2.readLong())),
             in.readInt(),
             in.readCollectionAsList(in1 -> Tuple.tuple(in1.readString(), in1.readException()))
         );
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     @Override
@@ -60,7 +58,10 @@ public record ReindexDataStreamStatus(
         out.writeInt(totalIndicesToBeUpgraded);
         out.writeBoolean(complete);
         out.writeException(exception);
-        out.writeStringCollection(inProgress);
+        out.writeMap(inProgress, StreamOutput::writeString, (out2, tuple) -> {
+            out2.writeLong(tuple.v1());
+            out2.writeLong(tuple.v2());
+        });
         out.writeInt(pending);
         out.writeCollection(errors, (out1, tuple) -> {
             out1.writeString(tuple.v1());
@@ -75,15 +76,22 @@ public record ReindexDataStreamStatus(
         builder.field("complete", complete);
         builder.field("total_indices_in_data_stream", totalIndices);
         builder.field("total_indices_requiring_upgrade", totalIndicesToBeUpgraded);
-        final int inProgressSize = inProgress.size();
-        builder.field("successes", totalIndicesToBeUpgraded - (inProgressSize + pending + errors.size()));
-        builder.field("in_progress", inProgressSize);
+        builder.field("successes", totalIndicesToBeUpgraded - (inProgress.size() + pending + errors.size()));
+        builder.startArray("in_progress");
+        for (Map.Entry<String, Tuple<Long, Long>> inProgressEntry : inProgress.entrySet()) {
+            builder.startObject();
+            builder.field("index", inProgressEntry.getKey());
+            builder.field("total_doc_count", inProgressEntry.getValue().v1());
+            builder.field("reindexed_doc_count", inProgressEntry.getValue().v2());
+            builder.endObject();
+        }
+        builder.endArray();
         builder.field("pending", pending);
         builder.startArray("errors");
         for (Tuple<String, Exception> error : errors) {
             builder.startObject();
             builder.field("index", error.v1());
-            builder.field("message", error.v2().getMessage());
+            builder.field("message", error.v2() == null ? "unknown" : error.v2().getMessage());
             builder.endObject();
         }
         builder.endArray();

@@ -55,11 +55,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
         entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
-        entry("processHandle_of", deniedToPlugins(RestEntitlementsCheckAction::processHandle_of)),
-        // entry("processHandle_parent", deniedToPlugins(RestEntitlementsCheckAction::processHandle_parent)),
-        entry("processHandle_current", deniedToPlugins(RestEntitlementsCheckAction::processHandle_current)),
-        entry("processHandle_allProcesses", deniedToPlugins(RestEntitlementsCheckAction::processHandle_allProcesses)),
-        // entry("processHandle_children", deniedToPlugins(RestEntitlementsCheckAction::processHandle_children)),
         // entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
         entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline))
     );
@@ -80,26 +75,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private static void processHandle_of() {
-        ProcessHandle.of(123);
-    }
-
-    private static void processHandle_parent() {
-        // TODO: processHandle().parent();
-    }
-
-    private static void processHandle_current() {
-        ProcessHandle.current();
-    }
-
-    private static void processHandle_allProcesses() {
-        ProcessHandle.allProcesses();
-    }
-
-    private static void processHandle_children() {
-        // TODO: processHandle().children();
     }
 
     private static void processBuilder_start() {

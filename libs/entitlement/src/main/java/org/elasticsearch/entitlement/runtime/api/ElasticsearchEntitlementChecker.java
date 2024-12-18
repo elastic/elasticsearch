@@ -70,31 +70,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$java_lang_ProcessHandle$of(Class<?> callerClass, long pid) {
-        policyManager.checkStartProcess(callerClass);
-    }
-
-    @Override
-    public void check$$parent(Class<?> callerClass, ProcessHandle that) {
-        policyManager.checkInspectProcess(callerClass);
-    }
-
-    @Override
-    public void check$java_lang_ProcessHandle$current(Class<?> callerClass) {
-        policyManager.checkInspectProcess(callerClass);
-    }
-
-    @Override
-    public void check$java_lang_ProcessHandle$allProcesses(Class<?> callerClass) {
-        policyManager.checkInspectProcess(callerClass);
-    }
-
-    @Override
-    public void check$$children(Class<?> callerClass, ProcessHandle that) {
-        policyManager.checkInspectProcess(callerClass);
-    }
-
-    @Override
     public void check$$start(Class<?> callerClass, ProcessBuilder processBuilder, ProcessBuilder.Redirect[] redirects) {
         policyManager.checkStartProcess(callerClass);
     }

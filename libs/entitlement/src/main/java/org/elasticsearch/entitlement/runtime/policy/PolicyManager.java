@@ -109,10 +109,6 @@ public class PolicyManager {
         neverEntitled(callerClass, "start process");
     }
 
-    public void checkInspectProcess(Class<?> callerClass) {
-        neverEntitled(callerClass, "inspect process");
-    }
-
     private void neverEntitled(Class<?> callerClass, String operationDescription) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {

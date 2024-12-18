@@ -112,7 +112,6 @@ tasks.withType(ShadowJar).configureEach {
     exclude(dependency("com.carrotsearch.randomizedtesting:randomizedtesting-runner:.*"))
     exclude(dependency("junit:junit:.*"))
     exclude(dependency("org.apache.httpcomponents:httpcore:.*"))
-//    exclude(dependency("org.apache.httpcomponents:httpclient:.*"))
     exclude(dependency("org.apache.logging.log4j:log4j-1.2-api:.*"))
     exclude(dependency("net.java.dev.jna:jna:.*"))
     exclude(dependency("org.objenesis:objenesis:.*"))
@@ -128,17 +127,6 @@ tasks.withType(ShadowJar).configureEach {
     resource = "hdfs-default.xml"
     enabled = true
   }
-}
-
-tasks.register('showHdfs3Jar', Copy) {
-  from(configurations.getByName("hdfs3"))
-  into('hdfs3jars')
-}
-
-
-tasks.register('showHdfs2Jar', Copy) {
-  from(configurations.getByName("hdfs2"))
-  into('hdfs2jars')
 }
 
 artifacts {

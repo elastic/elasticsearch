@@ -206,11 +206,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
         failIfCorrupted();
         try {
-            return Lucene.readSegmentInfos(directory);
+            return readSegmentsInfo(null, directory());
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         }
+    }
+
+    /**
+     * Returns the segments info for the given commit or for the latest commit if the given commit is <code>null</code>
+     *
+     * @throws IOException if the index is corrupted or the segments file is not present
+     */
+    private static SegmentInfos readSegmentsInfo(IndexCommit commit, Directory directory) throws IOException {
+        assert commit == null || commit.getDirectory() == directory;
+        try {
+            return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit);
+        } catch (EOFException eof) {
+            // TODO this should be caught by lucene - EOF is almost certainly an index corruption
+            throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
+        } catch (IOException exception) {
+            throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
+        } catch (Exception ex) {
+            throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
+        }
+
     }
 
     final void ensureOpen() {
@@ -804,21 +824,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final Map<String, StoreFileMetadata> metadataByFile = new HashMap<>();
             final Map<String, String> commitUserData;
             try {
-                assert commit == null || commit.getDirectory() == directory;
-                final SegmentInfos segmentCommitInfos;
-                try {
-                    if (commit == null) {
-                        segmentCommitInfos = Lucene.readSegmentInfos(directory);
-                    } else {
-                        segmentCommitInfos = Lucene.readSegmentInfos(commit);
-                    }
-                } catch (EOFException eof) {
-                    // TODO this should be caught by lucene - EOF is almost certainly an index corruption
-                    throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
-                } catch (Exception ex) {
-                    throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
-                }
-
+                final SegmentInfos segmentCommitInfos = readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserData = Map.copyOf(segmentCommitInfos.getUserData());
                 // we don't know which version was used to write so we take the max version.

@@ -212,7 +212,7 @@ public class JinaAIServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
+    public void testParseRequestConfig_ThrowsUnsupportedTaskType() throws IOException {
         try (var service = createJinaAIService()) {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,

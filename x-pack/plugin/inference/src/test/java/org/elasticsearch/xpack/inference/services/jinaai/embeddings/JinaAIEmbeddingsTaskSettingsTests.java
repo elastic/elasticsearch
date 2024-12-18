@@ -41,21 +41,25 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
-    public void testUpdatedTaskSettings() {
+    public void testUpdatedTaskSettings_NotUpdated_UseInitialSettings() {
         var initialSettings = createRandom();
-        var newSettings = createRandom();
+        var newSettings = new JinaAIEmbeddingsTaskSettings((InputType) null);
         Map<String, Object> newSettingsMap = new HashMap<>();
-        if (newSettings.getInputType() != null) {
-            newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
-        }
         JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
             Collections.unmodifiableMap(newSettingsMap)
         );
-        if (newSettings.getInputType() == null) {
-            assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
-        } else {
-            assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
-        }
+        assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
+    }
+
+    public void testUpdatedTaskSettings_Updated_UseNewSettings() {
+        var initialSettings = createRandom();
+        var newSettings = new JinaAIEmbeddingsTaskSettings(randomWithoutUnspecified());
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
+        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {

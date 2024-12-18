@@ -30,7 +30,6 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
     private final ServiceComponents serviceComponents;
 
     public JinaAIActionCreator(Sender sender, ServiceComponents serviceComponents) {
-        // TODO Batching - accept a class that can handle batching
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
@@ -42,7 +41,6 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
             overriddenModel.getServiceSettings().getCommonSettings().uri(),
             "JinaAI embeddings"
         );
-        // TODO - Batching pass the batching class on to the JinaAIEmbeddingsRequestManager
         var requestCreator = JinaAIEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

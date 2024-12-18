@@ -840,7 +840,7 @@ public class ConnectorIndexService {
             String connectorId = request.getConnectorId();
             boolean isNative = request.isNative();
 
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
 
                 String indexName = getConnectorIndexNameFromSearchResult(connector);
 
@@ -951,7 +951,7 @@ public class ConnectorIndexService {
                     return;
                 }
 
-                getConnector(connectorId, l.delegateFailure((ll, connector) -> {
+                getConnector(connectorId, false, l.delegateFailure((ll, connector) -> {
 
                     Boolean isNativeConnector = getConnectorIsNativeFlagFromSearchResult(connector);
                     Boolean doesNotHaveContentPrefix = indexName != null && isValidManagedConnectorIndexName(indexName) == false;

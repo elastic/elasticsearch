@@ -127,7 +127,7 @@ public class PolicyManager {
     }
 
     ModuleEntitlements getEntitlementsOrThrow(Class<?> callerClass, Module requestingModule) {
-        ModuleEntitlements cachedEntitlement = null;//moduleEntitlementsMap.get(requestingModule);
+        ModuleEntitlements cachedEntitlement = null;// moduleEntitlementsMap.get(requestingModule);
         if (cachedEntitlement != null) {
             if (cachedEntitlement == ModuleEntitlements.NONE) {
                 throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, requestingModule) + "[CACHED]");
@@ -199,8 +199,7 @@ public class PolicyManager {
             + 1  // the instrumented method
         ;
         final List<StackWalker.StackFrame> frames = new ArrayList<>();
-        StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(s -> frames.addAll(s.toList()));
+        StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).walk(s -> frames.addAll(s.toList()));
         Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
             .walk(
                 s -> s.skip(framesToSkip)

@@ -91,22 +91,9 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy(
             "server",
             List.of(
-                new Scope("org.elasticsearch.base",
-                    List.of(
-                        new CreateClassLoaderEntitlement()
-                    )
-                ),
-                new Scope("org.elasticsearch.xcontent",
-                    List.of(
-                        new CreateClassLoaderEntitlement()
-                    )
-                ),
-                new Scope("org.elasticsearch.server",
-                    List.of(
-                        new ExitVMEntitlement(),
-                        new CreateClassLoaderEntitlement()
-                    )
-                )
+                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement()))
             )
         );
         return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());

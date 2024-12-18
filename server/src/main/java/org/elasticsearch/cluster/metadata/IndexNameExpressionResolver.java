@@ -621,12 +621,7 @@ public class IndexNameExpressionResolver {
 
     private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         if (indicesOptions.allowSelectors()) {
-            if (expressionSelector != null) {
-                return expressionSelector.shouldIncludeData();
-            } else {
-                // Defaults to regular indices
-                return true;
-            }
+            return expressionSelector == null || expressionSelector.shouldIncludeData();
         }
         return true;
     }

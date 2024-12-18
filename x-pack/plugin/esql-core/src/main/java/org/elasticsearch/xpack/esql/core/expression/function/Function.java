@@ -43,11 +43,6 @@ public abstract class Function extends Expression {
         return Expressions.nullable(children());
     }
 
-    /** Return true if this function can be executed under the provided {@link XPackLicenseState}, otherwise false.*/
-    public boolean checkLicense(XPackLicenseState state) {
-        return true;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(getClass(), children());

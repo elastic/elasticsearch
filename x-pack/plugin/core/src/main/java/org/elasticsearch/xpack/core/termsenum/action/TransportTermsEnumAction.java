@@ -536,7 +536,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             String[] concreteIndices = localIndices == null
                 ? new String[0]
                 : indexNameExpressionResolver.concreteIndexNames(project.metadata(), localIndices);
-            blockException = project.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+            blockException = project.blocks().indicesBlockedException(project.projectId(), ClusterBlockLevel.READ, concreteIndices);
             if (blockException != null) {
                 throw blockException;
             }

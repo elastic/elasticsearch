@@ -74,11 +74,13 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         // Resolve with system index access since we're just checking blocks
         return state.blocks()
             .indicesBlockedException(
+                projectMetadata.id(),
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(projectMetadata, request)
             );
     }
 

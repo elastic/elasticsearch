@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -1085,14 +1086,14 @@ public final class RestoreService implements ClusterStateApplier {
     /**
      * Returns the indices that are currently being restored and that are contained in the indices-to-check set.
      */
-    public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
+    public static Set<Index> restoringIndices(final ProjectState currentState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
-        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState.cluster())) {
             for (Map.Entry<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards().entrySet()) {
                 Index index = shard.getKey().getIndex();
                 if (indicesToCheck.contains(index)
                     && shard.getValue().state().completed() == false
-                    && currentState.getMetadata().getProject().index(index) != null) {
+                    && currentState.metadata().index(index) != null) {
                     indices.add(index);
                 }
             }

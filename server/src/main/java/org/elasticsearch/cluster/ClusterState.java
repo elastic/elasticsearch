@@ -383,12 +383,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return routingTable.routingTable(projectId);
     }
 
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public RoutingTable routingTable() {
         return routingTable.getRoutingTable();
     }
 
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public RoutingTable getRoutingTable() {
         return routingTable();
     }
@@ -513,6 +513,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     @FixForMultiProject
+    @Deprecated(forRemoval = true)
     public ProjectState projectState() {
         // check there is only the single default project
         metadata.getProject();
@@ -1074,17 +1075,17 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        @Deprecated
+        @Deprecated(forRemoval = true)
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }
 
-        @Deprecated
+        @Deprecated(forRemoval = true)
         public Builder routingTable(RoutingTable routingTable) {
             return routingTable(Metadata.DEFAULT_PROJECT_ID, routingTable);
         }
 
-        @Deprecated
+        @Deprecated(forRemoval = true)
         public Builder routingTable(ProjectId projectId, RoutingTable routingTable) {
             Objects.requireNonNull(projectId, "project-id may not be null");
             Objects.requireNonNull(routingTable, "routing-table may not be null");
@@ -1097,7 +1098,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder putRoutingTable(ProjectId projectId, RoutingTable routingTable) {
-            return routingTable(GlobalRoutingTable.builder(this.routingTable).put(projectId, routingTable).build());
+            final var globalRoutingTableBuilder = this.routingTable == null
+                ? GlobalRoutingTable.builder()
+                : GlobalRoutingTable.builder(this.routingTable);
+            return routingTable(globalRoutingTableBuilder.put(projectId, routingTable).build());
         }
 
         public Builder metadata(Metadata.Builder metadataBuilder) {

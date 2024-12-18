@@ -160,7 +160,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
                 // Check cluster blocks
                 assertThat(clusterStateFromDiffs.blocks().global(), equalTo(clusterStateFromDiffs.blocks().global()));
-                assertThat(clusterStateFromDiffs.blocks().indices(), equalTo(clusterStateFromDiffs.blocks().indices()));
+                assertThat(
+                    clusterStateFromDiffs.blocks().indices(Metadata.DEFAULT_PROJECT_ID),
+                    equalTo(clusterStateFromDiffs.blocks().indices(Metadata.DEFAULT_PROJECT_ID))
+                );
                 assertThat(
                     clusterStateFromDiffs.blocks().disableStatePersistence(),
                     equalTo(clusterStateFromDiffs.blocks().disableStatePersistence())

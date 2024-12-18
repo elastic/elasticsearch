@@ -228,7 +228,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Set<String> indicesAndAliasesResources = indicesAndAliases.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         for (String index : indices) {
             if (hasBlocks) {
-                blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+                blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
             }
 
             String[] aliases = indexNameExpressionResolver.indexAliases(
@@ -269,7 +269,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
-            projectState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
+            projectState.blocks().indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(projectState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);

@@ -148,9 +148,11 @@ public class ClusterStateUpdaters {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-            for (IndexMetadata indexMetadata : state.metadata().indicesAllProjects()) {
-                blocks.removeIndexBlocks(indexMetadata.getIndex().getName());
-            }
+            state.forEachProject(projectState -> {
+                for (IndexMetadata indexMetadata : projectState.metadata()) {
+                    blocks.removeIndexBlocks(projectState.projectId(), indexMetadata.getIndex().getName());
+                }
+            });
             final Metadata metadata = Metadata.builder()
                 .clusterUUID(state.metadata().clusterUUID())
                 .coordinationMetadata(state.metadata().coordinationMetadata())

@@ -106,7 +106,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         for (AliasActions aliasAction : request.aliasActions()) {
             Collections.addAll(indices, aliasAction.indices());
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
+        return state.blocks()
+            .indicesBlockedException(
+                projectResolver.getProjectId(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indices.toArray(new String[indices.size()])
+            );
     }
 
     @Override

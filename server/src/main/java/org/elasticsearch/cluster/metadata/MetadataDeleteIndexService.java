@@ -205,7 +205,7 @@ public class MetadataDeleteIndexService {
             String indexName = index.getName();
             logger.info("{} deleting index", index);
             routingTableBuilder.remove(indexName);
-            clusterBlocksBuilder.removeIndexBlocks(indexName);
+            clusterBlocksBuilder.removeIndexBlocks(projectState.projectId(), indexName);
             projectBuilder.remove(indexName);
             if (dataStreamIndices.containsKey(index)) {
                 DataStream parent = projectBuilder.dataStream(dataStreamIndices.get(index).getName());

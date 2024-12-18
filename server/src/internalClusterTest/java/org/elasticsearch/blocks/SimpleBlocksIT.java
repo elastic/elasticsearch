@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -300,8 +302,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().getProject().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        assertThat(clusterState.metadata().getProject(projectId).indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
+        assertThat(clusterState.routingTable(projectId).allShards().allMatch(ShardRouting::unassigned), is(true));
 
         final APIBlock block = randomAddableBlock();
         try {
@@ -394,8 +397,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         assertThat(
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().indices().size(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(projectId).indices().size(),
             equalTo(indices.length)
         );
 
@@ -439,16 +443,17 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().getProject().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).indices().get(index);
             final Settings indexSettings = indexMetadata.getSettings();
             assertThat(indexSettings.hasValue(block.settingName()), is(true));
             assertThat(indexSettings.getAsBoolean(block.settingName(), false), is(true));
-            assertThat(clusterState.blocks().hasIndexBlock(index, block.getBlock()), is(true));
+            assertThat(clusterState.blocks().hasIndexBlock(projectId, index, block.getBlock()), is(true));
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + block.getBlock().id() + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(projectId)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == block.getBlock().id())

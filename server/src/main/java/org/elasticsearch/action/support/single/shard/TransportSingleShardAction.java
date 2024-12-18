@@ -126,7 +126,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     }
 
     protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.concreteIndex());
+        return state.blocks().indexBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ, request.concreteIndex());
     }
 
     protected void resolveRequest(ProjectState state, InternalRequest request) {

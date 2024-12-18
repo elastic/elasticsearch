@@ -157,7 +157,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
         @Override
         protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
-            return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
+            return state.blocks().indexBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, request.index());
         }
 
         private final class CreateIndexTask implements ClusterStateTaskListener {

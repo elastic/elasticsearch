@@ -115,7 +115,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         DownsampleIndexerAction.Request request,
         String[] concreteIndices
     ) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
     @Override

@@ -28,6 +28,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -54,6 +57,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
 
     private static final Logger logger = LogManager.getLogger(TransportFreezeIndexAction.class);
 
+    private final ProjectResolver projectResolver;
     private final DestructiveOperations destructiveOperations;
     private final MetadataIndexStateService indexStateService;
 
@@ -64,6 +68,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DestructiveOperations destructiveOperations
     ) {
@@ -78,6 +83,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             FreezeResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
     }
@@ -91,7 +97,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
         List<Index> indices = new ArrayList<>();
         for (Index index : indexNameExpressionResolver.concreteIndices(state, request)) {
-            IndexMetadata metadata = state.metadata().getProject().index(index);
+            IndexMetadata metadata = state.metadata().getProject(projectResolver.getProjectId()).index(index);
             Settings settings = metadata.getSettings();
             // only unfreeze if we are frozen and only freeze if we are not frozen already.
             // this prevents all indices that are already frozen that match a pattern to
@@ -115,9 +121,11 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             return;
         }
 
+        final ProjectId projectId = projectResolver.getProjectId();
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(
             request.masterNodeTimeout(),
             request.ackTimeout(),
+            projectId,
             task.getId(),
             ActiveShardCount.DEFAULT,
             concreteIndices
@@ -127,7 +135,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             @Override
             public void onResponse(final CloseIndexResponse response) {
                 if (response.isAcknowledged()) {
-                    toggleFrozenSettings(concreteIndices, request, listener);
+                    toggleFrozenSettings(projectId, concreteIndices, request, listener);
                 } else {
                     // TODO improve FreezeResponse so that it also reports failures from the close index API
                     listener.onResponse(new FreezeResponse(false, false));
@@ -143,6 +151,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     }
 
     private void toggleFrozenSettings(
+        final ProjectId projectId,
         final Index[] concreteIndices,
         final FreezeRequest request,
         final ActionListener<FreezeResponse> listener
@@ -153,6 +162,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                 OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest(
                     request.masterNodeTimeout(),
                     request.ackTimeout(),
+                    projectId,
                     request.waitForActiveShards(),
                     concreteIndices
                 );
@@ -169,7 +179,8 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     List<String> writeIndices = new ArrayList<>();
-                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getProject().getIndicesLookup();
+                    final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+                    SortedMap<String, IndexAbstraction> lookup = projectMetadata.getIndicesLookup();
                     for (Index index : concreteIndices) {
                         IndexAbstraction ia = lookup.get(index.getName());
                         if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().equals(index)) {
@@ -187,7 +198,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     for (Index index : concreteIndices) {
-                        final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
+                        final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(index);
                         if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                             throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                         }
@@ -196,13 +207,13 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                             settingsBuilder.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
                             settingsBuilder.put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true);
                             settingsBuilder.put("index.blocks.write", true);
-                            blocks.addIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
+                            blocks.addIndexBlock(projectMetadata.id(), index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                         } else {
                             settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
                             settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
                             if (indexMetadata.isSearchableSnapshot() == false) {
                                 settingsBuilder.remove("index.blocks.write");
-                                blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
+                                blocks.removeIndexBlock(projectMetadata.id(), index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                             }
                         }
                         builder.put(
@@ -221,8 +232,13 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
 
     @Override
     protected ClusterBlockException checkBlock(FreezeRequest request, ClusterState state) {
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

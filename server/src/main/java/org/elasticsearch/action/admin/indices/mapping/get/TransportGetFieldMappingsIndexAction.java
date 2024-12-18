@@ -111,7 +111,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
 
     @Override
     protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, request.concreteIndex());
+        return state.blocks().indexBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ, request.concreteIndex());
     }
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {

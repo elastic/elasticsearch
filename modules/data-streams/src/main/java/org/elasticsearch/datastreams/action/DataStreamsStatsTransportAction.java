@@ -101,7 +101,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         DataStreamsStatsAction.Request request,
         String[] concreteIndices
     ) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override

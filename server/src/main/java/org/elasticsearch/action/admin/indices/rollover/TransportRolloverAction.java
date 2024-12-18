@@ -150,6 +150,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         final var indicesOptions = new IndicesOptions(
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder()
@@ -162,8 +163,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         return state.blocks()
             .indicesBlockedException(
+                projectMetadata.id(),
                 ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, indicesOptions, request)
             );
     }
 

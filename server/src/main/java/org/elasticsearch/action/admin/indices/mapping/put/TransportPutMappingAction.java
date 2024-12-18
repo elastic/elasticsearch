@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,14 +87,15 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
+        final ProjectId projectId = projectResolver.getProjectId();
         String[] indices;
         if (request.getConcreteIndex() == null) {
-            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+            ProjectMetadata projectMetadata = state.metadata().getProject(projectId);
             indices = indexNameExpressionResolver.concreteIndexNames(projectMetadata, request);
         } else {
             indices = new String[] { request.getConcreteIndex().getName() };
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
+        return state.blocks().indicesBlockedException(projectId, ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override

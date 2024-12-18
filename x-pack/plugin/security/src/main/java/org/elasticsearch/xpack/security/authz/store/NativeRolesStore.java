@@ -125,6 +125,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
         .allow2xFormat(true)
         .allowDescription(true)
+        .allowLegacyFieldSecurityExceptFields(true)
         .build();
 
     private static final Set<DocWriteResponse.Result> UPDATE_ROLES_REFRESH_CACHE_RESULTS = Set.of(

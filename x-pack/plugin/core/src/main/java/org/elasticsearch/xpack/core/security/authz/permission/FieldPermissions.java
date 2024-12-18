@@ -251,10 +251,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
                 || false == deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(grantedFieldsAutomaton, deniedFieldsAutomaton)) {
                 throw new ElasticsearchSecurityException(
                     "Exceptions for field permissions must be a subset of the "
-                        + "granted fields but "
+                        + "granted fields but ["
                         + Strings.arrayToCommaDelimitedString(deniedFields)
-                        + " is not a subset of "
+                        + "[ is not a subset of ["
                         + Strings.arrayToCommaDelimitedString(grantedFields)
+                        + "]"
                 );
             }
             logger.warn(
@@ -262,7 +263,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
                     + "This is supported for backwards compatibility only. "
                     + "To avoid counter-intuitive FLS behavior, ensure that the [except] field is a subset of the [grant] field by either "
                     + "adding the missing _-prefixed fields to the [grant] field, or by removing them from the [except] field."
-                    + "Note that you cannot exclude any of [{}] since these are minimally required metadata fields.",
+                    + " Note that you cannot exclude any of [{}] since these are minimally required metadata fields.",
                 Strings.collectionToCommaDelimitedString(new TreeSet<>(METADATA_FIELDS_ALLOWLIST))
             );
         }

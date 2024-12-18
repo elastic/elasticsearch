@@ -90,7 +90,7 @@ More information about JinaAI's rate limits can be found in https://jina.ai/cont
 [%collapsible%closed]
 =====
 `model_id`::
-(Optional, string)
+(Required, string)
 The name of the model to use for the {infer} task.
 To review the available `rerank` compatible models, refer to https://jina.ai/reranker.
 =====
@@ -159,8 +159,7 @@ PUT _inference/text_embedding/jinaai-embeddings
     "service_settings": {
         "model_id": "jina-embeddings-v3",
         "api_key": "<api_key>"
-    },
-    "task_settings": {}
+    }
 }
 ------------------------------------------------------------
 // TEST[skip:uses ML]
@@ -172,7 +171,7 @@ PUT _inference/rerank/jinaai-rerank
 {
     "service": "jinaai",
     "service_settings": {
-        "api_key": "<API-KEY>",
+        "api_key": "<api_key>",
         "model_id": "jina-reranker-v2-base-multilingual"
     },
     "task_settings": {

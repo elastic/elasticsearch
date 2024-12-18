@@ -2033,7 +2033,7 @@ create index with use_synthetic_source:
   - do:
       indices.get_settings: {}
   - match: { test.settings.index.mapping.source.mode: synthetic}
-  - match: { test.settings.index.recovery.use_synthetic_source: true}
+  - is_true: test.settings.index.recovery.use_synthetic_source
 
   - do:
       bulk:

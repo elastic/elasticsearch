@@ -148,7 +148,7 @@ public class WhitelistLoaderTests extends ESTestCase {
             var e = expectThrows(ResourceNotFoundException.class,
                 () -> WhitelistLoader.loadFromResourceFiles(ownerClass, "resource.txt"));
             assertThat(e.getMessage(), equalTo("Whitelist file [p/resource.txt] not found from owning class [p.TestOwner]." +
-                " Check that the file exists and the package [p] is exported to module null"));
+                " Check that the file exists and the package [p] is opened to module null"));
 
             // now check we can actually read it once the package is opened to us
             controller.addOpens(module, "p", WhitelistLoader.class.getModule());

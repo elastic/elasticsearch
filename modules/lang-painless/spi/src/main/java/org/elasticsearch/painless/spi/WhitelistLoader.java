@@ -502,7 +502,7 @@ public final class WhitelistLoader {
         if (stream == null) {
             String msg = "Whitelist file [" + owner.getPackageName().replace(".", "/") + "/" + name + "] not found from owning class [" + owner.getName() + "].";
             if (owner.getModule().isNamed()) {
-                msg += " Check that the file exists and the package [" + owner.getPackageName() + "] is exported " +
+                msg += " Check that the file exists and the package [" + owner.getPackageName() + "] is opened " +
                     "to module " + WhitelistLoader.class.getModule().getName();
             }
             throw new ResourceNotFoundException(msg);

@@ -7,7 +7,7 @@ the input table for which the provided condition evaluates to `true`.
 
 [TIP]
 ====
-In case of value exclusions, fields with `null` values will be excluded from search results. 
+In case of value exclusions, fields with `null` values will be excluded from search results.
 In this context a `null` means either there is an explicit `null` value in the document or there is no value at all.
 For example: `WHERE field != "value"` will be interpreted as `WHERE field != "value" AND field IS NOT NULL`.
 ====
@@ -57,6 +57,10 @@ include::{esql-specs}/docs.csv-spec[tag=whereFunction]
 For a complete list of all functions, refer to <<esql-functions>>.
 
 include::../functions/predicates.asciidoc[tag=body]
+
+For matching text, you can use <<serch-functions,full text search functions>> like `MATCH`.
+
+include::../functions/match.asciidoc[tag=body]
 
 include::../functions/like.asciidoc[tag=body]
 

@@ -49,7 +49,7 @@ partial failures in the search APIs. The result is that for the affected documen
 There is no workaround and the only option to is to upgrade to 8.15.2 when released.
 +
 If you use synthetic source then you may be affected by this bug if the following is true:
-** If you have more fields then the `index.mapping.total_fields.limit` setting allows.
+** If you have more fields than the `index.mapping.total_fields.limit` setting allows.
 ** If you use dynamic mappings and the `index.mapping.total_fields.ignore_dynamic_beyond_limit` setting is enabled.
 
 [[breaking-8.15.0]]

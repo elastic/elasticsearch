@@ -26,6 +26,13 @@ public interface EntitlementChecker {
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
+    // SecureClassLoader ctor
+    void check$java_security_SecureClassLoader$(Class<?> callerClass);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
+
     // URLClassLoader ctor
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
 

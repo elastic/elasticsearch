@@ -127,7 +127,7 @@ public class PolicyManager {
     }
 
     ModuleEntitlements getEntitlementsOrThrow(Class<?> callerClass, Module requestingModule) {
-        ModuleEntitlements cachedEntitlement = moduleEntitlementsMap.get(requestingModule);
+        ModuleEntitlements cachedEntitlement = null;//moduleEntitlementsMap.get(requestingModule);
         if (cachedEntitlement != null) {
             if (cachedEntitlement == ModuleEntitlements.NONE) {
                 throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, requestingModule) + "[CACHED]");
@@ -193,11 +193,14 @@ public class PolicyManager {
                 return callerModule;
             }
         }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
+        int framesToSkip = 1  // requestingModule (this method)
+            + 1  // the checkEntitlementPresent method
+            + 1  // the check[EntitlementType] method
             + 1  // the instrumented method
         ;
+        final List<StackWalker.StackFrame> frames = new ArrayList<>();
+        StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+            .walk(s -> frames.addAll(s.toList()));
         Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
             .walk(
                 s -> s.skip(framesToSkip)

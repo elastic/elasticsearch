@@ -90,7 +90,24 @@ public class EntitlementInitialization {
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
             "server",
-            List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
+            List.of(
+                new Scope("org.elasticsearch.base",
+                    List.of(
+                        new CreateClassLoaderEntitlement()
+                    )
+                ),
+                new Scope("org.elasticsearch.xcontent",
+                    List.of(
+                        new CreateClassLoaderEntitlement()
+                    )
+                ),
+                new Scope("org.elasticsearch.server",
+                    List.of(
+                        new ExitVMEntitlement(),
+                        new CreateClassLoaderEntitlement()
+                    )
+                )
+            )
         );
         return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
     }

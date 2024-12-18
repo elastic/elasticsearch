@@ -1,0 +1,5 @@
+pr: 118907
+summary: Fix check exit for specialized JDK 23 entitlements
+area: Infra/Plugins
+type: bug
+issues: []

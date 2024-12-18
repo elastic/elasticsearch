@@ -11,10 +11,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -40,6 +42,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -49,10 +52,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
-import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -81,13 +84,48 @@ public class ConnectorSyncJobIndexService {
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
 
-    public static final String CONNECTOR_SYNC_JOB_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
+    public static final String CONNECTOR_SYNC_JOB_INDEX_NAME = ".elastic-connectors-sync-jobs";
+    private static final int CONNECTOR_SYNC_JOB_INDEX_VERSION = 1;
+    private static final String CONNECTOR_SYNC_JOB_MAPPING_VERSION_VARIABLE = "elastic-connectors-sync-jobs.version";
+    private static final String CONNECTOR_SYNC_JOB_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors-sync-jobs.managed.index.version";
+    private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "connectors", "enterprise-search");
 
     /**
      * @param client A client for executing actions on the connectors sync jobs index.
      */
     public ConnectorSyncJobIndexService(Client client) {
         this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
+    }
+
+    /**
+     * Returns the {@link SystemIndexDescriptor} for the Connector system index.
+     *
+     * @return The {@link SystemIndexDescriptor} for the Connector system index.
+     */
+    public static SystemIndexDescriptor getSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+
+        // TODO get rid of templates for everything but acl indices
+        String templateSource = TemplateUtils.loadTemplate(
+            "/elastic-connectors-sync-jobs.json",
+            Version.CURRENT.toString(),
+            CONNECTOR_SYNC_JOB_MAPPING_VERSION_VARIABLE,
+            Map.of(CONNECTOR_SYNC_JOB_MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CONNECTOR_SYNC_JOB_INDEX_VERSION))
+        );
+        request.source(templateSource, XContentType.JSON);
+
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(CONNECTOR_SYNC_JOB_INDEX_NAME + "*")
+            .setPrimaryIndex(CONNECTOR_SYNC_JOB_INDEX_NAME + "-v" + CONNECTOR_SYNC_JOB_INDEX_VERSION)
+            .setAliasName(CONNECTOR_SYNC_JOB_INDEX_NAME)
+            .setDescription("Search connectors sync jobs")
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setOrigin(CONNECTORS_ORIGIN)
+            .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setNetNew()
+            .build();
     }
 
     /**

@@ -268,7 +268,7 @@ setup:
   - match: { hits.hits.0._score: 0.25 }
 
 ---
-"Test sparse_vector requires one of inference_id or query_vector":
+"Test sparse_vector requires one of query or query_vector":
   - do:
       catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
       search:
@@ -281,7 +281,41 @@ setup:
   - match: { status: 400 }
 
 ---
-"Test sparse_vector only allows one of inference_id or query_vector":
+"Test sparse_vector returns an error if inference ID not specified with query":
+  - do:
+      catch: bad_request # This is for BWC, the actual error message is tested in a subsequent test
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector requires an inference ID to be specified on sparse_vector fields":
+  - requires:
+      cluster_features: [ "search.semantic_sparse_vector_query_rewrite_interception_supported" ]
+      reason: "Error message changed in 8.18"
+  - do:
+      catch: /inference_id required to perform vector search on query string/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector only allows one of query or query_vector (note the error message is misleading)":
+  - requires:
+      cluster_features: [ "search.semantic_sparse_vector_query_rewrite_interception_supported" ]
+      reason: "sparse vector inference checks updated in 8.18 to support sparse_vector on semantic_text fields"
   - do:
       catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
       search:
@@ -290,7 +324,7 @@ setup:
           query:
             sparse_vector:
               field: text
-              inference_id: text_expansion_model
+              query: "octopus comforter smells"
               query_vector:
                 the: 1.0
                 comforter: 1.0

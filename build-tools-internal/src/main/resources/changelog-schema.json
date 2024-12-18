@@ -279,6 +279,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Aggregations",
         "Analysis",
         "Authorization",
         "Cluster and node setting",
@@ -295,6 +296,7 @@
         "Painless",
         "REST API",
         "Rollup",
+        "Search",
         "System requirement",
         "Transform"
       ]

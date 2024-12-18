@@ -136,8 +136,8 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         }
         Index index;
         try {
-            index = indicesRemaining.removeFirst();
-        } catch (NoSuchElementException e) {
+            index = indicesRemaining.remove(0);
+        } catch (IndexOutOfBoundsException e) {
             return;
         }
         reindexDataStreamTask.incrementInProgressIndicesCount(index.getName());

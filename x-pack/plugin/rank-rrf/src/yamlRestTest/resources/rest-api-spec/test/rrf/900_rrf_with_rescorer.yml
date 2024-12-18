@@ -325,7 +325,7 @@ setup:
 ---
 "RRF with rescorer retriever and invalid window size":
   - do:
-      catch: "/rescorer requires \\[window_size: 5\\] be greater than or equal to \\[size: 10\\]/"
+      catch: "/\\[rescorer\\] requires \\[window_size: 5\\] be greater than or equal to \\[size: 10\\]/"
       search:
         index: test
         body:
@@ -367,7 +367,7 @@ setup:
           size: 10
 
   - do:
-      catch: "/rescorer requires \\[window_size: 10\\] to be smaller than or equal to its sub retriever's rrf \\[rank_window_size: 5\\]/"
+      catch: "/\\[rescorer\\] requires \\[window_size: 10\\] to be smaller than or equal to its sub retriever's rrf \\[rank_window_size: 5\\]/"
       search:
         index: test
         body:

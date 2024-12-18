@@ -64,6 +64,8 @@ public class CsvTestsDataLoader {
         .withSetting("languages_lookup-settings.json");
     private static final TestsDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
+    private static final TestsDataset LANGUAGES_NESTED_FIELDS = LANGUAGES_LOOKUP.withIndex("languages_nested_fields")
+        .withData("languages_nested_fields.csv");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");

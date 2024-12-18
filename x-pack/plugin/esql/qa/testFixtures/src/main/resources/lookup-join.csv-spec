@@ -416,6 +416,28 @@ language_code:integer | language_name:keyword       | country:keyword
 8                     | Mv-Lang2                    | Mv-Land2
 ;
 
+###########################################################################
+# nested filed join behavior with languages_nested_fields index
+###########################################################################
+
+joinOnNestedField
+required_capability: join_lookup_v8
+
+FROM employees
+| WHERE 10000 < emp_no AND emp_no < 10005
+| EVAL language.id = emp_no % 10
+| LOOKUP JOIN languages_nested_fields ON language.id
+| SORT emp_no
+| KEEP emp_no, language.id, language.name
+;
+
+emp_no:integer | language.id:integer | language.name:keyword
+10001          | 1                   | English
+10002          | 2                   | French
+10003          | 3                   | Spanish
+10004          | 4                   | German
+;
+
 ###############################################
 # Tests with clientips_lookup index
 ###############################################

@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.junit.Before;
@@ -30,7 +31,7 @@ public class RestUnifiedCompletionInferenceActionTests extends RestActionTestCas
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestUnifiedCompletionInferenceAction());
+        controller().registerHandler(new RestUnifiedCompletionInferenceAction(new TestThreadPool(getTestName())));
     }
 
     public void testStreamIsTrue() {

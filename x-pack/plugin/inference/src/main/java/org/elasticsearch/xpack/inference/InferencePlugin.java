@@ -197,9 +197,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        assert serviceComponents.get() != null : "serviceComponents must be set before retrieving the rest handlers";
+
         var availableRestActions = List.of(
             new RestInferenceAction(),
-            new RestStreamInferenceAction(),
+            new RestStreamInferenceAction(serviceComponents.get().threadPool()),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
             new RestUpdateInferenceModelAction(),
@@ -208,7 +210,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestGetInferenceServicesAction()
         );
         List<RestHandler> conditionalRestActions = UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()
-            ? List.of(new RestUnifiedCompletionInferenceAction())
+            ? List.of(new RestUnifiedCompletionInferenceAction(serviceComponents.get().threadPool()))
             : List.of();
 
         return Stream.concat(availableRestActions.stream(), conditionalRestActions.stream()).toList();

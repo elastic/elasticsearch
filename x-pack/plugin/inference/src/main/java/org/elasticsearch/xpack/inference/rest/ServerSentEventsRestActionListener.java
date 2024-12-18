@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -29,6 +30,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -38,6 +40,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,6 +58,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
     private final RestChannel channel;
     private final ToXContent.Params params;
+    private final ThreadPool threadPool;
 
     /**
      * A listener for the first part of the next entry to become available for transmission.
@@ -66,13 +70,14 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
      */
     private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
 
-    public ServerSentEventsRestActionListener(RestChannel channel) {
-        this(channel, channel.request());
+    public ServerSentEventsRestActionListener(RestChannel channel, ThreadPool threadPool) {
+        this(channel, channel.request(), threadPool);
     }
 
-    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params) {
+    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params, ThreadPool threadPool) {
         this.channel = channel;
         this.params = params;
+        this.threadPool = Objects.requireNonNull(threadPool);
     }
 
     @Override
@@ -99,7 +104,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     }
 
     private void initializeStream(InferenceAction.Response response) {
-        nextBodyPartListener = ActionListener.wrap(bodyPart -> {
+        ActionListener<ChunkedRestResponseBodyPart> chunkedResponseBodyActionListener = ActionListener.wrap(bodyPart -> {
             // this is the first response, so we need to send the RestResponse to open the stream
             // all subsequent bytes will be delivered through the nextBodyPartListener
             channel.sendResponse(RestResponse.chunked(RestStatus.OK, bodyPart, this::release));
@@ -115,6 +120,12 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
                 )
             );
         });
+
+        nextBodyPartListener = ContextPreservingActionListener.wrapPreservingContext(
+            chunkedResponseBodyActionListener,
+            threadPool.getThreadContext()
+        );
+
         // subscribe will call onSubscribe, which requests the first chunk
         response.publisher().subscribe(subscriber);
     }

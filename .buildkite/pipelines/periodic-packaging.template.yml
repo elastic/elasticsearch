@@ -14,6 +14,7 @@ steps:
               - sles-15
               - ubuntu-2004
               - ubuntu-2204
+              - ubuntu-2404
               - rocky-8
               - rocky-9
               - rhel-8

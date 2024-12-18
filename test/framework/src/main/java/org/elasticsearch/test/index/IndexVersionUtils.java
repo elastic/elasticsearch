@@ -120,7 +120,7 @@ public class IndexVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    //TODO add variants of the two following methods that include read only versions
+    // TODO add variants of the two following methods that include read only versions
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */
     public static IndexVersion randomCompatibleVersion(Random random) {

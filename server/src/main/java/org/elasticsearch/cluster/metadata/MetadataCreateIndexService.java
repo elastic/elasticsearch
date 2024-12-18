@@ -1411,19 +1411,14 @@ public class MetadataCreateIndexService {
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
-        if (indexMode == IndexMode.LOGSDB) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
-        }
-        final CompressedXContent defaultMapping = indexMode.getDefaultMapping(
-            indexService.getIndexSettings(),
-            mapperService.mappingLookup()
-        );
         List<CompressedXContent> allMappings = new ArrayList<>();
+        final CompressedXContent defaultMapping = indexMode.getDefaultMapping(indexService.getIndexSettings());
         if (defaultMapping != null) {
             allMappings.add(defaultMapping);
         }
         allMappings.addAll(mappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MergeReason.INDEX_TEMPLATE);
+
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {

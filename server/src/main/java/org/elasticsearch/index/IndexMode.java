@@ -80,6 +80,11 @@ public enum IndexMode {
         }
 
         @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return null;
+        }
+
+        @Override
         public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
             return null;
         }
@@ -171,7 +176,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings, final MappingLookup mappingLookup) {
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
             return DEFAULT_MAPPING_TIMESTAMP;
         }
 
@@ -249,13 +254,10 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings, final MappingLookup mappingLookup) {
-            return (indexSettings != null
-                && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
-                && mappingLookup.getMapper(HOST_NAME) == null
-                && mappingLookup.getMapper("host") instanceof FieldMapper == false)
-                    ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
-                    : DEFAULT_MAPPING_TIMESTAMP;
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return indexSettings != null && indexSettings.getLogsdbAddHostName()
+                ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
+                : DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -335,6 +337,11 @@ public enum IndexMode {
         }
 
         @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return null;
+        }
+
+        @Override
         public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
             return null;
         }
@@ -380,7 +387,7 @@ public enum IndexMode {
         }
     };
 
-    private static final String HOST_NAME = "host.name";
+    static final String HOST_NAME = "host.name";
 
     private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -418,7 +425,6 @@ public enum IndexMode {
     }
 
     private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP;
-
     private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP_HOSTNAME;
 
     static {
@@ -481,9 +487,7 @@ public enum IndexMode {
      * Get default mapping for this index or {@code null} if there is none.
      */
     @Nullable
-    public CompressedXContent getDefaultMapping(final IndexSettings indexSettings, final MappingLookup mappingLookup) {
-        return null;
-    }
+    public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
      * Build the {@link FieldMapper} for {@code _id}.

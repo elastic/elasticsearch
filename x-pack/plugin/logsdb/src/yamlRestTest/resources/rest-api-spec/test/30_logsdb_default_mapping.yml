@@ -654,23 +654,12 @@ create logsdb data stream with custom sorting and missing host.name field mappin
   - is_true: acknowledged
 
   - do:
+      catch: bad_request
       indices.create_data_stream:
         name: logs-http-qa
-  - is_true: acknowledged
 
-  - do:
-      indices.get_data_stream:
-        name: logs-http-qa
-
-  - set: { data_streams.0.indices.0.index_name: backing_index }
-  - do:
-      indices.get_mapping:
-        index: $backing_index
-
-  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "unknown index sort field:[host.name]" }
 
 ---
 create logsdb data stream with custom sorting and host.name field without doc values:

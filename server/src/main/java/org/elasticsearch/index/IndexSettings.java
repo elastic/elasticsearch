@@ -722,6 +722,20 @@ public final class IndexSettings {
         return es87TSDBCodecEnabled;
     }
 
+    public static final Setting<Boolean> LOGSDB_USE_DEFAULT_SORT_CONFIG = Setting.boolSetting(
+        "index.logsdb.use_default_sort_config",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME = Setting.boolSetting(
+        "index.logsdb.add_host_name",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -843,6 +857,8 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean logsdbUseDefaultSortConfig;
+    private final boolean logsdbAddHostName;
 
     private volatile long retentionLeaseMillis;
 
@@ -1045,6 +1061,8 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        logsdbUseDefaultSortConfig = scopedSettings.get(LOGSDB_USE_DEFAULT_SORT_CONFIG);
+        logsdbAddHostName = scopedSettings.get(LOGSDB_ADD_HOST_NAME);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
@@ -1762,5 +1780,9 @@ public final class IndexSettings {
      */
     public IndexRouting getIndexRouting() {
         return indexRouting;
+    }
+
+    boolean getLogsdbAddHostName() {
+        return logsdbAddHostName;
     }
 }

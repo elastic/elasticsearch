@@ -301,10 +301,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 mapperMetrics
             );
 
-            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings, mapperService.mappingLookup()) != null) {
+            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings) != null) {
                 mapperService.merge(
                     null,
-                    indexSettings.getMode().getDefaultMapping(indexSettings, mapperService.mappingLookup()),
+                    indexSettings.getMode().getDefaultMapping(indexSettings),
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
             }

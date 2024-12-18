@@ -8,9 +8,11 @@ from any node.
 
 The topics in this section provides information about the architecture of {es} and how it stores and retrieves data: 
 
-* <<use-multiple-nodes-shards,Nodes and shards>>: Learn about the basic building blocks of an {es} cluster, including nodes, shards, primaries, and replicas.
+* <<nodes-shards,Nodes and shards>>: Learn about the basic building blocks of an {es} cluster, including nodes, shards, primaries, and replicas.
 * <<docs-replication,Reading and writing documents>>: Learn how {es} replicates read and write operations across shards and shard copies.
 * <<shard-allocation-relocation-recovery,Shard allocation, relocation, and recovery>>: Learn how {es} allocates and balances shards across nodes.
 --
+
+include::nodes-shards.asciidoc[]
 include::docs/data-replication.asciidoc[leveloffset=-1]
 include::modules/shard-ops.asciidoc[]

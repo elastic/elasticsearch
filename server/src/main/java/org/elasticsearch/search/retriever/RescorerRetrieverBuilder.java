@@ -108,6 +108,11 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     }
 
     @Override
+    public ParseField getRankWindowSizeField() {
+        return RescorerBuilder.WINDOW_SIZE_FIELD;
+    }
+
+    @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder source) {
         /**
          * The re-scorer is passed downstream because this query operates only on

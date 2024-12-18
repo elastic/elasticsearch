@@ -202,7 +202,7 @@ setup:
 ---
 "Rescorer retriever and invalid window size":
   - do:
-      catch: "/\\[rescorer\\] requires \\[rank_window_size: 5\\] be greater than or equal to \\[size: 10\\]/"
+      catch: "/\\[rescorer\\] requires \\[window_size: 5\\] be greater than or equal to \\[size: 10\\]/"
       search:
         index: test
         body:

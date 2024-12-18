@@ -32,6 +32,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +50,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
 
     public static final NodeFeature INNER_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("inner_retrievers_filter_support");
+
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
 
@@ -80,6 +83,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     @Override
     public final boolean isCompound() {
         return true;
+    }
+
+    /**
+     * Retrieves the {@link ParseField} used to configure the {@link CompoundRetrieverBuilder#rankWindowSize}
+     * at the REST layer.
+     */
+    public ParseField getRankWindowSizeField() {
+        return RANK_WINDOW_SIZE_FIELD;
     }
 
     @Override
@@ -210,14 +221,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
         if (source.size() > rankWindowSize) {
             validationException = addValidationError(
-                "["
-                    + this.getName()
-                    + "] requires [rank_window_size: "
-                    + rankWindowSize
-                    + "]"
-                    + " be greater than or equal to [size: "
-                    + source.size()
-                    + "]",
+                String.format(
+                    Locale.ROOT,
+                    "%s requires [%s: %d] to be greater than or equal to [size: %d]",
+                    getName(),
+                    getRankWindowSizeField().getPreferredName(),
+                    rankWindowSize,
+                    source.size()
+                ),
                 validationException
             );
         }
@@ -236,10 +247,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 if (rankWindowSize > compoundChild.rankWindowSize) {
                     String errorMessage = String.format(
                         Locale.ROOT,
-                        "[%s] requires [rank_window_size: %d] to be smaller than or equal to its sub retriever's %s [rank_window_size: %d]",
+                        "[%s] requires [%s: %d] to be smaller than or equal to its sub retriever's %s [%s: %d]",
                         this.getName(),
+                        getRankWindowSizeField().getPreferredName(),
                         rankWindowSize,
                         compoundChild.getName(),
+                        compoundChild.getRankWindowSizeField(),
                         compoundChild.rankWindowSize
                     );
                     validationException = addValidationError(errorMessage, validationException);

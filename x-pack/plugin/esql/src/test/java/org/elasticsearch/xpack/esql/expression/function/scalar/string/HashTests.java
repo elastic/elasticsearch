@@ -12,10 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -32,7 +30,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class HashTests extends AbstractScalarFunctionTestCase {
 
@@ -106,17 +103,5 @@ public class HashTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Hash(source, args.get(0), args.get(1));
-    }
-
-    public void testInvalidAlgorithmLiteral() {
-        Source source = new Source(0, 0, "hast(\"invalid\", input)");
-        DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(
-            InvalidArgumentException.class,
-            () -> evaluator(
-                new Hash(source, new Literal(source, new BytesRef("invalid"), DataType.KEYWORD), field("input", DataType.KEYWORD))
-            ).get(driverContext)
-        );
-        assertThat(e.getMessage(), startsWith("invalid algorithm for [hast(\"invalid\", input)]: invalid MessageDigest not available"));
     }
 }

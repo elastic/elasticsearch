@@ -32,6 +32,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -99,7 +100,7 @@ public class Hash extends EsqlScalarFunction {
 
     @Evaluator(warnExceptions = NoSuchAlgorithmException.class)
     static BytesRef process(
-        @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
         BytesRef algorithm,
         BytesRef input
     ) throws NoSuchAlgorithmException {
@@ -108,8 +109,8 @@ public class Hash extends EsqlScalarFunction {
 
     @Evaluator(extraName = "Constant")
     static BytesRef processConstant(
-        @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
-        @Fixed(build = true) HashFunction algorithm,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
+        @Fixed(scope = THREAD_LOCAL) HashFunction algorithm,
         BytesRef input
     ) {
         return hash(scratch, algorithm.digest, input);
@@ -204,5 +205,13 @@ public class Hash extends EsqlScalarFunction {
         public String toString() {
             return algorithm;
         }
+    }
+
+    Expression algorithm() {
+        return algorithm;
+    }
+
+    Expression input() {
+        return input;
     }
 }

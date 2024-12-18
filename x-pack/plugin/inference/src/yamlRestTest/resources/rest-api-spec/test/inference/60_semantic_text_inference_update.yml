@@ -52,16 +52,6 @@ setup:
 
 ---
 "Updating non semantic_text fields does not recalculate embeddings":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -102,16 +92,6 @@ setup:
 
 ---
 "Updating semantic_text fields recalculates embeddings":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -190,16 +170,6 @@ setup:
 
 ---
 "Update logic handles source fields in object fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
@@ -299,16 +269,6 @@ setup:
 
 ---
 "Updates fail when the updated value is invalid":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -353,16 +313,6 @@ setup:
 
 ---
 "Partial updates work when using the update API":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
@@ -427,16 +377,6 @@ setup:
 
 ---
 "Partial updates work when using the update API and the semantic_text field's original value is null":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
@@ -502,16 +442,6 @@ setup:
 
 ---
 "Updates with script are not allowed":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         index: test-index
@@ -545,16 +475,6 @@ setup:
 
 ---
 "semantic_text copy_to needs values for every source field for bulk updates":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
@@ -592,16 +512,6 @@ setup:
 
 ---
 "Calculates embeddings for bulk operations - update":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         body:
@@ -646,16 +556,6 @@ setup:
 
 ---
 "Calculates embeddings for bulk operations - upsert":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   # Initial update fails
   - do:
       bulk:
@@ -716,14 +616,6 @@ setup:
   - requires:
       cluster_features: semantic_text.single_field_update_fix
       reason: Standalone semantic text fields are now optional in a bulk update operation
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   # Update as upsert
   - do:

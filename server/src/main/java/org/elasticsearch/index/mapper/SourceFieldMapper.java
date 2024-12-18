@@ -401,10 +401,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(DocumentParserContext context) throws IOException {
+    public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(context, originalSource, contentType);
+        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -432,28 +432,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Nullable
-    public BytesReference applyFilters(
-        @Nullable DocumentParserContext context,
-        @Nullable BytesReference originalSource,
-        @Nullable XContentType contentType
-    ) throws IOException {
-        if (stored() == false || originalSource == null) {
+    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
+        if (stored() == false) {
             return null;
         }
-        var modSourceFilter = sourceFilter;
-        if (context != null
-            && InferenceMetadataFieldsMapper.isEnabled(context.indexSettings().getIndexVersionCreated())
-            && context.mappingLookup().inferenceFields().isEmpty() == false) {
-            String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
-            if (excludes != null) {
-                System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);
-            }
-            modExcludes[modExcludes.length - 1] = InferenceMetadataFieldsMapper.NAME;
-            modSourceFilter = new SourceFilter(includes, modExcludes);
-        }
-        if (modSourceFilter != null) {
+        if (originalSource != null && sourceFilter != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            return Source.fromBytes(originalSource, contentType).filter(modSourceFilter).internalSourceRef();
+            return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
         } else {
             return originalSource;
         }

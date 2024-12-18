@@ -78,11 +78,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
             super(name);
         }
 
-        public Builder setStored(boolean value) {
-            stored.setValue(value);
-            return this;
-        }
-
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { stored, meta };

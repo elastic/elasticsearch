@@ -279,7 +279,6 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
-        "Aggregations",
         "Analysis",
         "Authorization",
         "Cluster and node setting",

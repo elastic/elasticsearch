@@ -27,8 +27,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -67,11 +65,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -123,15 +121,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Settings createTestIndexSettings() {
-        IndexVersion indexVersion = randomFrom(
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
-            ),
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
-        );
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build();
+        // Randomize index version within compatible range
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        IndexVersion indexVersionCreated = randomBoolean()
+            ? IndexVersion.current()
+            : IndexVersionUtils.randomVersionBetween(random(), NEW_SPARSE_VECTOR, IndexVersion.current());
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
     @Override
@@ -153,11 +148,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private void applyRandomInferenceResults(MapperService mapperService) throws IOException {
         // Parse random inference results (or no inference results) to set up the dynamic inference result mappings under the semantic text
         // field
-        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(
-            inferenceResultType,
-            denseVectorElementType,
-            mapperService.getIndexSettings().getIndexVersionCreated()
-        );
+        SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(inferenceResultType, denseVectorElementType);
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
             mapperService.merge(
@@ -207,7 +198,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Query innerQuery = assertOuterBooleanQuery(query);
         assertThat(innerQuery, instanceOf(SparseVectorQueryWrapper.class));
         var sparseQuery = (SparseVectorQueryWrapper) innerQuery;
-        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
+        assertThat(((SparseVectorQueryWrapper) innerQuery).getTermsQuery(), instanceOf(BooleanQuery.class));
 
         BooleanQuery innerBooleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
@@ -343,11 +334,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private static SourceToParse buildSemanticTextFieldWithInferenceResults(
         InferenceResultType inferenceResultType,
-        DenseVectorFieldMapper.ElementType denseVectorElementType,
-        IndexVersion indexVersion
+        DenseVectorFieldMapper.ElementType denseVectorElementType
     ) throws IOException {
-        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
-
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
             case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
@@ -362,21 +350,15 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SourceToParse sourceToParse = null;
         if (modelSettings != null) {
             SemanticTextField semanticTextField = new SemanticTextField(
-                indexVersion,
                 SEMANTIC_TEXT_FIELD,
-                null,
-                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, Map.of(SEMANTIC_TEXT_FIELD, List.of())),
+                List.of(),
+                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, List.of()),
                 XContentType.JSON
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            if (useInferenceMetadataFields) {
-                builder.startObject(InferenceMetadataFieldsMapper.NAME);
-            }
-            builder.field(semanticTextField.fieldName(), semanticTextField);
-            if (useInferenceMetadataFields) {
-                builder.endObject();
-            }
+            builder.field(semanticTextField.fieldName());
+            builder.value(semanticTextField);
             builder.endObject();
             sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
         }

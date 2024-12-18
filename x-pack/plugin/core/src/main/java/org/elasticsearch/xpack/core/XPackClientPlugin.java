@@ -395,6 +395,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
         );
     }
 
+    // TODO: The WeightedTokensBuilder is slated for removal after the SparseVectorQueryBuilder is available.
+    // The logic to create a Boolean query based on weighted tokens will remain and/or be moved to server.
     @Override
     public List<SearchPlugin.QuerySpec<?>> getQueries() {
         return List.of(

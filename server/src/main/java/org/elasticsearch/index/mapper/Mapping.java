@@ -106,7 +106,7 @@ public final class Mapping implements ToXContentFragment {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    public MetadataFieldMapper getMetadataMapperByName(String mapperName) {
+    MetadataFieldMapper getMetadataMapperByName(String mapperName) {
         return metadataMappersByName.get(mapperName);
     }
 

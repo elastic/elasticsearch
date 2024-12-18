@@ -83,9 +83,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         "2017-12-12T22:55:46"
     );
 
-    public void testBooleanFieldUnsupported() throws IOException {
+    public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+        testCase(iw -> {
             Document d = new Document();
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
@@ -95,8 +95,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
                 new BooleanFieldMapper.BooleanFieldType(fieldName)
             )
-        ));
-        assertThat(e.getMessage(), equalTo("Field [bogusBoolean] of type [boolean] is not supported for aggregation [date_histogram]"));
+        );
+        assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testMatchNoDocs() throws IOException {

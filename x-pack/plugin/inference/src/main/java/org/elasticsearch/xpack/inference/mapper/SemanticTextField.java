@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
@@ -35,9 +31,6 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,18 +46,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * the inference results under the {@link SemanticTextField#INFERENCE_FIELD}.
  *
  * @param fieldName The original field name.
- * @param originalValues The original values associated with the field name for indices created before
- *                       {@link IndexVersions#INFERENCE_METADATA_FIELDS}, null otherwise.
+ * @param originalValues The original values associated with the field name.
  * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
  */
-public record SemanticTextField(
-    IndexVersion indexCreatedVersion,
-    String fieldName,
-    @Nullable List<String> originalValues,
-    InferenceResult inference,
-    XContentType contentType
-) implements ToXContentObject {
+public record SemanticTextField(String fieldName, List<String> originalValues, InferenceResult inference, XContentType contentType)
+    implements
+        ToXContentObject {
 
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
@@ -73,20 +61,15 @@ public record SemanticTextField(
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
     public static final String CHUNKED_TEXT_FIELD = "text";
-    static final String CHUNKED_OFFSET_FIELD = "offset";
-    static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
-    static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
 
-    public record InferenceResult(String inferenceId, ModelSettings modelSettings, Map<String, List<Chunk>> chunks) {}
+    public record InferenceResult(String inferenceId, ModelSettings modelSettings, List<Chunk> chunks) {}
 
-    public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
-
-    public record Offset(String sourceFieldName, int startOffset, int endOffset) {}
+    record Chunk(String text, BytesReference rawEmbeddings) {}
 
     public record ModelSettings(
         TaskType taskType,
@@ -204,14 +187,12 @@ public record SemanticTextField(
         return getChunksFieldName(fieldName) + "." + CHUNKED_EMBEDDINGS_FIELD;
     }
 
-    public static String getOffsetsFieldName(String fieldName) {
-        return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
+    static SemanticTextField parse(XContentParser parser, Tuple<String, XContentType> context) throws IOException {
+        return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
     }
 
-    record ParserContext(IndexVersion indexVersionCreated, String fieldName, XContentType xContentType) {}
-
-    static SemanticTextField parse(XContentParser parser, ParserContext context) throws IOException {
-        return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
+    static ModelSettings parseModelSettings(XContentParser parser) throws IOException {
+        return MODEL_SETTINGS_PARSER.parse(parser, null);
     }
 
     static ModelSettings parseModelSettingsFromMap(Object node) {
@@ -226,104 +207,63 @@ public record SemanticTextField(
                 map,
                 XContentType.JSON
             );
-            return MODEL_SETTINGS_PARSER.parse(parser, null);
+            return parseModelSettings(parser);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
     }
 
     @Override
-    public List<String> originalValues() {
-        return originalValues != null ? originalValues : Collections.emptyList();
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
-
         builder.startObject();
-        List<String> originalValues = originalValues();
-        if (useInferenceMetadataFieldsFormat == false && originalValues.isEmpty() == false) {
+        if (originalValues.isEmpty() == false) {
             builder.field(TEXT_FIELD, originalValues.size() == 1 ? originalValues.get(0) : originalValues);
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
-        if (useInferenceMetadataFieldsFormat) {
-            builder.startObject(CHUNKS_FIELD);
-        } else {
-            builder.startArray(CHUNKS_FIELD);
-        }
-        for (var entry : inference.chunks.entrySet()) {
-            if (useInferenceMetadataFieldsFormat) {
-                builder.startArray(entry.getKey());
-            }
-            for (var chunk : entry.getValue()) {
-                builder.startObject();
-                if (useInferenceMetadataFieldsFormat) {
-                    builder.field(CHUNKED_START_OFFSET_FIELD, chunk.startOffset);
-                    builder.field(CHUNKED_END_OFFSET_FIELD, chunk.endOffset);
-                } else {
-                    builder.field(TEXT_FIELD, chunk.text);
-                }
-                XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentParserConfiguration.EMPTY,
-                    chunk.rawEmbeddings,
-                    contentType
-                );
-                builder.field(CHUNKED_EMBEDDINGS_FIELD).copyCurrentStructure(parser);
-                builder.endObject();
-            }
-            if (useInferenceMetadataFieldsFormat) {
-                builder.endArray();
-            }
-        }
-        if (useInferenceMetadataFieldsFormat) {
+        builder.startArray(CHUNKS_FIELD);
+        for (var chunk : inference.chunks) {
+            builder.startObject();
+            builder.field(CHUNKED_TEXT_FIELD, chunk.text);
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                chunk.rawEmbeddings,
+                contentType
+            );
+            builder.field(CHUNKED_EMBEDDINGS_FIELD).copyCurrentStructure(parser);
             builder.endObject();
-        } else {
-            builder.endArray();
         }
+        builder.endArray();
         builder.endObject();
         builder.endObject();
         return builder;
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
-        new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
-            List<String> originalValues = (List<String>) args[0];
-            if (InferenceMetadataFieldsMapper.isEnabled(context.indexVersionCreated)) {
-                if (originalValues != null && originalValues.isEmpty() == false) {
-                    throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
-                }
-                originalValues = null;
-            }
-            return new SemanticTextField(
-                context.indexVersionCreated(),
-                context.fieldName(),
-                originalValues,
+    private static final ConstructingObjectParser<SemanticTextField, Tuple<String, XContentType>> SEMANTIC_TEXT_FIELD_PARSER =
+        new ConstructingObjectParser<>(
+            SemanticTextFieldMapper.CONTENT_TYPE,
+            true,
+            (args, context) -> new SemanticTextField(
+                context.v1(),
+                (List<String>) (args[0] == null ? List.of() : args[0]),
                 (InferenceResult) args[1],
-                context.xContentType()
-            );
-        });
+                context.v2()
+            )
+        );
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<InferenceResult, ParserContext> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<InferenceResult, Void> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
         INFERENCE_FIELD,
         true,
-        args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (Map<String, List<Chunk>>) args[2])
+        args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (List<Chunk>) args[2])
     );
 
-    private static final ConstructingObjectParser<Chunk, ParserContext> CHUNKS_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
         CHUNKS_FIELD,
         true,
-        (args, context) -> {
-            String text = (String) args[0];
-            if (InferenceMetadataFieldsMapper.isEnabled(context.indexVersionCreated) == false && text == null) {
-                throw new IllegalArgumentException("Missing chunk text");
-            }
-            return new Chunk(text, args[1] != null ? (int) args[1] : -1, args[2] != null ? (int) args[2] : -1, (BytesReference) args[3]);
-        }
+        args -> new Chunk((String) args[0], (BytesReference) args[1])
     );
 
     private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
@@ -344,27 +284,15 @@ public record SemanticTextField(
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(
             constructorArg(),
-            (p, c) -> INFERENCE_RESULT_PARSER.parse(p, c),
+            (p, c) -> INFERENCE_RESULT_PARSER.parse(p, null),
             new ParseField(INFERENCE_FIELD)
         );
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
-        INFERENCE_RESULT_PARSER.declareObject(
-            constructorArg(),
-            (p, c) -> MODEL_SETTINGS_PARSER.parse(p, null),
-            new ParseField(MODEL_SETTINGS_FIELD)
-        );
-        INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
-            if (InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated)) {
-                return parseChunksMap(p, c);
-            } else {
-                return Map.of(c.fieldName, parseChunksArrayLegacy(p, c));
-            }
-        }, new ParseField(CHUNKS_FIELD), ObjectParser.ValueType.OBJECT_ARRAY);
+        INFERENCE_RESULT_PARSER.declareObject(constructorArg(), MODEL_SETTINGS_PARSER, new ParseField(MODEL_SETTINGS_FIELD));
+        INFERENCE_RESULT_PARSER.declareObjectArray(constructorArg(), CHUNKS_PARSER, new ParseField(CHUNKS_FIELD));
 
-        CHUNKS_PARSER.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
-        CHUNKS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CHUNKED_START_OFFSET_FIELD));
-        CHUNKS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CHUNKED_END_OFFSET_FIELD));
+        CHUNKS_PARSER.declareString(constructorArg(), new ParseField(CHUNKED_TEXT_FIELD));
         CHUNKS_PARSER.declareField(constructorArg(), (p, c) -> {
             XContentBuilder b = XContentBuilder.builder(p.contentType().xContent());
             b.copyCurrentStructure(p);
@@ -377,63 +305,18 @@ public record SemanticTextField(
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
     }
 
-    private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser, ParserContext context) throws IOException {
-        Map<String, List<Chunk>> resultMap = new LinkedHashMap<>();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            String fieldName = parser.currentName();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            var chunks = resultMap.computeIfAbsent(fieldName, k -> new ArrayList<>());
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                chunks.add(CHUNKS_PARSER.parse(parser, context));
-            }
-        }
-        return resultMap;
-    }
-
-    private static List<Chunk> parseChunksArrayLegacy(XContentParser parser, ParserContext context) throws IOException {
-        List<Chunk> results = new ArrayList<>();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            results.add(CHUNKS_PARSER.parse(parser, context));
-        }
-        return results;
-    }
-
     /**
      * Converts the provided {@link ChunkedInference} into a list of {@link Chunk}.
      */
-    public static List<Chunk> toSemanticTextFieldChunks(
-        String input,
-        int offsetAdjustment,
-        ChunkedInference results,
-        XContentType contentType,
-        boolean useInferenceMetadataFieldsFormat
-    ) throws IOException {
+    public static List<Chunk> toSemanticTextFieldChunks(List<ChunkedInference> results, XContentType contentType) throws IOException {
         List<Chunk> chunks = new ArrayList<>();
-        Iterator<ChunkedInference.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
-        while (it.hasNext()) {
-            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useInferenceMetadataFieldsFormat));
+        for (var result : results) {
+            for (var it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it.hasNext();) {
+                var chunkAsByteReference = it.next();
+                chunks.add(new Chunk(chunkAsByteReference.matchedText(), chunkAsByteReference.bytesReference()));
+            }
         }
         return chunks;
     }
 
-    public static Chunk toSemanticTextFieldChunk(
-        String input,
-        int offsetAdjustment,
-        ChunkedInference.Chunk chunk,
-        boolean useInferenceMetadataFieldsFormat
-    ) {
-        // TODO: Use offsets from ChunkedInferenceServiceResults
-        // TODO: When using legacy semantic text format, build chunk text from offsets
-        assert chunk.matchedText() != null; // TODO: Remove once offsets are available from chunk
-        int startOffset = useInferenceMetadataFieldsFormat ? input.indexOf(chunk.matchedText()) + offsetAdjustment : -1;
-        return new Chunk(
-            useInferenceMetadataFieldsFormat ? null : chunk.matchedText(),
-            useInferenceMetadataFieldsFormat ? startOffset : -1,
-            useInferenceMetadataFieldsFormat ? startOffset + chunk.matchedText().length() : -1,
-            chunk.bytesReference()
-        );
-    }
 }

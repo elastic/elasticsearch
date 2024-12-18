@@ -13,7 +13,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -149,9 +148,11 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
         // we randomly also pick read-only versions to test that we can still parse the parameters for them
-        IndexVersion version = randomBoolean()
-            ? randomFrom(KnownIndexVersions.ALL_READ_ONLY_VERSIONS)
-            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, previousVersion);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersionUtils.getLowestReadCompatibleVersion(),
+            previousVersion
+        );
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they will still be ignored in existing indices

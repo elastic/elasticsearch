@@ -20,13 +20,15 @@ import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static java.util.Map.entry;
+import static java.util.Map.ofEntries;
 
 /**
  * Index-specific deprecation checks
@@ -44,7 +46,10 @@ public class IndexDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
                 "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                 false,
-                Collections.singletonMap("reindex_required", true)
+                ofEntries(
+                    entry("reindex_required", true),
+                    entry("minimum_writable_version_after_upgrade", DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id())
+                )
             );
         }
         return null;

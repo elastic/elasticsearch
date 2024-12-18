@@ -38,6 +38,7 @@ public class DataStreamDeprecationChecks {
                 false,
                 ofEntries(
                     entry("reindex_required", true),
+                    entry("minimum_writable_version_after_upgrade", DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id()),
                     entry("total_backing_indices", backingIndices.size()),
                     entry("indices_requiring_upgrade_count", indicesNeedingUpgrade.size()),
                     entry("indices_requiring_upgrade", indicesNeedingUpgrade)

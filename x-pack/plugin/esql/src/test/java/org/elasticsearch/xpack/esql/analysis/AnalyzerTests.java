@@ -2191,7 +2191,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN mode verification capability", EsqlCapabilities.Cap.JOIN_LOOKUP_VERIFY_MODE.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
         var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();

@@ -70,6 +70,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -113,7 +114,8 @@ public class Lucene {
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        return SegmentInfos.readLatestCommit(directory);
+        // Temporary workaround
+        return SegmentInfos.readLatestCommit(directory, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
     }
 
     /**

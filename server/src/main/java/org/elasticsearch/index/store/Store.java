@@ -38,6 +38,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -207,7 +208,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted();
         try {
             return readSegmentsInfo(null, directory());
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+        } catch (IndexFormatTooOldException e) {
+            // Temporary workaround
+            var indexVersion = indexSettings.getIndexMetadata().getCompatibilityVersion();
+            if (indexVersion.onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+                assert indexVersion.before(IndexVersions.MINIMUM_COMPATIBLE) : indexVersion;
+                try {
+                    return SegmentInfos.readLatestCommit(directory, indexVersion.luceneVersion().major);
+                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ee) {
+                    e.addSuppressed(ee);
+                }
+            }
+            markStoreCorrupted(e);
+            throw e;
+        } catch (CorruptIndexException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         }
@@ -296,7 +310,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         lock.lock();
         try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {}) {
             return MetadataSnapshot.loadFromIndexCommit(commit, directory, logger);
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+        } catch (IndexFormatTooOldException e) {
+            if (IndexMetadataVerifier.isReadOnlySupportedVersion(
+                indexSettings.getIndexMetadata(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            )) {
+                return MetadataSnapshot.loadFromSegmentInfos(readLastCommittedSegmentsInfo(), directory, logger);
+            }
+            markStoreCorrupted(e);
+            throw e;
+        } catch (CorruptIndexException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         } finally {
@@ -820,11 +844,39 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot(emptyMap(), emptyMap(), 0L);
 
         static MetadataSnapshot loadFromIndexCommit(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+            try {
+                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+                return loadFromSegmentInfos(segmentCommitInfos, directory, logger);
+            } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                // we either know the index is corrupted or it's just not there
+                throw ex;
+            } catch (Exception ex) {
+                try {
+                    // Lucene checks the checksum after it tries to lookup the codec etc.
+                    // in that case we might get only IAE or similar exceptions while we are really corrupt...
+                    // TODO we should check the checksum in lucene if we hit an exception
+                    logger.warn(
+                        () -> format(
+                            "failed to build store metadata. checking segment info integrity (with commit [%s])",
+                            commit == null ? "no" : "yes"
+                        ),
+                        ex
+                    );
+                    Lucene.checkSegmentInfoIntegrity(directory);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    throw inner;
+                }
+                throw ex;
+            }
+        }
+
+        static MetadataSnapshot loadFromSegmentInfos(SegmentInfos segmentCommitInfos, Directory directory, Logger logger)
+            throws IOException {
             final long numDocs;
             final Map<String, StoreFileMetadata> metadataByFile = new HashMap<>();
             final Map<String, String> commitUserData;
             try {
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserData = Map.copyOf(segmentCommitInfos.getUserData());
                 // we don't know which version was used to write so we take the max version.
@@ -875,13 +927,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // Lucene checks the checksum after it tries to lookup the codec etc.
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
-                    logger.warn(
-                        () -> format(
-                            "failed to build store metadata. checking segment info integrity (with commit [%s])",
-                            commit == null ? "no" : "yes"
-                        ),
-                        ex
-                    );
+                    logger.warn("failed to build store metadata. checking segment info integrity (with segments infos)", ex);
                     Lucene.checkSegmentInfoIntegrity(directory);
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);

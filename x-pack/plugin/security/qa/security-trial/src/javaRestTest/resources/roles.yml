@@ -18,3 +18,13 @@ dls_painless_role:
     - names: [ "dls-template-painless-index" ]
       privileges: ["read"]
       query: {"template":{"id":"range-now"}}
+
+# This role denies underscore-prefixed fields which are allowed but ignored
+# (in the case of allow-listed fields like _id)
+fls_legacy_metadata_fields_role:
+  indices:
+    - names: [ "index_allowed" ]
+      privileges: [ "read" ]
+      field_security:
+        grant: [ "field*" ]
+        except: [ "_id", "_field3" ]

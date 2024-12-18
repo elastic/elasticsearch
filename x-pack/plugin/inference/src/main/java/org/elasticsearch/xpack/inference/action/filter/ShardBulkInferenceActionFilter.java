@@ -24,11 +24,14 @@ import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -40,11 +43,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,8 +55,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -68,15 +69,26 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSeman
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     protected static final int DEFAULT_BATCH_SIZE = 512;
 
+    private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
     private final int batchSize;
 
-    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry) {
-        this(inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
+    public ShardBulkInferenceActionFilter(
+        ClusterService clusterService,
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry
+    ) {
+        this(clusterService, inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
     }
 
-    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry, int batchSize) {
+    public ShardBulkInferenceActionFilter(
+        ClusterService clusterService,
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry,
+        int batchSize
+    ) {
+        this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.batchSize = batchSize;
@@ -112,7 +124,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         BulkShardRequest bulkShardRequest,
         Runnable onCompletion
     ) {
-        new AsyncBulkShardInferenceAction(fieldInferenceMap, bulkShardRequest, onCompletion).run();
+        var index = clusterService.state().getMetadata().index(bulkShardRequest.index());
+        new AsyncBulkShardInferenceAction(index.getCreationVersion(), fieldInferenceMap, bulkShardRequest, onCompletion).run();
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
@@ -121,26 +134,29 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * A field inference request on a single input.
      * @param index The index of the request in the original bulk request.
      * @param field The target field.
+     * @param sourceField The source field.
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
-     * @param isOriginalFieldInput Whether the input is part of the original values of the field.
+     * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      */
-    private record FieldInferenceRequest(int index, String field, String input, int inputOrder, boolean isOriginalFieldInput) {}
+    private record FieldInferenceRequest(int index, String field, String sourceField, String input, int inputOrder, int offsetAdjustment) {}
 
     /**
      * The field inference response.
      * @param field The target field.
+     * @param sourceField The input that was used to run inference.
      * @param input The input that was used to run inference.
      * @param inputOrder The original order of the input.
-     * @param isOriginalFieldInput Whether the input is part of the original values of the field.
+     * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      * @param model The model used to run inference.
      * @param chunkedResults The actual results.
      */
     private record FieldInferenceResponse(
         String field,
+        String sourceField,
         String input,
         int inputOrder,
-        boolean isOriginalFieldInput,
+        int offsetAdjustment,
         Model model,
         ChunkedInference chunkedResults
     ) {}
@@ -165,16 +181,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private class AsyncBulkShardInferenceAction implements Runnable {
+        private final IndexVersion indexCreatedVersion;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
         private AsyncBulkShardInferenceAction(
+            IndexVersion indexCreatedVersion,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion
         ) {
+            this.indexCreatedVersion = indexCreatedVersion;
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
@@ -295,9 +314,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 acc.addOrUpdateResponse(
                                     new FieldInferenceResponse(
                                         request.field(),
+                                        request.sourceField(),
                                         request.input(),
                                         request.inputOrder(),
-                                        request.isOriginalFieldInput(),
+                                        request.offsetAdjustment(),
                                         inferenceProvider.model,
                                         result
                                     )
@@ -357,8 +377,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         /**
          * Applies the {@link FieldInferenceResponseAccumulator} to the provided {@link BulkItemRequest}.
          * If the response contains failures, the bulk item request is marked as failed for the downstream action.
-         * Otherwise, the source of the request is augmented with the field inference results under the
-         * {@link SemanticTextField#INFERENCE_FIELD} field.
+         * Otherwise, the source of the request is augmented with the field inference results.
          */
         private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) throws IOException {
             if (response.failures().isEmpty() == false) {
@@ -370,25 +389,50 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             var newDocMap = indexRequest.sourceAsMap();
+            Map<String, Object> inferenceFieldsMap = new HashMap<>();
+            final boolean addMetadataField = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                List<String> inputs = responses.stream().filter(r -> r.isOriginalFieldInput).map(r -> r.input).collect(Collectors.toList());
-                List<ChunkedInference> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
+                Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
+                for (var resp : responses) {
+                    var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
+                    lst.addAll(
+                        SemanticTextField.toSemanticTextFieldChunks(
+                            resp.input,
+                            resp.offsetAdjustment,
+                            resp.chunkedResults,
+                            indexRequest.getContentType(),
+                            addMetadataField
+                        )
+                    );
+                }
+                List<String> inputs = responses.stream()
+                    .filter(r -> r.sourceField().equals(fieldName))
+                    .map(r -> r.input)
+                    .collect(Collectors.toList());
                 var result = new SemanticTextField(
+                    indexCreatedVersion,
                     fieldName,
-                    inputs,
+                    addMetadataField ? null : inputs,
                     new SemanticTextField.InferenceResult(
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        toSemanticTextFieldChunks(results, indexRequest.getContentType())
+                        chunkMap
                     ),
                     indexRequest.getContentType()
                 );
-                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
+                if (addMetadataField) {
+                    inferenceFieldsMap.put(fieldName, result);
+                } else {
+                    SemanticTextUtils.insertValue(fieldName, newDocMap, result);
+                }
+            }
+            if (addMetadataField) {
+                newDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceFieldsMap);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }
@@ -403,6 +447,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * TODO: We should validate the settings for pre-existing results here and apply the inference only if they differ?
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
+            final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
+
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
             for (int itemIndex = 0; itemIndex < bulkShardRequest.items().length; itemIndex++) {
                 var item = bulkShardRequest.items()[itemIndex];
@@ -437,17 +483,30 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
-                        // Inference has already been computed, or there is no inference required.
-                        continue;
+
+                    if (useInferenceMetadataFieldsFormat) {
+                        var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                            InferenceMetadataFieldsMapper.NAME + "." + field,
+                            docMap
+                        );
+                        if (inferenceMetadataFieldsValue != null) {
+                            // Inference has already been computed
+                            continue;
+                        }
+                    } else {
+                        var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                        if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                            // Inference has already been computed, or there is no inference required.
+                            continue;
+                        }
                     }
+
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
-                        boolean isOriginalFieldInput = sourceField.equals(field);
+                        // TODO: Detect when the field is provided with an explicit null value
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
-                            if (isUpdateRequest) {
+                            if (isUpdateRequest && (useInferenceMetadataFieldsFormat == false)) {
                                 addInferenceResponseFailure(
                                     item.id(),
                                     new ElasticsearchStatusException(
@@ -464,55 +523,27 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         ensureResponseAccumulatorSlot(itemIndex);
                         final List<String> values;
                         try {
-                            values = nodeStringValues(field, valueObj);
+                            values = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
                             addInferenceResponseFailure(item.id(), exc);
                             break;
                         }
+
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        for (var v : values) {
-                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, v, order++, isOriginalFieldInput));
+                        int offsetAdjustment = 0;
+                        for (String v : values) {
+                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+
+                            // When using the inference metadata fields format, all the input values are concatenated so that the
+                            // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+                            // to apply to account for this.
+                            offsetAdjustment += v.length() + 1; // Add one for separator char length
                         }
                     }
                 }
             }
             return fieldRequestsMap;
         }
-    }
-
-    /**
-     * This method converts the given {@code valueObj} into a list of strings.
-     * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
-     */
-    private static List<String> nodeStringValues(String field, Object valueObj) {
-        if (valueObj instanceof Number || valueObj instanceof Boolean) {
-            return List.of(valueObj.toString());
-        } else if (valueObj instanceof String value) {
-            return List.of(value);
-        } else if (valueObj instanceof Collection<?> values) {
-            List<String> valuesString = new ArrayList<>();
-            for (var v : values) {
-                if (v instanceof Number || v instanceof Boolean) {
-                    valuesString.add(v.toString());
-                } else if (v instanceof String value) {
-                    valuesString.add(value);
-                } else {
-                    throw new ElasticsearchStatusException(
-                        "Invalid format for field [{}], expected [String] got [{}]",
-                        RestStatus.BAD_REQUEST,
-                        field,
-                        valueObj.getClass().getSimpleName()
-                    );
-                }
-            }
-            return valuesString;
-        }
-        throw new ElasticsearchStatusException(
-            "Invalid format for field [{}], expected [String] got [{}]",
-            RestStatus.BAD_REQUEST,
-            field,
-            valueObj.getClass().getSimpleName()
-        );
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

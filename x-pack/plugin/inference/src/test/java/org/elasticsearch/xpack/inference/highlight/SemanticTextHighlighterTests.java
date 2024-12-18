@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -75,6 +77,12 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new InferencePlugin(Settings.EMPTY));
+    }
+
+    @Override
+    protected IndexVersion getVersion() {
+        // TODO: Update once highlighter supports inference metadata fields
+        return IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS);
     }
 
     @Override

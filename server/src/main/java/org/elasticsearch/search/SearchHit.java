@@ -517,6 +517,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.metaFields.putAll(metaFields);
     }
 
+    public DocumentField removeMetadataFields(String field) {
+        return documentFields.remove(field);
+    }
+
     /**
      * @return a map of metadata fields for this hit
      */

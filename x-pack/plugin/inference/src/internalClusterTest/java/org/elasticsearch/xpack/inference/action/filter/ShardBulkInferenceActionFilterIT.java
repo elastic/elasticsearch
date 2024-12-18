@@ -17,11 +17,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
@@ -30,7 +34,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -41,8 +44,9 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.ra
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
-
     public static final String INDEX_NAME = "test-index";
+
+    private IndexVersion indexVersion;
 
     @Before
     public void setup() throws Exception {
@@ -62,8 +66,19 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         return Arrays.asList(LocalStateInferencePlugin.class);
     }
 
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+            .build();
+    }
+
     public void testBulkOperations() throws Exception {
-        Map<String, Integer> shardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
+        this.indexVersion = randomFrom(
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS),
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
+        );
         indicesAdmin().prepareCreate(INDEX_NAME)
             .setMapping(
                 String.format(
@@ -86,7 +101,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
                     TestDenseInferenceServiceExtension.TestInferenceService.NAME
                 )
             )
-            .setSettings(shardsSettings)
             .get();
 
         int totalBulkReqs = randomIntBetween(2, 100);
@@ -152,5 +166,4 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             searchResponse.decRef();
         }
     }
-
 }

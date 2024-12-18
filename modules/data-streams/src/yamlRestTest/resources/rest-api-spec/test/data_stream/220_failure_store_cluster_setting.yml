@@ -1,6 +1,6 @@
 setup:
   - requires:
-      reason: "Data stream options and cluster setting for feature store were added in 8.18+"
+      reason: "Data stream options was added in 8.18+"
       test_runner_features: [ capabilities, allowed_warnings, contains ]
       capabilities:
         - method: POST
@@ -9,7 +9,6 @@ setup:
         - method: POST
           path: /_index_template/{template}
           capabilities: [ 'failure_store_in_template' ]
-      cluster_features: [ 'data_streams.failure_store.cluster_setting' ]
 
   - do:
       cluster.put_settings:

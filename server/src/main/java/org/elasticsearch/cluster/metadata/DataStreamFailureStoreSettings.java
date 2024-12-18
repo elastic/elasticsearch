@@ -14,8 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.features.NodeFeature;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -26,9 +24,6 @@ import static org.elasticsearch.core.Predicates.never;
  * Holder for the data stream global settings relating to the data stream failure store. This defines, validates, and monitors the settings.
  */
 public class DataStreamFailureStoreSettings {
-
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this when we no longer need BWC with versions without this feature
-    static final NodeFeature NODE_FEATURE = new NodeFeature("data_streams.failure_store.cluster_setting");
 
     private static final Logger logger = LogManager.getLogger(DataStreamFailureStoreSettings.class);
 

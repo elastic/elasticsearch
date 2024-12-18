@@ -55,11 +55,13 @@ import org.elasticsearch.cluster.coordination.NodeLeftExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
@@ -83,6 +85,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -315,6 +318,7 @@ public class ClusterStateChanges {
             threadPool,
             indexStateService,
             actionFilters,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
             destructiveOperations
         );
@@ -375,15 +379,18 @@ public class ClusterStateChanges {
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
+        @FixForMultiProject(description = "consider randomizing project-id")
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         final Index[] concreteIndices = Arrays.stream(request.indices())
-            .map(index -> state.metadata().getProject().index(index).getIndex())
+            .map(index -> state.metadata().getProject(projectId).index(index).getIndex())
             .toArray(Index[]::new);
 
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-        ClusterState newState = MetadataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, blockedIndices, state);
+        ClusterState newState = MetadataIndexStateServiceUtils.addIndexClosedBlocks(projectId, concreteIndices, blockedIndices, state);
 
         newState = MetadataIndexStateServiceUtils.closeRoutingTable(
             newState,
+            projectId,
             blockedIndices,
             blockedIndices.keySet().stream().collect(toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
         );

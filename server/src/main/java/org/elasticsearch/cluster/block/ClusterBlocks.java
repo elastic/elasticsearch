@@ -72,24 +72,12 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return projectBlocksMap.values().stream().allMatch(ProjectBlocks::isEmpty);
     }
 
-    @Deprecated(forRemoval = true)
-    public Map<String, Set<ClusterBlock>> indices() {
-        throwIfMultiProjects();
-        return indices(Metadata.DEFAULT_PROJECT_ID);
-    }
-
     public Map<String, Set<ClusterBlock>> indices(ProjectId projectId) {
         return projectBlocksMap.getOrDefault(projectId, ProjectBlocks.EMPTY).indices();
     }
 
     public Set<ClusterBlock> global(ClusterBlockLevel level) {
         return levelHolders.get(level).global();
-    }
-
-    @Deprecated(forRemoval = true)
-    public Map<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
-        throwIfMultiProjects();
-        return indices(Metadata.DEFAULT_PROJECT_ID, level);
     }
 
     public Map<String, Set<ClusterBlock>> indices(ProjectId projectId, ClusterBlockLevel level) {
@@ -196,12 +184,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return clusterBlocks.contains(block);
     }
 
-    @Deprecated(forRemoval = true)
-    public boolean hasIndexBlockWithId(String index, int blockId) {
-        throwIfMultiProjects();
-        return hasIndexBlockWithId(Metadata.DEFAULT_PROJECT_ID, index, blockId);
-    }
-
     // TODO: this can be simplified to `return getIndexBlockWithId(...) != null`
     public boolean hasIndexBlockWithId(ProjectId projectId, String index, int blockId) {
         final var projectBlocks = projectBlocksMap.get(projectId);
@@ -216,13 +198,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             }
         }
         return false;
-    }
-
-    @Deprecated(forRemoval = true)
-    @Nullable
-    public ClusterBlock getIndexBlockWithId(final String index, final int blockId) {
-        throwIfMultiProjects();
-        return getIndexBlockWithId(Metadata.DEFAULT_PROJECT_ID, index, blockId);
     }
 
     @Nullable
@@ -259,10 +234,9 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return new ClusterBlockException(global(level));
     }
 
-    @Deprecated(forRemoval = true)
-    public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {
+    public void indexBlockedRaiseException(ProjectId projectId, ClusterBlockLevel level, String index) throws ClusterBlockException {
         // Not throw for multi-project for now to avoid wide-spread cascading changes.
-        ClusterBlockException blockException = indexBlockedException(level, index);
+        ClusterBlockException blockException = indexBlockedException(projectId, level, index);
         if (blockException != null) {
             throw blockException;
         }
@@ -663,7 +637,14 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         @Deprecated(forRemoval = true)
         public Builder removeIndexBlocks(String index) {
-            final var indices = projects.computeIfAbsent(Metadata.DEFAULT_PROJECT_ID, k -> new HashMap<>());
+            return removeIndexBlocks(Metadata.DEFAULT_PROJECT_ID, index);
+        }
+
+        public Builder removeIndexBlocks(ProjectId projectId, String index) {
+            final var indices = projects.get(projectId);
+            if (indices == null) {
+                return this;
+            }
             if (indices.containsKey(index) == false) {
                 return this;
             }
@@ -671,23 +652,20 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return this;
         }
 
-        @Deprecated(forRemoval = true)
-        public boolean hasIndexBlock(String index, ClusterBlock block) {
-            return hasIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, block);
-        }
-
         public boolean hasIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
-            final var indices = projects.computeIfAbsent(projectId, k -> new HashMap<>());
+            final var indices = projects.get(projectId);
+            if (indices == null) {
+                return false;
+            }
             return indices.getOrDefault(index, Set.of()).contains(block);
         }
 
-        @Deprecated(forRemoval = true)
-        public Builder removeIndexBlock(String index, ClusterBlock block) {
-            return removeIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, block);
-        }
-
         public Builder removeIndexBlock(ProjectId projectId, String index, ClusterBlock block) {
-            final var indices = projects.computeIfAbsent(projectId, k -> new HashMap<>());
+            final var indices = projects.get(projectId);
+            if (indices == null) {
+                return this;
+            }
+
             if (indices.containsKey(index) == false) {
                 return this;
             }
@@ -698,9 +676,12 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return this;
         }
 
-        @Deprecated(forRemoval = true)
-        public Builder removeIndexBlockWithId(String index, int blockId) {
-            final var indices = projects.computeIfAbsent(Metadata.DEFAULT_PROJECT_ID, k -> new HashMap<>());
+        public Builder removeIndexBlockWithId(ProjectId projectId, String index, int blockId) {
+            final var indices = projects.get(projectId);
+            if (indices == null) {
+                return this;
+            }
+
             final Set<ClusterBlock> indexBlocks = indices.get(index);
             if (indexBlocks == null) {
                 return this;

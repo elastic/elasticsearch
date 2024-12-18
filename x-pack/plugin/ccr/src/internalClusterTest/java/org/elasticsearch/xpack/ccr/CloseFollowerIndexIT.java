@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -108,7 +109,10 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
         ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().getProject().index("index2").getState(), is(IndexMetadata.State.CLOSE));
-        assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+        assertThat(
+            clusterState.getBlocks().hasIndexBlock(Metadata.DEFAULT_PROJECT_ID, "index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK),
+            is(true)
+        );
 
         isRunning.set(false);
         for (Thread thread : threads) {
@@ -119,7 +123,11 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
         clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().getProject().index("index2").getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.getBlocks().hasIndexBlockWithId("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        assertThat(
+            clusterState.getBlocks()
+                .hasIndexBlockWithId(Metadata.DEFAULT_PROJECT_ID, "index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID),
+            is(false)
+        );
         ensureFollowerGreen("index2");
 
         refresh(leaderClient(), "index1");

@@ -1631,7 +1631,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
-                Metadata.DEFAULT_PROJECT_ID,
+                projectId,
                 IndexMetadata.builder("test")
                     .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
@@ -1641,9 +1641,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(Settings.EMPTY),
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
-            assertThat(updatedClusterState.blocks().indices(), is(anEmptyMap()));
-            assertThat(updatedClusterState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(false));
-            assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
+            assertThat(updatedClusterState.blocks().indices(projectId), is(anEmptyMap()));
+            assertThat(updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(false));
+            assertThat(updatedClusterState.routingTable(projectId).index("test"), is(notNullValue()));
         }
         {
             var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
@@ -1658,7 +1658,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             int nbReplicas = randomIntBetween(0, 1);
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
-                Metadata.DEFAULT_PROJECT_ID,
+                projectId,
                 IndexMetadata.builder("test")
                     .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
@@ -1671,9 +1671,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
 
             var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
-            assertThat(updatedClusterState.blocks().indices(), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
-            assertThat(updatedClusterState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(expectRefreshBlock));
-            assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
+            assertThat(updatedClusterState.blocks().indices(projectId), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
+            assertThat(
+                updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
+                is(expectRefreshBlock)
+            );
+            assertThat(updatedClusterState.routingTable(projectId).index("test"), is(notNullValue()));
         }
     }
 

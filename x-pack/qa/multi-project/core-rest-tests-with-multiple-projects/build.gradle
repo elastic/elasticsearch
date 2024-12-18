@@ -38,9 +38,6 @@ tasks.named("yamlRestTest").configure {
     '^cat.snapshots/*/*',
     '^cluster.allocation_explain/10_basic/Cluster shard allocation explanation test with a closed index', // closed index
     '^cluster.desired_balance/10_basic/*',
-    '^cluster.health/10_basic/cluster health with closed index', // closed index
-    '^cluster.health/30_indices_options/cluster health with expand_wildcards', // closed index
-    '^cluster.state/20_filtering/*', // add index blocks needs to be project aware
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
     '^data_stream/lifecycle/*/*',
@@ -62,15 +59,10 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/200_rollover_failure_store/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
-    '^indices.blocks/*/*',
     '^indices.clear_cache/*/*',
     '^indices.clone/*/*',
     '^indices.get/*/*',
-    '^indices.get_alias/10_basic/Get alias against closed indices',
-    '^indices.get_mapping/50_wildcard_expansion/*', // index close does not work
-    '^indices.open/*/*',
-    '^indices.open/*/*/*',
-    '^indices.put_settings/10_basic/Test preserve_existing settings', // index close does not work
+    '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
     '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
@@ -82,7 +74,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.simulate_template/*/*',
     '^indices.sort/10_basic/*',
     '^indices.split/*/*',
-    '^indices.stats/15_open_closed_state/*',
     '^indices.stats/20_translog/*',
     '^indices.stats/30_segments/*',
     '^indices.stats/60_field_usage/*',

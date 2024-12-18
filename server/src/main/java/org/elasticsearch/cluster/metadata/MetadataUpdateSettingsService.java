@@ -326,7 +326,14 @@ public class MetadataUpdateSettingsService {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean changedBlocks = false;
             for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
-                changedBlocks |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
+                changedBlocks |= maybeUpdateClusterBlock(
+                    request.projectId(),
+                    actualIndices,
+                    blocks,
+                    block.block,
+                    block.setting,
+                    openSettings
+                );
             }
             changed |= changedBlocks;
 
@@ -418,6 +425,7 @@ public class MetadataUpdateSettingsService {
      * Updates the cluster block only iff the setting exists in the given settings
      */
     private static boolean maybeUpdateClusterBlock(
+        ProjectId projectId,
         String[] actualIndices,
         ClusterBlocks.Builder blocks,
         ClusterBlock block,
@@ -429,13 +437,13 @@ public class MetadataUpdateSettingsService {
             final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
                 if (updateBlock) {
-                    if (blocks.hasIndexBlock(index, block) == false) {
-                        blocks.addIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(projectId, index, block) == false) {
+                        blocks.addIndexBlock(projectId, index, block);
                         changed = true;
                     }
                 } else {
-                    if (blocks.hasIndexBlock(index, block)) {
-                        blocks.removeIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(projectId, index, block)) {
+                        blocks.removeIndexBlock(projectId, index, block);
                         changed = true;
                     }
                 }

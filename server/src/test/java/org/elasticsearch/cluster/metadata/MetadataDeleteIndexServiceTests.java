@@ -157,6 +157,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     }
 
     public void testDeleteIndexWithAnAlias() {
+        ProjectId projectId = randomProjectIdOrDefault();
         String index = randomAlphaOfLength(5);
         String alias = randomAlphaOfLength(5);
 
@@ -167,22 +168,25 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(idxMetadata, false))
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(idxMetadata).build())
-            .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(idxMetadata, false).build())
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(idxMetadata).build()
+            )
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, idxMetadata))
             .build();
 
         ClusterState after = MetadataDeleteIndexService.deleteIndices(
             before,
-            Set.of(before.metadata().getProject().indices().get(index).getIndex()),
+            Set.of(before.metadata().getProject(projectId).indices().get(index).getIndex()),
             Settings.EMPTY
         );
 
-        assertNull(after.metadata().getProject().indices().get(index));
-        assertNull(after.routingTable().index(index));
-        assertNull(after.blocks().indices().get(index));
-        assertNull(after.metadata().getProject().getIndicesLookup().get(alias));
-        assertThat(after.metadata().getProject().aliasedIndices(alias), empty());
+        assertNull(after.metadata().getProject(projectId).indices().get(index));
+        assertNull(after.routingTable(projectId).index(index));
+        assertNull(after.blocks().indices(projectId).get(index));
+        assertNull(after.metadata().getProject(projectId).getIndicesLookup().get(alias));
+        assertThat(after.metadata().getProject(projectId).aliasedIndices(alias), empty());
     }
 
     public void testDeleteBackingIndexForDataStream() {

@@ -326,7 +326,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
         blocks.globalBlockedRaiseException(ClusterBlockLevel.READ);
         for (String index : concreteIndices) {
-            blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
         }
     }
 

@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -510,31 +509,35 @@ public class DiskThresholdMonitor {
             checkFinished();
             return;
         }
-        ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+        final ClusterState state = clusterStateSupplier.get();
+        ActionListener<Void> wrappedListener = new CountDownActionListener(state.metadata().projects().size(), ActionListener.wrap(r -> {
             cleanupUponDisableCalled.set(true);
             checkFinished();
         }, e -> {
             logger.debug("removing read-only blocks from indices failed", e);
             checkFinished();
-        });
-        final ClusterState state = clusterStateSupplier.get();
-        @FixForMultiProject(description = "loop through blocks from all projects")
-        final Set<String> indicesToRelease = state.getBlocks()
-            .indices()
-            .keySet()
-            .stream()
-            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-            .collect(Collectors.toUnmodifiableSet());
-        logger.trace("removing read-only block from indices [{}]", indicesToRelease);
-        if (indicesToRelease.isEmpty() == false) {
-            client.admin()
-                .indices()
-                .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
-                .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
-                .origin("disk-threshold-monitor")
-                .execute(wrappedListener.map(r -> null));
-        } else {
-            wrappedListener.onResponse(null);
+        }));
+        for (var projectId : state.metadata().projects().keySet()) {
+            final Set<String> indicesToRelease = state.getBlocks()
+                .indices(projectId)
+                .keySet()
+                .stream()
+                .filter(index -> state.getBlocks().hasIndexBlock(projectId, index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+                .collect(Collectors.toUnmodifiableSet());
+            logger.trace("removing read-only block from indices [{}] for project [{}]", indicesToRelease, projectId);
+            if (indicesToRelease.isEmpty() == false) {
+                projectResolver.executeOnProject(
+                    projectId,
+                    () -> client.admin()
+                        .indices()
+                        .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
+                        .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
+                        .origin("disk-threshold-monitor")
+                        .execute(wrappedListener.map(r -> null))
+                );
+            } else {
+                wrappedListener.onResponse(null);
+            }
         }
     }
 

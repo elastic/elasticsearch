@@ -39,11 +39,6 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
     public static final ParseField SOURCE_FIELD = new ParseField("source");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
-    /*
-     * The version before which we do not support writes in the _next_ major version of Elasticsearch. For example, Elasticsearch 10.x will
-     * not support writing to indices created before version 9.0.0.
-     */
-
     public ReindexDataStreamAction() {
         super(NAME);
     }

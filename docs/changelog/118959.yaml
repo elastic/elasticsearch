@@ -1,0 +1,5 @@
+pr: 118959
+summary: Adding reindexed alerts as data backing index prefixes
+area: Authorization
+type: enhancement
+issues: []

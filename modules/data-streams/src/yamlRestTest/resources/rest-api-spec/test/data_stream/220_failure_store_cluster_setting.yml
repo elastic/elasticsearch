@@ -9,6 +9,9 @@ setup:
         - method: POST
           path: /_index_template/{template}
           capabilities: [ 'failure_store_in_template' ]
+        - method: PUT
+          path: /_cluster/settings
+          capabilities: [ 'data_stream_failure_store_cluster_setting' ]
 
   - do:
       cluster.put_settings:

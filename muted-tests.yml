@@ -87,9 +87,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115816
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=cat.shards/10_basic/Help}
-  issue: https://github.com/elastic/elasticsearch/issues/116110
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   method: testLookbackWithIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/116127
@@ -305,6 +302,12 @@ tests:
 - class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
   method: testPruneSome
   issue: https://github.com/elastic/elasticsearch/issues/118728
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/indices/shard-stores/line_150}
+  issue: https://github.com/elastic/elasticsearch/issues/118896
+- class: org.elasticsearch.cluster.service.MasterServiceTests
+  method: testThreadContext
+  issue: https://github.com/elastic/elasticsearch/issues/118914
 
 # Examples:
 #

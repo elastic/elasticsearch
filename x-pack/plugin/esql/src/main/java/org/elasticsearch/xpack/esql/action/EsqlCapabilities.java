@@ -352,7 +352,10 @@ public class EsqlCapabilities {
          * Support for mixed comparisons between nanosecond and millisecond dates
          */
         DATE_NANOS_COMPARE_TO_MILLIS(),
-
+        /**
+         * Support implicit casting of strings to date nanos
+         */
+        DATE_NANOS_IMPLICIT_CASTING(),
         /**
          * Support Least and Greatest functions on Date Nanos type
          */
@@ -547,7 +550,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V6(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V7(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -582,7 +585,12 @@ public class EsqlCapabilities {
         /**
          * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
          */
-        FIXED_REGEX_FOLD;
+        FIXED_REGEX_FOLD,
+
+        /**
+         * Full text functions can be used in disjunctions
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
 
         private final boolean enabled;
 

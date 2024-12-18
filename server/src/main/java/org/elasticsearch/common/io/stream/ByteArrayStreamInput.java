@@ -85,6 +85,11 @@ public class ByteArrayStreamInput extends StreamInput {
     }
 
     @Override
+    public byte tryReadByte() {
+        return bytes[pos];
+    }
+
+    @Override
     public void readBytes(byte[] b, int offset, int len) {
         System.arraycopy(bytes, pos, b, offset, len);
         pos += len;

@@ -137,7 +137,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                     delete.uid(),
                     delete.seqNo(),
                     primaryTerm,
-                    delete.version()
+                    delete.version(),
+                    delete.routing()
                 );
                 break;
             case NO_OP:

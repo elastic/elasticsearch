@@ -6,6 +6,38 @@ ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
 
+// Add previous release to the list
+Other versions:
+
+{ref-bare}/8.16/release-highlights.html[8.16]
+| {ref-bare}/8.15/release-highlights.html[8.15]
+| {ref-bare}/8.14/release-highlights.html[8.14]
+| {ref-bare}/8.13/release-highlights.html[8.13]
+| {ref-bare}/8.12/release-highlights.html[8.12]
+| {ref-bare}/8.11/release-highlights.html[8.11]
+| {ref-bare}/8.10/release-highlights.html[8.10]
+| {ref-bare}/8.9/release-highlights.html[8.9]
+| {ref-bare}/8.8/release-highlights.html[8.8]
+| {ref-bare}/8.7/release-highlights.html[8.7]
+| {ref-bare}/8.6/release-highlights.html[8.6]
+| {ref-bare}/8.5/release-highlights.html[8.5]
+| {ref-bare}/8.4/release-highlights.html[8.4]
+| {ref-bare}/8.3/release-highlights.html[8.3]
+| {ref-bare}/8.2/release-highlights.html[8.2]
+| {ref-bare}/8.1/release-highlights.html[8.1]
+| {ref-bare}/8.0/release-highlights.html[8.0]
+
+endif::[]
+
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
+// tag::notable-highlights[]
+// [discrete]
+// === Heading
+//
+// Description.
+// end::notable-highlights[]
+
 [discrete]
 [[logsdb-index-mode-generally-available]]
 === `logsdb` index mode is now generally available
@@ -40,37 +72,5 @@ With this release, we are introducing a pre-configured default ELSER endpoint. T
 The technical preview of the new `MATCH` and `QSTR` (query string) functions in ES|QL makes log searches easier and more intuitive. `MATCH` delivers full-text search functionality in ES|QL using a Lucene match query, while `QTSR` aids in more advanced filtering of log data by enabling Lucene query string queries. 
 
 Full-text search for ES|QL enables easier and more performant searching in Discover, especially when dealing with multiple terms or conditional logic. Learn more in the <<esql-search-functions, ES|QL full-text search documentation>>.
-
-// Add previous release to the list
-Other versions:
-
-{ref-bare}/8.16/release-highlights.html[8.16]
-| {ref-bare}/8.15/release-highlights.html[8.15]
-| {ref-bare}/8.14/release-highlights.html[8.14]
-| {ref-bare}/8.13/release-highlights.html[8.13]
-| {ref-bare}/8.12/release-highlights.html[8.12]
-| {ref-bare}/8.11/release-highlights.html[8.11]
-| {ref-bare}/8.10/release-highlights.html[8.10]
-| {ref-bare}/8.9/release-highlights.html[8.9]
-| {ref-bare}/8.8/release-highlights.html[8.8]
-| {ref-bare}/8.7/release-highlights.html[8.7]
-| {ref-bare}/8.6/release-highlights.html[8.6]
-| {ref-bare}/8.5/release-highlights.html[8.5]
-| {ref-bare}/8.4/release-highlights.html[8.4]
-| {ref-bare}/8.3/release-highlights.html[8.3]
-| {ref-bare}/8.2/release-highlights.html[8.2]
-| {ref-bare}/8.1/release-highlights.html[8.1]
-| {ref-bare}/8.0/release-highlights.html[8.0]
-
-endif::[]
-
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
-// tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
 
 

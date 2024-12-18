@@ -1032,6 +1032,24 @@ public final class IndexSettings {
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        if (recoverySourceSyntheticEnabled) {
+            // Verify that all nodes can handle this setting
+            if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
+                && version.between(
+                IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            ) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "The setting [%s] is unavailable on this cluster because some nodes are running older "
+                            + "versions that do not support it. Please upgrade all nodes to the latest version "
+                            + "and try again.",
+                        RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                    )
+                );
+            }
+        }
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,

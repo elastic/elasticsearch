@@ -604,11 +604,11 @@ public class CsvTestsDataLoader {
         boolean requiresInferenceEndpoint
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, false);
+            this(indexName, mappingFileName, "data/" + dataFileName, null, true, null, false);
         }
 
         public TestsDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", "data/" + indexName + ".csv", null, true, null, false);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
         }
 
         public TestsDataset withIndex(String indexName) {

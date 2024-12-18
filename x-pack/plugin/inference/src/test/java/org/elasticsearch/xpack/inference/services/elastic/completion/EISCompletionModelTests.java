@@ -19,7 +19,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-// TODO determine if we need the model id
 public class EISCompletionModelTests extends ESTestCase {
 
     public void testOverridingModelId() {

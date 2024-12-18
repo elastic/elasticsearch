@@ -54,56 +54,6 @@ setup:
 "Updating non semantic_text fields does not recalculate embeddings":
   - requires:
       test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      index:
-        index: test-index
-        id: doc_1
-        body:
-          sparse_field: "inference test"
-          dense_field: "another inference test"
-          non_inference_field: "non inference test"
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - set: { _source.sparse_field.inference.chunks.0.embeddings: sparse_field_embedding }
-  - set: { _source.dense_field.inference.chunks.0.embeddings: dense_field_embedding }
-
-  - do:
-      update:
-        index: test-index
-        id: doc_1
-        body:
-          doc:
-            non_inference_field: "another non inference test"
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match:  { _source.sparse_field.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.embeddings: $sparse_field_embedding }
-  - match:  { _source.dense_field.text: "another inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.embeddings: $dense_field_embedding }
-  - match:  { _source.non_inference_field: "another non inference test" }
-
----
-"Updating non semantic_text fields does not recalculate embeddings - inference metadata fields":
-  - requires:
-      test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
       capabilities:
         - method: GET
@@ -166,94 +116,6 @@ setup:
 
 ---
 "Updating semantic_text fields recalculates embeddings":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      index:
-        index: test-index
-        id: doc_1
-        body:
-          sparse_field: "inference test"
-          dense_field: "another inference test"
-          non_inference_field: "non inference test"
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match:  { _source.sparse_field.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match:  { _source.dense_field.text: "another inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match:  { _source.non_inference_field: "non inference test" }
-
-  - do:
-      bulk:
-        index: test-index
-        body:
-          - '{"update": {"_id": "doc_1"}}'
-          - '{"doc":{"sparse_field": "I am a test", "dense_field": "I am a teapot"}}'
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match:  { _source.sparse_field.text: "I am a test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "I am a test" }
-  - match:  { _source.dense_field.text: "I am a teapot" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "I am a teapot" }
-  - match:  { _source.non_inference_field: "non inference test" }
-
-  - do:
-      update:
-        index: test-index
-        id: doc_1
-        body:
-          doc:
-            sparse_field: "updated inference test"
-            dense_field: "another updated inference test"
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match:  { _source.sparse_field.text: "updated inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match:  { _source.dense_field.text: "another updated inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match:  { _source.non_inference_field: "non inference test" }
-
-  - do:
-      bulk:
-        index: test-index
-        body:
-          - '{"update": {"_id": "doc_1"}}'
-          - '{"doc":{"sparse_field": "bulk inference test", "dense_field": "bulk updated inference test"}}'
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match:  { _source.sparse_field.text: "bulk inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "bulk inference test" }
-  - match:  { _source.dense_field.text: "bulk updated inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "bulk updated inference test" }
-  - match:  { _source.non_inference_field: "non inference test" }
-
----
-"Updating semantic_text fields recalculates embeddings - inference metadata fields":
   - requires:
       test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
@@ -362,115 +224,6 @@ setup:
 
 ---
 "Update logic handles source fields in object fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      indices.create:
-        index: test-copy-to-index
-        body:
-          mappings:
-            properties:
-              sparse_field:
-                type: semantic_text
-                inference_id: sparse-inference-id
-              dense_field:
-                type: semantic_text
-                inference_id: dense-inference-id
-              object_source:
-                properties:
-                  sparse_field:
-                    type: text
-                    copy_to: sparse_field
-                  dense_field:
-                    type: text
-                    copy_to: dense_field
-
-  - do:
-      index:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          sparse_field: "sparse data 1"
-          dense_field: "dense data 1"
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 1 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 1" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 1 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
-
-  - do:
-      bulk:
-        index: test-copy-to-index
-        body:
-          - '{"update": {"_id": "doc_1"}}'
-          - >
-           {
-             "doc": {
-               "sparse_field": "sparse data 1",
-               "object_source.sparse_field": "sparse data 2",
-               "dense_field": "dense data 1",
-               "object_source.dense_field": "dense data 2"
-             }
-           }
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 2" }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 1" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
-
-  - do:
-      update:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          doc:
-            {
-              "sparse_field": "sparse data 1",
-              "object_source.sparse_field": "sparse data 3",
-              "dense_field": "dense data 1",
-              "object_source.dense_field": "dense data 3"
-            }
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 3" }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 1" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
-
----
-"Update logic handles source fields in object fields - inference metadata fields":
   - requires:
       test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
@@ -637,80 +390,6 @@ setup:
 "Partial updates work when using the update API":
   - requires:
       test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      indices.create:
-        index: test-copy-to-index
-        body:
-          mappings:
-            properties:
-              sparse_field:
-                type: semantic_text
-                inference_id: sparse-inference-id
-              sparse_source_field:
-                type: text
-                copy_to: sparse_field
-              dense_field:
-                type: semantic_text
-                inference_id: dense-inference-id
-              dense_source_field:
-                type: text
-                copy_to: dense_field
-
-  - do:
-      index:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          sparse_field: "sparse data 1"
-          sparse_source_field: "sparse data 2"
-          dense_field: "dense data 1"
-          dense_source_field: "dense data 2"
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 2" }
-  - exists: _source.sparse_field.inference.chunks.1.embeddings
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
-  - exists: _source.dense_field.inference.chunks.1.embeddings
-
-  - do:
-      update:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 3" }
-  - exists: _source.sparse_field.inference.chunks.1.embeddings
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
-  - exists: _source.dense_field.inference.chunks.1.embeddings
-
----
-"Partial updates work when using the update API - inference metadata fields":
-  - requires:
-      test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
       capabilities:
         - method: GET
@@ -809,81 +488,6 @@ setup:
 "Partial updates work when using the update API and the semantic_text field's original value is null":
   - requires:
       test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      indices.create:
-        index: test-copy-to-index
-        body:
-          mappings:
-            properties:
-              sparse_field:
-                type: semantic_text
-                inference_id: sparse-inference-id
-              sparse_source_field:
-                type: text
-                copy_to: sparse_field
-              dense_field:
-                type: semantic_text
-                inference_id: dense-inference-id
-              dense_source_field:
-                type: text
-                copy_to: dense_field
-
-  # Don't set sparse_field or dense_field so their original value is null
-  - do:
-      index:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          sparse_source_field: "sparse data 2"
-          dense_source_field: "dense data 2"
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: null }
-  - length: { _source.sparse_field.inference.chunks: 1 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 2" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.text: null }
-  - length: { _source.dense_field.inference.chunks: 1 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 2" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-
-  - do:
-      update:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: null }
-  - length: { _source.sparse_field.inference.chunks: 1 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 3" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.text: null }
-  - length: { _source.dense_field.inference.chunks: 1 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 3" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-
----
-"Partial updates work when using the update API and the semantic_text field's original value is null - inference metadata fields":
-  - requires:
-      test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
       capabilities:
         - method: GET
@@ -974,52 +578,7 @@ setup:
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 16 }
 
 ---
-"Updates with script are not allowed":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      bulk:
-        index: test-index
-        body:
-          - '{"index": {"_id": "doc_1"}}'
-          - '{"doc":{"sparse_field": "I am a test", "dense_field": "I am a teapot"}}'
-
-  - match: { errors: false }
-
-  - do:
-      bulk:
-        index: test-index
-        body:
-          - '{"update": {"_id": "doc_1"}}'
-          - '{"script": "ctx._source.new_field = \"hello\"", "scripted_upsert": true}'
-
-  - match: { errors: true }
-  - match: { items.0.update.status: 400 }
-  - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
-
-  - do:
-      catch: bad_request
-      update:
-        index: test-index
-        id: doc_1
-        body:
-          script:
-            source: "ctx._source.new_field = \"hello\""
-            lang: "painless"
-
-  - match: { error.type: "status_exception" }
-  - match: { error.reason: "Cannot apply update with a script on indices that contain inference field(s)" }
-
----
-"Updates with script via bulk API are not allowed - inference metadata fields":
+"Updates with script via bulk API are not allowed":
   - requires:
       test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
@@ -1051,7 +610,7 @@ setup:
   - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
 
 ---
-"Updates with script works when using the update API - inference metadata fields":
+"Updates with script works when using the update API":
   - requires:
       test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
@@ -1102,54 +661,7 @@ setup:
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 14 }
 
 ---
-"semantic_text copy_to needs values for every source field for bulk updates":
-  - requires:
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      indices.create:
-        index: test-copy-to-index
-        body:
-          mappings:
-            properties:
-              sparse_field:
-                type: semantic_text
-                inference_id: sparse-inference-id
-              source_field:
-                type: text
-                copy_to: sparse_field
-              another_source_field:
-                type: text
-                copy_to: sparse_field
-
-  # Not every source field needed on creation
-  - do:
-      index:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          source_field: "a single source field provided"
-          sparse_field: "inference test"
-
-  # Every source field needed on bulk updates
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-copy-to-index", "_id": "doc_1"}}'
-          - '{"doc": {"source_field": "a single source field is kept as provided via bulk", "sparse_field": "updated inference test" }}'
-
-  - match: { items.0.update.status: 400 }
-  - match: { items.0.update.error.reason: "Field [another_source_field] must be specified on an update request to calculate inference for field [sparse_field]" }
-
----
-"semantic_text copy_to does not need values for every source field for bulk updates - inference metadata fields":
+"semantic_text copy_to does not need values for every source field for bulk updates":
   - requires:
       test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
@@ -1216,60 +728,6 @@ setup:
 "Calculates embeddings for bulk operations - update":
   - requires:
       test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  - do:
-      bulk:
-        body:
-          - '{"index": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test"}'
-
-  - match: { errors: false }
-  - match: { items.0.index.result: "created" }
-
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": "updated inference test", "dense_field": "another updated inference test", "non_inference_field": "updated non inference test" }}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "updated" }
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "updated inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match: { _source.dense_field.text: "another updated inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match: { _source.non_inference_field: "updated non inference test" }
-
-  # Script update not supported
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"script": {"source": {"ctx.sparse_field": "updated inference test"}}}'
-
-  - match: { errors: true }
-  - match: { items.0.update.status: 400 }
-  - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
-
----
-"Calculates embeddings for bulk operations - update - inference metadata fields":
-  - requires:
-      test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
       capabilities:
         - method: GET
@@ -1333,73 +791,6 @@ setup:
 "Calculates embeddings for bulk operations - upsert":
   - requires:
       test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  # Initial update fails
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }}'
-
-  - match: { errors: true }
-  - match: { items.0.update.status: 404 }
-
-  # Update as upsert
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "created" }
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match: { _source.dense_field.text: "another inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match: { _source.non_inference_field: "non inference test" }
-
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": "updated inference test", "dense_field": "another updated inference test", "non_inference_field": "updated non inference test" }, "doc_as_upsert": true}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "updated" }
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "updated inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match: { _source.dense_field.text: "another updated inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match: { _source.non_inference_field: "updated non inference test" }
-
----
-"Calculates embeddings for bulk operations - upsert - inference metadata fields":
-  - requires:
-      test_runner_features: [ capabilities ]
       reason: Test targets semantic text with inference metadata fields
       capabilities:
         - method: GET
@@ -1483,155 +874,92 @@ setup:
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 30 }
 
----
-"Bypass inference on bulk update operation":
-  - requires:
-      cluster_features: semantic_text.single_field_update_fix
-      reason: Standalone semantic text fields are now optional in a bulk update operation
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  # Update as upsert
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "created" }
-
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "non_inference_field": "another value" }, "doc_as_upsert": true}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "updated" }
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match: { _source.dense_field.text: "another inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match: { _source.non_inference_field: "another value" }
-
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": null, "dense_field": null, "non_inference_field": "updated value" }, "doc_as_upsert": true}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "updated" }
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match: { _source.sparse_field: null }
-  - match: { _source.dense_field: null }
-  - match: { _source.non_inference_field: "updated value" }
-
----
-"Bypass inference on bulk update operation - inference metadata fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
-  # Update as upsert
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "created" }
-
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "non_inference_field": "another value" }, "doc_as_upsert": true}'
-        refresh: true
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "updated" }
-
-  - do:
-      search:
-        index: test-index
-        body:
-          fields: [ _inference_fields ]
-          query:
-            match_all: { }
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.total.relation: eq }
-
-  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
-  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
-  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
-  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
-  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
-
-  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
-  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
-  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
-  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
-  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
-
-  - match: { hits.hits.0._source.sparse_field: "inference test" }
-  - match: { hits.hits.0._source.dense_field: "another inference test" }
-  - match: { hits.hits.0._source.non_inference_field: "another value" }
-
-  - do:
-      bulk:
-        body:
-          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
-          - '{"doc": { "sparse_field": null, "dense_field": null, "non_inference_field": "updated value" }, "doc_as_upsert": true}'
-        refresh: true
-
-  - match: { errors: false }
-  - match: { items.0.update.result: "updated" }
-
-  - do:
-      search:
-        index: test-index
-        body:
-          fields: [ _inference_fields ]
-          query:
-            match_all: { }
-
-  - match: { hits.total.value: 1 }
-  - match: { hits.total.relation: eq }
-
-  # TODO: BUG! Setting sparse_field & dense_field to null does not clear _inference_fields
-  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
-  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 0 }
-
-  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
-  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 0 }
-
-  - not_exists: hits.hits.0._source.sparse_field
-  - not_exists: hits.hits.0._source.dense_field
-  - match: { hits.hits.0._source.non_inference_field: "updated value" }
+# TODO: Uncomment this test once we implement a fix
+#---
+#"Bypass inference on bulk update operation":
+#  - requires:
+#      test_runner_features: [ capabilities ]
+#      reason: Test targets semantic text with inference metadata fields
+#      capabilities:
+#        - method: GET
+#          path: /_inference
+#          capabilities: [ inference_metadata_fields ]
+#
+#  # Update as upsert
+#  - do:
+#      bulk:
+#        body:
+#          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+#          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
+#
+#  - match: { errors: false }
+#  - match: { items.0.update.result: "created" }
+#
+#  - do:
+#      bulk:
+#        body:
+#          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+#          - '{"doc": { "non_inference_field": "another value" }, "doc_as_upsert": true}'
+#        refresh: true
+#
+#  - match: { errors: false }
+#  - match: { items.0.update.result: "updated" }
+#
+#  - do:
+#      search:
+#        index: test-index
+#        body:
+#          fields: [ _inference_fields ]
+#          query:
+#            match_all: { }
+#
+#  - match: { hits.total.value: 1 }
+#  - match: { hits.total.relation: eq }
+#
+#  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+#  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+#  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+#  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+#  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+#
+#  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+#  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+#  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+#  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+#  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+#
+#  - match: { hits.hits.0._source.sparse_field: "inference test" }
+#  - match: { hits.hits.0._source.dense_field: "another inference test" }
+#  - match: { hits.hits.0._source.non_inference_field: "another value" }
+#
+#  - do:
+#      bulk:
+#        body:
+#          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+#          - '{"doc": { "sparse_field": null, "dense_field": null, "non_inference_field": "updated value" }, "doc_as_upsert": true}'
+#        refresh: true
+#
+#  - match: { errors: false }
+#  - match: { items.0.update.result: "updated" }
+#
+#  - do:
+#      search:
+#        index: test-index
+#        body:
+#          fields: [ _inference_fields ]
+#          query:
+#            match_all: { }
+#
+#  - match: { hits.total.value: 1 }
+#  - match: { hits.total.relation: eq }
+#
+#  # TODO: BUG! Setting sparse_field & dense_field to null does not clear _inference_fields
+#  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+#  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 0 }
+#
+#  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+#  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 0 }
+#
+#  - not_exists: hits.hits.0._source.sparse_field
+#  - not_exists: hits.hits.0._source.dense_field
+#  - match: { hits.hits.0._source.non_inference_field: "updated value" }

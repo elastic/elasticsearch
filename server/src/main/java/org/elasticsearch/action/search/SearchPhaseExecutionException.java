@@ -84,8 +84,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
                 case RestStatus.GATEWAY_TIMEOUT:
                     return shardStatus;
 
-                // Although this status code cannot be retried, it should be tracked anyway so that
-                // it can be returned.
+                // Although these status codes cannot be retried, they should still be tracked because
+                // they're still of interest to us.
                 case RestStatus.INTERNAL_SERVER_ERROR:
                 case RestStatus.NOT_IMPLEMENTED:
                 case RestStatus.HTTP_VERSION_NOT_SUPPORTED:

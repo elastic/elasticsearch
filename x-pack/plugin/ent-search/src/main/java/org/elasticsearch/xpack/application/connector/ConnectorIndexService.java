@@ -97,6 +97,7 @@ public class ConnectorIndexService {
     private static final String CONNECTORS_MAPPING_VERSION_VARIABLE = "elastic-connectors.version";
     private static final String CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors.managed.index.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "connectors", "enterprise-search");
+
     /**
      * @param client A client for executing actions on the connector index
      */

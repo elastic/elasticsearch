@@ -132,7 +132,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
 
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.get(0).retriever());
         builder.startArray(RESCORE_FIELD.getPreferredName());
         for (RescorerBuilder<?> rescorer : rescorers) {
             rescorer.toXContent(builder, params);
@@ -150,7 +150,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         assert rankResults.size() == 1;
-        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        ScoreDoc[] scoreDocs = rankResults.get(0);
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];

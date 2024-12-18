@@ -44,6 +44,8 @@ public final class SearchCapabilities {
     private static final String RANK_VECTORS_SCRIPT_MAX_SIM = "rank_vectors_script_max_sim_with_bugfix";
     /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
     private static final String MOVING_FN_RIGHT_MATH = "moving_fn_right_math";
+    /** knn query where k defaults to the request size. */
+    private static final String K_DEFAULT_TO_SIZE = "k_default_to_size";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
@@ -62,6 +64,7 @@ public final class SearchCapabilities {
         capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
         capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE);
         capabilities.add(MOVING_FN_RIGHT_MATH);
+        capabilities.add(K_DEFAULT_TO_SIZE);
         if (RankVectorsFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(RANK_VECTORS_FIELD_MAPPER);
             capabilities.add(RANK_VECTORS_SCRIPT_ACCESS);

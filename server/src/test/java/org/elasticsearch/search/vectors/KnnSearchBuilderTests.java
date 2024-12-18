@@ -224,9 +224,9 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             builder.addFilterQuery(filter);
         }
 
-        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, null, numCands, rescoreVectorBuilder, similarity).addFilterQueries(
-            filterQueries
-        ).boost(boost);
+        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands, numCands, rescoreVectorBuilder, similarity)
+            .addFilterQueries(filterQueries)
+            .boost(boost);
         assertEquals(expected, builder.toQueryBuilder());
     }
 

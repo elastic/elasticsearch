@@ -418,7 +418,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = randomVector();
         assertResponse(
             client().prepareSearch("index1", "index2")
-                .setQuery(new KnnVectorQueryBuilder("vector", queryVector, null, 5, null, null))
+                .setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, 5, null, null))
                 .setSize(2),
             response -> {
                 // The total hits is num_cands * num_shards, since the query gathers num_cands hits from each shard

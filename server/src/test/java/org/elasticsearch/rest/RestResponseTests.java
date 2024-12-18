@@ -510,7 +510,7 @@ public class RestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
         ShardSearchFailure shardFailure1 = new ShardSearchFailure(
-            new ParsingException(1, 1, "shard1", null),
+            new ElasticsearchException("simulated"),
             new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 1), null)
         );
 
@@ -526,7 +526,7 @@ public class RestResponseTests extends ESTestCase {
         );
 
         RestResponse response = new RestResponse(channel, new RemoteTransportException("unused message", ex));
-        assertThat(response.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(response.status(), is(RestStatus.BAD_GATEWAY));
     }
 
     private void assertLogging(

@@ -93,16 +93,8 @@ setup:
 
 ---
 "Query using a sparse embedding model":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -128,20 +120,11 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Numeric query using a sparse embedding model":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -162,20 +145,11 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Boolean query using a sparse embedding model":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -196,22 +170,15 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a sparse embedding model via a search inference ID":
   - requires:
       cluster_features: "semantic_text.search_inference_id"
       reason: search_inference_id introduced in 8.16.0
-      test_runner_features: [ capabilities ]
 
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.put_mapping:
@@ -247,20 +214,11 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -286,20 +244,11 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Numeric query using a dense embedding model":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -320,20 +269,11 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Boolean query using a dense embedding model":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -354,20 +294,11 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a dense embedding model that uses byte embeddings":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       inference.put:
@@ -423,22 +354,15 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model via a search inference ID":
   - requires:
       cluster_features: "semantic_text.search_inference_id"
       reason: search_inference_id introduced in 8.16.0
-      test_runner_features: [ capabilities ]
 
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.put_mapping:
@@ -474,20 +398,11 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Apply boost and query name":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -515,21 +430,12 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.783733e19, error: 1e13 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 ---
 "Query an index alias":
-  - requires:
-      test_runner_features: [ capabilities ]
-
   - skip:
       features: [ "headers", "close_to" ]
-      reason: Test targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -560,7 +466,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query the wrong field type":

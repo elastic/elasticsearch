@@ -41,6 +41,7 @@ dependencies {
     internalClusterTestImplementation(xpackModule("shutdown"))
     internalClusterTestImplementation(project(":modules:serverless-autoscaling"))
     internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
+    internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")
     testImplementation(project(":libs:serverless-shared-constants"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core")

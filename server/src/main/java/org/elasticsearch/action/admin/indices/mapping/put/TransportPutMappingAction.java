@@ -195,7 +195,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             IndexAbstraction indexAbstraction = indicesLookup.get(index.getName());
             if (indexAbstraction != null) {
                 DataStream maybeDataStream = indexAbstraction.getParentDataStream();
-                if (maybeDataStream != null && maybeDataStream.getFailureIndices().containsIndex(index.getName())) {
+                if (maybeDataStream != null && maybeDataStream.isFailureStoreIndex(index.getName())) {
                     violations.add(index.getName());
                 }
             }

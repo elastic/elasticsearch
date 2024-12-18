@@ -12,6 +12,7 @@ import java.util.Objects;
 final class TraceEvent {
     final String stacktraceID;
     String executableName;
+    String threadName;
     double annualCO2Tons;
     double annualCostsUSD;
     long count;
@@ -25,6 +26,7 @@ final class TraceEvent {
         this.stacktraceID = stacktraceID;
         this.count = count;
         this.executableName = "";
+        this.threadName = "";
     }
 
     @Override
@@ -52,6 +54,9 @@ final class TraceEvent {
             + '\''
             + ", executableName='"
             + executableName
+            + '\''
+            + ", threadName='"
+            + threadName
             + '\''
             + ", annualCO2Tons="
             + annualCO2Tons

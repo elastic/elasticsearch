@@ -68,9 +68,8 @@ These settings are specific to the `jinaai` service.
 
 `api_key`:::
 (Required, string)
-A valid API key of your JinaAI account.
-You can find in:
-https://jina.ai/embeddings/.
+A valid API key for your JinaAI account.
+You can find it at https://jina.ai/embeddings/.
 +
 --
 include::inference-shared.asciidoc[tag=api-key-admonition]
@@ -78,9 +77,8 @@ include::inference-shared.asciidoc[tag=api-key-admonition]
 
 `rate_limit`:::
 (Optional, object)
-By default, the `jinaai` service sets the number of requests allowed per minute to `2000`.
-This value is the same for all task types.
-To modify this, set the `requests_per_minute` setting of this object in your service settings:
+The default rate limit for the `jinaai` service is 2000 requests per minute for all task types. 
+You can modify this using the `requests_per_minute` setting in your service settings:
 +
 --
 include::inference-shared.asciidoc[tag=request-per-minute-example]
@@ -94,8 +92,7 @@ More information about JinaAI's rate limits can be found in https://jina.ai/cont
 `model_id`::
 (Optional, string)
 The name of the model to use for the {infer} task.
-To review the available `rerank` models, refer to the
-https://jina.ai/reranker.
+To review the available `rerank` compatible models, refer to https://jina.ai/reranker.
 =====
 +
 .`service_settings` for the `text_embedding` task type
@@ -150,7 +147,7 @@ Valid values are:
 [[inference-example-jinaai]]
 ==== JinaAI service examples
 
-The following example shows how to create {infer} endpoints to get `text_embeddings` and `rerank` and to use them in a search application.
+The following examples demonstrate how to create {infer} endpoints for `text_embeddings` and `rerank` tasks using the JinaAI service and use them in search requests.
 
 First, we create the `embeddings` service:
 

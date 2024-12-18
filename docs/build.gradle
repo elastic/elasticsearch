@@ -76,6 +76,11 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   setting 'script.painless.regex.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
+
+  // disable the ILM and SLM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'slm.history_index_enabled', 'false'
+
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
   }

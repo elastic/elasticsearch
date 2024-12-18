@@ -600,7 +600,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         // This is already broken with normalization, so backwards compat isn't necessary?
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
 
-        // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.indexVersion("nGram", (version) -> {
             if (version.onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(

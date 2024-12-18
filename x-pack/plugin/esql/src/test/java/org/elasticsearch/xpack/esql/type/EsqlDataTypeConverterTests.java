@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -50,9 +52,17 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 public class EsqlDataTypeConverterTests extends ESTestCase {
 
     public void testNanoTimeToString() {
-        long expected = randomLong();
+        long expected = randomNonNegativeLong();
         long actual = EsqlDataTypeConverter.dateNanosToLong(EsqlDataTypeConverter.nanoTimeToString(expected));
         assertEquals(expected, actual);
+    }
+
+    public void testStringToDateNanos() {
+        assertEquals(
+            DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
+            EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000000000", DATE_NANOS)
+        );
+        assertEquals(DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")), EsqlDataTypeConverter.convert("2023-01-01", DATE_NANOS));
     }
 
     public void testCommonTypeNull() {

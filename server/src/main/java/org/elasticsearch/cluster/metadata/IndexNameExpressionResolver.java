@@ -634,12 +634,7 @@ public class IndexNameExpressionResolver {
     private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
         if (indicesOptions.allowSelectors()) {
-            if (expressionSelector != null) {
-                return expressionSelector.shouldIncludeFailures();
-            } else {
-                // Defaults to no failure indices
-                return false;
-            }
+            return expressionSelector != null && expressionSelector.shouldIncludeFailures();
         }
         return false;
     }

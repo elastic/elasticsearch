@@ -358,8 +358,6 @@ tests:
     issue: https://github.com/elastic/elasticsearch/issues/117937
   - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
     issue: https://github.com/elastic/elasticsearch/issues/118414
-  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-    issue: https://github.com/elastic/elasticsearch/issues/116788
 
 # Examples:
 #

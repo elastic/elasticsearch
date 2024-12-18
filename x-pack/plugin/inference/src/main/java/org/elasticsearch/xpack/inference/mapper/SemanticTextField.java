@@ -425,15 +425,16 @@ public record SemanticTextField(
         ChunkedInference.Chunk chunk,
         boolean useInferenceMetadataFieldsFormat
     ) {
-        // TODO: Use offsets from ChunkedInferenceServiceResults
-        // TODO: When using legacy semantic text format, build chunk text from offsets
-        assert chunk.matchedText() != null; // TODO: Remove once offsets are available from chunk
-        int startOffset = useInferenceMetadataFieldsFormat ? input.indexOf(chunk.matchedText()) + offsetAdjustment : -1;
-        return new Chunk(
-            useInferenceMetadataFieldsFormat ? null : chunk.matchedText(),
-            useInferenceMetadataFieldsFormat ? startOffset : -1,
-            useInferenceMetadataFieldsFormat ? startOffset + chunk.matchedText().length() : -1,
-            chunk.bytesReference()
-        );
+        String text = null;
+        int startOffset = -1;
+        int endOffset = -1;
+        if (useInferenceMetadataFieldsFormat) {
+            startOffset = chunk.textOffset().start() + offsetAdjustment;
+            endOffset = chunk.textOffset().end() + offsetAdjustment;
+        } else {
+            text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
+        }
+
+        return new Chunk(text, startOffset, endOffset, chunk.bytesReference());
     }
 }

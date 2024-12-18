@@ -1,8 +1,11 @@
 setup:
   - requires:
       cluster_features: "gte_v8.15.0"
-      reason: Test suite targets semantic text with inference metadata fields
+      reason: semantic_text introduced in 8.15.0
       test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test suite targets semantic text without inference metadata fields
       capabilities:
         - method: GET
           path: /_inference
@@ -27,30 +30,27 @@ setup:
         index: test-index
         id: doc_1
         body:
-          sparse_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.sparse_field:
+          sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                sparse_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings:
-                      feature_0: 1.0
-                      feature_1: 2.0
-                      feature_2: 3.0
-                      feature_3: 4.0
-                  - start_offset: 44
-                    end_offset: 67
-                    embeddings:
-                      feature_4: 0.1
-                      feature_5: 0.2
-                      feature_6: 0.3
-                      feature_7: 0.4
-          dense_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.dense_field:
+                - text: "these are not the droids you're looking for"
+                  embeddings:
+                    feature_0: 1.0
+                    feature_1: 2.0
+                    feature_2: 3.0
+                    feature_3: 4.0
+                - text: "He's free to go around"
+                  embeddings:
+                    feature_4: 0.1
+                    feature_5: 0.2
+                    feature_6: 0.3
+                    feature_7: 0.4
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -59,13 +59,10 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
-                  - start_offset: 44
-                    end_offset: 67
-                    embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
+                - text: "these are not the droids you're looking for"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                - text: "He's free to go around"
+                  embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
 
 
 ---
@@ -76,8 +73,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "other text"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "other text"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -86,10 +83,8 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 10
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416, 0.053438711911439896]
+                - text: "other text"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416, 0.053438711911439896]
 
 ---
 "Fails for non-compatible inference id":
@@ -99,8 +94,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "other text"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "other text"
             inference:
               inference_id: a-different-inference-id
               model_settings:
@@ -109,10 +104,8 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 10
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                - text: "other text"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
 
 ---
 "Fails for non-compatible similarity":
@@ -122,8 +115,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "other text"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "other text"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -132,10 +125,8 @@ setup:
                 similarity: dot_product
                 element_type: float
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 10
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                - text: "other text"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
 
 ---
 "Fails for non-compatible element type":
@@ -145,8 +136,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "other text"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "other text"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -155,10 +146,8 @@ setup:
                 similarity: cosine
                 element_type: byte
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 10
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                - text: "other text"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
 
 ---
 "Fails for non-compatible task type for dense vectors":
@@ -168,21 +157,19 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field: "other text"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "other text"
             inference:
               inference_id: dense-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 10
-                    embeddings:
-                      feature_0: 1.0
-                      feature_1: 2.0
-                      feature_2: 3.0
-                      feature_3: 4.0
+                - text: "these are not the droids you're looking for"
+                  embeddings:
+                    feature_0: 1.0
+                    feature_1: 2.0
+                    feature_2: 3.0
+                    feature_3: 4.0
 
 ---
 "Fails for non-compatible task type for sparse vectors":
@@ -192,8 +179,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          sparse_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.sparse_field:
+          sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
               model_settings:
@@ -202,21 +189,19 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                sparse_field:
-                  - start_offset: 0
-                    end_offset: 44
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                - text: "these are not the droids you're looking for"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
 
 ---
 "Fails for missing dense vector inference results in chunks":
   - do:
-      catch: /failed to parse field \[_inference_fields\] of type \[_inference_fields\]/
+      catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
       index:
         index: test-index
         id: doc_2
         body:
-          dense_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -225,39 +210,35 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                dense_field:
-                  - start_offset: 0
-                    end_offset: 44
+                - text: "these are not the droids you're looking for"
 
 ---
 "Fails for missing sparse vector inference results in chunks":
   - do:
-      catch: /failed to parse field \[_inference_fields\] of type \[_inference_fields\]/
+      catch: /failed to parse field \[sparse_field\] of type \[semantic_text\]/
       index:
         index: test-index
         id: doc_2
         body:
-          sparse_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.sparse_field:
+          sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                sparse_field:
-                  - start_offset: 0
-                    end_offset: 44
+                - text: "these are not the droids you're looking for"
 
 ---
-"Fails for missing offsets in chunks":
+"Fails for missing text in chunks":
   - do:
-      catch: /failed to parse field \[_inference_fields\] of type \[_inference_fields\]/
+      catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
       index:
         index: test-index
         id: doc_2
         body:
-          dense_field: "these are not the droids you're looking for. He's free to go around"
-          _inference_fields.dense_field:
+          dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -266,6 +247,5 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                dense_field:
-                  - embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                - embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
 

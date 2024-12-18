@@ -1241,6 +1241,16 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
+equalsToUpperNestedPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees
+| where to_upper(to_upper(to_lower(first_name))) == "GEORGI"
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
 notEqualsToUpperPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | sort emp_no
@@ -1347,6 +1357,17 @@ from employees
 
 c:long
 100
+;
+
+equalsToLowerWithUnico(rn|d)s
+from employees
+| where to_lower(concat(first_name, "🦄🦄")) != "georgi🦄🦄"
+| stats c = count()
+;
+
+// 10 null first names
+c:long
+89
 ;
 
 reverse

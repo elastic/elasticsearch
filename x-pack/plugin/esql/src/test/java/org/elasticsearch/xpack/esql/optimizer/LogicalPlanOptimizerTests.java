@@ -5721,33 +5721,34 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    public void testReplaceCaseWithInsensitiveMatchUpperFalse() {
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperFalse() {
         var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
     }
 
-    public void testReplaceCaseWithInsensitiveMatchUpperTrue() {
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
         var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
-    public void testReplaceCaseWithInsensitiveMatchLowerFalse() {
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
         var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
     }
 
-    public void testReplaceCaseWithInsensitiveMatchLowerTrue() {
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
         var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
-    public void testReplaceCaseWithInsensitiveMatchEquals() {
+    public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -5759,9 +5760,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    public void testReplaceCaseWithInsensitiveMatchNotEquals() {
+    public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -5772,6 +5774,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(bRef.utf8ToString(), is(value));
             as(filter.child(), EsRelation.class);
         }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUnwrap() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var insensitive = as(filter.condition(), InsensitiveEquals.class);
+        var field = as(insensitive.left(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        var bRef = as(insensitive.right().fold(), BytesRef.class);
+        assertThat(bRef.utf8ToString(), is("VALÜ"));
+        as(filter.child(), EsRelation.class);
     }
 
     @Override

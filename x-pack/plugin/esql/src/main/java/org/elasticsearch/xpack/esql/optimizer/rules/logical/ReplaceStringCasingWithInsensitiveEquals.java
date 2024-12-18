@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
-public class ReplaceCaseWithInsensitiveMatch extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
 
-    public ReplaceCaseWithInsensitiveMatch() {
+    public ReplaceStringCasingWithInsensitiveEquals() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
@@ -39,8 +39,13 @@ public class ReplaceCaseWithInsensitiveMatch extends OptimizerRules.OptimizerExp
     private static Expression replaceChangeCase(BinaryComparison bc, ChangeCase changeCase) {
         var foldedRight = BytesRefs.toString(bc.right().fold());
         return changeCase.caseType().matchesCase(foldedRight)
-            ? new InsensitiveEquals(bc.source(), changeCase.field(), bc.right())
-            : Literal.FALSE;
+            ? new InsensitiveEquals(bc.source(), unwrapCase(changeCase.field()), bc.right())
+            : Literal.of(bc, Boolean.FALSE);
 
+    }
+
+    private static Expression unwrapCase(Expression e) {
+        for (; e instanceof ChangeCase cc; e = cc.field()) {}
+        return e;
     }
 }

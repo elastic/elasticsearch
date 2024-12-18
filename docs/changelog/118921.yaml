@@ -1,0 +1,5 @@
+pr: 118921
+summary: Add missing timeouts to rest-api-spec shutdown APIs
+area: Infra/Node Lifecycle
+type: bug
+issues: []

@@ -305,6 +305,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/indices/shard-stores/line_150}
   issue: https://github.com/elastic/elasticsearch/issues/118896
+- class: org.elasticsearch.cluster.service.MasterServiceTests
+  method: testThreadContext
+  issue: https://github.com/elastic/elasticsearch/issues/118914
 
 # Examples:
 #

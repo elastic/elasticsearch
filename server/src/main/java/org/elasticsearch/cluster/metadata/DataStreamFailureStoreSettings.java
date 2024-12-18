@@ -51,10 +51,12 @@ public class DataStreamFailureStoreSettings {
      */
     public static DataStreamFailureStoreSettings create(ClusterSettings clusterSettings) {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings = new DataStreamFailureStoreSettings();
-        clusterSettings.initializeAndWatch(
-            DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
-            dataStreamFailureStoreSettings::setEnabledByNamePatterns
-        );
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            clusterSettings.initializeAndWatch(
+                DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
+                dataStreamFailureStoreSettings::setEnabledByNamePatterns
+            );
+        }
         return dataStreamFailureStoreSettings;
     }
 

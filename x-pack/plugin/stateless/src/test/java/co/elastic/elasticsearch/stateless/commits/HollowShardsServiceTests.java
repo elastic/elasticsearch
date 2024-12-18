@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -249,7 +250,9 @@ public class HollowShardsServiceTests extends ESTestCase {
             indicesLookup.put(indexMetadata.getIndex().getName(), indexAbstraction);
 
             final var metadata = mock(Metadata.class);
-            when(metadata.getIndicesLookup()).thenReturn(indicesLookup);
+            final ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
+            when(metadata.getProject()).thenReturn(projectMetadata);
+            when(projectMetadata.getIndicesLookup()).thenReturn(indicesLookup);
             final var clusterState = mock(ClusterState.class);
             when(clusterState.metadata()).thenReturn(metadata);
             final var clusterService = mock(ClusterService.class);

@@ -54,7 +54,6 @@ public class JinaAIEmbeddingsResponseEntity {
      *          "object": "embedding",
      *          "embedding": [
      *              -0.009327292,
-     *              .... (1536 floats total for ada-002)
      *              -0.0028842222,
      *          ],
      *          "index": 0

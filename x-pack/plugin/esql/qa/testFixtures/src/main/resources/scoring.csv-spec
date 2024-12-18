@@ -327,13 +327,13 @@ required_capability: match_function
 from semantic_text metadata _id, _score
 | where match(semantic_text_field, "something")
 | sort _score desc
-| keep _id, _score
+| keep _id
 ;
 
-_id:keyword | _score:double
-2           | 5.603396E18
-3           | 2.156063E18
-1           | 8.411017E17
+_id:keyword
+2
+3
+1
 ;
 
 semanticTextMatchWithAllTheTextFunctions
@@ -350,10 +350,10 @@ from semantic_text metadata _id, _score
         AND kql("description:some*")
         AND NOT qstr("host:host1")
 | sort _score desc
-| keep _id, _score
+| keep _id
 ;
 
-_id:keyword | _score:double
-2           | 5.603396E18
-3           | 2.156063E18
+_id:keyword
+2
+3
 ;

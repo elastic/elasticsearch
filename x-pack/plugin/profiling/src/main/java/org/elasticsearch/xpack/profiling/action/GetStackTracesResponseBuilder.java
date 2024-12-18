@@ -165,6 +165,7 @@ class GetStackTracesResponseBuilder {
                     StackTrace stackTrace = entry.getValue();
                     stackTrace.count = event.count;
                     stackTrace.executableName = event.executableName;
+                    stackTrace.threadName = event.threadName;
                     if (event.subGroups != null) {
                         stackTrace.subGroups = event.subGroups;
                     }

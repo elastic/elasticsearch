@@ -53,7 +53,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(PauseFieldPlugin.class);
+        plugins.add(SimplePauseFieldPlugin.class);
         return plugins;
     }
 
@@ -72,7 +72,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
 
     @Before
     public void resetPlugin() {
-        PauseFieldPlugin.resetPlugin();
+        SimplePauseFieldPlugin.resetPlugin();
     }
 
     private void createRemoteIndex(int numDocs) throws Exception {
@@ -103,7 +103,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         request.pragmas(randomPragmas());
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
         client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);
-        assertTrue(PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
         List<TaskInfo> rootTasks = new ArrayList<>();
         assertBusy(() -> {
             List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
@@ -126,7 +126,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
                 }
             });
         } finally {
-            PauseFieldPlugin.allowEmitting.countDown();
+            SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
         assertThat(error.getMessage(), containsString("proxy timeout"));
@@ -157,7 +157,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
                     assertThat(tasks, hasSize(moreClusters + 1));
                 });
             } finally {
-                PauseFieldPlugin.allowEmitting.countDown();
+                SimplePauseFieldPlugin.allowEmitting.countDown();
             }
             try (EsqlQueryResponse resp = future.actionGet(30, TimeUnit.SECONDS)) {
                 // TODO: This produces incorrect results because data on the remote cluster is processed multiple times.
@@ -178,7 +178,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         ActionFuture<EsqlQueryResponse> requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
-        assertTrue(PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
         try {
             assertBusy(() -> {
                 List<TaskInfo> clusterTasks = client(REMOTE_CLUSTER).admin()
@@ -204,7 +204,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
                     \\_ExchangeSinkOperator"""));
             });
         } finally {
-            PauseFieldPlugin.allowEmitting.countDown();
+            SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         requestFuture.actionGet(30, TimeUnit.SECONDS).close();
     }

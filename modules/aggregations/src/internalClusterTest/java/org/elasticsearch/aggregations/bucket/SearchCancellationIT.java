@@ -96,6 +96,8 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
 
         logger.info("Executing search");
+        // we have to explicitly set error_trace=true for the later exception check for `TimeSeriesIndexSearcher`
+        client().threadPool().getThreadContext().putHeader("error_trace", "true");
         TimeSeriesAggregationBuilder timeSeriesAggregationBuilder = new TimeSeriesAggregationBuilder("test_agg");
         ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addAggregation(

@@ -75,7 +75,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(PauseFieldPlugin.class);
+        plugins.add(SimplePauseFieldPlugin.class);
         return plugins;
     }
 
@@ -95,6 +95,11 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 )
             );
         }
+    }
+
+    @Before
+    public void resetPlugin() {
+        SimplePauseFieldPlugin.resetPlugin();
     }
 
     private void startAsyncQuery(String q, AtomicReference<String> asyncExecutionId, Tuple<Boolean, Boolean> includeCCSMetadata) {
@@ -137,7 +142,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             includeCCSMetadata
         );
         // wait until we know that the query against 'remote-b:blocking' has started
-        PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+        SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
         assertBusy(() -> {
@@ -182,7 +187,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
 
         // allow remoteB query to proceed
-        PauseFieldPlugin.allowEmitting.countDown();
+        SimplePauseFieldPlugin.allowEmitting.countDown();
 
         // wait until both remoteB and local queries have finished
         assertBusy(() -> {

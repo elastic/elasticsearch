@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
@@ -199,46 +200,47 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testRequestingModuleFastPath() throws IOException, ClassNotFoundException {
-        var requestingModule = makeAModule();
-        var callerClass = Class.forName("q.B", false, requestingModule.getClassLoader());
-        assertEquals(requestingModule, PolicyManager.requestingModule(callerClass));
+        var callerClass = makeClassInItsOwnModule();
+        assertEquals(callerClass.getModule(), PolicyManager.requestingModule(callerClass));
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var requestingModule = makeAModule();
-        var runtimeLibModule = makeAModule();
-        var ignorableModule = makeAModule();
-        var systemModule = Object.class.getModule();
+        var requestingClass = makeClassInItsOwnModule();
+        var ignorableClass = makeClassInItsOwnModule();
+        var systemClass = Object.class;
 
-        assertRequestingModule("Skip one system frame", requestingModule, Stream.of(systemModule, requestingModule, ignorableModule));
-        assertRequestingModule(
+        var requestingModule = requestingClass.getModule();
+
+        assertEquals(
+            "Skip one system frame",
+            requestingModule,
+            PolicyManager.findRequestingModule(Stream.of(systemClass, requestingClass, ignorableClass)).orElse(null)
+        );
+        assertEquals(
             "Skip multiple system frames",
             requestingModule,
-            Stream.of(systemModule, systemModule, systemModule, requestingModule, ignorableModule)
+            PolicyManager.findRequestingModule(Stream.of(systemClass, systemClass, systemClass, requestingClass, ignorableClass))
+                .orElse(null)
         );
-        assertRequestingModule(
+        assertEquals(
             "Skip runtime frames up to the first system frame",
             requestingModule,
-            Stream.of(runtimeLibModule, runtimeLibModule, systemModule, requestingModule, ignorableModule)
+            PolicyManager.findRequestingModule(
+                Stream.of(ElasticsearchEntitlementChecker.class, PolicyManager.class, systemClass, requestingClass, ignorableClass)
+            ).orElse(null)
         );
         assertThrows(
             "Non-modular caller frames are not supported",
             NullPointerException.class,
-            () -> PolicyManager.findRequestingModule(Stream.of(systemModule, null))
+            () -> PolicyManager.findRequestingModule(Stream.of(systemClass, null))
         );
     }
 
-    private static void assertRequestingModule(String message, Module expected, Stream<Module> stack) {
-        assertEquals(message, expected, PolicyManager.findRequestingModule(stack).orElse(null));
-    }
-
-    private static Module makeAModule() throws IOException, ClassNotFoundException {
+    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");
-        var mockPluginClass = layer.findLoader("org.example.plugin").loadClass("q.B");
-
-        return mockPluginClass.getModule();
+        return layer.findLoader("org.example.plugin").loadClass("q.B");
     }
 
     private static Policy createEmptyTestServerPolicy() {

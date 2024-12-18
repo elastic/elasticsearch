@@ -15,6 +15,7 @@ import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.util.ArrayList;
@@ -29,8 +30,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
-import static java.util.function.Predicate.not;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
@@ -65,6 +66,7 @@ public class PolicyManager {
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
     private static final Set<Module> systemModules = findSystemModules();
+    private static final Set<Class<?>> ENTITLEMENTS_RUNTIME_CLASSES = Set.of(ElasticsearchEntitlementChecker.class, PolicyManager.class);
 
     private static Set<Module> findSystemModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
@@ -204,21 +206,22 @@ public class PolicyManager {
                 return callerModule;
             }
         }
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(frames -> findRequestingModule(frames.map(frame -> moduleOf(frame.getDeclaringClass()))));
+        Optional<Module> module = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+            .walk(frames -> findRequestingModule(frames.map(StackFrame::getDeclaringClass)));
         return module.orElse(null);
     }
 
     /**
-     * Given a stream of modules corresponding to the frames from a {@link StackWalker},
-     * returns the one whose entitlements should be checked.
+     * Given a stream of classes corresponding to the frames from a {@link StackWalker},
+     * returns the module whose entitlements should be checked.
      *
      * @throws NullPointerException if the requesting module is {@code null}
      */
-    static Optional<Module> findRequestingModule(Stream<Module> modules) {
-        return modules.map(Objects::requireNonNull)
-            .dropWhile(not(systemModules::contains)) // Skip the entitlements runtime
-            .dropWhile(systemModules::contains)      // Skip trusted JDK classes
+    static Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
+        return classes.map(Objects::requireNonNull)
+            .dropWhile(ENTITLEMENTS_RUNTIME_CLASSES::contains) // Skip the entitlements runtime
+            .map(PolicyManager::moduleOf)
+            .dropWhile(systemModules::contains)                // Skip trusted JDK modules
             .findFirst();
     }
 

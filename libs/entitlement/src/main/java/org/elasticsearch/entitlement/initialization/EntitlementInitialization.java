@@ -52,7 +52,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
  */
 public class EntitlementInitialization {
 
-    private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    private static final String POLICY_FILE_NAME = "entitlements.yaml";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
@@ -91,7 +91,11 @@ public class EntitlementInitialization {
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
             "server",
-            List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
+            List.of(
+                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement()))
+            )
         );
         return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver(), ENTITLEMENTS_MODULE);
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -85,6 +86,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         } catch (Exception e) {
             logger.info("request failed", e);
             ensureBlocksReleased();
+            EsqlTestUtils.assertEsqlFailure(e);
             throw e;
         } finally {
             setRequestCircuitBreakerLimit(null);

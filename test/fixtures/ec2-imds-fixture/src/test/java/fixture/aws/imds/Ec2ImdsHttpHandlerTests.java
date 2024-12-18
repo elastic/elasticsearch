@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,6 +30,8 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,17 +39,19 @@ import static org.hamcrest.Matchers.aMapWithSize;
 
 public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
+    private static final String SECURITY_CREDENTIALS_URI = "/latest/meta-data/iam/security-credentials/";
+
     public void testImdsV1() throws IOException {
         final Map<String, String> generatedCredentials = new HashMap<>();
 
-        final var handler = new Ec2ImdsHttpHandler(generatedCredentials::put, Set.of());
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(generatedCredentials::put).buildHandler();
 
-        final var roleResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/");
+        final var roleResponse = handleRequest(handler, "GET", SECURITY_CREDENTIALS_URI);
         assertEquals(RestStatus.OK, roleResponse.status());
         final var profileName = roleResponse.body().utf8ToString();
         assertTrue(Strings.hasText(profileName));
 
-        final var credentialsResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/" + profileName);
+        final var credentialsResponse = handleRequest(handler, "GET", SECURITY_CREDENTIALS_URI + profileName);
         assertEquals(RestStatus.OK, credentialsResponse.status());
 
         assertThat(generatedCredentials, aMapWithSize(1));
@@ -62,14 +67,78 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
     public void testImdsV2Disabled() {
         assertEquals(
             RestStatus.METHOD_NOT_ALLOWED,
-            handleRequest(new Ec2ImdsHttpHandler((accessKey, sessionToken) -> fail(), Set.of()), "PUT", "/latest/api/token").status()
+            handleRequest(new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).buildHandler(), "PUT", "/latest/api/token").status()
         );
+    }
+
+    public void testImdsV2() throws IOException {
+        final Map<String, String> generatedCredentials = new HashMap<>();
+
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(generatedCredentials::put).buildHandler();
+
+        final var tokenResponse = handleRequest(handler, "PUT", "/latest/api/token");
+        assertEquals(RestStatus.OK, tokenResponse.status());
+        final var token = tokenResponse.body().utf8ToString();
+
+        final var roleResponse = checkImdsV2GetRequest(handler, SECURITY_CREDENTIALS_URI, token);
+        assertEquals(RestStatus.OK, roleResponse.status());
+        final var profileName = roleResponse.body().utf8ToString();
+        assertTrue(Strings.hasText(profileName));
+
+        final var credentialsResponse = checkImdsV2GetRequest(handler, SECURITY_CREDENTIALS_URI + profileName, token);
+        assertEquals(RestStatus.OK, credentialsResponse.status());
+
+        assertThat(generatedCredentials, aMapWithSize(1));
+        final var accessKey = generatedCredentials.keySet().iterator().next();
+        final var sessionToken = generatedCredentials.values().iterator().next();
+
+        final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
+        assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
+        assertEquals(accessKey, responseMap.get("AccessKeyId"));
+        assertEquals(sessionToken, responseMap.get("Token"));
+    }
+
+    public void testAvailabilityZone() {
+        final Set<String> generatedAvailabilityZones = new HashSet<>();
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).availabilityZoneSupplier(() -> {
+            final var newAvailabilityZone = randomIdentifier();
+            generatedAvailabilityZones.add(newAvailabilityZone);
+            return newAvailabilityZone;
+        }).buildHandler();
+
+        final var availabilityZoneResponse = handleRequest(handler, "GET", "/latest/meta-data/placement/availability-zone");
+        assertEquals(RestStatus.OK, availabilityZoneResponse.status());
+        final var availabilityZone = availabilityZoneResponse.body().utf8ToString();
+
+        assertEquals(generatedAvailabilityZones, Set.of(availabilityZone));
     }
 
     private record TestHttpResponse(RestStatus status, BytesReference body) {}
 
+    private static TestHttpResponse checkImdsV2GetRequest(Ec2ImdsHttpHandler handler, String uri, String token) {
+        final var unauthorizedResponse = handleRequest(handler, "GET", uri, null);
+        assertEquals(RestStatus.UNAUTHORIZED, unauthorizedResponse.status());
+
+        final var forbiddenResponse = handleRequest(handler, "GET", uri, randomValueOtherThan(token, ESTestCase::randomSecretKey));
+        assertEquals(RestStatus.FORBIDDEN, forbiddenResponse.status());
+
+        return handleRequest(handler, "GET", uri, token);
+    }
+
     private static TestHttpResponse handleRequest(Ec2ImdsHttpHandler handler, String method, String uri) {
-        final var httpExchange = new TestHttpExchange(method, uri, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS);
+        return handleRequest(handler, method, uri, null);
+    }
+
+    private static TestHttpResponse handleRequest(Ec2ImdsHttpHandler handler, String method, String uri, @Nullable String token) {
+        final Headers headers;
+        if (token == null) {
+            headers = TestHttpExchange.EMPTY_HEADERS;
+        } else {
+            headers = new Headers();
+            headers.put("X-aws-ec2-metadata-token", List.of(token));
+        }
+
+        final var httpExchange = new TestHttpExchange(method, uri, BytesArray.EMPTY, headers);
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {

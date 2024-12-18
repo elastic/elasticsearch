@@ -34,10 +34,12 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -98,7 +100,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
 
-    public EsPhysicalOperationProviders(List<ShardContext> shardContexts) {
+    public EsPhysicalOperationProviders(List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+        super(analysisRegistry);
         this.shardContexts = shardContexts;
     }
 
@@ -295,15 +298,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Query toQuery(QueryBuilder queryBuilder) {
             Query query = ctx.toQuery(queryBuilder).query();
-            NestedLookup nestedLookup = ctx.nestedLookup();
-            if (nestedLookup != NestedLookup.EMPTY) {
-                NestedHelper nestedHelper = new NestedHelper(nestedLookup, ctx::isFieldMapped);
-                if (nestedHelper.mightMatchNestedDocs(query)) {
-                    // filter out nested documents
-                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                        .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
-                        .build();
-                }
+            if (ctx.nestedLookup() != NestedLookup.EMPTY && NestedHelper.mightMatchNestedDocs(query, ctx)) {
+                // filter out nested documents
+                query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                    .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                    .build();
             }
             if (aliasFilter != AliasFilter.EMPTY) {
                 Query filterQuery = ctx.toQuery(aliasFilter.getQueryBuilder()).query();
@@ -346,7 +345,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
                 @Override
                 public SearchLookup lookup() {
-                    return ctx.lookup();
+                    boolean syntheticSource = SourceFieldMapper.isSynthetic(indexSettings());
+                    var searchLookup = ctx.lookup();
+                    if (syntheticSource) {
+                        // in the context of scripts and when synthetic source is used the search lookup can't always be reused between
+                        // users of SearchLookup. This is only an issue when scripts fallback to _source, but since we can't always
+                        // accurately determine whether a script uses _source, we should do this for all script usages.
+                        // This lookup() method is only invoked for scripts / runtime fields, so it is ok to do here.
+                        searchLookup = searchLookup.swapSourceProvider(ctx.createSourceProvider());
+                    }
+                    return searchLookup;
                 }
 
                 @Override

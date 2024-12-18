@@ -105,7 +105,7 @@ The `rrf` retriever does not currently support:
 * <<rescore, rescore>>
 
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
-+
+
 IMPORTANT: It is best to avoid providing a <<search-api-pit, point in time>> as part of the request, as
 RRF creates one internally that is shared by all sub-retrievers to ensure consistent results.
 
@@ -703,3 +703,99 @@ So for the same params as above, we would now have:
 
 * `from=0, size=2` would return [`1`, `5`] with ranks `[1, 2]`
 * `from=2, size=2` would return an empty result set as it would fall outside the available `rank_window_size` results.
+
+==== Aggregations in RRF
+
+The `rrf` retriever supports aggregations from all specified sub-retrievers. Important notes about aggregations:
+
+* They operate on the complete result set from all sub-retrievers
+* They are not limited by the `rank_window_size` parameter
+* They process the union of all matching documents
+
+For example, consider the following document set:
+[source,js]
+----
+{
+    "_id": 1, "termA": "foo",
+    "_id": 2, "termA": "foo", "termB": "bar",
+    "_id": 3, "termA": "aardvark", "termB": "bar",
+    "_id": 4, "termA": "foo", "termB": "bar"
+}
+----
+// NOTCONSOLE
+
+Perform a term aggregation on the `termA` field using an `rrf` retriever:
+[source,js]
+----
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "termB": "bar"
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": {
+                        "query": {
+                            "match_all": { }
+                        }
+                    }
+                }
+            ],
+            "rank_window_size": 1
+        }
+    },
+    "size": 1,
+    "aggs": {
+        "termA_agg": {
+            "terms": {
+                "field": "termA"
+            }
+        }
+    }
+}
+----
+// NOTCONSOLE
+
+The aggregation results will include *all* matching documents, regardless of `rank_window_size`.
+[source, js]
+----
+{
+    "foo": 3,
+    "aardvark": 1
+}
+
+----
+// NOTCONSOLE
+
+==== Highlighting in RRF
+
+Using the `rrf` retriever, you can add <<highlighting, highlight snippets>> to show relevant text snippets in your search results. Highlighted snippets are computed based
+on the matching text queries defined on the sub-retrievers.
+
+IMPORTANT: Highlighting on vector fields, using either the `knn` retriever or a `knn` query, is not supported.
+
+A more specific example of highlighting in RRF can also be found in the <<retrievers-examples-highlighting-retriever-results, retrievers examples>> page.
+
+==== Inner hits in RRF
+
+The `rrf` retriever supports <<inner-hits,inner hits>> functionality, allowing you to retrieve 
+related nested or parent/child documents alongside your main search results. Inner hits can be 
+specified as part of any nested sub-retriever and will be propagated to the top-level parent 
+retriever. Note that the inner hit computation will take place only at end of `rrf` retriever's 
+evaluation on the top matching documents, and not as part of the query execution of the nested 
+sub-retrievers.
+
+[IMPORTANT]
+====
+When defining multiple `inner_hits` sections across sub-retrievers:
+
+* Each `inner_hits` section must have a unique name
+* Names must be unique across all sub-retrievers in the search request
+====

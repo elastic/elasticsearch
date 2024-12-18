@@ -11,11 +11,13 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.Map;
+
 public record AnalyzerContext(
     Configuration configuration,
     EsqlFunctionRegistry functionRegistry,
     IndexResolution indexResolution,
-    IndexResolution lookupResolution,
+    Map<String, IndexResolution> lookupResolution,
     EnrichResolution enrichResolution
 ) {
     // Currently for tests only, since most do not test lookups
@@ -26,6 +28,6 @@ public record AnalyzerContext(
         IndexResolution indexResolution,
         EnrichResolution enrichResolution
     ) {
-        this(configuration, functionRegistry, indexResolution, IndexResolution.invalid("<none>"), enrichResolution);
+        this(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution);
     }
 }

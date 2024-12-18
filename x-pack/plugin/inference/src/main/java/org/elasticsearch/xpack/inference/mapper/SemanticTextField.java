@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,7 +60,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
-    static final String CHUNKED_TEXT_FIELD = "text";
+    public static final String CHUNKED_TEXT_FIELD = "text";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
@@ -70,7 +69,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, List<Chunk> chunks) {}
 
-    public record Chunk(String text, BytesReference rawEmbeddings) {}
+    record Chunk(String text, BytesReference rawEmbeddings) {}
 
     public record ModelSettings(
         TaskType taskType,
@@ -307,13 +306,12 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     }
 
     /**
-     * Converts the provided {@link ChunkedInferenceServiceResults} into a list of {@link Chunk}.
+     * Converts the provided {@link ChunkedInference} into a list of {@link Chunk}.
      */
-    public static List<Chunk> toSemanticTextFieldChunks(List<ChunkedInferenceServiceResults> results, XContentType contentType) {
+    public static List<Chunk> toSemanticTextFieldChunks(List<ChunkedInference> results, XContentType contentType) throws IOException {
         List<Chunk> chunks = new ArrayList<>();
         for (var result : results) {
-            for (Iterator<ChunkedInferenceServiceResults.Chunk> it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it
-                .hasNext();) {
+            for (var it = result.chunksAsMatchedTextAndByteReference(contentType.xContent()); it.hasNext();) {
                 var chunkAsByteReference = it.next();
                 chunks.add(new Chunk(chunkAsByteReference.matchedText(), chunkAsByteReference.bytesReference()));
             }

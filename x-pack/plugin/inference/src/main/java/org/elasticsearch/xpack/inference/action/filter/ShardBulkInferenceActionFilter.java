@@ -394,6 +394,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
+                if (responses == null) {
+                    if (item.request() instanceof UpdateRequest == false) {
+                        // could be an assert
+                        throw new IllegalArgumentException(
+                            "Inference results can only be cleared for update requests where a field is explicitly set to null."
+                        );
+                    }
+                    inferenceFieldsMap.put(fieldName, null);
+                    continue;
+                }
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
@@ -480,6 +490,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
 
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
+                Object explicitNull = new Object();
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
@@ -487,10 +498,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     if (useInferenceMetadataFieldsFormat) {
                         var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
                             InferenceMetadataFieldsMapper.NAME + "." + field,
-                            docMap
+                            docMap,
+                            explicitNull
                         );
                         if (inferenceMetadataFieldsValue != null) {
-                            // Inference has already been computed
+                            // Inference has already been computed for this source field
                             continue;
                         }
                     } else {
@@ -503,9 +515,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
-                        // TODO: Detect when the field is provided with an explicit null value
-                        var valueObj = XContentMapValues.extractValue(sourceField, docMap);
-                        if (valueObj == null) {
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, explicitNull);
+                        if (useInferenceMetadataFieldsFormat && isUpdateRequest && valueObj == explicitNull) {
+                            /**
+                             * It's an update request, and the source field is explicitly set to null,
+                             * so we need to propagate this information to the inference fields metadata
+                             * to overwrite any inference previously computed on the field.
+                             * This ensures that the field is treated as intentionally cleared,
+                             * preventing any unintended carryover of prior inference results.
+                             */
+                            var slot = ensureResponseAccumulatorSlot(itemIndex);
+                            slot.responses.put(sourceField, null);
+                            continue;
+                        }
+                        if (valueObj == null || valueObj == explicitNull) {
                             if (isUpdateRequest && (useInferenceMetadataFieldsFormat == false)) {
                                 addInferenceResponseFailure(
                                     item.id(),

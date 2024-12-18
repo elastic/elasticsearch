@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -212,6 +213,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     ),
                     equalTo("I am a success")
                 );
+                if (useInferenceMetadataFieldsFormat) {
+                    assertNotNull(
+                        XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME + ".field1", actualRequest.sourceAsMap())
+                    );
+                }
 
                 // item 2 is a failure
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
@@ -233,6 +239,85 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[0] = new BulkItemRequest(0, new IndexRequest("index").source("field1", "I am a failure"));
         items[1] = new BulkItemRequest(1, new IndexRequest("index").source("field1", "I am a success"));
         items[2] = new BulkItemRequest(2, new IndexRequest("index").source("field1", "I am a failure"));
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testExplicitNull() throws Exception {
+        StaticModel model = StaticModel.createRandomInstance();
+
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(model.getInferenceEntityId(), model),
+            randomIntBetween(1, 10),
+            IndexVersion.current()
+        );
+        model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
+        model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+                assertNull(bulkShardRequest.getInferenceFieldMap());
+                assertThat(bulkShardRequest.items().length, equalTo(4));
+
+                Object explicitNull = new Object();
+                // item 0
+                assertNull(bulkShardRequest.items()[0].getPrimaryResponse());
+                IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
+                assertTrue(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap(), explicitNull) == explicitNull);
+                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), explicitNull));
+
+                // item 1 is a success
+                assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
+                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
+                assertThat(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap()), equalTo("I am a success"));
+                assertNotNull(
+                    XContentMapValues.extractValue(
+                        InferenceMetadataFieldsMapper.NAME + ".field1",
+                        actualRequest.sourceAsMap(),
+                        explicitNull
+                    )
+                );
+
+                // item 2 is a failure
+                assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
+                assertTrue(bulkShardRequest.items()[2].getPrimaryResponse().isFailed());
+                var failure = bulkShardRequest.items()[2].getPrimaryResponse().getFailure();
+                assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+
+                // item 3
+                assertNull(bulkShardRequest.items()[3].getPrimaryResponse());
+                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[3].request());
+                assertTrue(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap(), explicitNull) == explicitNull);
+                assertTrue(
+                    XContentMapValues.extractValue(
+                        InferenceMetadataFieldsMapper.NAME + ".field1",
+                        actualRequest.sourceAsMap(),
+                        explicitNull
+                    ) == explicitNull
+                );
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "field1",
+            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" })
+        );
+        BulkItemRequest[] items = new BulkItemRequest[4];
+        Map<String, Object> sourceWithNull = new HashMap<>();
+        sourceWithNull.put("field1", null);
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(sourceWithNull));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").source("field1", "I am a success"));
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").source("field1", "I am a failure"));
+        items[3] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(sourceWithNull)));
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);

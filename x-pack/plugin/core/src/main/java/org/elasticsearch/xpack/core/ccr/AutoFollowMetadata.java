@@ -282,11 +282,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-                this.active = in.readBoolean();
-            } else {
-                this.active = true;
-            }
+            this.active = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 this.leaderIndexExclusionPatterns = in.readStringCollectionAsList();
             } else {
@@ -351,9 +347,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
                 settings.writeTo(out);
             }
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-                out.writeBoolean(active);
-            }
+            out.writeBoolean(active);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }

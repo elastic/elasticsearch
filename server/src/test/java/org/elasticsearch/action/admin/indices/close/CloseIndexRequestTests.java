@@ -56,19 +56,8 @@ public class CloseIndexRequestTests extends ESTestCase {
                     assertEquals(request.ackTimeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
                     final IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
-                    // indices options are not equivalent when sent to an older version and re-read due
-                    // to the addition of hidden indices as expand to hidden indices is always true when
-                    // read from a prior version
-                    // TODO update version on backport!
-                    if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)
-                        || request.indicesOptions().expandWildcardsHidden()) {
-                        assertEquals(request.indicesOptions(), indicesOptions);
-                    }
-                    if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                        assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
-                    } else {
-                        assertEquals(0, in.available());
-                    }
+                    assertEquals(request.indicesOptions(), indicesOptions);
+                    assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
                 }
             }
         }
@@ -85,9 +74,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.writeTimeValue(sample.ackTimeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                    sample.waitForActiveShards().writeTo(out);
-                }
+                sample.waitForActiveShards().writeTo(out);
 
                 final CloseIndexRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -98,18 +85,8 @@ public class CloseIndexRequestTests extends ESTestCase {
                 assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
                 assertEquals(sample.ackTimeout(), deserializedRequest.ackTimeout());
                 assertArrayEquals(sample.indices(), deserializedRequest.indices());
-                // indices options are not equivalent when sent to an older version and re-read due
-                // to the addition of hidden indices as expand to hidden indices is always true when
-                // read from a prior version
-                // TODO change version on backport
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
-                    assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                    assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
-                } else {
-                    assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());
-                }
+                assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
+                assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
             }
         }
     }

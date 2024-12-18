@@ -50,9 +50,12 @@ resources:
 
 # List of project maintainers
 maintainers:
-  - name: "Rory Hunter"
-    email: "rory.hunter@elastic.co"
-    username: "rory"
+  - name: "Mark Vieira"
+    email: "mark.vieira@elastic.co"
+    username: "mark-vieira"
+  - name: "Rene Gröschke"
+    email: "rene.groschke@elastic.co"
+    username: "breskeby"
   - email: "klepal_alexander@bah.com"
     name: "Alexander Klepal"
     username: "alexander.klepal"

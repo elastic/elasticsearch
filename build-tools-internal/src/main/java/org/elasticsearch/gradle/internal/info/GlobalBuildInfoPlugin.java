@@ -51,8 +51,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -124,8 +122,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
-                "buildParams",
                 BuildParameterExtension.class,
+                BuildParameterExtension.EXTENSION_NAME,
+                DefaultBuildParameterExtension.class,
+                providers,
                 actualRuntimeJavaHome,
                 resolveToolchainSpecFromEnv(),
                 actualRuntimeJavaHome.map(
@@ -145,7 +145,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 Jvm.current().getJavaVersion(),
                 gitInfo.getRevision(),
                 gitInfo.getOrigin(),
-                ZonedDateTime.now(ZoneOffset.UTC),
                 getTestSeed(),
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),

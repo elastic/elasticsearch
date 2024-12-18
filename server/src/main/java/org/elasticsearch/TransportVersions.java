@@ -52,6 +52,7 @@ public class TransportVersions {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
+    public static final TransportVersion V_7_1_0 = def(7_01_00_99);
     public static final TransportVersion V_7_2_0 = def(7_02_00_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_3_2 = def(7_03_02_99);

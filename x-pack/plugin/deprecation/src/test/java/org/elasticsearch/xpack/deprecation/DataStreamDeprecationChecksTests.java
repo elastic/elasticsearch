@@ -85,9 +85,9 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 8.0",
+            "Old data stream with a compatibility version < 9.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 8.0.0",
+            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
             false,
             ofEntries(
                 entry("reindex_required", true),

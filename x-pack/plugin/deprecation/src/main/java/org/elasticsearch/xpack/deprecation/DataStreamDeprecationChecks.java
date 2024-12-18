@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
@@ -25,16 +25,16 @@ public class DataStreamDeprecationChecks {
         List<Index> backingIndices = dataStream.getIndices();
 
         Set<String> indicesNeedingUpgrade = backingIndices.stream()
-            .filter(index -> clusterState.metadata().index(index).getCreationVersion().onOrBefore(IndexVersions.UPGRADE_TO_LUCENE_10_0_0))
+            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata()))
             .map(Index::getName)
             .collect(Collectors.toUnmodifiableSet());
 
         if (indicesNeedingUpgrade.isEmpty() == false) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Old data stream with a compatibility version < 8.0",
+                "Old data stream with a compatibility version < 9.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-                "This data stream has backing indices that were created before Elasticsearch 8.0.0",
+                "This data stream has backing indices that were created before Elasticsearch 9.0.0",
                 false,
                 ofEntries(
                     entry("reindex_required", true),

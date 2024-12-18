@@ -24,7 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.getOldIndexVersionPredicate;
+import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
 
 public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExecutor<ReindexDataStreamTaskParams> {
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
@@ -74,7 +74,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             if (dataStreamInfos.size() == 1) {
                 List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
                 List<Index> indicesToBeReindexed = indices.stream()
-                    .filter(getOldIndexVersionPredicate(clusterService.state().metadata()))
+                    .filter(getReindexRequiredPredicate(clusterService.state().metadata()))
                     .toList();
                 reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
                 for (Index index : indicesToBeReindexed) {

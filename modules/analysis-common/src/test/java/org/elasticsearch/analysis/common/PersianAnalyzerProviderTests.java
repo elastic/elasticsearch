@@ -56,7 +56,7 @@ public class PersianAnalyzerProviderTests extends ESTokenStreamTestCase {
     public void testPersianAnalyzerPreLucene10() throws IOException {
         IndexVersion preLucene10Version = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersionUtils.getFirstVersion(),
+            IndexVersionUtils.getLowestReadCompatibleVersion(),
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
         );
         Settings settings = ESTestCase.indexSettings(1, 1)

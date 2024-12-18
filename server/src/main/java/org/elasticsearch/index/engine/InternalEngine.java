@@ -3160,6 +3160,9 @@ public class InternalEngine extends Engine {
             final Translog.Snapshot snapshot;
             if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
                 if (searcher.getIndexReader().maxDoc() == 0) {
+                    // In case of an empty index there may be no mapping and if so then
+                    // assertion in LuceneSyntheticSourceChangesSnapshot fail, because empty
+                    // MappingLookup thinks mapping is not synthetic. Just return empty snapshot in this case:
                     snapshot = Translog.Snapshot.EMPTY;
                 } else {
                     snapshot = new LuceneSyntheticSourceChangesSnapshot(

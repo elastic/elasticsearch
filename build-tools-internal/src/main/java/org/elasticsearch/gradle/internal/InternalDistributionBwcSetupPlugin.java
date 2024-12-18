@@ -65,7 +65,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
         Boolean isCi = buildParams.isCi();
         buildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
             configureBwcProject(

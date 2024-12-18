@@ -269,5 +269,4 @@ public abstract class BaseRestHandler implements RestHandler {
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
         return responseParams();
     }
-
 }

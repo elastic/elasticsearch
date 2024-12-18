@@ -91,11 +91,11 @@ setup:
 ---
 split:
   - requires:
-      cluster_features: ["routing.logsb_route_on_sort_fields"]
-      reason: introduction of route on index sorting fields
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
-      catch: /index-split is not supported because the destination index \[test\] is in time_series mode/
+      catch: /index-split is not supported because the destination index \[test\] is in time.series mode/
       indices.split:
         index: test
         target: test_split

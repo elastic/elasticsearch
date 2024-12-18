@@ -119,42 +119,44 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             }
         }
 
-        // Inject routing path matching sort fields.
-        if ((isLogsDB) && settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
-            List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
-            sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
-            if (sortFields.size() < 2) {
-                throw new IllegalStateException(
-                    String.format(
-                        Locale.ROOT,
-                        "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
-                            + "(excluding timestamp), needs at least 2",
-                        dataStreamName,
-                        IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
-                        sortFields.size()
-                    )
-                );
-            }
-            if (settings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
-                List<String> routingPaths = settings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey());
-                if (routingPaths.equals(sortFields) == false) {
+        if (isLogsDB){
+            // Inject routing path matching sort fields.
+            if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+                List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
+                sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
+                if (sortFields.size() < 2) {
                     throw new IllegalStateException(
                         String.format(
                             Locale.ROOT,
-                            "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
-                                + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                            "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
+                                + "(excluding timestamp), needs at least 2",
                             dataStreamName,
                             IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
-                            routingPaths,
-                            sortFields
+                            sortFields.size()
                         )
                     );
                 }
-            } else {
-                if (settingsBuilder == null) {
-                    settingsBuilder = Settings.builder();
+                if (settings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
+                    List<String> routingPaths = settings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                    if (routingPaths.equals(sortFields) == false) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
+                                    + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                dataStreamName,
+                                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                routingPaths,
+                                sortFields
+                            )
+                        );
+                    }
+                } else {
+                    if (settingsBuilder == null) {
+                        settingsBuilder = Settings.builder();
+                    }
+                    settingsBuilder.putList(INDEX_ROUTING_PATH.getKey(), sortFields).build();
                 }
-                settingsBuilder.putList(INDEX_ROUTING_PATH.getKey(), sortFields).build();
             }
         }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.jar;
 
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
 
 import java.io.ByteArrayInputStream;
@@ -17,7 +16,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -28,7 +26,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -36,7 +33,6 @@ import java.util.jar.Manifest;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.hamcrest.Matchers.is;
 
 public final class JarUtils {
 
@@ -107,7 +103,7 @@ public final class JarUtils {
      */
     public static ClosableURLClassLoader loadJar(Path path) {
         try {
-            URL[] urls = new URL[]{ path.toUri().toURL() };
+            URL[] urls = new URL[] { path.toUri().toURL() };
             return new ClosableURLClassLoader(URLClassLoader.newInstance(urls, JarUtils.class.getClassLoader()));
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
@@ -117,8 +113,8 @@ public final class JarUtils {
     public static ModuleLayer.Controller loadModule(Path path, ClassLoader loader, String name) {
         var finder = ModuleFinder.of(path.getParent());
         var cf = Configuration.resolveAndBind(finder, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), Set.of(name));
-        return AccessController.doPrivileged((PrivilegedAction<ModuleLayer.Controller>) () ->
-            ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()), loader)
+        return AccessController.doPrivileged(
+            (PrivilegedAction<ModuleLayer.Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()), loader)
         );
     }
 

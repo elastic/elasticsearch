@@ -20,24 +20,13 @@ import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
-import org.hamcrest.Matchers;
 
 import java.lang.ModuleLayer.Controller;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReader;
-import java.lang.module.ModuleReference;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class WhitelistLoaderTests extends ESTestCase {
@@ -117,14 +106,17 @@ public class WhitelistLoaderTests extends ESTestCase {
     }
 
     public void testMissingWhitelistResource() {
-        var e = expectThrows(ResourceNotFoundException.class,
-            () -> WhitelistLoader.loadFromResourceFiles(Whitelist.class, "missing.txt"));
-        assertThat(e.getMessage(),
-            equalTo("Whitelist file [org/elasticsearch/painless/spi/missing.txt] not found" +
-                " from owning class [org.elasticsearch.painless.spi.Whitelist]."));
+        var e = expectThrows(ResourceNotFoundException.class, () -> WhitelistLoader.loadFromResourceFiles(Whitelist.class, "missing.txt"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Whitelist file [org/elasticsearch/painless/spi/missing.txt] not found"
+                    + " from owning class [org.elasticsearch.painless.spi.Whitelist]."
+            )
+        );
     }
 
-    public void testMissingWhitelistResourceInModule() throws Exception{
+    public void testMissingWhitelistResourceInModule() throws Exception {
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("module-info", "module m {}");
         sources.put("p.TestOwner", "package p; public class TestOwner { }");
@@ -145,10 +137,14 @@ public class WhitelistLoaderTests extends ESTestCase {
             Class<?> ownerClass = module.getClassLoader().loadClass("p.TestOwner");
 
             // first check we get a nice error message when accessing the resource
-            var e = expectThrows(ResourceNotFoundException.class,
-                () -> WhitelistLoader.loadFromResourceFiles(ownerClass, "resource.txt"));
-            assertThat(e.getMessage(), equalTo("Whitelist file [p/resource.txt] not found from owning class [p.TestOwner]." +
-                " Check that the file exists and the package [p] is opened to module null"));
+            var e = expectThrows(ResourceNotFoundException.class, () -> WhitelistLoader.loadFromResourceFiles(ownerClass, "resource.txt"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Whitelist file [p/resource.txt] not found from owning class [p.TestOwner]."
+                        + " Check that the file exists and the package [p] is opened to module null"
+                )
+            );
 
             // now check we can actually read it once the package is opened to us
             controller.addOpens(module, "p", WhitelistLoader.class.getModule());

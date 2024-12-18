@@ -500,10 +500,19 @@ public final class WhitelistLoader {
     private static InputStream getResourceAsStream(Class<?> owner, String name) {
         InputStream stream = owner.getResourceAsStream(name);
         if (stream == null) {
-            String msg = "Whitelist file [" + owner.getPackageName().replace(".", "/") + "/" + name + "] not found from owning class [" + owner.getName() + "].";
+            String msg = "Whitelist file ["
+                + owner.getPackageName().replace(".", "/")
+                + "/"
+                + name
+                + "] not found from owning class ["
+                + owner.getName()
+                + "].";
             if (owner.getModule().isNamed()) {
-                msg += " Check that the file exists and the package [" + owner.getPackageName() + "] is opened " +
-                    "to module " + WhitelistLoader.class.getModule().getName();
+                msg += " Check that the file exists and the package ["
+                    + owner.getPackageName()
+                    + "] is opened "
+                    + "to module "
+                    + WhitelistLoader.class.getModule().getName();
             }
             throw new ResourceNotFoundException(msg);
         }

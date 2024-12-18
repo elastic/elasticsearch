@@ -233,7 +233,7 @@ public class AnalysisModuleTests extends ESTestCase {
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()
@@ -302,7 +302,7 @@ public class AnalysisModuleTests extends ESTestCase {
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()
@@ -389,7 +389,7 @@ public class AnalysisModuleTests extends ESTestCase {
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()

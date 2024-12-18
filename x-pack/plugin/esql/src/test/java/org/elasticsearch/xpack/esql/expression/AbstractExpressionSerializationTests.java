@@ -14,8 +14,13 @@ import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractNodeSerializationTests<T> {
+
     public static Expression randomChild() {
         return ReferenceAttributeTests.randomReferenceAttribute(false);
+    }
+
+    public static Expression mutateExpression(Expression expression) {
+        return randomValueOtherThan(expression, AbstractExpressionSerializationTests::randomChild);
     }
 
     @Override

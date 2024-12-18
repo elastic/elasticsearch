@@ -1,0 +1,17 @@
+{
+  "properties" : {
+    "language" : {
+      "properties" : {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "code": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

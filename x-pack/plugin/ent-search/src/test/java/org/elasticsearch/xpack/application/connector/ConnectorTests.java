@@ -225,7 +225,7 @@ public class ConnectorTests extends ESTestCase {
                "name":"test-name",
                "pipeline":{
                   "extract_binary_content":true,
-                  "name":"ent-search-generic-ingestion",
+                  "name":"search-default-ingestion",
                   "reduce_whitespace":true,
                   "run_ml_inference":false
                },
@@ -286,7 +286,7 @@ public class ConnectorTests extends ESTestCase {
                "name": null,
                "pipeline":{
                   "extract_binary_content":true,
-                  "name":"ent-search-generic-ingestion",
+                  "name":"search-default-ingestion",
                   "reduce_whitespace":true,
                   "run_ml_inference":false
                },
@@ -350,7 +350,7 @@ public class ConnectorTests extends ESTestCase {
                "name": null,
                "pipeline":{
                   "extract_binary_content":true,
-                  "name":"ent-search-generic-ingestion",
+                  "name":"search-default-ingestion",
                   "reduce_whitespace":true,
                   "run_ml_inference":false
                },

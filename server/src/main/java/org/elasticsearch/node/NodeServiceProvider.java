@@ -132,7 +132,8 @@ class NodeServiceProvider {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            null
         );
     }
 

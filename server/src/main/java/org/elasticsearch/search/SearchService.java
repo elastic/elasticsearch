@@ -318,6 +318,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final SearchIndexMetricsTracker searchIndexMetricsTracker;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -327,7 +329,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        SearchIndexMetricsTracker searchIndexMetricsTracker
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -385,6 +388,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+
+        this.searchIndexMetricsTracker = searchIndexMetricsTracker;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -581,7 +586,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Executor executor = getExecutor(shard);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
-                runAsync(executor, executable, listener);
+                runAsync(executor, executable, listener, shard);
                 return;
             }
             if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
@@ -657,7 +662,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         if (timeoutTask != null) {
                             timeoutTask.cancel();
                         }
-                        runAsync(executor, executable, listener);
+                        runAsync(executor, executable, listener, shard);
                     }
                 }
             });
@@ -677,12 +682,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T extends RefCounted> void runAsync(
+    private <T extends RefCounted> void runAsync(
         Executor executor,
         CheckedSupplier<T, Exception> executable,
-        ActionListener<T> listener
+        ActionListener<T> listener,
+        IndexShard indexShard
     ) {
-        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
+        if (searchIndexMetricsTracker != null) {
+            String indexName = indexShard.shardId().getIndexName();
+            executor.execute(ActionRunnable.supplyAndDecRef(listener, () -> {
+                long start = System.nanoTime();
+                var result = executable.get();
+                long total = System.nanoTime() - start;
+                searchIndexMetricsTracker.addExecutionTime(indexName, total);
+                return result;
+            }));
+        } else {
+            executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
+        }
     }
 
     /**
@@ -758,7 +775,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
     }
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
@@ -808,7 +825,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
     }
 
     /**
@@ -851,7 +868,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(l, readerContext, markAsUsed));
+            }, wrapFailureListener(l, readerContext, markAsUsed), readerContext.indexShard());
         }));
     }
 
@@ -902,7 +919,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
@@ -934,7 +951,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
     }
 
     protected void checkCancelled(SearchShardTask task) {

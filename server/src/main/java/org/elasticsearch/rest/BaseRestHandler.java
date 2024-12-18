@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -269,15 +268,5 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
         return responseParams();
-    }
-
-    protected static void setErrorTraceTransportHeader(RestRequest r, ThreadContext c) {
-        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
-        if (c != null) {
-            if (r.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
-                // We only set it if error_trace is true (defaults to false) to avoid sending useless bytes
-                c.putHeader("error_trace", "true");
-            }
-        }
     }
 }

@@ -331,9 +331,9 @@ from semantic_text metadata _id, _score
 ;
 
 _id:keyword | _score:double
-2           | 1.2879333961116942E19
-3           | 4.955684723851526E18
-1           | 1.9332616743917978E18
+2           | 5.603396E18
+3           | 2.156063E18
+1           | 8.411017E17
 ;
 
 semanticTextMatchWithAllTheTextFunctions
@@ -354,6 +354,6 @@ from semantic_text metadata _id, _score
 ;
 
 _id:keyword | _score:double
-2           | 1.2879333961116942E19
-3           | 4.955684723851526E18
+2           | 5.603396E18
+3           | 2.156063E18
 ;

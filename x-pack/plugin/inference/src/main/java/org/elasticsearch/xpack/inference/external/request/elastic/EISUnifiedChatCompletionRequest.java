@@ -25,8 +25,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-
 public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
 
     private final ElasticInferenceServiceCompletionModel model;

@@ -933,7 +933,7 @@ public class ConnectorIndexService {
                 getConnector(connectorId, l.delegateFailure((ll, connector) -> {
 
                     Boolean isNativeConnector = getConnectorIsNativeFlagFromSearchResult(connector);
-                    Boolean doesNotHaveContentPrefix = isValidManagedConnectorIndexName(indexName) == false;
+                    Boolean doesNotHaveContentPrefix = indexName != null && isValidManagedConnectorIndexName(indexName) == false;
 
                     if (isNativeConnector && doesNotHaveContentPrefix) {
                         ll.onFailure(

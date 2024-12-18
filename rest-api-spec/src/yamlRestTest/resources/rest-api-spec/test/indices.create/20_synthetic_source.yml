@@ -2051,4 +2051,4 @@ create index with use_synthetic_source:
         run_expensive_tasks: true
         flush: false
   - gt: { test.store_size_in_bytes: 0 }
-  - is_false: test.fields.field._recovery_source
+  - is_false: test.fields._recovery_source

@@ -871,7 +871,6 @@ public class Verifier {
                     );
                 }
             }
-
         }
     }
 

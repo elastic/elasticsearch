@@ -78,9 +78,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                     .toList();
                 reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
                 for (Index index : indicesToBeReindexed) {
-                    reindexDataStreamTask.incrementInProgressIndicesCount();
+                    reindexDataStreamTask.incrementInProgressIndicesCount(index.getName());
                     // TODO This is just a placeholder. This is where the real data stream reindex logic will go
-                    reindexDataStreamTask.reindexSucceeded();
+                    reindexDataStreamTask.reindexSucceeded(index.getName());
                 }
 
                 completeSuccessfulPersistentTask(reindexDataStreamTask);

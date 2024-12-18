@@ -450,6 +450,11 @@ public class EsqlCapabilities {
         KQL_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Hash function
+         */
+        HASH_FUNCTION,
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
@@ -551,6 +556,11 @@ public class EsqlCapabilities {
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V7(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN with the same index as the FROM
+         */
+        JOIN_LOOKUP_REPEATED_INDEX_FROM(JOIN_LOOKUP_V7.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

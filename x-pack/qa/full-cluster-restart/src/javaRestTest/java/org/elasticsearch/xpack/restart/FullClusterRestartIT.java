@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;

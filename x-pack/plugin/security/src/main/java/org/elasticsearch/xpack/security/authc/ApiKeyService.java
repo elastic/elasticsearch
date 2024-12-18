@@ -202,10 +202,7 @@ public class ApiKeyService implements Closeable {
         Property.NodeScope
     );
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
-        .allowRestriction(true)
-        .allowLegacyFieldSecurityExceptFields(true)
-        .build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
     private final Clock clock;
     private final Client client;

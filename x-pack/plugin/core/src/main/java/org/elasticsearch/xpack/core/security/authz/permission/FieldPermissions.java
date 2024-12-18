@@ -194,32 +194,16 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
      * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
      */
-    public static Automaton initializePermittedFieldsAutomaton(
-        FieldPermissionsDefinition fieldPermissionsDefinition,
-        boolean allowLegacyExceptionFields
-    ) {
+    public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
         Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
         assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
         List<Automaton> automatonList = groups.stream()
-            .map(
-                g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields(), allowLegacyExceptionFields)
-            )
+            .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
             .collect(Collectors.toList());
         return Automatons.unionAndDeterminize(automatonList);
     }
 
-    /**
-     * Default of {@link #initializePermittedFieldsAutomaton(FieldPermissionsDefinition, boolean)} with legacy exception fields allowed.
-     */
-    public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
-        return initializePermittedFieldsAutomaton(fieldPermissionsDefinition, true);
-    }
-
-    private static Automaton buildPermittedFieldsAutomaton(
-        final String[] grantedFields,
-        final String[] deniedFields,
-        boolean allowLegacyExceptionFields
-    ) {
+    private static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
@@ -247,8 +231,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         );
 
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            if (false == allowLegacyExceptionFields
-                || false == deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(grantedFieldsAutomaton, deniedFieldsAutomaton)) {
+            if (false == deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(grantedFieldsAutomaton, deniedFieldsAutomaton)) {
                 throw new ElasticsearchSecurityException(
                     "Exceptions for field permissions must be a subset of the "
                         + "granted fields but ["
@@ -261,9 +244,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
             logger.warn(
                 "Exceptions for field permissions cover fields starting with [_] that are not a subset of the granted fields. "
                     + "This is supported for backwards compatibility only. "
-                    + "To avoid counter-intuitive FLS behavior, ensure that the [except] field is a subset of the [grant] field by either "
-                    + "adding the missing _-prefixed fields to the [grant] field, or by removing them from the [except] field."
-                    + " Note that you cannot exclude any of [{}] since these are minimally required metadata fields.",
+                    + "To avoid counter-intuitive field-level security behavior, ensure that the [except] field is a subset of the "
+                    + "[grant] field by either adding the missing _-prefixed fields to the [grant] field, "
+                    + "or by removing them from the [except] field. "
+                    + "Note that you cannot exclude any of [{}] since these are minimally required metadata fields.",
                 Strings.collectionToCommaDelimitedString(new TreeSet<>(METADATA_FIELDS_ALLOWLIST))
             );
         }

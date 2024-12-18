@@ -71,7 +71,6 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
         .allow2xFormat(true)
         .allowDescription(true)
-        .allowLegacyFieldSecurityExceptFields(true)
         .build();
 
     private final Settings settings;

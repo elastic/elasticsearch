@@ -81,7 +81,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     /**
      * Needed as a stop-gap measure because {@link FieldPermissionsCache} has state (settings) but we need to use one
-     * within {@link #checkIfExceptFieldsIsSubsetOfGrantedFields(String, String[], String[], boolean)} which is static.
+     * within {@link #checkIfExceptFieldsIsSubsetOfGrantedFields(String, String[], String[])} which is static.
      * Eventually we want to move parsing away from this class to its own object that can have an internal cache field
      */
     private static FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -502,19 +502,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return new Parser.Builder();
     }
 
-    public record Parser(
-        boolean allow2xFormat,
-        boolean allowRestriction,
-        boolean allowDescription,
-        boolean allowLegacyFieldSecurityExceptFields
-    ) {
+    public record Parser(boolean allow2xFormat, boolean allowRestriction, boolean allowDescription) {
 
         public static final class Builder {
 
             private boolean allow2xFormat = false;
             private boolean allowRestriction = false;
             private boolean allowDescription = false;
-            private boolean allowLegacyFieldSecurityExceptFields = false;
 
             private Builder() {}
 
@@ -533,13 +527,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return this;
             }
 
-            public Builder allowLegacyFieldSecurityExceptFields(boolean allowLegacyFieldSecurityExceptFields) {
-                this.allowLegacyFieldSecurityExceptFields = allowLegacyFieldSecurityExceptFields;
-                return this;
-            }
-
             public Parser build() {
-                return new Parser(allow2xFormat, allowRestriction, allowDescription, allowLegacyFieldSecurityExceptFields);
+                return new Parser(allow2xFormat, allowRestriction, allowDescription);
             }
 
         }
@@ -592,7 +581,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())
                     || Fields.INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                        indicesPrivileges = parseIndices(name, parser, allow2xFormat, allowLegacyFieldSecurityExceptFields);
+                        indicesPrivileges = parseIndices(name, parser, allow2xFormat);
                     } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
                         runAsUsers = readStringArray(name, parser, true);
                     } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -633,7 +622,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 );
                             }
                         } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                            remoteIndicesPrivileges = parseRemoteIndices(name, parser, allowLegacyFieldSecurityExceptFields);
+                            remoteIndicesPrivileges = parseRemoteIndices(name, parser);
                         } else if (Fields.REMOTE_CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
                             remoteClusterPermissions = parseRemoteCluster(name, parser);
                         } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -767,15 +756,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
         throws IOException {
-        return parseIndices(roleName, parser, allow2xFormat, false);
-    }
-
-    public static RoleDescriptor.IndicesPrivileges[] parseIndices(
-        String roleName,
-        XContentParser parser,
-        boolean allow2xFormat,
-        boolean allowLegacyFieldSecurityExceptFields
-    ) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse indices privileges for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
@@ -786,33 +766,25 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
         List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            privileges.add(parseIndex(roleName, parser, allow2xFormat, allowLegacyFieldSecurityExceptFields));
+            privileges.add(parseIndex(roleName, parser, allow2xFormat));
         }
-        return privileges.toArray(new IndicesPrivileges[0]);
+        return privileges.toArray(new IndicesPrivileges[privileges.size()]);
     }
 
-    private static IndicesPrivileges parseIndex(
-        final String roleName,
-        final XContentParser parser,
-        final boolean allow2xFormat,
-        final boolean allowLegacyFieldSecurityExceptFields
-    ) throws IOException {
+    private static IndicesPrivileges parseIndex(final String roleName, final XContentParser parser, final boolean allow2xFormat)
+        throws IOException {
         final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(
             roleName,
             parser,
             allow2xFormat,
-            false,
-            allowLegacyFieldSecurityExceptFields
+            false
         );
         assert parsed.remoteClusters() == null : "indices privileges cannot have remote clusters";
         return parsed.indicesPrivileges();
     }
 
-    private static RoleDescriptor.RemoteIndicesPrivileges[] parseRemoteIndices(
-        final String roleName,
-        final XContentParser parser,
-        boolean allowLegacyFieldSecurityExceptFields
-    ) throws IOException {
+    private static RoleDescriptor.RemoteIndicesPrivileges[] parseRemoteIndices(final String roleName, final XContentParser parser)
+        throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse remote indices privileges for role [{}]. expected field [{}] value "
@@ -824,23 +796,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
         final List<RoleDescriptor.RemoteIndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            privileges.add(parseRemoteIndex(roleName, parser, allowLegacyFieldSecurityExceptFields));
+            privileges.add(parseRemoteIndex(roleName, parser));
         }
-        return privileges.toArray(RemoteIndicesPrivileges.NONE);
+        return privileges.toArray(new RemoteIndicesPrivileges[0]);
     }
 
-    private static RemoteIndicesPrivileges parseRemoteIndex(
-        String roleName,
-        XContentParser parser,
-        boolean allowLegacyFieldSecurityExceptFields
-    ) throws IOException {
-        final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(
-            roleName,
-            parser,
-            false,
-            true,
-            false
-        );
+    private static RemoteIndicesPrivileges parseRemoteIndex(String roleName, XContentParser parser) throws IOException {
+        final IndicesPrivilegesWithOptionalRemoteClusters parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, false, true);
         if (parsed.remoteClusters() == null) {
             throw new ElasticsearchParseException(
                 "failed to parse remote indices privileges for role [{}]. missing required [{}] field",
@@ -920,7 +882,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     public static IndicesPrivileges parseIndexWithPredefinedPrivileges(final String roleName, String[] privileges, XContentParser parser)
         throws IOException {
         final IndicesPrivilegesWithOptionalRemoteClusters indicesPrivilegesWithOptionalRemoteClusters =
-            parseIndexWithOptionalRemoteClusters(roleName, parser, false, false, privileges, false);
+            parseIndexWithOptionalRemoteClusters(roleName, parser, false, false, privileges);
         assert indicesPrivilegesWithOptionalRemoteClusters.remoteClusters == null;
         return indicesPrivilegesWithOptionalRemoteClusters.indicesPrivileges;
     }
@@ -929,17 +891,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         final String roleName,
         final XContentParser parser,
         final boolean allow2xFormat,
-        final boolean allowRemoteClusters,
-        final boolean allowLegacyFieldSecurityExceptFields
+        final boolean allowRemoteClusters
     ) throws IOException {
-        return parseIndexWithOptionalRemoteClusters(
-            roleName,
-            parser,
-            allow2xFormat,
-            allowRemoteClusters,
-            null,
-            allowLegacyFieldSecurityExceptFields
-        );
+        return parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, allowRemoteClusters, null);
     }
 
     private static IndicesPrivilegesWithOptionalRemoteClusters parseIndexWithOptionalRemoteClusters(
@@ -947,8 +901,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         final XContentParser parser,
         final boolean allow2xFormat,
         final boolean allowRemoteClusters,
-        final String[] predefinedPrivileges,
-        final boolean allowLegacyFieldSecurityExceptFields
+        final String[] predefinedPrivileges
     ) throws IOException {
         assert predefinedPrivileges == null || predefinedPrivileges.length != 0;
         XContentParser.Token token = parser.currentToken();
@@ -1159,7 +1112,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 Fields.EXCEPT_FIELDS
             );
         }
-        checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields, allowLegacyFieldSecurityExceptFields);
+        checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields);
         return new IndicesPrivilegesWithOptionalRemoteClusters(
             IndicesPrivileges.builder()
                 .indices(names)
@@ -1190,17 +1143,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    private static void checkIfExceptFieldsIsSubsetOfGrantedFields(
-        String roleName,
-        String[] grantedFields,
-        String[] deniedFields,
-        boolean allowLegacyExceptionFields
-    ) {
+    private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
         try {
-            fieldPermissionsCache.validateFieldPermissionsWithCache(
-                new FieldPermissionsDefinition(grantedFields, deniedFields),
-                allowLegacyExceptionFields
-            );
+            fieldPermissionsCache.getFieldPermissions(new FieldPermissionsDefinition(grantedFields, deniedFields));
         } catch (ElasticsearchSecurityException e) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
         }

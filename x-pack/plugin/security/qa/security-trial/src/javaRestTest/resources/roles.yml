@@ -22,6 +22,8 @@ dls_painless_role:
 # This role denies underscore-prefixed fields which are allowed but ignored
 # (in the case of allow-listed fields like _id)
 fls_legacy_metadata_fields_role:
+  cluster:
+    - manage_api_key
   indices:
     - names: [ "index_allowed" ]
       privileges: [ "read" ]

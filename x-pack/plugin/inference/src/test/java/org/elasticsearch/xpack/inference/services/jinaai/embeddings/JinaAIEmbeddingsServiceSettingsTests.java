@@ -39,11 +39,8 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public static JinaAIEmbeddingsServiceSettings createRandom() {
         SimilarityMeasure similarityMeasure = null;
         Integer dims = null;
-        var isTextEmbeddingModel = randomBoolean();
-        if (isTextEmbeddingModel) {
-            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-            dims = 1024;
-        }
+        similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
+        dims = 1024;
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
 
         var commonSettings = JinaAIServiceSettingsTests.createRandom();

@@ -30,8 +30,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class JinaAIResponseHandlerTests extends ESTestCase {
-    public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, "id");
+    public void testCheckForFailureStatusCode_DoesNotThrowForStatusCodesBetween200And299() {
+        callCheckForFailureStatusCode(randomIntBetween(200, 299), "id");
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor503() {
@@ -54,7 +54,7 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor429() {
+    public void testCheckForFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(

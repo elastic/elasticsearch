@@ -80,11 +80,6 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return null;
-        }
-
-        @Override
         public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
             return null;
         }
@@ -176,8 +171,8 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings, final MappingLookup mappingLookup) {
+            return DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -254,10 +249,13 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return indexSettings != null && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
-                ? DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME
-                : DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings, final MappingLookup mappingLookup) {
+            return (indexSettings != null
+                && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
+                && mappingLookup.getMapper(HOST_NAME) == null
+                && mappingLookup.getMapper("host") instanceof FieldMapper == false)
+                    ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
+                    : DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -334,11 +332,6 @@ public enum IndexMode {
         @Override
         public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) {
 
-        }
-
-        @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return null;
         }
 
         @Override
@@ -424,14 +417,14 @@ public enum IndexMode {
         });
     }
 
-    private static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP;
 
-    private static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP_HOSTNAME;
 
     static {
         try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createDefaultMapping(false);
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createDefaultMapping(true);
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(false);
+            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -488,7 +481,9 @@ public enum IndexMode {
      * Get default mapping for this index or {@code null} if there is none.
      */
     @Nullable
-    public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
+    public CompressedXContent getDefaultMapping(final IndexSettings indexSettings, final MappingLookup mappingLookup) {
+        return null;
+    }
 
     /**
      * Build the {@link FieldMapper} for {@code _id}.

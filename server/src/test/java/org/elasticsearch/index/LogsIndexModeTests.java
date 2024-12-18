@@ -11,7 +11,16 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,7 +36,7 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
-        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings).string(), containsString("host.name"));
+        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings, MappingLookup.EMPTY).string(), containsString("host.name"));
     }
 
     public void testCustomSortField() {
@@ -41,7 +50,24 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB));
         assertThat(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()), equalTo("agent_id"));
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(false));
-        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings).string(), not(containsString("host")));
+        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings, MappingLookup.EMPTY).string(), not(containsString("host")));
+    }
+
+    public void testConflictingHostNameField() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
+
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            NumberFieldMapper.Builder.docValuesOnly("host.name", NumberFieldMapper.NumberType.INTEGER, IndexVersion.current())
+        ).build(MapperBuilderContext.root(true, false));
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[] {}, Map.of());
+        MappingLookup lookup = MappingLookup.fromMapping(mapping);
+
+        String defaultMapping = IndexMode.LOGSDB.getDefaultMapping(settings, lookup).string();
+        assertThat(defaultMapping, containsString("@timestamp"));
+        assertThat(defaultMapping, not(containsString("host.name")));
     }
 
     public void testSortMode() {

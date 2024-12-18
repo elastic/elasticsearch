@@ -103,12 +103,10 @@ create logsdb data stream with host as keyword:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with host as text and multi fields:
@@ -148,12 +146,10 @@ create logsdb data stream with host as text and multi fields:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with host as text:
@@ -189,12 +185,10 @@ create logsdb data stream with host as text:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with host as text and name as double:
@@ -233,12 +227,10 @@ create logsdb data stream with host as text and name as double:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with timestamp object mapping:

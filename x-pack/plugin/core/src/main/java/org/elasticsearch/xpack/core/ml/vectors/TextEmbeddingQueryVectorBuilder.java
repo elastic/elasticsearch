@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.vectors;
+package org.elasticsearch.xpack.core.ml.vectors;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;

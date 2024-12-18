@@ -13,6 +13,8 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
 import java.util.List;
@@ -96,6 +98,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     private QueryBuilder buildNestedQueryFromKnnVectorQuery(QueryBuilder queryBuilder, String searchInferenceId) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
+        QueryVectorBuilder queryVectorBuilder = knnVectorQueryBuilder.queryVectorBuilder();
+        TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder = (TextEmbeddingQueryVectorBuilder) queryVectorBuilder;
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(knnVectorQueryBuilder.getFieldName()),
             buildNewKnnVectorQuery(SemanticTextField.getEmbeddingsFieldName(knnVectorQueryBuilder.getFieldName()), knnVectorQueryBuilder),

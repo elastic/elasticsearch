@@ -106,7 +106,9 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
         SearchRequest searchRequest;
         if (request.hasParam("min_compatible_shard_node")) {
             searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));

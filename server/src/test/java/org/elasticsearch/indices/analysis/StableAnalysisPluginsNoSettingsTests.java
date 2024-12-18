@@ -61,7 +61,7 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
     }
 
     public void testStablePlugins() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             Settings.builder()
                 .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")

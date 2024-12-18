@@ -43,7 +43,7 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     private IndexVersion randomIndexVersion() {
-        return rarely() ? IndexVersion.fromId(randomInt()) : IndexVersionUtils.randomVersion(random());
+        return rarely() ? IndexVersion.fromId(randomInt()) : IndexVersionUtils.randomVersion();
     }
 
     public void testEqualsHashcodeSerialization() {

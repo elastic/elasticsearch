@@ -151,3 +151,18 @@ setup:
 
   - match: { index_name: content-search-2-test }
 
+---
+"Update Managed Connector Index Name - Bad Prefix":
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          is_native: true
+          service_type: super-connector
+
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: test-connector-2
+        body:
+          index_name: wrong-prefix-search-2-test

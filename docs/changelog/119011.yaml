@@ -1,0 +1,5 @@
+pr: 119011
+summary: "WIP: Add support for knn vector queries on `semantic_text` fields"
+area: Relevance
+type: enhancement
+issues: []

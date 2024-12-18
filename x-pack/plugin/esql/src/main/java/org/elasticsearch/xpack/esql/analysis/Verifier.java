@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -207,7 +207,6 @@ public class Verifier {
             checkJoin(p, failures);
         });
         checkRemoteEnrich(plan, failures);
-        checkMetadataScoreNameReserved(plan, failures);
 
         if (failures.isEmpty()) {
             checkLicense(plan, licenseState, failures);
@@ -219,13 +218,6 @@ public class Verifier {
         }
 
         return failures;
-    }
-
-    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
-        // _score can only be set as metadata attribute
-        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
-            failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
-        }
     }
 
     private void checkSort(LogicalPlan p, Set<Failure> failures) {
@@ -324,11 +316,15 @@ public class Verifier {
     private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
         // Forbid CATEGORIZE grouping function with other groupings
         if (agg.groupings().size() > 1) {
-            agg.groupings().forEach(g -> {
+            agg.groupings().subList(1, agg.groupings().size()).forEach(g -> {
                 g.forEachDown(
                     Categorize.class,
                     categorize -> failures.add(
-                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                        fail(
+                            categorize,
+                            "CATEGORIZE grouping function [{}] can only be in the first grouping expression",
+                            categorize.sourceText()
+                        )
                     )
                 );
             });
@@ -381,6 +377,18 @@ public class Verifier {
                     );
                 }
             })));
+        agg.aggregates().forEach(a -> a.forEachDown(FilteredExpression.class, fe -> fe.filter().forEachDown(Attribute.class, attribute -> {
+            var categorize = categorizeByAttribute.get(attribute);
+            if (categorize != null) {
+                failures.add(
+                    fail(
+                        attribute,
+                        "cannot reference CATEGORIZE grouping function [{}] within an aggregation filter",
+                        attribute.sourceText()
+                    )
+                );
+            }
+        })));
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
@@ -420,7 +428,8 @@ public class Verifier {
                 Expression filter = fe.filter();
                 failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
             }
-            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
+            Expression f = fe.filter();
+            // check the filter has to be a boolean term, similar as checkFilterConditionType
             if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
                 failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
             }
@@ -431,9 +440,10 @@ public class Verifier {
                         fail(af, "cannot use aggregate function [{}] in aggregate WHERE clause [{}]", af.sourceText(), fe.sourceText())
                     );
                 }
-                // check the bucketing function against the group
+                // check the grouping function against the group
                 else if (c instanceof GroupingFunction gf) {
-                    if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                    if (c instanceof Categorize
+                        || Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
                         failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()));
                     }
                 }
@@ -595,8 +605,16 @@ public class Verifier {
         functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
+    public XPackLicenseState licenseState() {
+        return licenseState;
+    }
+
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
@@ -641,6 +659,12 @@ public class Verifier {
         if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
+
+        // Allow mixed millisecond and nanosecond binary comparisons
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+            return null;
+        }
+
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,
@@ -742,41 +766,78 @@ public class Verifier {
     }
 
     /**
-     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     * Checks whether a condition contains a disjunction with a full text search.
+     * If it does, check that every element of the disjunction is a full text search or combinations (AND, OR, NOT) of them.
+     * If not, add a failure to the failures collection.
      *
-     * @param condition        condition to check for disjunctions
+     * @param condition        condition to check for disjunctions of full text searches
      * @param typeNameProvider provider for the type name to add in the failure message
      * @param failures         failures collection to add to
      */
-    private static void checkNotPresentInDisjunctions(
+    private static void checkFullTextSearchDisjunctions(
         Expression condition,
         java.util.function.Function<FullTextFunction, String> typeNameProvider,
         Set<Failure> failures
     ) {
-        condition.forEachUp(Or.class, or -> {
-            checkNotPresentInDisjunctions(or.left(), or, typeNameProvider, failures);
-            checkNotPresentInDisjunctions(or.right(), or, typeNameProvider, failures);
+        int failuresCount = failures.size();
+        condition.forEachDown(Or.class, or -> {
+            if (failures.size() > failuresCount) {
+                // Exit early if we already have a failures
+                return;
+            }
+            boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
+            if (hasFullText) {
+                boolean hasOnlyFullText = onlyFullTextFunctionsInExpression(or);
+                if (hasOnlyFullText == false) {
+                    failures.add(
+                        fail(
+                            or,
+                            "Invalid condition [{}]. Full text functions can be used in an OR condition, "
+                                + "but only if just full text functions are used in the OR condition",
+                            or.sourceText()
+                        )
+                    );
+                }
+            }
         });
     }
 
     /**
-     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
      *
-     * @param parentExpression parent expression to add to the failure message
-     * @param or               disjunction that is being checked
-     * @param failures         failures collection to add to
+     * @param expression expression to check
+     * @return true if all children are full text functions or negations of full text functions, false otherwise
      */
-    private static void checkNotPresentInDisjunctions(
-        Expression parentExpression,
-        Or or,
-        java.util.function.Function<FullTextFunction, String> elementName,
-        Set<Failure> failures
-    ) {
-        parentExpression.forEachDown(FullTextFunction.class, ftp -> {
-            failures.add(
-                fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
-            );
-        });
+    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
+        if (expression instanceof FullTextFunction) {
+            return true;
+        } else if (expression instanceof Not) {
+            return onlyFullTextFunctionsInExpression(expression.children().get(0));
+        } else if (expression instanceof BinaryLogic binaryLogic) {
+            return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks whether an expression contains a full text function as part of it
+     *
+     * @param expression expression to check
+     * @return true if the expression or any of its children is a full text function, false otherwise
+     */
+    private static boolean anyFullTextFunctionsInExpression(Expression expression) {
+        if (expression instanceof FullTextFunction) {
+            return true;
+        }
+
+        for (Expression child : expression.children()) {
+            if (anyFullTextFunctionsInExpression(child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -804,7 +865,6 @@ public class Verifier {
                     );
                 }
             }
-
         }
     }
 
@@ -846,7 +906,7 @@ public class Verifier {
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
-            checkNotPresentInDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
+            checkFullTextSearchDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {

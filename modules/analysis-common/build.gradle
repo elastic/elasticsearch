@@ -31,7 +31,7 @@ dependencies {
 }
 
 tasks.named("yamlRestTest").configure { task->
-  if (BuildParams.getRuntimeJavaVersion().majorVersion.toInteger() < 21) {
+  if (buildParams.getRuntimeJavaVersion().get().majorVersion.toInteger() < 21) {
     // Requires at least Java 21
     systemProperty 'tests.rest.blacklist', [
       "analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)"

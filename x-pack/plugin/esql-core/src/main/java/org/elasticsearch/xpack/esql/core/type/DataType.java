@@ -32,6 +32,113 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
+/**
+ * This enum represents data types the ES|QL query processing layer is able to
+ * interact with in some way. This includes fully representable types (e.g.
+ * {@link DataType#LONG}, numeric types which we promote (e.g. {@link DataType#SHORT})
+ * or fold into other types (e.g. {@link DataType#DATE_PERIOD}) early in the
+ * processing pipeline, types for internal use
+ * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
+ * doesn't support, but require special handling anyway (e.g.
+ * {@link DataType#OBJECT})
+ *
+ * <h2>Process for adding a new data type</h2>
+ * Note: it is not expected that all the following steps be done in a single PR.
+ * Use capabilities to gate tests as you go, and use as many PRs as you think
+ * appropriate. New data types are complex, and smaller PRs will make reviews
+ * easier.
+ * <ul>
+ *     <li>
+ *         Create a new feature flag for the type in {@link EsqlCorePlugin}. We
+ *         recommend developing the data type over a series of smaller PRs behind
+ *         a feature flag; even for relatively simple data types.</li>
+ *     <li>
+ *         Add a capability to EsqlCapabilities related to the new type, and
+ *         gated by the feature flag you just created. Again, using the feature
+ *         flag is preferred over snapshot-only. As development progresses, you may
+ *         need to add more capabilities related to the new type, e.g. for
+ *         supporting specific functions. This is fine, and expected.</li>
+ *     <li>
+ *         Create a new CSV test file for the new type. You'll either need to
+ *         create a new data file as well, or add values of the new type to
+ *         and existing data file. See CsvTestDataLoader for creating a new data
+ *         set.</li>
+ *     <li>
+ *         In the new CSV test file, start adding basic functionality tests.
+ *         These should include reading and returning values, both from indexed data
+ *         and from the ROW command.  It should also include functions that support
+ *         "every" type, such as Case or MvFirst.</li>
+ *     <li>
+ *         Add the new type to the CsvTestUtils#Type enum, if it isn't already
+ *         there. You also need to modify CsvAssert to support reading values
+ *         of the new type.</li>
+ *     <li>
+ *         At this point, the CSV tests should fail with a sensible ES|QL error
+ *         message. Make sure they're failing in ES|QL, not in the test
+ *         framework.</li>
+ *     <li>
+ *         Add the new data type to this enum. This will cause a bunch of
+ *         compile errors for switch statements throughout the code.  Resolve those
+ *         as appropriate. That is the main way in which the new type will be tied
+ *         into the framework.</li>
+ *     <li>
+ *         Add the new type to the {@link DataType#UNDER_CONSTRUCTION}
+ *         collection. This is used by the test framework to disable some checks
+ *         around how functions report their supported types, which would otherwise
+ *         generate a lot of noise while the type is still in development.</li>
+ *     <li>
+ *         Add typed data generators to TestCaseSupplier, and make sure all
+ *         functions that support the new type have tests for it.</li>
+ *     <li>
+ *         Work to support things all types should do. Equality and the
+ *         "typeless" MV functions (MvFirst, MvLast, and MvCount) should work for
+ *         most types. Case and Coalesce should also support all types.
+ *         If the type has a natural ordering, make sure to test
+ *         sorting and the other binary comparisons. Make sure these functions all
+ *         have CSV tests that run against indexed data.</li>
+ *     <li>
+ *         Add conversion functions as appropriate.  Almost all types should
+ *         support ToString, and should have a "ToType" function that accepts a
+ *         string.  There may be other logical conversions depending on the nature
+ *         of the type. Make sure to add the conversion function to the
+ *         TYPE_TO_CONVERSION_FUNCTION map in EsqlDataTypeConverter. Make sure the
+ *         conversion functions have CSV tests that run against indexed data.</li>
+ *     <li>
+ *         Support the new type in aggregations that are type independent.
+ *         This includes Values, Count, and Count Distinct. Make sure there are
+ *         CSV tests against indexed data for these.</li>
+ *     <li>
+ *         Support other functions and aggregations as appropriate, making sure
+ *         to included CSV tests.</li>
+ *     <li>
+ *         Consider how the type will interact with other types. For example,
+ *         if the new type is numeric, it may be good for it to be comparable with
+ *         other numbers. Supporting this may require new logic in
+ *         EsqlDataTypeConverter#commonType, individual function type checking, the
+ *         verifier rules, or other places. We suggest starting with CSV tests and
+ *         seeing where they fail.</li>
+ * </ul>
+ * There are some additional steps that should be taken when removing the
+ * feature flag and getting ready for a release:
+ * <ul>
+ *     <li>
+ *         Ensure the capabilities for this type are always enabled
+ *     </li>
+ *     <li>
+ *         Remove the type from the {@link DataType#UNDER_CONSTRUCTION}
+ *         collection</li>
+ *     <li>
+ *         Fix new test failures related to declared function types
+ *     </li>
+ *     <li>
+ *         Make sure to run the full test suite locally via gradle to generate
+ *         the function type tables and helper files with the new type. Ensure all
+ *         the functions that support the type have appropriate docs for it.</li>
+ *     <li>
+ *         If appropriate, remove the type from the ESQL limitations list of
+ *         unsupported types.</li>
+ * </ul>
+ */
 public enum DataType {
     /**
      * Fields of this type are unsupported by any functions and are always
@@ -209,7 +316,6 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
         Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)
     );
 
@@ -416,6 +522,14 @@ public enum DataType {
         return isDateTime(t) || isTemporalAmount(t);
     }
 
+    public static boolean isDateTimeOrNanosOrTemporal(DataType t) {
+        return isDateTime(t) || isTemporalAmount(t) || t == DATE_NANOS;
+    }
+
+    public static boolean isMillisOrNanos(DataType t) {
+        return t == DATETIME || t == DATE_NANOS;
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;
@@ -589,6 +703,13 @@ public enum DataType {
 
     public DataType noText() {
         return isString(this) ? KEYWORD : this;
+    }
+
+    public boolean isDate() {
+        return switch (this) {
+            case DATETIME, DATE_NANOS -> true;
+            default -> false;
+        };
     }
 
     /**

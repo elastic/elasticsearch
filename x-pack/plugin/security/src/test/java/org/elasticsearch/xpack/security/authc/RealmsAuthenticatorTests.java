@@ -326,7 +326,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
                 .getArguments()[1];
-                listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful realms authentication", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful realms authentication", null));
             return null;
         }).when(unsuccessfulRealm).authenticate(eq(authenticationToken), any());
 
@@ -337,7 +337,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
 
         final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         realmsAuthenticator.authenticate(context, future);
-        var e =  expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
+        var e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
         assertThat(e, sameInstance(exception));
 
         assertSingleFailedAuthMetric(

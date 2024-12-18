@@ -438,6 +438,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
         if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            assert fieldName.equals(fieldType.name());
             IndexLongFieldRange fieldRange = coordinatorRewriteContext.getFieldRange(fieldName);
             if (fieldRange.isComplete() == false || fieldRange == IndexLongFieldRange.EMPTY) {
                 // if not all shards for this (frozen) index have reported ranges to cluster state, OR if they

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -33,12 +33,17 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
+import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -47,6 +52,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -86,15 +94,20 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.StringQueries(),
-        new ExpressionTranslators.MultiMatches(),
+        new MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
+        new KqlFunctionTranslator(),
+        new TermFunctionTranslator(),
         new Scalars()
     );
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
+        if (e instanceof TranslationAware ta) {
+            return ta.asQuery(handler);
+        }
         Query translation = null;
+
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, handler);
             if (translation != null) {
@@ -526,17 +539,59 @@ public final class EsqlExpressionTranslators {
         }
     }
 
+    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+
+        @Override
+        protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return doTranslate(q, handler);
+        }
+
+        public static Query doTranslate(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return new MultiMatchQuery(q.source(), q.query(), q.fields(), q);
+        }
+    }
+
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
-            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
+            Expression fieldExpression = match.field();
+            // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+            if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+                fieldExpression = convertFunction.field();
+            }
+            if (fieldExpression instanceof FieldAttribute fieldAttribute) {
+                String fieldName = fieldAttribute.name();
+                if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+                    // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+                    fieldName = multiTypeEsField.getName();
+                }
+                // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+                return new MatchQuery(match.source(), fieldName, match.queryAsObject(), Map.of("lenient", "true"));
+            }
+
+            throw new IllegalArgumentException("Match must have a field attribute as the first argument");
         }
     }
 
     public static class QueryStringFunctionTranslator extends ExpressionTranslator<QueryString> {
         @Override
         protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
-            return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), null);
+            return new QueryStringQuery(queryString.source(), (String) queryString.queryAsObject(), Map.of(), Map.of());
         }
     }
+
+    public static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
+        @Override
+        protected Query asQuery(Kql kqlFunction, TranslatorHandler handler) {
+            return new KqlQuery(kqlFunction.source(), (String) kqlFunction.queryAsObject());
+        }
+    }
+
+    public static class TermFunctionTranslator extends ExpressionTranslator<Term> {
+        @Override
+        protected Query asQuery(Term term, TranslatorHandler handler) {
+            return new TermQuery(term.source(), ((FieldAttribute) term.field()).name(), term.queryAsObject());
+        }
+    }
+
 }

@@ -153,6 +153,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertProfiles(profiled, 1, searchResponse);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
         } finally {
+            mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();
@@ -282,6 +283,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertProfiles(profiled, 2, searchResponse);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
         } finally {
+            mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();

@@ -71,8 +71,10 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 any()
             );
 
-        assertThrows(ElasticsearchStatusException.class, () -> {
-            underTest.validate(mockInferenceService, mockModel, mockActionListener);});
+        assertThrows(
+            ElasticsearchStatusException.class,
+            () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); }
+        );
 
         verifyCallToService(false);
     }

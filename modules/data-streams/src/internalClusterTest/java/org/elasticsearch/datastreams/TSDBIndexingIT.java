@@ -412,7 +412,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertResponse(client().search(searchRequest), searchResponse -> {
                 ElasticsearchAssertions.assertNoSearchHits(searchResponse);
                 assertThat(searchResponse.getTotalShards(), equalTo(2));
-                assertThat(searchResponse.getSkippedShards(), equalTo(1));
+                assertThat(searchResponse.getSkippedShards(), equalTo(2));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
             });
         }

@@ -9,12 +9,15 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -47,8 +50,12 @@ public class RestIndexAction extends BaseRestHandler {
         return List.of(
             new Route(POST, "/{index}/_doc/{id}"),
             new Route(PUT, "/{index}/_doc/{id}"),
-            Route.builder(POST, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(POST, "/{index}/{type}/{id}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(PUT, "/{index}/{type}/{id}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -70,8 +77,12 @@ public class RestIndexAction extends BaseRestHandler {
             return List.of(
                 new Route(POST, "/{index}/_create/{id}"),
                 new Route(PUT, "/{index}/_create/{id}"),
-                Route.builder(POST, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-                Route.builder(PUT, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+                Route.builder(POST, "/{index}/{type}/{id}/_create")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                    .build(),
+                Route.builder(PUT, "/{index}/{type}/{id}/_create")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                    .build()
             );
         }
 
@@ -103,7 +114,9 @@ public class RestIndexAction extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_doc"),
-                Route.builder(POST, "/{index}/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+                Route.builder(POST, "/{index}/{type}")
+                    .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                    .build()
             );
         }
 
@@ -122,11 +135,12 @@ public class RestIndexAction extends BaseRestHandler {
             request.param("type"); // consume and ignore the type
         }
 
+        ReleasableBytesReference source = request.requiredContent();
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.requiredContent(), request.getXContentType());
+        indexRequest.source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -144,10 +158,16 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(sOpType);
         }
 
-        return channel -> client.index(
-            indexRequest,
-            new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
-        );
+        return channel -> {
+            source.mustIncRef();
+            client.index(
+                indexRequest,
+                ActionListener.releaseAfter(
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                    source
+                )
+            );
+        };
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -91,6 +92,19 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
             builder.order(Direction.from(direction).asOrder());
             return builder;
+        }
+    }
+
+    public record ScoreSort(Order.OrderDirection direction) implements Sort {
+        @Override
+        public SortBuilder<?> sortBuilder() {
+            return new ScoreSortBuilder();
+        }
+
+        @Override
+        public FieldAttribute field() {
+            // TODO: refactor this: not all Sorts are backed by FieldAttributes
+            return null;
         }
     }
 

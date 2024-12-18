@@ -23,3 +23,4 @@ org.elasticsearch.search.retriever.RetrieversFeatures
 org.elasticsearch.script.ScriptFeatures
 org.elasticsearch.reservedstate.service.FileSettingsFeatures
 org.elasticsearch.cluster.routing.RoutingFeatures
+org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures

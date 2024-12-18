@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
@@ -31,7 +32,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.ToLongFunction;
 
 /**
  * Implementations for {@link Bucket} ordering strategies.
@@ -64,10 +64,10 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
+        public <T extends Bucket> Comparator<BucketAndOrd<T>> partiallyBuiltBucketComparator(Aggregator aggregator) {
             try {
                 BucketComparator bucketComparator = path.bucketComparator(aggregator, order);
-                return (lhs, rhs) -> bucketComparator.compare(ordinalReader.applyAsLong(lhs), ordinalReader.applyAsLong(rhs));
+                return (lhs, rhs) -> bucketComparator.compare(lhs.ord, rhs.ord);
             } catch (IllegalArgumentException e) {
                 throw new AggregationExecutionException.InvalidPath("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
             }
@@ -189,12 +189,13 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
-            List<Comparator<T>> comparators = orderElements.stream()
-                .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
-                .toList();
+        public <T extends Bucket> Comparator<BucketAndOrd<T>> partiallyBuiltBucketComparator(Aggregator aggregator) {
+            List<Comparator<BucketAndOrd<T>>> comparators = new ArrayList<>(orderElements.size());
+            for (BucketOrder order : orderElements) {
+                comparators.add(order.partiallyBuiltBucketComparator(aggregator));
+            }
             return (lhs, rhs) -> {
-                for (Comparator<T> c : comparators) {
+                for (Comparator<BucketAndOrd<T>> c : comparators) {
                     int result = c.compare(lhs, rhs);
                     if (result != 0) {
                         return result;
@@ -300,9 +301,9 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
-        public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
+        public <T extends Bucket> Comparator<BucketAndOrd<T>> partiallyBuiltBucketComparator(Aggregator aggregator) {
             Comparator<Bucket> comparator = comparator();
-            return comparator::compare;
+            return (lhs, rhs) -> comparator.compare(lhs.bucket, rhs.bucket);
         }
 
         @Override

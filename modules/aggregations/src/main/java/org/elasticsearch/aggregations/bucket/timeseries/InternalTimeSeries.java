@@ -34,26 +34,23 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     /**
      * A bucket associated with a specific time series (identified by its key)
      */
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucketWritable {
         protected long bucketOrd;
-        protected final boolean keyed;
         protected final BytesRef key;
         // TODO: make computing docCount optional
         protected long docCount;
         protected InternalAggregations aggregations;
 
-        public InternalBucket(BytesRef key, long docCount, InternalAggregations aggregations, boolean keyed) {
+        public InternalBucket(BytesRef key, long docCount, InternalAggregations aggregations) {
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.keyed = keyed;
         }
 
         /**
          * Read from a stream.
          */
-        public InternalBucket(StreamInput in, boolean keyed) throws IOException {
-            this.keyed = keyed;
+        public InternalBucket(StreamInput in) throws IOException {
             key = in.readBytesRef();
             docCount = in.readVLong();
             aggregations = InternalAggregations.readFrom(in);
@@ -86,8 +83,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             return aggregations;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params, boolean keyed) throws IOException {
             // Use map key in the xcontent response:
             var key = getKey();
             if (keyed) {
@@ -99,7 +95,6 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -112,14 +107,13 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             }
             InternalTimeSeries.InternalBucket that = (InternalTimeSeries.InternalBucket) other;
             return Objects.equals(key, that.key)
-                && Objects.equals(keyed, that.keyed)
                 && Objects.equals(docCount, that.docCount)
                 && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), key, keyed, docCount, aggregations);
+            return Objects.hash(getClass(), key, docCount, aggregations);
         }
     }
 
@@ -143,7 +137,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         int size = in.readVInt();
         List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            buckets.add(new InternalTimeSeries.InternalBucket(in, keyed));
+            buckets.add(new InternalTimeSeries.InternalBucket(in));
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -162,7 +156,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (InternalBucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params, keyed);
         }
         if (keyed) {
             builder.endObject();
@@ -252,14 +246,14 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
 
     @Override
     public InternalBucket createBucket(InternalAggregations aggregations, InternalBucket prototype) {
-        return new InternalBucket(prototype.key, prototype.docCount, aggregations, prototype.keyed);
+        return new InternalBucket(prototype.key, prototype.docCount, aggregations);
     }
 
     private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         InternalTimeSeries.InternalBucket reduced = null;
         for (InternalTimeSeries.InternalBucket bucket : buckets) {
             if (reduced == null) {
-                reduced = new InternalTimeSeries.InternalBucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
+                reduced = new InternalTimeSeries.InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
             } else {
                 reduced.docCount += bucket.docCount;
             }

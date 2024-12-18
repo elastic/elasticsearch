@@ -140,6 +140,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
+    public static final ClusterBlock INDEX_REFRESH_BLOCK = new ClusterBlock(
+        14,
+        "index refresh blocked, waiting for shard(s) to be started",
+        true,
+        false,
+        false,
+        RestStatus.REQUEST_TIMEOUT,
+        EnumSet.of(ClusterBlockLevel.REFRESH)
+    );
 
     // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
     public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";

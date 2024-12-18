@@ -462,6 +462,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             pluginEsBuildVersion,
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             apmIndicesExist };
         final String expectedJson = """
@@ -572,7 +573,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total_deduplicated_field_count": 0,
                     "total_deduplicated_mapping_size_in_bytes": 0,
                     "field_types": [],
-                    "runtime_field_types": []
+                    "runtime_field_types": [],
+                    "source_modes": {}
                   },
                   "analysis": {
                     "char_filter_types": [],
@@ -816,6 +818,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     ],
                     "version": "%s",
                     "min_index_version":%s,
+                    "min_read_only_index_version":%s,
                     "max_index_version":%s
                   }
                 },

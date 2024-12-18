@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -37,17 +38,25 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private int queryPosition = -1;
     private final IndexReader indexReader;
     private final IndexSearcher searcher;
+    private final Warnings warnings;
     private final int maxPageSize;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
 
-    public EnrichQuerySourceOperator(BlockFactory blockFactory, int maxPageSize, QueryList queryList, IndexReader indexReader) {
+    public EnrichQuerySourceOperator(
+        BlockFactory blockFactory,
+        int maxPageSize,
+        QueryList queryList,
+        IndexReader indexReader,
+        Warnings warnings
+    ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
         this.indexReader = indexReader;
         this.searcher = new IndexSearcher(indexReader);
+        this.warnings = warnings;
     }
 
     @Override
@@ -72,12 +81,18 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             int totalMatches = 0;
             do {
-                Query query = nextQuery();
-                if (query == null) {
-                    assert isFinished();
-                    break;
+                Query query;
+                try {
+                    query = nextQuery();
+                    if (query == null) {
+                        assert isFinished();
+                        break;
+                    }
+                    query = searcher.rewrite(new ConstantScoreQuery(query));
+                } catch (Exception e) {
+                    warnings.registerException(e);
+                    continue;
                 }
-                query = searcher.rewrite(new ConstantScoreQuery(query));
                 final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                 if (weight == null) {
                     continue;

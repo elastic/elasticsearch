@@ -196,7 +196,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
      * @param property          property to add
      * @param value             value to add
      */
-    private <T> void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
+    private void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
         if (properties.contains(property) && Strings.hasLength(value)) {
             additionalFields.put(property.toLowerCase(), value);
         }
@@ -233,7 +233,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String processorTag,
             String description,
             Map<String, Object> config
-        ) throws Exception {
+        ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String resourceName = readOptionalStringProperty(TYPE, processorTag, config, "resource_name");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");

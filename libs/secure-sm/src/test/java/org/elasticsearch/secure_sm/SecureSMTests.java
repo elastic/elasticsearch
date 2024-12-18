@@ -14,7 +14,10 @@ import junit.framework.TestCase;
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /** Simple tests for SecureSM */
 public class SecureSMTests extends TestCase {
@@ -127,5 +130,13 @@ public class SecureSMTests extends TestCase {
         t1.interrupt();
         t1.join();
         assertTrue(interrupted1.get());
+    }
+
+    public void testParallelStreamThreadGroup() throws Exception {
+        List<Integer> list = new ArrayList<>();
+        for (int i = 0; i < 100; ++i) {
+            list.add(i);
+        }
+        list.parallelStream().collect(Collectors.toSet());
     }
 }

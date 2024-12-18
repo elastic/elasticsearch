@@ -9,19 +9,22 @@
         "sort": {
           "field": [
             "profiling.project.id",
+            "k8s.namespace.name",
             "orchestrator.resource.name",
             "host.name",
             "container.name",
             "process.thread.name"
           ]
+        },
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
         }
       },
       "codec": "best_compression"
     },
     "mappings": {
-      "_source": {
-        "mode": "synthetic"
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.events.version},
@@ -79,6 +82,9 @@
           "type": "keyword"
         },
         "container.id": {
+          "type": "keyword"
+        },
+        "k8s.namespace.name": {
           "type": "keyword"
         }
       }

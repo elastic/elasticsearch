@@ -17,7 +17,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
@@ -66,8 +67,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
             new Route(POST, "/{index}/_msearch"),
-            Route.builder(GET, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/_msearch")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_msearch")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -78,6 +83,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
         final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
@@ -191,9 +199,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
 
-        final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
+        final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
-        final BytesReference data = sourceTuple.v2();
+        final ReleasableBytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(
             xContent,
             request.contentParserConfig(),

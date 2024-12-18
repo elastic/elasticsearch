@@ -1,0 +1,5 @@
+pr: 117747
+summary: Backport scoring support in ES|QL to 8.x branch
+area: ES|QL
+type: enhancement
+issues: []

@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.test.ListMatcher;
@@ -419,9 +420,15 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         if (isOldCluster()) {
             Request createIndex = new Request("PUT", "/synthetic");
             XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+            boolean useIndexSetting = getOldClusterIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER);
+            if (useIndexSetting) {
+                indexSpec.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
+            }
             indexSpec.startObject("mappings");
             {
-                indexSpec.startObject("_source").field("mode", "synthetic").endObject();
+                if (useIndexSetting == false) {
+                    indexSpec.startObject("_source").field("mode", "synthetic").endObject();
+                }
                 indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
             }
             indexSpec.endObject();

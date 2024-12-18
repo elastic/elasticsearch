@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -65,6 +66,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -91,6 +93,11 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
+    /**
+     * See {@link #shouldForkRoleBuilding(Set)}
+     */
+    private static final int ROLE_DESCRIPTOR_FORK_THRESHOLD = 100;
+    private static final int INDEX_PRIVILEGE_FORK_THRESHOLD = 1000;
 
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
@@ -106,6 +113,7 @@ public class CompositeRolesStore {
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
     private final ThreadContext threadContext;
+    private final Executor roleBuildingExecutor;
 
     public CompositeRolesStore(
         Settings settings,
@@ -118,6 +126,7 @@ public class CompositeRolesStore {
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
         RestrictedIndices restrictedIndices,
+        Executor roleBuildingExecutor,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;
@@ -179,6 +188,7 @@ public class CompositeRolesStore {
         );
         this.anonymousUser = new AnonymousUser(settings);
         this.threadContext = threadContext;
+        this.roleBuildingExecutor = roleBuildingExecutor;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -276,19 +286,68 @@ public class CompositeRolesStore {
                 } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
                     roleActionListener.onResponse(superuserRole);
                 } else {
-                    buildThenMaybeCacheRole(
-                        roleKey,
-                        rolesRetrievalResult.getRoleDescriptors(),
-                        rolesRetrievalResult.getMissingRoles(),
-                        rolesRetrievalResult.isSuccess(),
-                        invalidationCounter,
-                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
-                    );
+                    final ActionListener<Role> wrapped = ActionListener.wrap(roleActionListener::onResponse, failureHandler);
+                    if (shouldForkRoleBuilding(rolesRetrievalResult.getRoleDescriptors())) {
+                        roleBuildingExecutor.execute(
+                            ActionRunnable.wrap(
+                                wrapped,
+                                l -> buildThenMaybeCacheRole(
+                                    roleKey,
+                                    rolesRetrievalResult.getRoleDescriptors(),
+                                    rolesRetrievalResult.getMissingRoles(),
+                                    rolesRetrievalResult.isSuccess(),
+                                    invalidationCounter,
+                                    l
+                                )
+                            )
+                        );
+                    } else {
+                        buildThenMaybeCacheRole(
+                            roleKey,
+                            rolesRetrievalResult.getRoleDescriptors(),
+                            rolesRetrievalResult.getMissingRoles(),
+                            rolesRetrievalResult.isSuccess(),
+                            invalidationCounter,
+                            wrapped
+                        );
+                    }
                 }
             }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
+    }
+
+    /**
+     * Uses heuristics such as presence of application privileges to determine if role building will be expensive
+     * and therefore warrants forking.
+     * Package-private for testing.
+     */
+    boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
+        // A role with many role descriptors is likely expensive to build
+        if (roleDescriptors.size() > ROLE_DESCRIPTOR_FORK_THRESHOLD) {
+            return true;
+        }
+        int totalIndexPrivileges = 0;
+        int totalRemoteIndexPrivileges = 0;
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            // Application privileges can also result in big automata; it's difficult to determine how big application privileges
+            // are so err on the side of caution
+            if (roleDescriptor.hasApplicationPrivileges()) {
+                return true;
+            }
+            // Index privilege names or remote index privilege names can result in big and complex automata
+            totalIndexPrivileges += roleDescriptor.getIndicesPrivileges().length;
+            totalRemoteIndexPrivileges += roleDescriptor.getRemoteIndicesPrivileges().length;
+            if (totalIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD || totalRemoteIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD) {
+                return true;
+            }
+            // Likewise for FLS/DLS
+            if (roleDescriptor.isUsingDocumentOrFieldLevelSecurity()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean includesSuperuserRole(RoleReference roleReference) {
@@ -313,10 +372,11 @@ public class CompositeRolesStore {
         ActionListener<Role> listener
     ) {
         logger.trace(
-            "Building role from descriptors [{}] for names [{}] from source [{}]",
+            "Building role from descriptors [{}] for names [{}] from source [{}] on [{}]",
             roleDescriptors,
             roleKey.getNames(),
-            roleKey.getSource()
+            roleKey.getSource(),
+            Thread.currentThread().getName()
         );
         buildRoleFromDescriptors(
             roleDescriptors,

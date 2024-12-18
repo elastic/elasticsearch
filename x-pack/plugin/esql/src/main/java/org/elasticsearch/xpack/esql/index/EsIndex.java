@@ -25,6 +25,9 @@ public class EsIndex implements Writeable {
     private final Map<String, EsField> mapping;
     private final Map<String, IndexMode> indexNameWithModes;
 
+    /**
+     * Intended for tests. Returns an index with an empty index mode map.
+     */
     public EsIndex(String name, Map<String, EsField> mapping) {
         this(name, mapping, Map.of());
     }
@@ -50,7 +53,7 @@ public class EsIndex implements Writeable {
 
     @SuppressWarnings("unchecked")
     private static Map<String, IndexMode> readIndexNameWithModes(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_CONCRETE_INDICES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             return in.readMap(IndexMode::readFrom);
         } else {
             Set<String> indices = (Set<String>) in.readGenericValue();
@@ -60,7 +63,7 @@ public class EsIndex implements Writeable {
     }
 
     private static void writeIndexNameWithModes(Map<String, IndexMode> concreteIndices, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_CONCRETE_INDICES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeMap(concreteIndices, (o, v) -> IndexMode.writeTo(v, out));
         } else {
             out.writeGenericValue(concreteIndices.keySet());

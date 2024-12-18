@@ -52,6 +52,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -666,7 +667,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final int ignoreAbove;
 
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
@@ -678,7 +679,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
         }
 
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
@@ -800,6 +801,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
+        }
+
+        public MappedFieldType getKeyedFieldType() {
+            return new KeywordFieldMapper.KeywordFieldType(name() + KEYED_FIELD_SUFFIX);
         }
 
         @Override

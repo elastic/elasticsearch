@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -78,8 +80,12 @@ public class RestBulkAction extends BaseRestHandler {
             new Route(PUT, "/_bulk"),
             new Route(POST, "/{index}/_bulk"),
             new Route(PUT, "/{index}/_bulk"),
-            Route.builder(POST, "/{index}/{type}/_bulk").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/{index}/{type}/_bulk").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(POST, "/{index}/{type}/_bulk")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(PUT, "/{index}/{type}/_bulk")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -108,9 +114,11 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
+            ReleasableBytesReference content = request.requiredContent();
+
             try {
                 bulkRequest.add(
-                    request.requiredContent(),
+                    content,
                     defaultIndex,
                     defaultRouting,
                     defaultFetchSourceContext,
@@ -125,8 +133,10 @@ public class RestBulkAction extends BaseRestHandler {
             } catch (Exception e) {
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-
-            return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            return channel -> {
+                content.mustIncRef();
+                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
+            };
         } else {
             if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
                 request.param("type");
@@ -277,11 +287,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public boolean supportsBulkContent() {
-        return true;
-    }
-
-    @Override
-    public boolean allowsUnsafeBuffers() {
         return true;
     }
 

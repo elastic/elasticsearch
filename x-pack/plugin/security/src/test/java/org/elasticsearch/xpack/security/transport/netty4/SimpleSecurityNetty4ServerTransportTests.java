@@ -571,7 +571,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 final ConnectTransportException e = openConnectionExpectFailure(qcService, node, connectionProfile);
                 assertThat(
                     e.getRootCause().getMessage(),
-                    anyOf(containsString("unable to find valid certification path"), containsString("Unable to find certificate chain"))
+                    anyOf(
+                        containsString("unable to find valid certification path"),
+                        containsString("Unable to find certificate chain"),
+                        containsString("Unable to construct a valid chain")
+                    )
                 );
             }
 

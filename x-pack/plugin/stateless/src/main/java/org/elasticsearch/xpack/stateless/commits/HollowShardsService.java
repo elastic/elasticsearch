@@ -103,7 +103,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
             final var engine = indexShard.getEngineOrNull();
             if (engine instanceof IndexEngine indexEngine) {
                 final var index = indexShard.shardId().getIndex();
-                final var indexAbstraction = clusterService.state().metadata().getIndicesLookup().get(index.getName());
+                final var indexAbstraction = clusterService.state().metadata().getProject().getIndicesLookup().get(index.getName());
                 if (indexAbstraction != null) {
                     final var dataStream = indexAbstraction.getParentDataStream();
                     final boolean dsNonWrite = dataStream != null

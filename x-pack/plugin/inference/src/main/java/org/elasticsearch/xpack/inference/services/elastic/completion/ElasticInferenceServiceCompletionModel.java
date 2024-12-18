@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -15,11 +16,9 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -59,8 +58,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             service,
             ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            // TODO remove this as EIS doesn't use it
-            DefaultSecretSettings.fromMap(secrets),
+            EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents
         );
     }
@@ -106,30 +104,12 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         return (ElasticInferenceServiceCompletionServiceSettings) super.getServiceSettings();
     }
 
-    // TODO remove EIS doesn't use secrets
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
-    }
-
     public URI uri() {
         return uri;
     }
 
     private URI createUri() throws URISyntaxException {
-        String modelId = getServiceSettings().modelId();
-        // String modelIdUriPath;
-        //
-        // switch (modelId) {
-        // case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-        // default -> throw new IllegalArgumentException(
-        // String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
-        // );
-        // }
-
-        // TODO what is the url?
-        // return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/completion/" + modelId);
-        return OpenAiUnifiedChatCompletionRequest.buildDefaultUri();
+        return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat/completions");
     }
 
     // TODO create the Configuration class?

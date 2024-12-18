@@ -20,6 +20,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -39,6 +40,13 @@ public class RestUtils {
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
+
+    public static void decodeQueryString(URI uri, Map<String, String> params) {
+        final var rawQuery = uri.getRawQuery();
+        if (Strings.hasLength(rawQuery)) {
+            decodeQueryString(rawQuery, 0, params);
+        }
+    }
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {

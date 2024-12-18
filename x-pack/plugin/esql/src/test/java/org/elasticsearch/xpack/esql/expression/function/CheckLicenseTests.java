@@ -126,7 +126,7 @@ public class CheckLicenseTests extends ESTestCase {
 
         @Override
         protected NodeInfo<? extends Expression> info() {
-            return NodeInfo.create(this);
+            return NodeInfo.create(this, LicensedFunction::new, licensedFeature);
         }
 
         @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -36,7 +37,6 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -76,8 +76,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             service,
             ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            // TODO remove this as EIS doesn't use it
-            DefaultSecretSettings.fromMap(secrets),
+            EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents
         );
     }

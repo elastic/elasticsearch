@@ -50,7 +50,6 @@ public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
     public HttpRequest createHttpRequest() {
         var httpPost = new HttpPost(uri);
         var requestEntity = Strings.toString(
-            // TODO remove the modelId() call if not used
             new EISUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
         );
 
@@ -62,8 +61,6 @@ public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
         }
 
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
-        // TODO remove EIS doesn't use an API key
-        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

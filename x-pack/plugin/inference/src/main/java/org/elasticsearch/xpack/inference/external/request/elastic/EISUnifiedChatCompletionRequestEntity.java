@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class EISUnifiedChatCompletionRequestEntity implements ToXContentObject {
-    // TODO remove this if EIS doesn't use it
     private static final String MODEL_FIELD = "model";
 
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
@@ -31,7 +30,6 @@ public class EISUnifiedChatCompletionRequestEntity implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         unifiedRequestEntity.toXContent(builder, params);
-        // TODO remove this if EIS doesn't use it
         builder.field(MODEL_FIELD, modelId);
         builder.endObject();
 

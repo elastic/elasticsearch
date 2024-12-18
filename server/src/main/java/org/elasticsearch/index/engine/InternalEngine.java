@@ -3156,23 +3156,24 @@ public class InternalEngine extends Engine {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
-        if (searcher.getIndexReader().maxDoc() == 0) {
-            return Translog.Snapshot.EMPTY;
-        }
         try {
             final Translog.Snapshot snapshot;
             if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
-                snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    engineConfig.getMapperService().mappingLookup(),
-                    searcher,
-                    SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                    maxChunkSize,
-                    fromSeqNo,
-                    toSeqNo,
-                    requiredFullRange,
-                    accessStats,
-                    config().getIndexSettings().getIndexVersionCreated()
-                );
+                if (searcher.getIndexReader().maxDoc() == 0) {
+                    snapshot = Translog.Snapshot.EMPTY;
+                } else {
+                    snapshot = new LuceneSyntheticSourceChangesSnapshot(
+                        engineConfig.getMapperService().mappingLookup(),
+                        searcher,
+                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                        maxChunkSize,
+                        fromSeqNo,
+                        toSeqNo,
+                        requiredFullRange,
+                        accessStats,
+                        config().getIndexSettings().getIndexVersionCreated()
+                    );
+                }
             } else {
                 snapshot = new LuceneChangesSnapshot(
                     searcher,

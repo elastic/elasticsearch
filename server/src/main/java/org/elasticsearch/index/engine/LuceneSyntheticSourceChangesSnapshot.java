@@ -77,12 +77,11 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         IndexVersion indexVersionCreated
     ) throws IOException {
         super(engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
-        assert mappingLookup.isSourceSynthetic();
+        assert mappingLookup.isSourceSynthetic() : "synthetic source must be enabled for proper functionality.";
         // ensure we can buffer at least one document
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mappingLookup.newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
-        assert mappingLookup.isSourceSynthetic() : "synthetic source must be enabled for proper functionality.";
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
         this.lastSeenSeqNo = fromSeqNo - 1;
     }

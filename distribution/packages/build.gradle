@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.10.0"
+  id "com.netflix.nebula.ospackage-base" version "11.10.1"
 }
 
 ['deb', 'rpm'].each { type ->

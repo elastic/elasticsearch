@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
+
 /**
  * A variant of {@link RefCountingListener} with the following differences:
  * 1. Automatically cancels sub tasks on failure.
@@ -135,8 +137,7 @@ final class ComputeListener implements Releasable {
 
     private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
-            // TODO: once PARTIAL status is supported (partial results work to come), modify this code as needed
-            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED && v.getStatus() != EsqlExecutionInfo.Cluster.Status.PARTIAL) {
                 assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
                 return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
                     /*
@@ -202,6 +203,46 @@ final class ComputeListener implements Releasable {
     }
 
     /**
+     * Should we ignore a failure from the remote cluster due to skip_unavailable=true setting?
+     */
+    boolean shouldIgnoreRemoteErrors(@Nullable String computeClusterAlias) {
+        return computeClusterAlias != null
+            && esqlExecutionInfo.isCrossClusterSearch()
+            && computeClusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false
+            && runningOnRemoteCluster() == false
+            && esqlExecutionInfo.isSkipUnavailable(computeClusterAlias);
+    }
+
+    /**
+     * Marks the cluster as PARTIAL and adds the exception to the cluster's failures record.
+     * Currently, additional failures are not recorded.
+     * TODO: add accumulating failures.
+     */
+    void markAsPartial(String computeClusterAlias, Exception e) {
+        var status = esqlExecutionInfo.getCluster(computeClusterAlias).getStatus();
+        assert status != EsqlExecutionInfo.Cluster.Status.SKIPPED
+            : "We shouldn't be running compute on a cluster that's already marked as skipped";
+        // We use PARTIAL here because we can not know whether the cluster has already sent any data.
+        if (status != EsqlExecutionInfo.Cluster.Status.PARTIAL) {
+            LOGGER.debug("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
+            markClusterWithFinalStateAndNoShards(esqlExecutionInfo, computeClusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+        }
+    }
+
+    /**
+     * Acquire a listener that respects skip_unavailable setting for this cluster.
+     */
+    ActionListener<Void> acquireSkipUnavailable(@Nullable String computeClusterAlias) {
+        if (shouldIgnoreRemoteErrors(computeClusterAlias) == false) {
+            return acquireAvoid();
+        }
+        return refs.acquire().delegateResponse((l, e) -> {
+            markAsPartial(computeClusterAlias, e);
+            l.onResponse(null);
+        });
+    }
+
+    /**
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      * @param computeClusterAlias The cluster alias where the compute is happening. Used when metadata needs to be gathered
      *                            into the {@link EsqlExecutionInfo} Cluster objects. Callers that do not required execution
@@ -211,7 +252,7 @@ final class ComputeListener implements Releasable {
         assert computeClusterAlias == null || (esqlExecutionInfo != null && esqlExecutionInfo.getRelativeStartNanos() != null)
             : "When clusterAlias is provided to acquireCompute, executionInfo and relativeStartTimeNanos must be non-null";
 
-        return acquireAvoid().map(resp -> {
+        return acquireSkipUnavailable(computeClusterAlias).map(resp -> {
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {

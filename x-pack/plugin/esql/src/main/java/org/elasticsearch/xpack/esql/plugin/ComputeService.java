@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -49,11 +50,14 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -104,6 +108,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final ClusterService clusterService;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
+    private final TaskManager taskManager;
 
     public ComputeService(
         SearchService searchService,
@@ -133,6 +138,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.clusterService = clusterService;
+        this.taskManager = transportService.getTaskManager();
     }
 
     public void execute(
@@ -395,33 +401,123 @@ public class ComputeService {
         var linkExchangeListeners = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(linkExchangeListeners)) {
             for (RemoteCluster cluster : clusters) {
+                final String clusterAlias = cluster.clusterAlias();
+                final boolean suppressRemoteFailure = computeListener.shouldIgnoreRemoteErrors(clusterAlias);
                 final var childSessionId = newChildSession(sessionId);
+                var openExchangeListener = refs.acquire();
                 ExchangeService.openExchange(
                     transportService,
                     cluster.connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
-                    refs.acquire().delegateFailureAndWrap((l, unused) -> {
-                        var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
-                        exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
+                    ActionListener.wrap(unused -> {
+                        // Exchange opening is successful
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
-                        var clusterListener = ActionListener.runBefore(
-                            computeListener.acquireCompute(cluster.clusterAlias()),
-                            () -> l.onResponse(null)
+                        var listenerGroup = new RemoteListenerGroup(rootTask, computeListener, clusterAlias, openExchangeListener);
+                        var remoteSink = exchangeService.newRemoteSink(
+                            listenerGroup.getGroupTask(),
+                            childSessionId,
+                            transportService,
+                            cluster.connection
+                        );
+                        exchangeSource.addRemoteSink(
+                            remoteSink,
+                            // This applies to all the subrequests for this cluster, and all the failures.
+                            // If we need to change it depending on the kind of failure, we'll have to replace this with a predicate.
+                            suppressRemoteFailure == false,
+                            queryPragmas.concurrentExchangeClients(),
+                            listenerGroup.getExchangeRequestListener()
                         );
                         transportService.sendChildRequest(
                             cluster.connection,
                             CLUSTER_ACTION_NAME,
                             clusterRequest,
-                            rootTask,
+                            listenerGroup.getGroupTask(),
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                            new ActionListenerResponseHandler<>(
+                                listenerGroup.getClusterRequestListener(),
+                                ComputeResponse::new,
+                                esqlExecutor
+                            )
                         );
+                    }, e -> {
+                        // Exchange opening failed
+                        if (suppressRemoteFailure) {
+                            computeListener.markAsPartial(clusterAlias, e);
+                            openExchangeListener.onResponse(null);
+                        } else {
+                            openExchangeListener.onFailure(e);
+                        }
                     })
                 );
             }
+        }
+    }
+
+    // Create group task for this cluster. This group task ensures that two branches of the computation:
+    // the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
+    // runAfter listeners below ensure that the group is finalized when both branches are done.
+    // The group task is the child of the root task, so if the root task is cancelled, the group task is cancelled too.
+    private class RemoteListenerGroup {
+        private final CancellableTask groupTask;
+        private final ActionListener<Void> exchangeRequestListener;
+        private final ActionListener<ComputeResponse> clusterRequestListener;
+
+        RemoteListenerGroup(Task rootTask, ComputeListener computeListener, String clusterAlias, ActionListener<Void> delegate) {
+            final boolean suppressRemoteFailure = computeListener.shouldIgnoreRemoteErrors(clusterAlias);
+            groupTask = createGroupTask(rootTask, () -> rootTask.getDescription() + "[" + clusterAlias + "]");
+            CountDown countDown = new CountDown(2);
+            // The group is done when both the sink and the cluster request are done
+            Runnable finishGroup = () -> {
+                if (countDown.countDown()) {
+                    taskManager.unregister(groupTask);
+                    delegate.onResponse(null);
+                }
+            };
+            // Cancel the group on sink failure
+            ActionListener<Void> exchangeListener = computeListener.acquireAvoid().delegateResponse((inner, e) -> {
+                taskManager.cancelTaskAndDescendants(groupTask, "exchange sink failure", true, ActionListener.running(() -> {
+                    if (suppressRemoteFailure) {
+                        computeListener.markAsPartial(clusterAlias, e);
+                        inner.onResponse(null);
+                    } else {
+                        inner.onFailure(e);
+                    }
+                }));
+            });
+            exchangeRequestListener = ActionListener.runAfter(exchangeListener, finishGroup);
+            // Cancel the group on cluster request failure
+            var clusterListener = computeListener.acquireCompute(clusterAlias).delegateResponse((inner, e) -> {
+                taskManager.cancelTaskAndDescendants(
+                    groupTask,
+                    "exchange cluster action failure",
+                    true,
+                    ActionListener.running(() -> inner.onFailure(e))
+                );
+            });
+            clusterRequestListener = ActionListener.runAfter(clusterListener, finishGroup);
+        }
+
+        public CancellableTask getGroupTask() {
+            return groupTask;
+        }
+
+        public ActionListener<Void> getExchangeRequestListener() {
+            return exchangeRequestListener;
+        }
+
+        public ActionListener<ComputeResponse> getClusterRequestListener() {
+            return clusterRequestListener;
+        }
+
+        private CancellableTask createGroupTask(Task parentTask, Supplier<String> description) {
+            return (CancellableTask) taskManager.register(
+                "transport",
+                "esql_compute_group",
+                new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
+            );
         }
     }
 
@@ -931,5 +1027,25 @@ public class ComputeService {
 
     private String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    private static class ComputeGroupTaskRequest extends TransportRequest {
+        private final Supplier<String> parentDescription;
+
+        ComputeGroupTaskRequest(TaskId parentTask, Supplier<String> description) {
+            this.parentDescription = description;
+            setParentTask(parentTask);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            assert parentTaskId.isSet();
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return "group [" + parentDescription.get() + "]";
+        }
     }
 }

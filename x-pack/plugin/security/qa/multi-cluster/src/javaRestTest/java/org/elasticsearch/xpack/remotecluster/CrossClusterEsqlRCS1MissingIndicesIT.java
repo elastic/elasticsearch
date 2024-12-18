@@ -92,7 +92,6 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             Map<String, ?> clusterDetails = (Map<String, ?>) detailsMap.get(expectedCluster.clusterAlias());
             String msg = expectedCluster.clusterAlias();
 
-            assertThat(msg, (int) clusterDetails.get("took"), greaterThan(0));
             assertThat(msg, clusterDetails.get("status"), is(expectedCluster.status()));
             Map<String, ?> shards = (Map<String, ?>) clusterDetails.get("_shards");
             if (expectedCluster.totalShards() == null) {
@@ -102,6 +101,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             }
 
             if (expectedCluster.status().equals("successful")) {
+                assertThat(msg, (int) clusterDetails.get("took"), greaterThan(0));
                 assertThat((int) shards.get("successful"), is((int) shards.get("total")));
                 assertThat((int) shards.get("skipped"), is(0));
 
@@ -116,6 +116,11 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
                 assertThat(innerReason.get("reason").toString(), containsString(expectedMsg));
                 assertThat(innerReason.get("type").toString(), containsString("verification_exception"));
 
+            } else if (expectedCluster.status().equals("partial")) {
+                assertThat((int) shards.get("successful"), is(0));
+                assertThat((int) shards.get("skipped"), is(0));
+                ArrayList<?> failures = (ArrayList<?>) clusterDetails.get("failures");
+                assertThat(failures.size(), is(1));
             } else {
                 fail(msg + "; Unexpected status: " + expectedCluster.status());
             }
@@ -302,40 +307,42 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
         }
 
-        // TODO uncomment and test in follow-on PR which does skip_unavailable handling at execution time
-        // {
-        // String q = Strings.format("FROM %s,%s:nomatch,%s:%s*", INDEX1, REMOTE_CLUSTER_ALIAS, REMOTE_CLUSTER_ALIAS, INDEX2);
-        //
-        // String limit1 = q + " | LIMIT 1";
-        // Response response = client().performRequest(esqlRequest(limit1));
-        // assertOK(response);
-        //
-        // Map<String, Object> map = responseAsMap(response);
-        // assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-        // assertThat(((ArrayList<?>) map.get("values")).size(), greaterThanOrEqualTo(1));
-        //
-        // assertExpectedClustersForMissingIndicesTests(map,
-        // List.of(
-        // new ExpectedCluster("(local)", INDEX1, "successful", null),
-        // new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch," + INDEX2 + "*", "skipped", 0)
-        // )
-        // );
-        //
-        // String limit0 = q + " | LIMIT 0";
-        // response = client().performRequest(esqlRequest(limit0));
-        // assertOK(response);
-        //
-        // map = responseAsMap(response);
-        // assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-        // assertThat(((ArrayList<?>) map.get("values")).size(), is(0));
-        //
-        // assertExpectedClustersForMissingIndicesTests(map,
-        // List.of(
-        // new ExpectedCluster("(local)", INDEX1, "successful", 0),
-        // new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch," + INDEX2 + "*", "skipped", 0)
-        // )
-        // );
-        // }
+        {
+            String q = Strings.format("FROM %s,%s:nomatch,%s:%s*", INDEX1, REMOTE_CLUSTER_ALIAS, REMOTE_CLUSTER_ALIAS, INDEX2);
+
+            String limit1 = q + " | LIMIT 1";
+            Response response = client().performRequest(esqlRequest(limit1));
+            assertOK(response);
+
+            Map<String, Object> map = responseAsMap(response);
+            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
+            assertThat(((ArrayList<?>) map.get("values")).size(), greaterThanOrEqualTo(1));
+
+            assertExpectedClustersForMissingIndicesTests(
+                map,
+                List.of(
+                    new ExpectedCluster("(local)", INDEX1, "successful", 1),
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch," + INDEX2 + "*", "partial", 0)
+                )
+            );
+
+            String limit0 = q + " | LIMIT 0";
+            response = client().performRequest(esqlRequest(limit0));
+            assertOK(response);
+
+            map = responseAsMap(response);
+            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
+            assertThat(((ArrayList<?>) map.get("values")).size(), is(0));
+
+            assertExpectedClustersForMissingIndicesTests(
+                map,
+                List.of(
+                    new ExpectedCluster("(local)", INDEX1, "successful", 0),
+                    // TODO: this should actually be partial, but LIMIT 0 is not processed properly yet
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch," + INDEX2 + "*", "successful", 0)
+                )
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")

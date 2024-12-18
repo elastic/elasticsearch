@@ -296,6 +296,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         getIngestService(original).executeBulkRequest(
+            metadata.id(),
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,

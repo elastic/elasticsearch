@@ -12,11 +12,13 @@ dependencies {
   clusterModules project(':modules:health-shards-availability')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:multi-project')
+  clusterModules project(':modules:lang-mustache')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
   restTestConfig project(path: ':modules:data-streams', configuration: "basicRestSpecs")
+  restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -77,6 +79,12 @@ tasks.named("yamlRestTest").configure {
     '^indices.stats/20_translog/*',
     '^indices.stats/30_segments/*',
     '^indices.stats/60_field_usage/*',
+    '^test/ingest/15_info_ingest/*', // uses cluster info API
+    '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
+    '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
+    '^test/ingest/230_change_target_index/*', // uses cat indices API
+    '^test/ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template', // uses lazy rollover
+    '^test/ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover', // uses lazy rollover
     '^migration/*/*',
     '^search/80_indices_options/Closed index',
     '^search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added',

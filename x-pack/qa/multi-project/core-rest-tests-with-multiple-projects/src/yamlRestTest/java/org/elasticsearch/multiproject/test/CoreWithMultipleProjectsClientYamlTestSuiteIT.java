@@ -35,6 +35,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("health-shards-availability")
         .module("data-streams")
         .module("multi-project")
+        .module("lang-mustache")
         .setting("multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")

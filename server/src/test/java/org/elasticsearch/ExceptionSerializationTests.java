@@ -409,6 +409,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertThat(ex.getCause(), instanceOf(NullPointerException.class));
+        assertEquals(RestStatus.BAD_GATEWAY, ex.status());
     }
 
     public void testSearchPhaseExecutionException() throws IOException {

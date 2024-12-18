@@ -289,6 +289,7 @@ tests:
   method: testThreadContext
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.create/20_synthetic_source/create index with use_synthetic_source}
   issue: https://github.com/elastic/elasticsearch/issues/118955
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118970

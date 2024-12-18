@@ -1,0 +1,6 @@
+pr: 112858
+summary: Validate data stream naming scheme of reroute processor
+area: Ingest Node
+type: bug
+issues:
+  - 112543

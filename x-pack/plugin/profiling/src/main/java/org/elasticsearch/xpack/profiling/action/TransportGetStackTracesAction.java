@@ -372,7 +372,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 // needed to load it.
                 long totalFinalCount = 0;
                 List<HostEventCount> hostEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
-                List<ExecutableEventCount> executableEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
+                Map<TraceEventMetadata, TraceEvent> executableEvents = new HashMap<>(MAX_TRACE_EVENTS_RESULT_SIZE);
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
 
                 Terms executableNames = searchResponse.getAggregations().get("group_by");
@@ -395,12 +395,6 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                             String stackTraceID = stacktraceBucket.getKeyAsString();
 
                             /*
-                            The same stacktraces may come from different executables.
-                            We make a list of the triples here.
-                             */
-                            executableEventCounts.add(new ExecutableEventCount(executableName, stackTraceID, finalCount));
-
-                            /*
                             The same stacktraces may come from different hosts (eventually from different datacenters).
                             We make a list of the triples here. As soon as we have the host metadata, we can calculate
                             the CO2 emission and the costs for each TraceEvent.
@@ -410,16 +404,20 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                             TraceEvent event = stackTraceEvents.get(stackTraceID);
                             if (event == null) {
                                 event = new TraceEvent(stackTraceID);
+                                event.executableName = executableName; // THIS IS A HACK (need a proper data model)
                                 stackTraceEvents.put(stackTraceID, event);
                             }
                             event.count += finalCount;
                             subGroups.collectResults(stacktraceBucket, event);
+
+                            TraceEventMetadata meta = new TraceEventMetadata(executableName, stackTraceID);
+                            executableEvents.putIfAbsent(meta, event);
                         }
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);
                 responseBuilder.setHostEventCounts(hostEventCounts);
-                responseBuilder.setExecutableEventCounts(executableEventCounts);
+                responseBuilder.setExecutableEvents(executableEvents);
                 log.debug(
                     "Found [{}] stacktrace events, resampled with sample rate [{}] to [{}] events ([{}] unique stack traces).",
                     totalCount,
@@ -858,5 +856,13 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
     record HostEventCount(String hostID, String stacktraceID, int count) {}
 
-    record ExecutableEventCount(String executableName, String stacktraceID, int count) {}
+    public static class TraceEventMetadata {
+        final String stackTraceID;
+        final String executableName;
+
+        TraceEventMetadata(String executableName, String stackTraceID) {
+            this.stackTraceID = stackTraceID;
+            this.executableName = executableName;
+        }
+    }
 }

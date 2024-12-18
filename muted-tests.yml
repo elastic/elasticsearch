@@ -422,3 +422,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/117740
+- class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
+  method: testCancellationDuringTimeSeriesAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/118992

@@ -115,6 +115,80 @@ book_no:keyword | title:text
 7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
 ;
 
+matchWithDisjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where match(author, "Vonnegut") or match(author, "Guinane") 
+| keep book_no, author;
+ignoreOrder:true
+
+book_no:keyword | author:text
+2464            | Kurt Vonnegut  
+6970            | Edith Vonnegut 
+8956            | Kurt Vonnegut  
+3950            | Kurt Vonnegut  
+4382            | Carole Guinane 
+;
+
+matchWithDisjunctionAndFiltersConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match(author, "Vonnegut") or match(author, "Guinane")) and year > 1997
+| keep book_no, author, year;
+ignoreOrder:true
+
+book_no:keyword | author:text       | year:integer
+6970            | Edith Vonnegut    | 1998
+4382            | Carole Guinane    | 2001
+;
+
+matchWithDisjunctionAndConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match(author, "Vonnegut") or match(author, "Marquez")) and match(description, "realism")
+| keep book_no;
+
+book_no:keyword
+4814
+;
+
+matchWithMoreComplexDisjunctionAndConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (match(author, "Vonnegut") and match(description, "charming")) or (match(author, "Marquez") and match(description, "realism"))
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+6970
+4814
+;
+
+matchWithDisjunctionIncludingConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where match(author, "Vonnegut") or (match(author, "Marquez") and match(description, "realism"))
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2464
+6970
+4814
+8956
+3950
+;
+
 matchWithFunctionPushedToLucene
 required_capability: match_function
 
@@ -522,4 +596,75 @@ from employees,employees_incompatible
 ;
 
 emp_no_bool:boolean
+;
+
+testMatchWithSemanticText
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where match(semantic_text_field, "something")
+| keep semantic_text_field
+| sort semantic_text_field asc
+;
+
+semantic_text_field:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+testMatchWithSemanticTextAndKeyword
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where match(semantic_text_field, "something") AND match(host, "host1")
+| keep semantic_text_field, host
+;
+
+semantic_text_field:semantic_text | host:keyword
+live long and prosper             | host1
+;
+
+testMatchWithSemanticTextMultiValueField
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text metadata _id
+| where match(st_multi_value, "something") AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:semantic_text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where match(semantic_text_field, "something") AND size > 1 AND match(host, "host1")
+| STATS result = count(*)
+;
+
+result:long
+1
+;
+
+testMatchWithSemanticTextAndKql
+required_capability: match_function
+required_capability: semantic_text_type
+required_capability: kql_function
+
+from semantic_text
+| where kql("host:host1") AND match(semantic_text_field, "something")
+| KEEP host, semantic_text_field
+;
+
+host:keyword | semantic_text_field:semantic_text
+"host1"      | live long and prosper
 ;

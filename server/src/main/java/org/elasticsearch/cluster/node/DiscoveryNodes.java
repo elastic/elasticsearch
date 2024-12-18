@@ -69,6 +69,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final Version minNodeVersion;
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
+    private final IndexVersion minReadOnlySupportedIndexVersion;
 
     private final Map<String, Set<String>> tiersToNodeIds;
 
@@ -84,6 +85,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
+        IndexVersion minReadOnlySupportedIndexVersion,
         Map<String, Set<String>> tiersToNodeIds
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
@@ -100,6 +102,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.maxNodeVersion = maxNodeVersion;
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
+        this.minReadOnlySupportedIndexVersion = minReadOnlySupportedIndexVersion;
+        assert minReadOnlySupportedIndexVersion.onOrBefore(minSupportedIndexVersion);
         assert (localNodeId == null) == (localNode == null);
         this.tiersToNodeIds = tiersToNodeIds;
     }
@@ -118,6 +122,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
+            minReadOnlySupportedIndexVersion,
             tiersToNodeIds
         );
     }
@@ -372,6 +377,13 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public IndexVersion getMinSupportedIndexVersion() {
         return minSupportedIndexVersion;
+    }
+
+    /**
+     * Returns the minimum index version for read-only indices supported by all nodes in the cluster
+     */
+    public IndexVersion getMinReadOnlySupportedIndexVersion() {
+        return minReadOnlySupportedIndexVersion;
     }
 
     /**
@@ -840,6 +852,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             Version maxNodeVersion = null;
             IndexVersion maxDataNodeCompatibleIndexVersion = null;
             IndexVersion minSupportedIndexVersion = null;
+            IndexVersion minReadOnlySupportedIndexVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 DiscoveryNode discoNode = nodeEntry.getValue();
                 Version version = discoNode.getVersion();
@@ -849,6 +862,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 minNodeVersion = min(minNodeVersion, version);
                 maxNodeVersion = max(maxNodeVersion, version);
                 minSupportedIndexVersion = max(minSupportedIndexVersion, discoNode.getMinIndexVersion());
+                minReadOnlySupportedIndexVersion = max(minReadOnlySupportedIndexVersion, discoNode.getMinReadOnlyIndexVersion());
             }
 
             final long newNodeLeftGeneration;
@@ -881,6 +895,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
                 Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
+                Objects.requireNonNullElse(minReadOnlySupportedIndexVersion, IndexVersions.MINIMUM_READONLY_COMPATIBLE),
                 computeTiersToNodesMap(dataNodes)
             );
         }

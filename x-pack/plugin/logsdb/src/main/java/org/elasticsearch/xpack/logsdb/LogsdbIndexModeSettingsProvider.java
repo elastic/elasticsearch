@@ -113,22 +113,19 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         }
 
         if (isLogsDB) {
-            if (mappingData.hasHostName || mappingData.allowsHostName) {
+            if (mappingData.sortOnHostName) {
                 if (settingsBuilder == null) {
                     settingsBuilder = Settings.builder();
                 }
-                if (mappingData.allowsHostName) {
-                    settingsBuilder.put(IndexSettings.LOGSDB_ADD_HOST_NAME.getKey(), true);
-                }
-                settingsBuilder.put(IndexSettings.LOGSDB_USE_DEFAULT_SORT_CONFIG.getKey(), true);
+                settingsBuilder.put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
             }
         }
 
         return settingsBuilder == null ? Settings.EMPTY : settingsBuilder.build();
     }
 
-    record MappingData(boolean hasSyntheticSourceUsage, boolean hasHostName, boolean allowsHostName) {
-        static MappingData EMPTY = new MappingData(false, false, false);
+    record MappingData(boolean hasSyntheticSourceUsage, boolean sortOnHostName) {
+        static MappingData EMPTY = new MappingData(false, false);
     }
 
     private static boolean matchesLogsPattern(final String name) {
@@ -165,13 +162,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
                 var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
-                if ((IndexSettings.LOGSDB_ADD_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
-                    || IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false)) {
-                    return new MappingData(
-                        hasSyntheticSourceUsage,
-                        false,
-                        IndexSettings.LOGSDB_ADD_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
-                    );
+                if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false) {
+                    return new MappingData(hasSyntheticSourceUsage, false);
                 }
             }
 
@@ -185,8 +177,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
                 return new MappingData(
                     hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic(),
-                    mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper,
-                    mapperService.mappingLookup().getMapper("host") instanceof FieldMapper == false
+                    mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper
                 );
             }
         } catch (AssertionError | Exception e) {

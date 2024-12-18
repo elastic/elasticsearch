@@ -30,7 +30,7 @@ public class LogsIndexModeTests extends ESTestCase {
         final IndexSettings settings = new IndexSettings(
             metadata,
             Settings.builder()
-                .put(IndexSettings.LOGSDB_USE_DEFAULT_SORT_CONFIG.getKey(), useDefaultSortConfig)
+                .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), useDefaultSortConfig)
                 .put(IndexSettings.LOGSDB_ADD_HOST_NAME.getKey(), addHostName)
                 .build()
         );

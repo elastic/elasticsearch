@@ -661,10 +661,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             settings,
             List.of()
         );
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
-        assertTrue(IndexSettings.LOGSDB_USE_DEFAULT_SORT_CONFIG.get(result));
-        assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME.get(result));
         assertThat(newMapperServiceCounter.get(), equalTo(4));
     }
 
@@ -716,10 +714,9 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             settings,
             List.of()
         );
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(2));
         assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertEquals(IndexMode.LOGSDB, IndexSettings.MODE.get(result));
-        assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME.get(result));
 
         result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),

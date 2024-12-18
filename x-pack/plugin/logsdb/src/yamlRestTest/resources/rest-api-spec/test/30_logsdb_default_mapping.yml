@@ -504,7 +504,7 @@ create logsdb data stream with custom sorting and host.name object:
   - match: { .$backing_index.mappings.properties.host.properties.name.properties.alias.type: keyword }
 
 ---
-create logsdb data stream with default sorting on malformed host.name:
+create logsdb data stream with no host.name:
   - skip:
       features: [ "allowed_warnings" ]
   - requires:
@@ -563,8 +563,7 @@ create logsdb data stream with default sorting on malformed host.name:
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
   - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
   - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword } # LogsDB injected
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 } # LogsDB injected
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: text }
   - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
 
 ---
@@ -995,8 +994,6 @@ create logsdb data stream with custom empty sorting:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
 
 ---
 create logsdb data stream with custom sorting on timestamp:

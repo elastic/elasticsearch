@@ -165,7 +165,7 @@ public final class IndexSortConfig {
                 var missing = INDEX_SORT_MISSING_SETTING.get(settings);
                 throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch");
             }
-            sortSpecs = (IndexSettings.LOGSDB_USE_DEFAULT_SORT_CONFIG.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+            sortSpecs = (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
             return;
         }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);

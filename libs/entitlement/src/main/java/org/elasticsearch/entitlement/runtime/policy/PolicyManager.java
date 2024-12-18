@@ -66,7 +66,7 @@ public class PolicyManager {
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
     private static final Set<Module> systemModules = findSystemModules();
-    private static final Set<Class<?>> ENTITLEMENTS_RUNTIME_CLASSES = Set.of(ElasticsearchEntitlementChecker.class, PolicyManager.class);
+    private final Module entitlementsRuntimeModule;
 
     private static Set<Module> findSystemModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
@@ -82,12 +82,18 @@ public class PolicyManager {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
+    public PolicyManager(
+        Policy defaultPolicy,
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Module entitlementsRuntimeModule
+    ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(defaultPolicy));
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
+        this.entitlementsRuntimeModule = entitlementsRuntimeModule;
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
@@ -198,7 +204,7 @@ public class PolicyManager {
      * @return the requesting module, or {@code null} if the entire call stack
      * comes from modules that are trusted.
      */
-    static Module requestingModule(Class<?> callerClass) {
+    Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
             Module callerModule = callerClass.getModule();
             if (systemModules.contains(callerModule) == false) {
@@ -217,11 +223,11 @@ public class PolicyManager {
      *
      * @throws NullPointerException if the requesting module is {@code null}
      */
-    static Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
+    Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
         return classes.map(Objects::requireNonNull)
-            .dropWhile(ENTITLEMENTS_RUNTIME_CLASSES::contains) // Skip the entitlements runtime
             .map(PolicyManager::moduleOf)
-            .dropWhile(systemModules::contains)                // Skip trusted JDK modules
+            .dropWhile(m -> m == entitlementsRuntimeModule) // Skip the entitlements runtime
+            .dropWhile(systemModules::contains)             // Skip trusted JDK modules
             .findFirst();
     }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
@@ -39,11 +38,14 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESTestCase.WithoutSecurityManager
 public class PolicyManagerTests extends ESTestCase {
 
+    private static final Module NO_RUNTIME_MODULE = null;
+
     public void testGetEntitlementsThrowsOnMissingPluginUnnamedModule() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
-            c -> "plugin1"
+            c -> "plugin1",
+            NO_RUNTIME_MODULE
         );
 
         // Any class from the current module (unnamed) will do
@@ -64,7 +66,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1");
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1", NO_RUNTIME_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -84,7 +86,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsFailureIsCached() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1");
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1", NO_RUNTIME_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -105,7 +107,8 @@ public class PolicyManagerTests extends ESTestCase {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2"
+            c -> "plugin2",
+            NO_RUNTIME_MODULE
         );
 
         // Any class from the current module (unnamed) will do
@@ -117,7 +120,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null, NO_RUNTIME_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -140,7 +143,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null, NO_RUNTIME_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -162,7 +165,8 @@ public class PolicyManagerTests extends ESTestCase {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
-            c -> "mock-plugin"
+            c -> "mock-plugin",
+            NO_RUNTIME_MODULE
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -181,7 +185,8 @@ public class PolicyManagerTests extends ESTestCase {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2"
+            c -> "plugin2",
+            NO_RUNTIME_MODULE
         );
 
         // Any class from the current module (unnamed) will do
@@ -201,38 +206,45 @@ public class PolicyManagerTests extends ESTestCase {
 
     public void testRequestingModuleFastPath() throws IOException, ClassNotFoundException {
         var callerClass = makeClassInItsOwnModule();
-        assertEquals(callerClass.getModule(), PolicyManager.requestingModule(callerClass));
+        assertEquals(callerClass.getModule(), policyManagerWithRuntimeModule(NO_RUNTIME_MODULE).requestingModule(callerClass));
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
         var requestingClass = makeClassInItsOwnModule();
+        var runtimeClass = makeClassInItsOwnModule();
         var ignorableClass = makeClassInItsOwnModule();
         var systemClass = Object.class;
+
+        var policyManager = policyManagerWithRuntimeModule(runtimeClass.getModule());
 
         var requestingModule = requestingClass.getModule();
 
         assertEquals(
             "Skip one system frame",
             requestingModule,
-            PolicyManager.findRequestingModule(Stream.of(systemClass, requestingClass, ignorableClass)).orElse(null)
+            policyManager.findRequestingModule(Stream.of(systemClass, requestingClass, ignorableClass)).orElse(null)
         );
         assertEquals(
             "Skip multiple system frames",
             requestingModule,
-            PolicyManager.findRequestingModule(Stream.of(systemClass, systemClass, systemClass, requestingClass, ignorableClass))
+            policyManager.findRequestingModule(Stream.of(systemClass, systemClass, systemClass, requestingClass, ignorableClass))
                 .orElse(null)
+        );
+        assertEquals(
+            "No system frames",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(requestingClass, ignorableClass)).orElse(null)
         );
         assertEquals(
             "Skip runtime frames up to the first system frame",
             requestingModule,
-            PolicyManager.findRequestingModule(
-                Stream.of(ElasticsearchEntitlementChecker.class, PolicyManager.class, systemClass, requestingClass, ignorableClass)
-            ).orElse(null)
+            policyManager.findRequestingModule(Stream.of(runtimeClass, runtimeClass, systemClass, requestingClass, ignorableClass))
+                .orElse(null)
         );
         assertThrows(
             "Non-modular caller frames are not supported",
             NullPointerException.class,
-            () -> PolicyManager.findRequestingModule(Stream.of(systemClass, null))
+            () -> policyManager.findRequestingModule(Stream.of(systemClass, null))
         );
     }
 
@@ -241,6 +253,10 @@ public class PolicyManagerTests extends ESTestCase {
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");
         return layer.findLoader("org.example.plugin").loadClass("q.B");
+    }
+
+    private static PolicyManager policyManagerWithRuntimeModule(Module entitlementsRuntimeModule) {
+        return new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "test", entitlementsRuntimeModule);
     }
 
     private static Policy createEmptyTestServerPolicy() {

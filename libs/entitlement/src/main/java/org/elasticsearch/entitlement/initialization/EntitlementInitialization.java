@@ -92,7 +92,12 @@ public class EntitlementInitialization {
             "server",
             List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
         );
-        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
+        return new PolicyManager(
+            serverPolicy,
+            pluginPolicies,
+            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            PolicyManager.class.getModule()
+        );
     }
 
     private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {

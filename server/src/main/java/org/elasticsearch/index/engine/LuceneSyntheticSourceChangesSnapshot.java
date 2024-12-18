@@ -77,7 +77,9 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         IndexVersion indexVersionCreated
     ) throws IOException {
         super(engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
-        assert mappingLookup.isSourceSynthetic() : "synthetic source must be enabled for proper functionality.";
+        // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
+        assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mappingLookup.isSourceSynthetic()
+            : "either an empty index or synthetic source must be enabled for proper functionality.";
         // ensure we can buffer at least one document
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mappingLookup.newSourceLoader(null, SourceFieldMetrics.NOOP);

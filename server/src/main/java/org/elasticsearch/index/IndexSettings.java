@@ -689,7 +689,7 @@ public final class IndexSettings {
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, SETTING_INDEX_VERSION_CREATED, MODE);
+                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, MODE);
                 return res.iterator();
             }
         },

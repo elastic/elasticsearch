@@ -295,6 +295,8 @@ tests:
 - class: org.elasticsearch.xpack.migrate.task.ReindexDataStreamStatusTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/118965
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/118970
 
 # Examples:
 #

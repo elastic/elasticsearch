@@ -262,22 +262,22 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             try {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
                 assertNull(bulkShardRequest.getInferenceFieldMap());
-                assertThat(bulkShardRequest.items().length, equalTo(4));
+                assertThat(bulkShardRequest.items().length, equalTo(5));
 
                 Object explicitNull = new Object();
                 // item 0
                 assertNull(bulkShardRequest.items()[0].getPrimaryResponse());
                 IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
-                assertTrue(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap(), explicitNull) == explicitNull);
+                assertTrue(XContentMapValues.extractValue("obj.field1", actualRequest.sourceAsMap(), explicitNull) == explicitNull);
                 assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), explicitNull));
 
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertThat(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap()), equalTo("I am a success"));
+                assertThat(XContentMapValues.extractValue("obj.field1", actualRequest.sourceAsMap()), equalTo("I am a success"));
                 assertNotNull(
                     XContentMapValues.extractValue(
-                        InferenceMetadataFieldsMapper.NAME + ".field1",
+                        InferenceMetadataFieldsMapper.NAME + ".obj.field1",
                         actualRequest.sourceAsMap(),
                         explicitNull
                     )
@@ -292,13 +292,25 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // item 3
                 assertNull(bulkShardRequest.items()[3].getPrimaryResponse());
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[3].request());
-                assertTrue(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap(), explicitNull) == explicitNull);
+                assertTrue(XContentMapValues.extractValue("obj.field1", actualRequest.sourceAsMap(), explicitNull) == explicitNull);
                 assertTrue(
                     XContentMapValues.extractValue(
-                        InferenceMetadataFieldsMapper.NAME + ".field1",
+                        InferenceMetadataFieldsMapper.NAME + ".obj.field1",
                         actualRequest.sourceAsMap(),
                         explicitNull
                     ) == explicitNull
+                );
+
+                // item 4
+                assertNull(bulkShardRequest.items()[4].getPrimaryResponse());
+                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[4].request());
+                assertNull(XContentMapValues.extractValue("obj.field1", actualRequest.sourceAsMap(), explicitNull));
+                assertNull(
+                    XContentMapValues.extractValue(
+                        InferenceMetadataFieldsMapper.NAME + ".obj.field1",
+                        actualRequest.sourceAsMap(),
+                        explicitNull
+                    )
                 );
             } finally {
                 chainExecuted.countDown();
@@ -308,16 +320,17 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
-            "field1",
-            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" })
+            "obj.field1",
+            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" })
         );
-        BulkItemRequest[] items = new BulkItemRequest[4];
+        BulkItemRequest[] items = new BulkItemRequest[5];
         Map<String, Object> sourceWithNull = new HashMap<>();
         sourceWithNull.put("field1", null);
-        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(sourceWithNull));
-        items[1] = new BulkItemRequest(1, new IndexRequest("index").source("field1", "I am a success"));
-        items[2] = new BulkItemRequest(2, new IndexRequest("index").source("field1", "I am a failure"));
-        items[3] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(sourceWithNull)));
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(Map.of("obj", sourceWithNull)));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").source("obj.field1", "I am a success"));
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").source("obj.field1", "I am a failure"));
+        items[3] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("obj", sourceWithNull))));
+        items[4] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("field2", "value"))));
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);

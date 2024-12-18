@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -26,6 +27,7 @@ import java.util.List;
 import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -141,6 +143,51 @@ public class CloneIndexIT extends ESIntegTestCase {
                 .get();
         });
         assertThat(error.getMessage(), containsString("can't change setting [index.mapping.source.mode] during resize"));
+    }
+
+    public void testResizeChangeRecoveryUseSyntheticSource() {
+        prepareCreate("source").setSettings(
+            indexSettings(between(1, 5), 0).put("index.mode", "logsdb")
+                .put(
+                    "index.version.created",
+                    IndexVersionUtils.randomVersionBetween(
+                        random(),
+                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
+                        IndexVersion.current()
+                    )
+                )
+        ).setMapping("@timestamp", "type=date", "host.name", "type=keyword").get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+            indicesAdmin().prepareResizeIndex("source", "target")
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(
+                    Settings.builder()
+                        .put(
+                            "index.version.created",
+                            IndexVersionUtils.randomVersionBetween(
+                                random(),
+                                IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
+                                IndexVersion.current()
+                            )
+                        )
+                        .put("index.recovery.use_synthetic_source", true)
+                        .put("index.mode", "logsdb")
+                        .putNull("index.blocks.write")
+                        .build()
+                )
+                .get();
+        });
+        // The index.recovery.use_synthetic_source setting requires either index.mode or index.mapping.source.mode
+        // to be present in the settings. Since these are all unmodifiable settings with a non-deterministic evaluation
+        // order, any of them may trigger a failure first.
+        assertThat(
+            error.getMessage(),
+            anyOf(
+                containsString("can't change setting [index.mode] during resize"),
+                containsString("can't change setting [index.recovery.use_synthetic_source] during resize")
+            )
+        );
     }
 
     public void testResizeChangeIndexSorts() {

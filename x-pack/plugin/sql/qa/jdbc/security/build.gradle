@@ -50,6 +50,7 @@ subprojects {
 
 
   tasks.withType(RestIntegTestTask).configureEach {
+    def taskName = name
     dependsOn copyTestClasses
     classpath += configurations.testArtifacts
     testClassesDirs = project.files(testArtifactsDir)
@@ -58,15 +59,15 @@ subprojects {
       project.gradle.sharedServices,
       TestClustersPlugin.REGISTRY_SERVICE_NAME
     )
-    project.getProviders().of(TestClusterValueSource.class) {
+
+    def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
       it.parameters.path.set(clusterPath)
-      it.parameters.clusterName.set("javaRestTest")
+      it.parameters.clusterName.set(taskName)
       it.parameters.service = serviceProvider
     }
 
-    nonInputProperties.systemProperty 'tests.audit.logfile',
-      "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"
+    nonInputProperties.systemProperty 'tests.audit.logfile', clusterInfo.map { it.auditLogs.get(0) }
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-      "${-> testClusters.javaRestTest.singleNode().getAuditLog().getParentFile()}/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+      clusterInfo.map { it.auditLogs.get(0).getParentFile().toString() + "/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}-1.json" }
   }
 }

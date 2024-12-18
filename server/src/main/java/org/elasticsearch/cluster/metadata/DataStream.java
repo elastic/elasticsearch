@@ -424,7 +424,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return true, if the user has explicitly enabled the failure store.
      */
     public boolean isFailureStoreEnabled() {
-        return dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().isExplicitlyEnabled();
+        return dataStreamOptions.isFailureStoreEnabled();
     }
 
     @Nullable
@@ -1188,6 +1188,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         );
         // The fields behind the feature flag should always be last.
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            // Should be removed after backport
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
                 ConstructingObjectParser.optionalConstructorArg(),
@@ -1360,6 +1361,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+        null,
         Set.of(TIMESTAMP_FIELD_NAME),
         null,
         false

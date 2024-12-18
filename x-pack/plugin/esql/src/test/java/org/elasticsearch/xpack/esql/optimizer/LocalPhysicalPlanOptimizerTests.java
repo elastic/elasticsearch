@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -255,7 +257,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
 
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
     }
@@ -276,7 +278,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         Source source = new Source(2, 8, "salary > 1000");
         var exists = QueryBuilders.existsQuery("salary");
@@ -386,7 +388,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
         var expected = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
@@ -997,7 +999,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         assertThat(exchange.inBetweenAggs(), is(true));
         var localSource = as(exchange.child(), LocalSourceExec.class);
-        assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
+        assertThat(Expressions.names(localSource.output()), contains("$$c$count", "$$c$seen"));
     }
 
     /**
@@ -1152,7 +1154,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exg = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         assertThat(stat.query(), is(QueryBuilders.existsQuery("job")));
     }
@@ -1540,6 +1542,46 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .must(new MatchQueryBuilder("first_name", "Anneke").lenient(true))
             .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin").lenient(true));
+        assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
+    public void testFullTextFunctionsDisjunctionPushdown() {
+        String query = """
+            from test
+            | where (match(first_name, "Anna") or qstr("first_name: Anneke")) and last_name: "Smith"
+            | sort emp_no
+            """;
+        var plan = plannerOptimizer.plan(query);
+        var topNExec = as(plan, TopNExec.class);
+        var exchange = as(topNExec.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+        var expectedLuceneQuery = new BoolQueryBuilder().must(
+            new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna").lenient(true))
+                .should(new QueryStringQueryBuilder("first_name: Anneke"))
+        ).must(new MatchQueryBuilder("last_name", "Smith").lenient(true));
+        assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
+    public void testFullTextFunctionsDisjunctionWithFiltersPushdown() {
+        String query = """
+            from test
+            | where (first_name:"Anna" or first_name:"Anneke") and length(last_name) > 5
+            | sort emp_no
+            """;
+        var plan = plannerOptimizer.plan(query);
+        var topNExec = as(plan, TopNExec.class);
+        var exchange = as(topNExec.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var secondTopNExec = as(fieldExtract.child(), TopNExec.class);
+        var secondFieldExtract = as(secondTopNExec.child(), FieldExtractExec.class);
+        var filterExec = as(secondFieldExtract.child(), FilterExec.class);
+        var thirdFilterExtract = as(filterExec.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(thirdFilterExtract.child(), EsQueryExec.class).query();
+        var expectedLuceneQuery = new BoolQueryBuilder().should(new MatchQueryBuilder("first_name", "Anna").lenient(true))
+            .should(new MatchQueryBuilder("first_name", "Anneke").lenient(true));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 

@@ -1,0 +1,5 @@
+pr: 118837
+summary: Add missing timeouts to rest-api-spec ILM APIs
+area: "ILM+SLM"
+type: bug
+issues: []

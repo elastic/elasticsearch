@@ -86,12 +86,12 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         );
 
         assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"path/blob","id":"path/blob","size":"50"}
-            ],"prefixes":[]}""", bucket)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o"));
+            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"path/blob","id":"path/blob","size":"50",\
+            "generation":"1"}],"prefixes":[]}""", bucket)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o"));
 
         assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"path/blob","id":"path/blob","size":"50"}
-            ],"prefixes":[]}""", bucket)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o?prefix=path/"));
+            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"path/blob","id":"path/blob","size":"50",\
+            "generation":"1"}],"prefixes":[]}""", bucket)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o?prefix=path/"));
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """
@@ -211,19 +211,19 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
         final var part1 = randomAlphaOfLength(50);
         final var uploadPart1Response = handleRequest(handler, "PUT", sessionURI, part1, contentRangeHeader(0, 50, null));
-        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 50)), uploadPart1Response);
+        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 49)), uploadPart1Response);
 
         assertEquals(
-            new TestHttpResponse(RESUME_INCOMPLETE, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 49)),
             handleRequest(handler, "PUT", sessionURI, BytesArray.EMPTY, contentRangeHeader(null, null, null))
         );
 
         final var part2 = randomAlphaOfLength(50);
-        final var uploadPart2Response = handleRequest(handler, "PUT", sessionURI, part2, contentRangeHeader(51, 100, null));
-        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(51, 100)), uploadPart2Response);
+        final var uploadPart2Response = handleRequest(handler, "PUT", sessionURI, part2, contentRangeHeader(50, 99, null));
+        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 99)), uploadPart2Response);
 
         final var part3 = randomAlphaOfLength(30);
-        final var uploadPart3Response = handleRequest(handler, "PUT", sessionURI, part3, contentRangeHeader(101, 130, 130));
+        final var uploadPart3Response = handleRequest(handler, "PUT", sessionURI, part3, contentRangeHeader(100, 129, 130));
         assertEquals(new TestHttpResponse(RestStatus.OK, TestHttpExchange.EMPTY_HEADERS), uploadPart3Response);
 
         // complete upload should be visible now
@@ -235,14 +235,27 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         );
 
         // can see in listing
-        assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130"}
-            ],"prefixes":[]}""", bucket, blobName, blobName)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o"));
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, Strings.format("""
+                {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130",\
+                "generation":"1"}],"prefixes":[]}""", bucket, blobName, blobName)),
+            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o")
+        );
 
         // can get metadata
-        assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130"}
-            """, bucket, blobName, blobName)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o/" + blobName));
+        assertEquals(
+            new TestHttpResponse(
+                RestStatus.OK,
+                Strings.format(
+                    """
+                        {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130","generation":"1"}""",
+                    bucket,
+                    blobName,
+                    blobName
+                )
+            ),
+            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o/" + blobName)
+        );
     }
 
     private record TestHttpResponse(int status, BytesReference body, Headers headers) {

@@ -281,9 +281,16 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String buildBlobInfoJson(MockGcsBlobStore.BlobVersion blobReference) {
-        return String.format(Locale.ROOT, """
-            {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s", "generation": "%d"}
-            """, bucket, blobReference.path(), blobReference.path(), blobReference.contents().length(), blobReference.generation());
+        return String.format(
+            Locale.ROOT,
+            """
+                {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s","generation":"%d"}""",
+            bucket,
+            blobReference.path(),
+            blobReference.path(),
+            blobReference.contents().length(),
+            blobReference.generation()
+        );
     }
 
     public Map<String, BytesReference> blobs() {
@@ -379,7 +386,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static Long parseOptionalLongParameter(HttpExchange exchange, String parameterName) {
         final Map<String, String> params = new HashMap<>();
-        RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+        RestUtils.decodeQueryString(exchange.getRequestURI(), params);
         if (params.containsKey(parameterName)) {
             try {
                 return Long.parseLong(params.get(parameterName));

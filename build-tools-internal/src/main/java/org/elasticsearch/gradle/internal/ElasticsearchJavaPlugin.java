@@ -35,10 +35,10 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import javax.inject.Inject;
-
 import java.io.File;
 import java.util.Map;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;

@@ -292,6 +292,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: supports darwin aarch distributions
   issue: https://github.com/elastic/elasticsearch/issues/118960
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: supports linux aarch distributions
+  issue: https://github.com/elastic/elasticsearch/issues/118961
 
 # Examples:
 #

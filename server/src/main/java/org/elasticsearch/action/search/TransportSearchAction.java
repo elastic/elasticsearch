@@ -1519,7 +1519,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 task.getProgressListener(),
                 searchRequest,
                 shardIterators.size(),
-                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+                exc -> searchTransportService.cancelSearchTask(task.getId(), "failed to merge result [" + exc.getMessage() + "]")
             );
             boolean success = false;
             try {

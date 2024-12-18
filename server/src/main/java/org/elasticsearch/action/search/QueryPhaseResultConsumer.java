@@ -86,7 +86,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final ArrayDeque<MergeTask> queue = new ArrayDeque<>();
     private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
-    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    public final AtomicReference<Exception> failure = new AtomicReference<>();
 
     public final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
@@ -124,7 +124,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasTopDocs = (source == null || size != 0) && queryPhaseRankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
-        batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
+        // TODO: facepalm
+        if (request.getBatchedReduceSize() == Integer.MAX_VALUE) {
+            batchReduceSize = Integer.MAX_VALUE;
+        } else {
+            batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
+        }
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
     }
 
@@ -332,7 +337,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return numReducePhases;
     }
 
-    private boolean hasFailure() {
+    public boolean hasFailure() {
         return failure.get() != null;
     }
 

@@ -388,14 +388,19 @@ public interface ActionListener<Response> {
                 // if complete, records the stack trace which first completed it
                 private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
 
-                private void assertFirstRun() {
+                private void assertFirstRun(Exception t) {
                     var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
-                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
+                    // reports the stack traces of both completions
+                    assert previousRun == null
+                        : new AssertionError(
+                            "[" + delegate + "] " + previousRun,
+                            t == null ? previousRun : ExceptionsHelper.useOrSuppress(previousRun, t)
+                        );
                 }
 
                 @Override
                 public void onResponse(Response response) {
-                    assertFirstRun();
+                    assertFirstRun(null);
                     try {
                         delegate.onResponse(response);
                     } catch (Exception e) {
@@ -406,7 +411,7 @@ public interface ActionListener<Response> {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertFirstRun();
+                    assertFirstRun(e);
                     safeOnFailure(delegate, e);
                 }
 

@@ -611,6 +611,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                         onShardFailure(
                                             shard.shardIndex,
                                             new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
+                                            shardsIts.get(shard.shardIndex),
                                             e
                                         );
                                     }
@@ -710,7 +711,10 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
                     try {
-                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                        searchTransportService.cancelSearchTask(
+                            task.getId(),
+                            "partial results are not allowed and at least one shard has failed"
+                        );
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
                     }
@@ -730,7 +734,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         boolean removed = outstandingShards.remove(shardId);
         assert removed : "unknown shardId " + shardId;
         if (outstandingShards.isEmpty()) {
-            onPhaseDone();
+            executeNextPhase(this, this::getNextPhase);
         }
     }
 
@@ -789,10 +793,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
     private void successfulShardExecution(SearchShardIterator shardsIt) {
         finishShardAndMaybePhase(shardsIt.shardId());
-    }
-
-    final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        executeNextPhase(this, this::getNextPhase);
     }
 
     @Override
@@ -961,6 +961,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 final AtomicInteger shardIndex = new AtomicInteger();
                 request.searchRequest.finalReduce = false;
                 request.searchRequest.setBatchedReduceSize(Integer.MAX_VALUE);
+                final CountDown countDown = new CountDown(request.shards.size());
                 final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                     request.searchRequest,
                     executor,
@@ -969,12 +970,17 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     ((CancellableTask) task)::isCancelled,
                     SearchProgressListener.NOOP,
                     request.shards.size(),
-                    e -> searchTransportService.cancelSearchTask((SearchTask) task, "failed to merge result [" + e.getMessage() + "]")
+                    e -> {}
                 );
-                final CountDown countDown = new CountDown(request.shards.size());
                 final Runnable onDone = () -> {
                     if (countDown.countDown()) {
+                        var channelListener = new ChannelActionListener<>(channel);
                         try {
+                            var failure = queryPhaseResultConsumer.failure.get();
+                            if (failure != null) {
+                                channelListener.onFailure(failure);
+                                return;
+                            }
                             final Object[] results = new Object[request.shards.size()];
                             for (int i = 0; i < results.length; i++) {
                                 var e = failures.get(i);
@@ -987,7 +993,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                             }
                             // TODO: facepalm
                             queryPhaseResultConsumer.buffer.clear();
-                            new ChannelActionListener<>(channel).onResponse(
+                            channelListener.onResponse(
                                 new NodeQueryResponse(
                                     new QueryPhaseResultConsumer.MergeResult(
                                         request.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
@@ -999,7 +1005,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                     queryPhaseResultConsumer.topDocsStats
                                 )
                             );
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             throw new AssertionError(e);
                         } finally {
                             queryPhaseResultConsumer.close();
@@ -1063,16 +1069,26 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 searchService.executeQueryPhase(req, task, new ActionListener<>() {
                     @Override
                     public void onResponse(SearchPhaseResult searchPhaseResult) {
-                        searchPhaseResult.setShardIndex(req.shardRequestIndex());
-                        queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
-                        maybeNext();
+                        try {
+                            searchPhaseResult.setShardIndex(req.shardRequestIndex());
+                            queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
+                        } catch (Throwable e) {
+                            throw new AssertionError(e);
+                        } finally {
+                            maybeNext();
+                        }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        failures.put(req.shardRequestIndex(), e);
-                        onDone.run();
-                        maybeNext();
+                        try {
+                            failures.put(req.shardRequestIndex(), e);
+                            onDone.run();
+                            maybeNext();
+                        } catch (Throwable expected) {
+                            expected.addSuppressed(e);
+                            throw new AssertionError(expected);
+                        }
                     }
 
                     private void maybeNext() {

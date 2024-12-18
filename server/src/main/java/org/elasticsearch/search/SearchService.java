@@ -603,7 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
                 CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
                 if (canMatchResp.canMatch() == false) {
-                    finalListener.onResponse(QuerySearchResult.nullInstance());
+                    l.onResponse(QuerySearchResult.nullInstance());
                     return;
                 }
             }
@@ -957,7 +957,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ReaderContext readerContext;
+        try {
+            readerContext = findReaderContext(request.contextId(), request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {

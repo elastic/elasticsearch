@@ -441,7 +441,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
                     try {
-                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                        searchTransportService.cancelSearchTask(
+                            task.getId(),
+                            "partial results are not allowed and at least one shard has failed"
+                        );
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
                     }

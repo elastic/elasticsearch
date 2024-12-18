@@ -351,20 +351,20 @@ public class MasterServiceTests extends ESTestCase {
 
                         @Override
                         public void onAllNodesAcked() {
-                            assertExpectedThreadContext();
+                            onAckCompletion();
                         }
 
                         @Override
                         public void onAckFailure(Exception e) {
-                            assertExpectedThreadContext();
+                            onAckCompletion();
                         }
 
                         @Override
                         public void onAckTimeout() {
-                            assertExpectedThreadContext();
+                            onAckCompletion();
                         }
 
-                        private void assertExpectedThreadContext() {
+                        private void onAckCompletion() {
                             assertExpectedThreadContext(expectedResponseHeaders);
                             onAckingComplete.close();
                         }

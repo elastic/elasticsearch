@@ -452,6 +452,14 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             this.newRoleDigests = newRoleDigests;
         }
 
+        public Map<String, String> getExpectedRoleDigests() {
+            return expectedRoleDigests;
+        }
+
+        public Map<String, String> getNewRoleDigests() {
+            return newRoleDigests;
+        }
+
         Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
             IndexMetadata indexMetadata = state.metadata().index(concreteSecurityIndexName);
             if (indexMetadata == null) {

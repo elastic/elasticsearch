@@ -223,7 +223,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
-                    "%s requires [%s: %d] to be greater than or equal to [size: %d]",
+                    "%s requires [%s: %d] be greater than or equal to [size: %d]",
                     getName(),
                     getRankWindowSizeField().getPreferredName(),
                     rankWindowSize,

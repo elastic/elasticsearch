@@ -79,7 +79,6 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             switch (shardStatus) {
                 // Return if it's an error that can be retried.
                 // These currently take precedence over other status code(s).
-                case RestStatus.BAD_REQUEST:
                 case RestStatus.BAD_GATEWAY:
                 case RestStatus.SERVICE_UNAVAILABLE:
                 case RestStatus.GATEWAY_TIMEOUT:

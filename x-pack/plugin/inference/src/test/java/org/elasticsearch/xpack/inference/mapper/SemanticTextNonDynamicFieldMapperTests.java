@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.index.mapper.NonDynamicFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.junit.Before;
@@ -27,7 +26,7 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateInferencePlugin.class);
+        return List.of(Utils.TestInferencePlugin.class);
     }
 
     @Override

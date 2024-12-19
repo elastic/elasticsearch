@@ -781,8 +781,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         })));
         assertTrue(
             e.getMessage(),
-            e.getMessage()
-                .contains("Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+            e.getMessage().contains("Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
         );
 
         // test pre-8 deprecation warnings
@@ -797,9 +796,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertCriticalWarnings("You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
-                " in the mapping for field [field]. The maximum allowed number of completion contexts in a mapping will be limited to " +
-                "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
+        assertCriticalWarnings(
+            "You have defined more than ["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] completion contexts"
+                + " in the mapping for field [field]. The maximum allowed number of completion contexts in a mapping will be limited to "
+                + "["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] starting in version [8.0]."
+        );
     }
 
     private static CompletionFieldMapper.CompletionInputMetadata randomCompletionMetadata() {

@@ -27,7 +27,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -43,7 +42,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -88,6 +86,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
     private static boolean useSearchInferenceId;
+    private static boolean useLegacyFormat;
 
     private enum InferenceResultType {
         NONE,
@@ -107,6 +106,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
         ); // TODO: Support bit elements once KNN bit vector queries are available
         useSearchInferenceId = randomBoolean();
+        useLegacyFormat = randomBoolean();
     }
 
     @Override
@@ -123,15 +123,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Settings createTestIndexSettings() {
-        IndexVersion indexVersion = randomFrom(
-            IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS)
-            ),
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
-        );
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build();
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
     }
 
     @Override
@@ -156,7 +151,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SourceToParse sourceToParse = buildSemanticTextFieldWithInferenceResults(
             inferenceResultType,
             denseVectorElementType,
-            mapperService.getIndexSettings().getIndexVersionCreated()
+            useLegacyFormat
         );
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
@@ -344,10 +339,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static SourceToParse buildSemanticTextFieldWithInferenceResults(
         InferenceResultType inferenceResultType,
         DenseVectorFieldMapper.ElementType denseVectorElementType,
-        IndexVersion indexVersion
+        boolean useLegacyFormat
     ) throws IOException {
-        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
-
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
             case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
@@ -362,7 +355,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SourceToParse sourceToParse = null;
         if (modelSettings != null) {
             SemanticTextField semanticTextField = new SemanticTextField(
-                indexVersion,
+                useLegacyFormat,
                 SEMANTIC_TEXT_FIELD,
                 null,
                 new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, Map.of(SEMANTIC_TEXT_FIELD, List.of())),
@@ -370,11 +363,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            if (useInferenceMetadataFields) {
+            if (useLegacyFormat == false) {
                 builder.startObject(InferenceMetadataFieldsMapper.NAME);
             }
             builder.field(semanticTextField.fieldName(), semanticTextField);
-            if (useInferenceMetadataFields) {
+            if (useLegacyFormat == false) {
                 builder.endObject();
             }
             builder.endObject();

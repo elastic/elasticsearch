@@ -1,0 +1,6 @@
+pr: 119097
+summary: "[8.x] Update data stream deprecations warnings to new format and filter\
+  \ sea…"
+area: Data streams
+type: enhancement
+issues: []

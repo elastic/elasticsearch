@@ -171,7 +171,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -827,7 +827,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
             final IndexResponse indexResponse = new IndexResponse(
-                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX, randomAlphaOfLength(22), randomIntBetween(0, 1)),
                 createApiKeyRequest.getId(),
                 randomLongBetween(1, 99),
                 randomLongBetween(1, 99),
@@ -2351,7 +2351,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             SECURITY_MAIN_ALIAS,
             docId,
             new GetResult(
-                INTERNAL_SECURITY_MAIN_INDEX_7,
+                INTERNAL_SECURITY_MAIN_INDEX,
                 docId,
                 UNASSIGNED_SEQ_NO,
                 UNASSIGNED_PRIMARY_TERM,

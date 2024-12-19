@@ -111,8 +111,8 @@ ignored when frozen. Defaults to `false`.
 deprecated:[7.16.0]
 
 
+[discrete]
 [[usecases-for-resolve-cluster]]
-
 === Test availability of remote clusters
 
 The <<cluster-remote-info,remote/info>> endpoint is commonly used to test whether the "local"
@@ -130,7 +130,7 @@ been (re-)established.
 
 You may want to exclude a cluster or index from a search when:
 
-1. A remote cluster is not currently connected and is configured with `skip_unavailable`=`false`.
+1. A remote cluster could not be connected to and is configured with `skip_unavailable`=`false`.
 Executing a {ccs} under those conditions will cause
 <<cross-cluster-search-failures,the entire search to fail>>.
 
@@ -209,6 +209,7 @@ The API returns the following response:
 <5> The Elasticsearch server version.
 
 
+[discrete]
 [[resolve-cluster-api-error-example]]
 ==== Identifying potential problems with your {ccs}
 

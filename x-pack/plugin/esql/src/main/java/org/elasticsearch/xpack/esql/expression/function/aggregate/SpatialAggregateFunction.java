@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -24,7 +25,7 @@ import static java.util.Collections.emptyList;
  * The AggregateMapper class will generate multiple aggregation functions for each combination, allowing the planner to
  * select the best one.
  */
-public abstract class SpatialAggregateFunction extends AggregateFunction {
+public abstract class SpatialAggregateFunction extends AggregateFunction implements LicenseAware {
     protected final FieldExtractPreference fieldExtractPreference;
 
     protected SpatialAggregateFunction(Source source, Expression field, Expression filter, FieldExtractPreference fieldExtractPreference) {
@@ -41,7 +42,7 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
     public abstract SpatialAggregateFunction withDocValues();
 
     @Override
-    public boolean checkLicense(XPackLicenseState state) {
+    public boolean licenseCheck(XPackLicenseState state) {
         return switch (field().dataType()) {
             case GEO_SHAPE, CARTESIAN_SHAPE -> state.isAllowedByLicense(License.OperationMode.PLATINUM);
             default -> true;

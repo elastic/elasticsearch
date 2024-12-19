@@ -2003,10 +2003,12 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMixedFieldTypes() {
-        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
-        assertAcked(prepareCreate("index_integer").setMapping("foo", "type=integer").get());
-        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
-        assertAcked(prepareCreate("index_keyword").setMapping("foo", "type=keyword").get());
+        assertAcked(
+            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_integer").setMapping("foo", "type=integer"),
+            prepareCreate("index_double").setMapping("foo", "type=double"),
+            prepareCreate("index_keyword").setMapping("foo", "type=keyword")
+        );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
         prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
@@ -2038,9 +2040,11 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMixedFieldTypesWithNoDocsForOneType() {
-        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
-        assertAcked(prepareCreate("index_other").setMapping("bar", "type=keyword").get());
-        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
+        assertAcked(
+            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_other").setMapping("bar", "type=keyword"),
+            prepareCreate("index_double").setMapping("foo", "type=double")
+        );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
         prepareIndex("index_long").setId("2").setSource("foo", "124").get();

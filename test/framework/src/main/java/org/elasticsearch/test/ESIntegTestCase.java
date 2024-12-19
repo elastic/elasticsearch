@@ -759,24 +759,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
-     * already exists this method will fail and wipe all the indices created so far.
+     * Creates one or more indices and asserts that the indices are acknowledged.
      */
     public final void createIndex(String... names) {
-
-        List<String> created = new ArrayList<>();
-        for (String name : names) {
-            boolean success = false;
-            try {
-                assertAcked(prepareCreate(name));
-                created.add(name);
-                success = true;
-            } finally {
-                if (success == false && created.isEmpty() == false) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
-                }
-            }
-        }
+        assertAcked(Arrays.stream(names).map(this::prepareCreate).toArray(CreateIndexRequestBuilder[]::new));
     }
 
     /**

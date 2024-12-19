@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -380,8 +381,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testWithIndexFilter() throws InterruptedException {
-        assertAcked(prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"));
-        assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
+        assertAcked(
+            prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"),
+            prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long")
+        );
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
@@ -474,8 +477,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testFailures() throws InterruptedException {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
-        assertAcked(prepareCreate("index1-error"));
-        assertAcked(prepareCreate("index2-error"));
+        assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
         ensureGreen("index1-error", "index2-error");
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
@@ -503,9 +505,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(
             prepareCreate("log-index-1").setSettings(indexSettings(between(1, 5), 1))
-                .setMapping("timestamp", "type=date", "field1", "type=keyword")
-        );
-        assertAcked(
+                .setMapping("timestamp", "type=date", "field1", "type=keyword"),
             prepareCreate("log-index-2").setSettings(indexSettings(between(1, 5), 1))
                 .setMapping("timestamp", "type=date", "field1", "type=long")
         );
@@ -666,9 +666,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
              }
             """;
         String[] indices = IntStream.range(0, between(1, 9)).mapToObj(n -> "test_many_index_" + n).toArray(String[]::new);
-        for (String index : indices) {
-            assertAcked(indicesAdmin().prepareCreate(index).setMapping(mapping).get());
-        }
+        assertAcked(
+            Arrays.stream(indices)
+                .map(index -> indicesAdmin().prepareCreate(index).setMapping(mapping))
+                .toArray(CreateIndexRequestBuilder[]::new)
+        );
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("test_many_index_*");
         request.fields("*");
@@ -787,9 +789,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("hostname")).build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
-                assertAcked(indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping).get());
+                assertAcked(
+                    indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping),
+                    indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping)
+                );
                 indexModes.put("test_metrics_" + i, IndexMode.TIME_SERIES);
-                assertAcked(indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping).get());
                 indexModes.put("test_old_metrics_" + i, IndexMode.STANDARD);
             }
         }
@@ -808,9 +812,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             Settings settings = Settings.builder().put("mode", "logsdb").build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
-                assertAcked(indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping).get());
+                assertAcked(
+                    indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping),
+                    indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping)
+                );
                 indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
-                assertAcked(indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping).get());
                 indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
             }
         }

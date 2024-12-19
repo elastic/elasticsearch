@@ -138,6 +138,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -6842,40 +6843,49 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testLookupJoinFieldLoading() throws Exception {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
-        TestDataSource data = dataSetWithLookupIndexWithFields("first_name", "foo", "bar", "baz");
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
         var plan = physicalPlan("""
               FROM test
             | LOOKUP JOIN lookup_index ON first_name
-            | DROP bar
+            | DROP foo
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP b*
             """, data, false);
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan);
 
-        Set<String> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
+        List<Set<String>> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
 
-        assertThat(fields, contains("foo", "baz"));
+        assertEquals(fields.size(), 2);
+        assertThat(fields.getFirst(), contains("bar", "baz"));
+        assertThat(fields.get(1), contains("foo"));
     }
 
-    private TestDataSource dataSetWithLookupIndexWithFields(String... fieldNames) {
-        String lookupIndexName = "lookup_index";
+    private TestDataSource dataSetWithLookupIndices(Map<String, Collection<String>> indexNameToFieldNames) {
+        Map<String, IndexResolution> lookupIndices = new HashMap<>();
 
-        Map<String, EsField> lookup_fields = fields(fieldNames);
-        EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of("lookup_index", IndexMode.LOOKUP));
+        for (Map.Entry<String, Collection<String>> entry : indexNameToFieldNames.entrySet()) {
+            String lookupIndexName = entry.getKey();
+            Map<String, EsField> lookup_fields = fields(entry.getValue());
+
+            EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
+            lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
+        }
 
         return makeTestDataSource(
             "test",
             "mapping-basic.json",
             new EsqlFunctionRegistry(),
-            Map.of(lookupIndexName, IndexResolution.valid(lookupIndex)),
+            lookupIndices,
             setupEnrichResolution(),
             TEST_SEARCH_STATS
         );
     }
 
-    private Map<String, EsField> fields(String... fieldNames) {
+    private Map<String, EsField> fields(Collection<String> fieldNames) {
         Map<String, EsField> fields = new HashMap<>();
 
         for (String fieldName : fieldNames) {
@@ -6907,7 +6917,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return planner.plan(plan);
     }
 
-    private Set<String> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
+    private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
 
         String[] descriptionLines = physicalOperations.describe().split("\\r?\\n|\\r");
 
@@ -6915,17 +6925,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String insidePattern = "[^\\]]*";
         Pattern expected = Pattern.compile("\\\\_LookupOperator.*load_fields=\\[(" + insidePattern + ")].*");
 
-        String allFields = null;
+        List<Set<String>> results = new ArrayList<>();
         for (String line : descriptionLines) {
             var matcher = expected.matcher(line);
             if (matcher.find()) {
-                allFields = matcher.group(1);
-                break;
+                String allFields = matcher.group(1);
+                Set<String> loadedFields = Arrays.stream(allFields.split(","))
+                    .map(name -> name.trim().split("\\{f}#")[0])
+                    .collect(Collectors.toSet());
+                results.add(loadedFields);
             }
         }
-        assertNotNull(allFields);
 
-        return Arrays.stream(allFields.split(",")).map(name -> name.trim().split("\\{f}#")[0]).collect(Collectors.toSet());
+        return results;
     }
 
     public void testScore() {

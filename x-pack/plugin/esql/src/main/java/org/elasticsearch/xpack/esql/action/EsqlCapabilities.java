@@ -349,6 +349,11 @@ public class EsqlCapabilities {
         DATE_NANOS_AGGREGATIONS(),
 
         /**
+         * DATE_PARSE supports reading timezones
+         */
+        DATE_PARSE_TZ(),
+
+        /**
          * Support for datetime in least and greatest functions
          */
         LEAST_GREATEST_FOR_DATES,

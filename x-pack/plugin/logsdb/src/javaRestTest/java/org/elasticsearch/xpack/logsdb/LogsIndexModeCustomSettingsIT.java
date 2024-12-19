@@ -117,7 +117,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         Request request = new Request("PUT", "_data_stream/logs-custom-dev");
         assertOK(client.performRequest(request));
         var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
-        var settings = (Map<?, ?>) ((Map<?, ?>)((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
+        var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
         assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
     }
 
@@ -192,7 +192,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertOK(client.performRequest(request));
 
         var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
-        var settings = (Map<?, ?>) ((Map<?, ?>)((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
+        var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
         assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
     }
 

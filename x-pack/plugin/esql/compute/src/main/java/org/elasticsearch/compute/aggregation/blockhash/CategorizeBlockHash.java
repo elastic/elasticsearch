@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -200,20 +200,35 @@ public class CategorizeBlockHash extends BlockHash {
         }
         int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
         // We're returning a block with N positions just because the Page must have all blocks with the same position count!
-        return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
+        var serializedCategorizer = serializeCategorizer();
+        return blockFactory.newConstantBytesRefBlockWith(
+            serializedCategorizer.bytesRef(),
+            positionCount,
+            serializedCategorizer.preAdjustedBytes()
+        );
     }
 
-    BytesRef serializeCategorizer() {
-        // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+    record SerializedCategorizer(BytesRef bytesRef, long preAdjustedBytes) {}
+
+    SerializedCategorizer serializeCategorizer() {
+        Long preAdjustedBytes = null;
+        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(blockFactory.bigArrays())) {
             out.writeBoolean(seenNull);
             out.writeVInt(categorizer.getCategoryCount());
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
                 category.writeTo(out);
             }
-            return out.bytes().toBytesRef();
+            preAdjustedBytes = (long) out.size();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(preAdjustedBytes, "CategorizePackedValuesBlockHash getKeys");
+            var result = new SerializedCategorizer(out.copyBytes().toBytesRef(), preAdjustedBytes);
+            preAdjustedBytes = null;
+            return result;
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } finally {
+            if (preAdjustedBytes != null) {
+                blockFactory.breaker().addWithoutBreaking(-preAdjustedBytes);
+            }
         }
     }
 

@@ -1,0 +1,225 @@
+setup:
+  - requires:
+      cluster_features: [ "search.retriever.rescorer.enabled" ]
+      reason: "Support for rescorer retriever"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              available:
+                type: boolean
+              features:
+                type: rank_features
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {"_id": 1 }}'
+          - '{"features": { "first_stage": 1, "second_stage": 10}, "available": true, "group": 1}'
+          - '{"index": {"_id": 2 }}'
+          - '{"features": { "first_stage": 2, "second_stage": 9}, "available": false, "group": 1}'
+          - '{"index": {"_id": 3 }}'
+          - '{"features": { "first_stage": 3, "second_stage": 8}, "available": false, "group": 3}'
+          - '{"index": {"_id": 4 }}'
+          - '{"features": { "first_stage": 4, "second_stage": 7}, "available": true, "group": 1}'
+          - '{"index": {"_id": 5 }}'
+          - '{"features": { "first_stage": 5, "second_stage": 6}, "available": true, "group": 3}'
+          - '{"index": {"_id": 6 }}'
+          - '{"features": { "first_stage": 6, "second_stage": 5}, "available": false, "group": 2}'
+          - '{"index": {"_id": 7 }}'
+          - '{"features": { "first_stage": 7, "second_stage": 4}, "available": true, "group": 3}'
+          - '{"index": {"_id": 8 }}'
+          - '{"features": { "first_stage": 8, "second_stage": 3}, "available": true, "group": 1}'
+          - '{"index": {"_id": 9 }}'
+          - '{"features": { "first_stage": 9, "second_stage": 2}, "available": true, "group": 2}'
+          - '{"index": {"_id": 10 }}'
+          - '{"features": { "first_stage": 10, "second_stage": 1}, "available": false, "group": 1}'
+
+---
+"Rescorer retriever basic":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rescorer:
+              rescore:
+                window_size: 10
+                query:
+                  rescore_query:
+                    rank_feature:
+                      field: "features.second_stage"
+                      linear: { }
+                  query_weight: 0
+              retriever:
+                standard:
+                  query:
+                    rank_feature:
+                      field: "features.first_stage"
+                      linear: { }
+          size: 2
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 10.0 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 9.0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rescorer:
+              rescore:
+                window_size: 3
+                query:
+                  rescore_query:
+                    rank_feature:
+                      field: "features.second_stage"
+                      linear: {}
+                  query_weight: 0
+              retriever:
+                standard:
+                  query:
+                    rank_feature:
+                      field: "features.first_stage"
+                      linear: {}
+          size: 2
+
+  - match: {hits.total.value: 10}
+  - match: {hits.hits.0._id: "8"}
+  - match: { hits.hits.0._score: 3.0 }
+  - match: {hits.hits.1._id: "9"}
+  - match: { hits.hits.1._score: 2.0 }
+
+---
+"Rescorer retriever with pre-filters":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rescorer:
+              filter:
+                match:
+                  available: true
+              rescore:
+                window_size: 10
+                query:
+                  rescore_query:
+                    rank_feature:
+                      field: "features.second_stage"
+                      linear: { }
+                  query_weight: 0
+              retriever:
+                standard:
+                  query:
+                    rank_feature:
+                      field: "features.first_stage"
+                      linear: { }
+          size: 2
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 10.0 }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1._score: 7.0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rescorer:
+              rescore:
+                window_size: 4
+                query:
+                  rescore_query:
+                    rank_feature:
+                      field: "features.second_stage"
+                      linear: { }
+                  query_weight: 0
+              retriever:
+                standard:
+                  filter:
+                    match:
+                      available: true
+                  query:
+                    rank_feature:
+                      field: "features.first_stage"
+                      linear: { }
+          size: 2
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._score: 6.0 }
+  - match: { hits.hits.1._id: "7" }
+  - match: { hits.hits.1._score: 4.0 }
+
+---
+"Rescorer retriever and collapsing":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rescorer:
+              rescore:
+                window_size: 10
+                query:
+                  rescore_query:
+                    rank_feature:
+                      field: "features.second_stage"
+                      linear: { }
+                  query_weight: 0
+              retriever:
+                standard:
+                  query:
+                    rank_feature:
+                      field: "features.first_stage"
+                      linear: { }
+          collapse:
+            field: group
+          size: 3
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 10.0 }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._score: 8.0 }
+  - match: { hits.hits.2._id: "6" }
+  - match: { hits.hits.2._score: 5.0 }
+
+---
+"Rescorer retriever and invalid window size":
+  - do:
+      catch: "/\\[rescorer\\] requires \\[window_size: 5\\] be greater than or equal to \\[size: 10\\]/"
+      search:
+        index: test
+        body:
+          retriever:
+            rescorer:
+              rescore:
+                window_size: 5
+                query:
+                  rescore_query:
+                    rank_feature:
+                      field: "features.second_stage"
+                      linear: { }
+                  query_weight: 0
+              retriever:
+                standard:
+                  query:
+                    rank_feature:
+                      field: "features.first_stage"
+                      linear: { }
+          size: 10

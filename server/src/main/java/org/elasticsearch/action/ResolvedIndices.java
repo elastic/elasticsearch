@@ -153,7 +153,7 @@ public class ResolvedIndices {
         return resolveWithIndexNamesAndOptions(
             request.indices(),
             request.indicesOptions(),
-            clusterState,
+            projectMetadata,
             indexNameExpressionResolver,
             remoteClusterService,
             startTimeInMillis
@@ -163,7 +163,7 @@ public class ResolvedIndices {
     public static ResolvedIndices resolveWithIndexNamesAndOptions(
         String[] indexNames,
         IndicesOptions indicesOptions,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         long startTimeInMillis

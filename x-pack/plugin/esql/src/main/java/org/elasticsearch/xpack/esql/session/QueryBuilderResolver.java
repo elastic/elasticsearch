@@ -127,7 +127,7 @@ public class QueryBuilderResolver {
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            clusterService.state(),
+            clusterService.state().getMetadata().getProject(),
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             System.currentTimeMillis()

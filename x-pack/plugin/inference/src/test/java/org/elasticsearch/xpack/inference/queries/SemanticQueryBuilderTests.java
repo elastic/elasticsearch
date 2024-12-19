@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -86,7 +88,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
     private static boolean useSearchInferenceId;
-    private static boolean useLegacyFormat;
+    private final boolean useLegacyFormat;
 
     private enum InferenceResultType {
         NONE,
@@ -95,6 +97,15 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private Integer queryTokenCount;
+
+    public SemanticQueryBuilderTests(boolean useLegacyFormat) {
+        this.useLegacyFormat = useLegacyFormat;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @BeforeClass
     public static void setInferenceResultType() {
@@ -106,7 +117,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
         ); // TODO: Support bit elements once KNN bit vector queries are available
         useSearchInferenceId = randomBoolean();
-        useLegacyFormat = randomBoolean();
     }
 
     @Override

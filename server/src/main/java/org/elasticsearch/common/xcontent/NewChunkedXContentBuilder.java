@@ -16,8 +16,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyIterator;
-
 public class NewChunkedXContentBuilder {
 
     private static Iterator<? extends ToXContent> startObject() {
@@ -44,7 +42,7 @@ public class NewChunkedXContentBuilder {
         return chunk((b, p) -> b.endArray());
     }
 
-    public static Iterator<? extends ToXContent> empty() {
+    public static Iterator<ToXContent> empty() {
         return Collections.emptyIterator();
     }
 
@@ -68,14 +66,6 @@ public class NewChunkedXContentBuilder {
 
     public static Iterator<? extends ToXContent> of(ToXContent... chunks) {
         return Iterators.forArray(chunks);
-    }
-
-    public static Iterator<? extends ToXContent> ifThen(boolean condition, ToXContent content) {
-        return condition ? chunk(content) : emptyIterator();
-    }
-
-    public static Iterator<? extends ToXContent> ifThen(boolean condition, Iterator<? extends ToXContent> content) {
-        return condition ? content : emptyIterator();
     }
 
     public static Iterator<? extends ToXContent> object(ToXContent xContent) {

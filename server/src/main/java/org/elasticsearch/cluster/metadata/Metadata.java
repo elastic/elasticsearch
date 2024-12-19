@@ -88,7 +88,6 @@ import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUS
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
-import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.ifThen;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObject;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -1523,13 +1522,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 coordinationMetadata().toXContent(b, p);
                 return b.endObject();
             }),
-            ifThen(context != XContentContext.API && persistentSettings().isEmpty() == false, (b, p) -> {
+            context != XContentContext.API && persistentSettings().isEmpty() == false ? chunk((b, p) -> {
                 b.startObject("settings");
                 persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
                 return b.endObject();
-            }),
+            }) : empty(),
             object("templates", templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p)),
-            ifThen(context == XContentContext.API, xContentObject("indices", indices().values().iterator())),
+            context == XContentContext.API ? xContentObject("indices", indices().values().iterator()) : empty(),
             NewChunkedXContentBuilder.forEach(
                 customs.entrySet().iterator(),
                 e -> e.getValue().context().contains(context) ? object(e.getKey(), e.getValue().toXContentChunked(params)) : empty()

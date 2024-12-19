@@ -30,7 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.support.master.AcknowledgedResponse.ACKNOWLEDGED_KEY;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
-import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.ifThen;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObject;
 
@@ -99,8 +99,8 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         return NewChunkedXContentBuilder.of(
             object(
                 chunk((b, p) -> b.field(ACKNOWLEDGED_KEY, isAcknowledged())),
-                ifThen(emitState(outerParams), xContentObject("state", state.toXContentChunked(outerParams))),
-                ifThen(outerParams.paramAsBoolean("explain", false), explanations)
+                emitState(outerParams) ? xContentObject("state", state.toXContentChunked(outerParams)) : empty(),
+                outerParams.paramAsBoolean("explain", false) ? chunk(explanations) : empty()
             )
         );
     }

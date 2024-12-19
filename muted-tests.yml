@@ -436,3 +436,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
   method: test {p0=esql/190_lookup_join/non-lookup index}
   issue: https://github.com/elastic/elasticsearch/issues/119111
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
+  method: test {p0=esql/190_lookup_join/basic}
+  issue: https://github.com/elastic/elasticsearch/issues/119112

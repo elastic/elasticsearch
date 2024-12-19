@@ -149,11 +149,20 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongsGauge(
                     "es.indices." + name + ".indexing.failure.total",
                     "current indexing failures of " + name + " indices",
                     "unit",
-                    diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedCount())
+                    () -> List.of(
+                        diffGauge(
+                            () -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedCount(),
+                            Map.of("es.indices." + name + ".indexing.failure.cause", "any")
+                        ).get(),
+                        diffGauge(
+                            () -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedWithVersionConflictCount(),
+                            Map.of("es.indices." + name + ".indexing.failure.cause", "version_conflict")
+                        ).get()
+                    )
                 )
             );
         }
@@ -162,11 +171,15 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     static Supplier<LongWithAttributes> diffGauge(Supplier<Long> currentValue) {
+        return diffGauge(currentValue, Map.of());
+    }
+
+    static Supplier<LongWithAttributes> diffGauge(Supplier<Long> currentValue, Map<String, Object> attributes) {
         final AtomicLong counter = new AtomicLong();
         return () -> {
             var curr = currentValue.get();
             long prev = counter.getAndUpdate(v -> Math.max(curr, v));
-            return new LongWithAttributes(Math.max(0, curr - prev));
+            return new LongWithAttributes(Math.max(0, curr - prev), attributes);
         };
     }
 

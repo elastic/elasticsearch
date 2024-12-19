@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
@@ -52,6 +53,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
 public class EntitlementInitialization {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
 
@@ -64,13 +66,12 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
-            "org.elasticsearch.entitlement.bridge.EntitlementChecker"
-        );
+        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter(checkMethods), classesToTransform), true);
+        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         // TODO: should we limit this array somehow?
         var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
         inst.retransformClasses(classesToRetransform);
@@ -92,7 +93,7 @@ public class EntitlementInitialization {
             "server",
             List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
         );
-        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
+        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver(), ENTITLEMENTS_MODULE);
     }
 
     private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {

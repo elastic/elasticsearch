@@ -11,6 +11,7 @@ package org.elasticsearch.common;
 
 import java.nio.ByteBuffer;
 import java.util.Base64;
+import java.util.function.Supplier;
 
 /**
  * Generates a base64-encoded, k-ordered UUID string optimized for compression and efficient indexing.
@@ -28,18 +29,27 @@ import java.util.Base64;
  * The result is a compact base64-encoded string, optimized for efficient compression of the _id field in an inverted index.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
+
+    private static final Base64.Encoder BASE_64_NO_PADDING_URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
+    public TimeBasedKOrderedUUIDGenerator(
+        final Supplier<Long> timestampSupplier,
+        final Supplier<Integer> sequenceIdSupplier,
+        final Supplier<byte[]> macAddressSupplier
+    ) {
+        super(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
+    }
 
     @Override
     public String getBase64UUID() {
-        final int sequenceId = this.sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
+        final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         // Calculate timestamp to ensure ordering and avoid backward movement in case of time shifts.
         // Uses AtomicLong to guarantee that timestamp increases even if the system clock moves backward.
         // If the sequenceId overflows (reaches 0 within the same millisecond), the timestamp is incremented
         // to ensure strict ordering.
         long timestamp = this.lastTimestamp.accumulateAndGet(
-            currentTimeMillis(),
+            timestampSupplier.get(),
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 
@@ -68,6 +78,6 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
         assert buffer.position() == uuidBytes.length;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
     }
 }

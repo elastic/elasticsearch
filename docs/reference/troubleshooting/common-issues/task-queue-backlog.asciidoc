@@ -128,7 +128,7 @@ If an active task's <<diagnose-task-queue-hot-thread,hot thread>> shows no progr
 [[resolve-task-queue-backlog-hotspotting]]
 ===== Address hot spotting
 
-If a specific node's thread pool is problematic, try addressing 
+If a specific node's thread pool is depleting faster than others, try addressing
 uneven node resource utilization, also known as hot spotting.
 For details on actions you can take, such as rebalancing shards, see <<hotspotting>>.
 

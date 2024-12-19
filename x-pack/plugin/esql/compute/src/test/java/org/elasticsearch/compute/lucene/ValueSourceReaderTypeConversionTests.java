@@ -1527,7 +1527,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "dummy-session",
                     0,
                     0,
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), () -> false, () -> {}),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
@@ -1637,7 +1637,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new org.elasticsearch.compute.data.BlockFactory(
                     new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                     BigArrays.NON_RECYCLING_INSTANCE
-                )
+                ),
+                () -> false,
+                () -> {}
             );
             TestBlockConverter blockConverter = TestDataTypeConverters.blockConverter(driverContext, fromTypeName, toTypeName);
             this.convertEvaluator = new EvalOperator.ExpressionEvaluator() {

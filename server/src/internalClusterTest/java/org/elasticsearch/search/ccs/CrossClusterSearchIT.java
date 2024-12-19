@@ -379,11 +379,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             r.incRef();
             l.onResponse(r);
         }));
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-
         // dfs=true overrides the minimize_roundtrips=true setting and does not minimize roundtrips
         if (skipUnavailable == false && minimizeRoundtrips && dfs == false) {
-            ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
+            ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
@@ -622,10 +620,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             r.incRef();
             l.onResponse(r);
         }));
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-
         if (skipUnavailable == false || minimizeRoundtrips == false) {
-            ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
+            ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);
             assertThat(rootCause.getMessage(), containsString("index corrupted"));

@@ -460,8 +460,7 @@ public class ComputeListenerTests extends ESTestCase {
                 }), TimeValue.timeValueNanos(between(0, 100)), threadPool.generic());
             }
         }
-        assertBusy(rootListener::isDone);
-        ExecutionException failure = expectThrows(ExecutionException.class, () -> rootListener.get(1, TimeUnit.SECONDS));
+        ExecutionException failure = expectThrows(ExecutionException.class, () -> rootListener.get(10, TimeUnit.SECONDS));
         Throwable cause = failure.getCause();
         assertNotNull(failure);
         assertThat(cause, instanceOf(CircuitBreakingException.class));

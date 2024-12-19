@@ -183,7 +183,11 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                     }
                 }
             });
-            assertBusy(() -> assertTrue(future.isDone()));
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                // ignored
+            }
             configureAndConnectsToRemoteClusters();
         } finally {
             SearchListenerPlugin.allowQueryPhase();
@@ -298,20 +302,21 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         }
 
         SearchListenerPlugin.allowQueryPhase();
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-        assertBusy(() -> assertTrue(cancelFuture.isDone()));
+        try {
+            queryFuture.get();
+            fail("query should have failed");
+        } catch (ExecutionException e) {
+            assertNotNull(e.getCause());
+            Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull(t);
+        }
+        cancelFuture.get();
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
             for (TransportService transportService : transportServices) {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
-
-        ExecutionException e = expectThrows(ExecutionException.class, () -> queryFuture.result());
-        assertNotNull(e);
-        assertNotNull(e.getCause());
-        Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-        assertNotNull(t);
     }
 
     /**

@@ -290,6 +290,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118970
+- class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
+  method: testCancellationDuringTimeSeriesAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/118992
 - class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
   method: testInvalidToken
   issue: https://github.com/elastic/elasticsearch/issues/119019
@@ -298,9 +301,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
-  method: testCancellationDuringTimeSeriesAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/118992
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
+  issue: https://github.com/elastic/elasticsearch/issues/118414
 
 # Examples:
 #

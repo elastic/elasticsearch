@@ -282,6 +282,16 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * to these old nodes that the mappings are newer than they are.
      */
     private static final String LEGACY_VERSION_FIELD_VALUE = "8.12.0";
+
+    private static final String REINDEX_SCRIPT_FROM_V7 = """
+        if (ctx._source.containsKey('input') &&
+            ctx._source.input.containsKey('search') &&
+            ctx._source.input.search.containsKey('request') &&
+            ctx._source.input.search.request.containsKey('types')) {
+          ctx._source.input.search.request.remove('types');
+        }
+        """;
+
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;
@@ -804,6 +814,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getWatchesIndexSettings())
                 .setOrigin(WATCHER_ORIGIN)
                 .setIndexFormat(6)
+                .setMigrationScript(REINDEX_SCRIPT_FROM_V7)
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(TriggeredWatchStoreField.INDEX_NAME + "*")
@@ -813,6 +824,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getTriggeredWatchesIndexSettings())
                 .setOrigin(WATCHER_ORIGIN)
                 .setIndexFormat(6)
+                .setMigrationScript(REINDEX_SCRIPT_FROM_V7)
                 .build()
         );
     }

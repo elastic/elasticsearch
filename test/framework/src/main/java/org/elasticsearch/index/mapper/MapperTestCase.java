@@ -1492,7 +1492,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         BlockReaderSupport blockReaderSupport,
         SourceLoader sourceLoader
     ) throws IOException {
-        BlockLoader loader = blockReaderSupport.getBlockLoader(FieldExtractPreference.forColumnReader(columnReader));
+        // EXTRACT_SPATIAL_BOUNDS is not currently supported in this test path.
+        var fieldExtractPreference = columnReader ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+        BlockLoader loader = blockReaderSupport.getBlockLoader(fieldExtractPreference);
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
         if (valuesConvert == null) {
             assertNull(loader);

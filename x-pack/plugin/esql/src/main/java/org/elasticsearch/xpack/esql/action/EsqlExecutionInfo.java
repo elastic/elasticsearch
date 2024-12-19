@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
@@ -37,6 +37,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 
 /**
  * Holds execution metadata about ES|QL queries for cross-cluster searches in order to display
@@ -233,16 +236,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
             return Collections.emptyIterator();
         }
-        return ChunkedToXContent.builder(params).object(b -> {
-            b.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
-            b.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
-            b.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
-            b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
-            b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
-            b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
+        return NewChunkedXContentBuilder.object(
+            field(TOTAL_FIELD.getPreferredName(), clusterInfo.size()),
+            field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL)),
+            field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING)),
+            field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED)),
+            field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
+            field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
             // each Cluster object defines its own field object name
-            b.xContentObject("details", clusterInfo.values().iterator());
-        });
+            object("details", clusterInfo.values().iterator())
+        );
     }
 
     /**

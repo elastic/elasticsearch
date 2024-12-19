@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -29,10 +30,16 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
@@ -186,36 +193,45 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(b -> {
-            boolean dropNullColumns = b.params().paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-            boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+        return NewChunkedXContentBuilder.object(generateXContent(params));
+    }
 
-            if (isAsync) {
-                if (asyncExecutionId != null) {
-                    b.field("id", asyncExecutionId);
-                }
-                b.field("is_running", isRunning);
+    private Iterator<? extends ToXContent> generateXContent(ToXContent.Params params) {
+        // sized to the maximum number of items that could be added to the list
+        List<Iterator<? extends ToXContent>> contents = new ArrayList<>(10);
+
+        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+
+        if (isAsync) {
+            if (asyncExecutionId != null) {
+                contents.add(field("id", asyncExecutionId));
             }
-            if (executionInfo != null) {
-                long tookInMillis = executionInfo.overallTook() == null
-                    ? executionInfo.tookSoFar().millis()
-                    : executionInfo.overallTook().millis();
-                b.field("took", tookInMillis);
-            }
-            if (dropNullColumns) {
-                b.append(ResponseXContentUtils.allColumns(columns, "all_columns"))
-                    .append(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
-            } else {
-                b.append(ResponseXContentUtils.allColumns(columns, "columns"));
-            }
-            b.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns));
-            if (executionInfo != null && executionInfo.isCrossClusterSearch() && executionInfo.includeCCSMetadata()) {
-                b.field("_clusters", executionInfo);
-            }
-            if (profile != null) {
-                b.field("profile", profile);
-            }
-        });
+            contents.add(field("is_running", isRunning));
+        }
+        if (executionInfo != null) {
+            long tookInMillis = executionInfo.overallTook() == null
+                ? executionInfo.tookSoFar().millis()
+                : executionInfo.overallTook().millis();
+            contents.add(field("took", tookInMillis));
+        }
+        if (dropNullColumns) {
+            contents.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
+            contents.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
+        } else {
+            contents.add(ResponseXContentUtils.allColumns(columns, "columns"));
+        }
+        contents.add(array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns)));
+        if (executionInfo != null && executionInfo.isCrossClusterSearch() && executionInfo.includeCCSMetadata()) {
+            contents.add(chunk((b, p) -> b.field("_clusters")));
+            contents.add(executionInfo.toXContentChunked(params));
+        }
+        if (profile != null) {
+            contents.add(chunk((b, p) -> b.field("profile")));
+            contents.add(profile.toXContentChunked(params));
+        }
+
+        return Iterators.flatMap(contents.iterator(), Function.identity());
     }
 
     public boolean[] nullColumns() {

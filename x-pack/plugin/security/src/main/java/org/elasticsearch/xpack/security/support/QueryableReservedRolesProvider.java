@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * The reserved roles are static and do not change during runtime, hence this provider will never notify any listeners.
  * </p>
  */
-public final class QueryableReservedRolesProvider implements QueryableBuiltInRoles.Provider {
+public class QueryableReservedRolesProvider implements QueryableBuiltInRoles.Provider {
 
     private final Supplier<QueryableBuiltInRoles> reservedRolesSupplier;
 

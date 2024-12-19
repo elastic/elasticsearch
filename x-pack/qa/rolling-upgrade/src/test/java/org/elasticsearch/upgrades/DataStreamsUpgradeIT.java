@@ -174,7 +174,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testUpgradeDataStream() throws Exception {
         String dataStreamName = "reindex_test_data_stream";
-        int numRollovers = 5;
+        int numRollovers = randomIntBetween(0, 5);
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createAndRolloverDataStream(dataStreamName, numRollovers);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {

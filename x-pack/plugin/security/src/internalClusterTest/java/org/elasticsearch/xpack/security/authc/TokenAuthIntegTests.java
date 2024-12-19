@@ -327,8 +327,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             ResponseException.class,
             () -> invalidateAccessToken(
                 tokenService.prependVersionAndEncodeAccessToken(
-                    TransportVersions.MINIMUM_COMPATIBLE,
-                    tokenService.getRandomTokenBytes(TransportVersions.MINIMUM_COMPATIBLE, randomBoolean()).v1()
+                    TransportVersions.V_7_3_2,
+                    tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, randomBoolean()).v1()
                 )
             )
         );
@@ -347,7 +347,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] longerAccessToken = new byte[randomIntBetween(17, 24)];
         random().nextBytes(longerAccessToken);
         invalidateResponse = invalidateAccessToken(
-            tokenService.prependVersionAndEncodeAccessToken(TransportVersions.MINIMUM_COMPATIBLE, longerAccessToken)
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersions.V_7_3_2, longerAccessToken)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -365,7 +365,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] shorterAccessToken = new byte[randomIntBetween(12, 15)];
         random().nextBytes(shorterAccessToken);
         invalidateResponse = invalidateAccessToken(
-            tokenService.prependVersionAndEncodeAccessToken(TransportVersions.MINIMUM_COMPATIBLE, shorterAccessToken)
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersions.V_7_3_2, shorterAccessToken)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -394,8 +394,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         invalidateResponse = invalidateAccessToken(
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.MINIMUM_COMPATIBLE,
-                tokenService.getRandomTokenBytes(TransportVersions.MINIMUM_COMPATIBLE, randomBoolean()).v1()
+                TransportVersions.V_7_3_2,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, randomBoolean()).v1()
             )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
@@ -420,8 +420,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             ResponseException.class,
             () -> invalidateRefreshToken(
                 TokenService.prependVersionAndEncodeRefreshToken(
-                    TransportVersions.MINIMUM_COMPATIBLE,
-                    tokenService.getRandomTokenBytes(TransportVersions.MINIMUM_COMPATIBLE, true).v2()
+                    TransportVersions.V_7_3_2,
+                    tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, true).v2()
                 )
             )
         );
@@ -441,7 +441,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] longerRefreshToken = new byte[randomIntBetween(17, 24)];
         random().nextBytes(longerRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersions.MINIMUM_COMPATIBLE, longerRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersions.V_7_3_2, longerRefreshToken)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -459,7 +459,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         byte[] shorterRefreshToken = new byte[randomIntBetween(12, 15)];
         random().nextBytes(shorterRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersions.MINIMUM_COMPATIBLE, shorterRefreshToken)
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersions.V_7_3_2, shorterRefreshToken)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -488,8 +488,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         invalidateResponse = invalidateRefreshToken(
             TokenService.prependVersionAndEncodeRefreshToken(
-                TransportVersions.MINIMUM_COMPATIBLE,
-                tokenService.getRandomTokenBytes(TransportVersions.MINIMUM_COMPATIBLE, true).v2()
+                TransportVersions.V_7_3_2,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, true).v2()
             )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
@@ -758,11 +758,18 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertAuthenticateWithToken(response.accessToken(), TEST_USER_NAME);
         // Now attempt to authenticate with an invalid access token string
         assertUnauthorizedToken(randomAlphaOfLengthBetween(0, 128));
-        // Now attempt to authenticate with an invalid access token with valid structure (after 8.0 pre 8.10)
+        // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
         assertUnauthorizedToken(
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_8_0_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_8_0_0, randomBoolean()).v1()
+                TransportVersions.V_7_1_0,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
+            )
+        );
+        // Now attempt to authenticate with an invalid access token with valid structure (after 7.2 pre 8.10)
+        assertUnauthorizedToken(
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersions.V_7_4_0,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_4_0, randomBoolean()).v1()
             )
         );
         // Now attempt to authenticate with an invalid access token with valid structure (current version)

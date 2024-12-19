@@ -1,4 +1,44 @@
-change point with timestamp argument
+change point stationary with timestamp argument
+# required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""stationary"":{}}}"
+;
+
+
+change point stationary without timestamp argument
+# required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 minute)
+  | STATS cp=CHANGE_POINT(count)
+;
+
+cp:keyword
+"{""type"":{""stationary"":{}}}"
+;
+
+
+change point spike
+# required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | EVAL count = count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0)
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""spike"":{""p_value"":0.0,""change_point"":9}}}"
+;
+
+
+change point grouping with timestamp argument
 # required_capability: change_point
 
 FROM k8s
@@ -13,7 +53,8 @@ cp:keyword                                                                      
 "{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [18]""}}}" | staging
 ;
 
-change point without timestamp argument
+
+change point grouping without timestamp argument
 # required_capability: change_point
 
 FROM k8s

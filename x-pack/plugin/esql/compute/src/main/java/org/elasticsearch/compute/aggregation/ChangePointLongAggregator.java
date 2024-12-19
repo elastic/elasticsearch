@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
@@ -39,23 +40,36 @@ import java.util.function.Function;
 /**
  * Change point detection for series of long values.
  */
-
 // TODO: make .java.st from this to support different types
-
-// TODO: add non-grouping @Aggregator, like this:
-/*
 @Aggregator(
     includeTimestamps = true,
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
-*/
-// This need "includeTimestamps" support in @Aggregator.
-
 @GroupingAggregator(
     includeTimestamps = true,
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
 class ChangePointLongAggregator {
+
+    public static SingleState initSingle(DriverContext driverContext) {
+        return new SingleState(driverContext.bigArrays());
+    }
+
+    public static void combine(SingleState state, long timestamp, long value) {
+        state.add(timestamp, value);
+    }
+
+    public static void combineIntermediate(SingleState state, LongBlock timestamps, LongBlock values) {
+        int start = values.getFirstValueIndex(0);
+        int end = start + values.getValueCount(0);
+        for (int i = start; i < end; i++) {
+            combine(state, timestamps.getLong(i), values.getLong(i));
+        }
+    }
+
+    public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
+        return state.toBlock(driverContext.blockFactory());
+    }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
@@ -112,7 +126,7 @@ class ChangePointLongAggregator {
             }
             try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder((int) arr.size())) {
                 builder.beginPositionEntry();
-                for (int id = 0; id < arr.size(); id++) {
+                for (int id = 0; id < count; id++) {
                     builder.appendLong(arr.get(id));
                 }
                 builder.endPositionEntry();
@@ -120,23 +134,47 @@ class ChangePointLongAggregator {
             }
         }
 
-        record TimeAndValue(long timestamp, long value) implements Comparable<TimeAndValue> {
-            @Override
-            public int compareTo(TimeAndValue other) {
-                return Long.compare(timestamp, other.timestamp);
-            }
-        }
-
-        void sort() {
-            // TODO: this copying is a bit inefficient and doesn't account for memory
+        BytesRef toBytesRef() {
+            // TODO: this copying doesn't account for memory
             List<TimeAndValue> list = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 list.add(new TimeAndValue(timestamps.get(i), values.get(i)));
             }
             Collections.sort(list);
+            double[] values = new double[count];
             for (int i = 0; i < count; i++) {
-                timestamps.set(i, list.get(i).timestamp);
-                values.set(i, list.get(i).value);
+                values[i] = list.get(i).value;
+            }
+            MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(null, values);
+            ChangeType changeType = ChangePointDetector.getChangeType(bucketValues);
+            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                xContentBuilder.startObject();
+                NamedXContentObjectHelper.writeNamedObject(xContentBuilder, ToXContent.EMPTY_PARAMS, "type", changeType);
+                xContentBuilder.endObject();
+                String xContent = Strings.toString(xContentBuilder);
+                return new BytesRef(xContent);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public void add(LongBlock timestamps, LongBlock values, int otherPosition) {
+            final int valueCount = timestamps.getValueCount(otherPosition);
+            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
+            for (int i = 0; i < valueCount; i++) {
+                add(timestamps.getLong(firstIndex + i), values.getLong(firstIndex + i));
+            }
+        }
+
+        public Block toBlock(BlockFactory blockFactory) {
+            // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
+            return blockFactory.newConstantBytesRefBlockWith(toBytesRef(), 1);
+        }
+
+        record TimeAndValue(long timestamp, long value) implements Comparable<TimeAndValue> {
+            @Override
+            public int compareTo(TimeAndValue other) {
+                return Long.compare(timestamp, other.timestamp);
             }
         }
 
@@ -162,15 +200,11 @@ class ChangePointLongAggregator {
         }
 
         void combine(int groupId, LongBlock timestamps, LongBlock values, int otherPosition) {
-            final int valueCount = timestamps.getValueCount(otherPosition);
-            if (valueCount == 0) {
+            if (timestamps.getValueCount(otherPosition) == 0) {
                 return;
             }
-            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
             SingleState state = states.computeIfAbsent(groupId, key -> new SingleState(bigArrays));
-            for (int i = 0; i < valueCount; i++) {
-                state.add(timestamps.getLong(firstIndex + i), values.getLong(firstIndex + i));
-            }
+            state.add(timestamps, values, otherPosition);
         }
 
         void combineState(int groupId, GroupingState otherState, int otherGroupId) {
@@ -193,23 +227,7 @@ class ChangePointLongAggregator {
             // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    SingleState state = states.get(selected.getInt(s));
-                    state.sort();
-                    double[] values = new double[state.count];
-                    for (int i = 0; i < state.count; i++) {
-                        values[i] = state.values.get(i);
-                    }
-                    MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(null, values);
-                    ChangeType changeType = ChangePointDetector.getChangeType(bucketValues);
-                    try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-                        xContentBuilder.startObject();
-                        NamedXContentObjectHelper.writeNamedObject(xContentBuilder, ToXContent.EMPTY_PARAMS, "type", changeType);
-                        xContentBuilder.endObject();
-                        String xContent = Strings.toString(xContentBuilder);
-                        builder.appendBytesRef(new BytesRef(xContent));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    builder.appendBytesRef(states.get(selected.getInt(s)).toBytesRef());
                 }
                 return builder.build();
             }

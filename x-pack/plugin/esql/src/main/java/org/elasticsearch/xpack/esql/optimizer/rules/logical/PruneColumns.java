@@ -110,6 +110,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     // that the EsRelation has.
                     var remaining = removeUnused(esRelation.output(), used);
                     // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet.
+                    // https://github.com/elastic/elasticsearch/issues/118778
                     if (remaining != null && remaining.isEmpty() == false) {
                         p = new EsRelation(esRelation.source(), esRelation.index(), remaining, esRelation.indexMode(), esRelation.frozen());
                     }

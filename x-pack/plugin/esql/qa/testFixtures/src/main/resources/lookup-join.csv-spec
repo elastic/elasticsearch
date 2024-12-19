@@ -198,6 +198,51 @@ language_code:integer | language_name:keyword
 4                     | German
 ;
 
+dropAllLookedUpFieldsOnTheDataNode-Ignore
+// Depends on
+// https://github.com/elastic/elasticsearch/issues/118778
+// https://github.com/elastic/elasticsearch/issues/118781
+required_capability: join_lookup_v8
+
+FROM employees
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| WHERE emp_no == 10001
+| SORT emp_no
+| DROP language*
+;
+
+emp_no:integer
+10001
+10001
+10001
+10001
+;
+
+dropAllLookedUpFieldsOnTheCoordinator-Ignore
+// Depends on
+// https://github.com/elastic/elasticsearch/issues/118778
+// https://github.com/elastic/elasticsearch/issues/118781
+required_capability: join_lookup_v8
+
+FROM employees
+| SORT emp_no
+| LIMIT 2
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| DROP language*
+;
+
+emp_no:integer
+10001
+10001
+10001
+10001
+10002
+10002
+10002
+;
+
 ###############################################
 # Filtering tests with languages_lookup index
 ###############################################

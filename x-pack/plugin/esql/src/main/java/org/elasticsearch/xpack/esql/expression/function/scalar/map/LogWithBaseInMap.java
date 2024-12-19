@@ -64,12 +64,12 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long", "unsigned_long" },
+            type = { "double", "integer", "long" },
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression number,
         @MapParam(
             name = "map",
-            paramHint = { @MapParam.MapEntry(key = "base", type = { "double", "integer", "long", "unsigned_long" }) },
+            paramHint = { @MapParam.MapEntry(key = "base", value = { "double", "integer", "long", "unsigned_long" }) },
             description = "Input value. The input is a valid constant map expression.",
             optional = true
         ) Expression option
@@ -89,7 +89,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(number);
         out.writeOptionalNamedWriteable(map);
     }
@@ -112,7 +112,11 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
 
         if (map != null) {
             // MapExpression does not have a DataType associated with it
-            return isMapExpression(map, sourceText(), SECOND).and(validateOptions());
+            resolution = isMapExpression(map, sourceText(), SECOND);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            return validateOptions();
         }
         return TypeResolution.TYPE_RESOLVED;
     }
@@ -169,7 +173,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
         return number;
     }
 
-    public Expression map() {
+    public Expression base() {
         return map;
     }
 

@@ -2567,7 +2567,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(1, eval.fields().size());
         a = as(eval.fields().get(0), Alias.class);
         LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
-        me = as(l.map(), MapExpression.class);
+        me = as(l.base(), MapExpression.class);
         assertEquals(1, me.entries().size());
         EntryExpression ee = as(me.entries().get(0), EntryExpression.class);
         assertEquals(new Literal(EMPTY, "base", DataType.KEYWORD), ee.key());

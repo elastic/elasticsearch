@@ -464,10 +464,21 @@ public class EsqlFunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+    public record ArgSignature(
+        String name,
+        String[] type,
+        String description,
+        boolean optional,
+        DataType targetDataType,
+        Map<String, String> hint
+    ) {
 
         public ArgSignature(String name, String[] type, String description, boolean optional) {
-            this(name, type, description, optional, UNSUPPORTED);
+            this(name, type, description, optional, UNSUPPORTED, Map.of());
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, Map<String, String> hint) {
+            this(name, type, description, optional, UNSUPPORTED, hint);
         }
 
         @Override
@@ -483,7 +494,9 @@ public class EsqlFunctionRegistry {
                 + optional
                 + ", targetDataType="
                 + targetDataType
-                + '}';
+                + ", mapParamHint={"
+                + hint.entrySet().stream().map(e -> "{" + e.getKey() + " : " + e.getValue() + "}").collect(Collectors.joining(", "))
+                + "}}";
         }
     }
 
@@ -545,26 +558,33 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
+        boolean isAggregation = functionInfo != null && functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
                 if (mapParamInfo != null) {
-                    String name = mapParamInfo == null ? params[i].getName() : mapParamInfo.name();
-                    String[] valueType = mapParamInfo == null ? new String[] { "?" } : removeUnderConstruction(mapParamInfo.type());
-                    String desc = mapParamInfo == null ? "" : mapParamInfo.description().replace('\n', ' ');
-                    boolean optional = mapParamInfo == null ? false : mapParamInfo.optional();
+                    String name = mapParamInfo.name();
+                    String[] valueType = removeUnderConstruction(mapParamInfo.type());
+                    String desc = mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo.optional();
                     DataType targetDataType = getTargetType(valueType);
-                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, targetDataType));
+                    Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
+                    for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
+                        String hintVale = hint.value().length <= 1
+                            ? Arrays.toString(hint.value())
+                            : "[" + String.join(", ", hint.value()) + "]";
+                        hints.put(hint.key(), hintVale);
+                    }
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, targetDataType, hints));
                 } else {
                     Param paramInfo = params[i].getAnnotation(Param.class);
                     String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                     variadic |= List.class.isAssignableFrom(params[i].getType());
                     String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
                     String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                    boolean optional = paramInfo == null ? false : paramInfo.optional();
+                    boolean optional = paramInfo != null && paramInfo.optional();
                     DataType targetDataType = getTargetType(type);
-                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType, Map.of()));
                 }
             }
         }

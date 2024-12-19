@@ -20,7 +20,9 @@ import java.lang.annotation.Target;
 public @interface MapParam {
     String name();
 
-    String[] type() default "map";
+    // AbstractFunctionTestCase validate if the type match the one used in the testcase.
+    // map is not a supported data type in ES|QL yet, mark it as unsupported both here and in the AbstractFunctionTestCase.
+    String[] type() default "unsupported";
 
     MapEntry[] paramHint() default {};
 
@@ -32,8 +34,6 @@ public @interface MapParam {
     @Target(ElementType.PARAMETER)
     @interface MapEntry {
         String key() default "";
-
-        String[] type() default {};
 
         String[] value() default {};
     }

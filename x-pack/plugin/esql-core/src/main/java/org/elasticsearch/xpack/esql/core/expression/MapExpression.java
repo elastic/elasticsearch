@@ -98,13 +98,13 @@ public class MapExpression extends Expression {
     }
 
     @Override
-    public DataType dataType() {
-        return UNSUPPORTED;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.FALSE;
+    public DataType dataType() {
+        return UNSUPPORTED;
     }
 
     @Override

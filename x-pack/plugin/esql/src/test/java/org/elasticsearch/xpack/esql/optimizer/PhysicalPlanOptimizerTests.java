@@ -2943,23 +2943,25 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Before local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     *   \_AggregateExec[[],[SPATIALEXTENT(location{f}#12,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#12,true[BOOLEAN]) AS cen
-     * troid],FINAL,...]
-     *     \_ExchangeExec[[...]]
-     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[..]]
-     *         \_EsRelation[airports-no-doc-values][abbrev{f}#8, city{f}#14, city_location{f}#15, count..]]]
+     * \_AggregateExec[[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]) AS cen
+     * troid],FINAL,[...]]
+     *   \_ExchangeExec[[...]]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]
+     * ) AS centroid]]
+     * \_EsRelation[airports][abbrev{f}#66, city{f}#72, city_location{f}#73, coun..]]]
      * </code>
      * After local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     *   \_AggregateExec[[],[SPATIALEXTENT(location{f}#12,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#12,true[BOOLEAN]) AS cen
-     *   troid],FINAL,[...]]
-     *     \_ExchangeExec[[...]]
-     *       \_AggregateExec[[],[SPATIALEXTENT(location{f}#12,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#12,true[BOOLEAN]) AS cen
-     *   troid],INITIAL,...]
-     *         \_FilterExec[ISNOTNULL(location{f}#12)]
-     *           \_FieldExtractExec[location{f}#12]
-     *             \_EsQueryExec[airports-no-doc-values], indexMode[standard], query[][_doc{f}#59], limit[], sort[] estimatedRowSize[25]
+     * \_AggregateExec[[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]) AS cen
+     * troid],FINAL,[...]]
+     *   \_ExchangeExec[[...]]
+     *     \_AggregateExec[[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]) AS cen
+     * troid],INITIAL,[...]]
+     *       \_FieldExtractExec[location{f}#70][location{f}#70],[]
+     *         \_EsQueryExec[airports], indexMode[standard], query[{"exists":{"field":"location","boost":1.0}}][
+     * _doc{f}#117], limit[], sort[] estimatedRowSize[25]
      * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      * <p>

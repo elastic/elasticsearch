@@ -686,9 +686,6 @@ public abstract class MappedFieldType {
          */
         NONE;
 
-        public static FieldExtractPreference forColumnReader(boolean columnReader) {
-            return columnReader ? DOC_VALUES : NONE;
-        }
     }
 
     /**

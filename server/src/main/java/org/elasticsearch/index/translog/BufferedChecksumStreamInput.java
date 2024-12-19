@@ -55,6 +55,12 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     }
 
     @Override
+    public byte tryReadByte() throws IOException {
+        final byte b = delegate.tryReadByte();
+        return b;
+    }
+
+    @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         delegate.readBytes(b, offset, len);
         digest.update(b, offset, len);

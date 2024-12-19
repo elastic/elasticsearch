@@ -26,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -96,6 +97,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         if (mergeMappings.isEmpty() == false) {
             createIndexRequest.mapping(mergeMappings);
         }
+        createIndexRequest.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
 
         client.admin().indices().create(createIndexRequest, listener.map(response -> response));
     }

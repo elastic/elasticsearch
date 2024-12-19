@@ -30,6 +30,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
@@ -76,6 +77,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         var sourceIndexName = request.getSourceIndex();
         var destIndexName = generateDestIndexName(sourceIndexName);
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
         Settings settingsBefore = sourceIndex.getSettings();
 
@@ -89,17 +91,17 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l))
-            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l))
-            .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
-            .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
-            .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(WRITE, settingsBefore, destIndexName, l))
-            .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(READ_ONLY, settingsBefore, destIndexName, l))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
+            .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
+            .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(WRITE, settingsBefore, destIndexName, l, taskId))
+            .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(READ_ONLY, settingsBefore, destIndexName, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
 
-    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
+    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         logger.debug("Setting write block on source index [{}]", sourceIndexName);
         addBlockToIndex(WRITE, sourceIndexName, new ActionListener<>() {
             @Override
@@ -121,18 +123,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                     listener.onFailure(e);
                 }
             }
-        });
+        }, parentTaskId);
     }
 
-    private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener) {
+    private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         logger.debug("Attempting to delete index [{}]", destIndexName);
         var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
+        deleteIndexRequest.setParentTask(parentTaskId);
         var errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", destIndexName);
         client.admin().indices().delete(deleteIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
-    private void createIndex(IndexMetadata sourceIndex, String destIndexName, ActionListener<AcknowledgedResponse> listener) {
+    private void createIndex(
+        IndexMetadata sourceIndex,
+        String destIndexName,
+        ActionListener<AcknowledgedResponse> listener,
+        TaskId parentTaskId
+    ) {
         logger.debug("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
         // override read-only settings if they exist
@@ -147,17 +155,19 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             removeReadOnlyOverride,
             Map.of()
         );
+        request.setParentTask(parentTaskId);
         var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", request.getDestIndex());
         client.execute(CreateIndexFromSourceAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
     }
 
-    private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {
+    private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener, TaskId parentTaskId) {
         logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);
+        reindexRequest.setParentTask(parentTaskId);
         client.execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 
@@ -165,11 +175,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         IndexMetadata.APIBlock block,
         Settings settingsBefore,
         String destIndexName,
-        ActionListener<AddIndexBlockResponse> listener
+        ActionListener<AddIndexBlockResponse> listener,
+        TaskId parentTaskId
     ) {
         if (settingsBefore.getAsBoolean(block.settingName(), false)) {
             var errorMessage = String.format(Locale.ROOT, "Add [%s] block to index [%s] was not acknowledged", block.name(), destIndexName);
-            addBlockToIndex(block, destIndexName, failIfNotAcknowledged(listener, errorMessage));
+            addBlockToIndex(block, destIndexName, failIfNotAcknowledged(listener, errorMessage), parentTaskId);
         } else {
             listener.onResponse(null);
         }
@@ -192,7 +203,14 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         });
     }
 
-    private void addBlockToIndex(IndexMetadata.APIBlock block, String index, ActionListener<AddIndexBlockResponse> listener) {
-        client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(block, index), listener);
+    private void addBlockToIndex(
+        IndexMetadata.APIBlock block,
+        String index,
+        ActionListener<AddIndexBlockResponse> listener,
+        TaskId parentTaskId
+    ) {
+        AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(block, index);
+        addIndexBlockRequest.setParentTask(parentTaskId);
+        client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
     }
 }

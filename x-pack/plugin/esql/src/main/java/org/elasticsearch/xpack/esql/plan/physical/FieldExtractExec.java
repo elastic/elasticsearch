@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -52,7 +53,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      *     This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> boundAttributes;
+    private final Set<Attribute> boundsAttributes;
 
     private List<Attribute> lazyOutput;
 
@@ -65,13 +66,13 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         PhysicalPlan child,
         List<Attribute> attributesToExtract,
         Set<Attribute> docValuesAttributes,
-        Set<Attribute> boundAttributes
+        Set<Attribute> boundsAttributes
     ) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
         this.docValuesAttributes = docValuesAttributes;
-        this.boundAttributes = boundAttributes;
+        this.boundsAttributes = boundsAttributes;
     }
 
     private FieldExtractExec(StreamInput in) throws IOException {
@@ -117,15 +118,15 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract, docValuesAttributes, boundAttributes);
+        return new FieldExtractExec(source(), newChild, attributesToExtract, docValuesAttributes, boundsAttributes);
     }
 
     public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundAttributes);
+        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundsAttributes);
     }
 
-    public FieldExtractExec withBoundAttributes(Set<Attribute> boundAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundAttributes);
+    public FieldExtractExec withBoundsAttributes(Set<Attribute> boundsAttributes) {
+        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundsAttributes);
     }
 
     public List<Attribute> attributesToExtract() {
@@ -140,8 +141,8 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         return docValuesAttributes;
     }
 
-    public Set<Attribute> boundAttributes() {
-        return boundAttributes;
+    public Set<Attribute> boundsAttributes() {
+        return boundsAttributes;
     }
 
     @Override
@@ -164,7 +165,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract, docValuesAttributes, boundAttributes, child());
+        return Objects.hash(attributesToExtract, docValuesAttributes, boundsAttributes, child());
     }
 
     @Override
@@ -180,7 +181,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         FieldExtractExec other = (FieldExtractExec) obj;
         return Objects.equals(attributesToExtract, other.attributesToExtract)
             && Objects.equals(docValuesAttributes, other.docValuesAttributes)
-            && Objects.equals(boundAttributes, other.boundAttributes)
+            && Objects.equals(boundsAttributes, other.boundsAttributes)
             && Objects.equals(child(), other.child());
     }
 
@@ -190,8 +191,17 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             "%s<%s,%s>",
             nodeName() + NodeUtils.limitedToString(attributesToExtract),
             docValuesAttributes,
-            boundAttributes
+            boundsAttributes
         );
     }
 
+    public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {
+        if (boundsAttributes.contains(attr)) {
+            return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
+        }
+        if (docValuesAttributes.contains(attr)) {
+            return MappedFieldType.FieldExtractPreference.DOC_VALUES;
+        }
+        return MappedFieldType.FieldExtractPreference.NONE;
+    }
 }

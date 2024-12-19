@@ -61,7 +61,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
         Function<String, ShapeIndexer> indexerFactory,
         Function<Geometry, Optional<Rectangle>> visitor
     ) throws IOException {
-        var geometries = IntStream.range(0, 20).mapToObj(i -> ShapeTestUtils.randomGeometryWithoutCircle(0, false)).toList();
+        var geometries = IntStream.range(0, 20).mapToObj(i -> generator.get()).toList();
         var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field", encoder);
         try (Directory directory = newDirectory()) {
             try (var iw = new RandomIndexWriter(random(), directory)) {
@@ -79,9 +79,12 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                 TestBlock block = (TestBlock) loader.reader(ctx).read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(indices));
                 for (int i = 0; i < indices.length; i++) {
                     var idx = indices[i];
-                    Rectangle r = visitor.apply(geometries.get(idx)).get();
+                    var geometry = geometries.get(idx);
+                    var geoString = geometry.toString();
+                    var geometryString = geoString.length() > 200 ? geoString.substring(0, 200) + "..." : geoString;
+                    Rectangle r = visitor.apply(geometry).get();
                     assertThat(
-                        Strings.format("geometries[%d] ('%s') wasn't extracted correctly", idx, geometries.get(idx)),
+                        Strings.format("geometries[%d] ('%s') wasn't extracted correctly", idx, geometryString),
                         (BytesRef) block.get(i),
                         WellKnownBinaryBytesRefMatcher.encodes(RectangleMatcher.closeToFloat(r, 1e-3, encoder))
                     );

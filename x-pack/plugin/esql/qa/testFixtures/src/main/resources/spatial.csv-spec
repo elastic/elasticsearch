@@ -1797,6 +1797,15 @@ extent:cartesian_shape
 BBOX (0.0, 3.0, 3.0, 0.0)
 ;
 
+stExtentCartesianShapesNoDocValues
+required_capability: st_extent_agg
+FROM cartesian_multipolygons_no_doc_values | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
 ###############################################
 # Tests for ST_INTERSECTS on CARTESIAN_POINT type
 

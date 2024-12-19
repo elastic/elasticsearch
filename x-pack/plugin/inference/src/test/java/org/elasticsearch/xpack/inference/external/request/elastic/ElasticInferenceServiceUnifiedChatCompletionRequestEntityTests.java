@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 
-public class EISUnifiedChatCompletionRequestEntityTests extends ESTestCase {
+public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String ROLE = "user";
     private static final String USER = "a_user";

@@ -25,14 +25,14 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class EISUnifiedChatCompletionRequest implements OpenAiRequest {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest implements OpenAiRequest {
 
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
     private final URI uri;
     private final TraceContext traceContext;
 
-    public EISUnifiedChatCompletionRequest(
+    public ElasticInferenceServiceUnifiedChatCompletionRequest(
         UnifiedChatInput unifiedChatInput,
         ElasticInferenceServiceCompletionModel model,
         TraceContext traceContext

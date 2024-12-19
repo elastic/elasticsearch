@@ -114,7 +114,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_8_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -173,7 +173,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_8_0;
+            return TransportVersions.ZERO;
         }
     }
 }

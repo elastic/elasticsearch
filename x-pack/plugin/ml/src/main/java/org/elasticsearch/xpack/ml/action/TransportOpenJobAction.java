@@ -58,8 +58,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
 /*
@@ -214,7 +213,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             return;
                         }
                         assert modelSnapshot.getPage().results().size() == 1;
-                        if (modelSnapshot.getPage().results().get(0).getMinVersion().onOrAfter(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
+                        if (modelSnapshot.getPage().results().get(0).getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
                             modelSnapshotValidationListener.onResponse(true);
                             return;
                         }
@@ -224,7 +223,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                     + "please revert to a newer model snapshot or reset the job",
                                 jobParams.getJobId(),
                                 jobParams.getJob().getModelSnapshotId(),
-                                MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION.toString()
+                                MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
                             )
                         );
                     }, failure -> {

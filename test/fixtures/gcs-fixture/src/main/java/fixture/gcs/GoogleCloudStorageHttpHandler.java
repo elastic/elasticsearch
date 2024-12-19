@@ -95,7 +95,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
                 final String prefix = params.getOrDefault("prefix", "");
                 final String delimiter = params.get("delimiter");
 
@@ -212,7 +212,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
                 final String blobName = params.get("name");
                 blobs.put(blobName, BytesArray.EMPTY);
 
@@ -237,7 +237,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/" + bucket + "/o?*uploadType=resumable*", request)) {
                 // Resumable upload https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
 
                 final String blobName = params.get("test_blob_name");
                 if (blobs.containsKey(blobName) == false) {
@@ -269,8 +269,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
         } finally {
-            int read = exchange.getRequestBody().read();
-            assert read == -1 : "Request body should have been fully read here but saw [" + read + "]";
             exchange.close();
         }
     }

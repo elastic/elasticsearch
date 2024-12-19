@@ -164,22 +164,18 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         if (additionalSettings != null) {
             indexSettingsBuilder.put(additionalSettings);
         }
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping(Strings.format("""
-                {
-                  "properties": {
-                    "foo": {
-                      "type": %s,
-                      "store": true
-                    },
-                    "bar": { "type": %s }
-                  },
-                  "_source": { %s }
-                  }
-                }""", fieldTypeFoo, fieldTypeBar, sourceOptions))
-            .settings(indexSettingsBuilder)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
+            {
+              "properties": {
+                "foo": {
+                  "type": %s,
+                  "store": true
+                },
+                "bar": { "type": %s }
+              },
+              "_source": { %s }
+              }
+            }""", fieldTypeFoo, fieldTypeBar, sourceOptions)).settings(indexSettingsBuilder).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;

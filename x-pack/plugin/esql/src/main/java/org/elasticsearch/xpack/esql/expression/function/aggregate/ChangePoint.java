@@ -36,6 +36,7 @@ public class ChangePoint extends AggregateFunction implements ToAggregator {
         ChangePoint::new
     );
 
+    // TODO: make "timestamp" field optional
     @FunctionInfo(returnType = { "string" }, description = "...", isAggregation = true)
     public ChangePoint(
         Source source,
@@ -77,6 +78,7 @@ public class ChangePoint extends AggregateFunction implements ToAggregator {
         return new ChangePoint(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
+    // TODO: this needs to output multiple columns or a composite object
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
@@ -103,6 +105,7 @@ public class ChangePoint extends AggregateFunction implements ToAggregator {
         final DataType type = field().dataType();
         return switch (type) {
             case LONG -> new ChangePointLongAggregatorFunctionSupplier(inputChannels);
+            // TODO: support other types
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

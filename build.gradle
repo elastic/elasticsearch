@@ -35,10 +35,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-
     mavenCentral()
   }
 }

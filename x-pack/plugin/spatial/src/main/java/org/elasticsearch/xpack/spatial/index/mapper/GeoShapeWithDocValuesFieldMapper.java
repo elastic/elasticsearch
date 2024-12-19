@@ -298,6 +298,17 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return geoFormatterFactory.getFormatter(format, Function.identity());
         }
+
+        @Override
+        protected boolean isBoundsExtractionSupported() {
+            // Extracting bounds for geo shapes is not implemented yet.
+            return false;
+        }
+
+        @Override
+        protected CoordinateEncoder coordinateEncoder() {
+            return CoordinateEncoder.GEO;
+        }
     }
 
     public static class TypeParser implements Mapper.TypeParser {

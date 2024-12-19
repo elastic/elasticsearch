@@ -676,11 +676,27 @@ public abstract class MappedFieldType {
         /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.
          */
-        DOC_VALUES,
+        DOC_VALUES(true),
+        /** Loads the field by extracting the extent from the binary encoded representation */
+        EXTRACT_SPATIAL_BOUNDS(false),
         /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE
+        NONE(false);
+
+        private final boolean isColumnReader;
+
+        FieldExtractPreference(boolean isColumnReader) {
+            this.isColumnReader = isColumnReader;
+        }
+
+        public static FieldExtractPreference forColumnReader(boolean columnReader) {
+            return columnReader ? DOC_VALUES : NONE;
+        }
+
+        public boolean isColumnReader() {
+            return isColumnReader;
+        }
     }
 
     /**

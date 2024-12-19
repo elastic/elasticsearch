@@ -104,11 +104,11 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         return switch (field().dataType()) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
             // Shapes don't differentiate between source and doc values.
             case DataType.GEO_SHAPE -> new SpatialExtentGeoShapeAggregatorFunctionSupplier(inputChannels);

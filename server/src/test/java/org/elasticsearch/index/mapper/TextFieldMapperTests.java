@@ -1355,6 +1355,6 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
         BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
         var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
+        testBlockLoader(MappedFieldType.FieldExtractPreference.forColumnReader(columnReader), example, blockReaderSupport, sourceLoader);
     }
 }

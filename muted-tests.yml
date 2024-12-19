@@ -305,6 +305,9 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilderOverShapeTests
   method: testToQuery
   issue: https://github.com/elastic/elasticsearch/issues/119090
+- class: org.elasticsearch.xpack.spatial.index.query.GeoShapeQueryBuilderGeoShapeTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119091
 
 # Examples:
 #

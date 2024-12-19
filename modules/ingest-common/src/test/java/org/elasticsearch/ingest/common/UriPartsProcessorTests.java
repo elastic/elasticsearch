@@ -149,6 +149,12 @@ public class UriPartsProcessorTests extends ESTestCase {
             "http://www.google.com:88/foo#bar",
             Map.of("scheme", "http", "domain", "www.google.com", "fragment", "bar", "path", "/foo", "port", 88)
         );
+
+        // raw path and query
+        testUriParsing(
+            "http://www.google.com/some%2fthing?a=123&b=x%26c%3dy",
+            Map.of("scheme", "http", "domain", "www.google.com", "path", "/some%2fthing", "query", "a=123&b=x%26c%3dy")
+        );
     }
 
     public void testUrlWithCharactersNotToleratedByUri() throws Exception {

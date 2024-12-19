@@ -37,7 +37,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     public static final String NAME = "jinaai_service_settings";
     public static final String MODEL_ID = "model_id";
-    private static final String DEFAULT_MODEL_ID = "jina-embeddings-v3";
     private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
     // See https://jina.ai/contact-sales/#rate-limit
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
@@ -82,11 +81,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
         uri = createOptionalUri(in.readOptionalString());
         modelId = in.readOptionalString();
         rateLimitSettings = new RateLimitSettings(in);
-    }
-
-    // should only be used for testing, public because it's accessed outside of the package
-    public JinaAIServiceSettings() {
-        this((URI) null, DEFAULT_MODEL_ID, null);
     }
 
     @Override

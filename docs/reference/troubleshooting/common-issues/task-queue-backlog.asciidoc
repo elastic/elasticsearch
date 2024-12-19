@@ -17,6 +17,11 @@ a large number of tasks triggered at once, and long-running tasks.
 
 To identify the cause of the backlog, try these diagnostic actions.
 
+* <<diagnose-task-queue-thread-pool>>
+* <<diagnose-task-queue-hot-thread>>
+* <<diagnose-task-queue-long-running-node-tasks>>
+* <<diagnose-task-queue-long-running-cluster-tasks>>
+
 [discrete]
 [[diagnose-task-queue-thread-pool]]
 ===== Check the thread pool status

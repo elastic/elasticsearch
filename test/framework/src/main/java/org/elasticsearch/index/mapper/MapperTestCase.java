@@ -51,6 +51,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -87,8 +88,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -1420,7 +1419,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             this(columnAtATimeReader, true, mapper, loaderFieldName);
         }
 
-        private BlockLoader getBlockLoader(boolean columnReader) {
+        private BlockLoader getBlockLoader(FieldExtractPreference fieldExtractPreference) {
             SearchLookup searchLookup = new SearchLookup(mapper.mappingLookup().fieldTypesLookup()::get, null, null);
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
@@ -1434,8 +1433,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
 
                 @Override
-                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                    return columnReader ? DOC_VALUES : NONE;
+                public FieldExtractPreference fieldExtractPreference() {
+                    return fieldExtractPreference;
                 }
 
                 @Override
@@ -1493,7 +1492,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         BlockReaderSupport blockReaderSupport,
         SourceLoader sourceLoader
     ) throws IOException {
-        BlockLoader loader = blockReaderSupport.getBlockLoader(columnReader);
+        // EXTRACT_SPATIAL_BOUNDS is not currently supported in this test path.
+        var fieldExtractPreference = columnReader ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+        BlockLoader loader = blockReaderSupport.getBlockLoader(fieldExtractPreference);
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
         if (valuesConvert == null) {
             assertNull(loader);

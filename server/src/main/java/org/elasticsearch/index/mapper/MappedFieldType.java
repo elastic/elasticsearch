@@ -678,9 +678,14 @@ public abstract class MappedFieldType {
          */
         DOC_VALUES,
         /**
+         *  Loads the field by extracting the extent from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS,
+        /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE
+        NONE;
+
     }
 
     /**

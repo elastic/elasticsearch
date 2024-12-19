@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
-import org.elasticsearch.xpack.inference.external.http.sender.EISUnifiedCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -112,7 +112,7 @@ public class ElasticInferenceService extends SenderService {
             String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
 
-        var requestManager = EISUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool(), currentTraceInfo);
+        var requestManager = ElasticInferenceServiceUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool(), currentTraceInfo);
         var action = new SenderExecutableAction(getSender(), requestManager, errorMessage);
 
         action.execute(inputs, timeout, listener);

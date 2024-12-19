@@ -23,18 +23,18 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class EISUnifiedCompletionRequestManager extends ElasticInferenceServiceRequestManager {
+public class ElasticInferenceServiceUnifiedCompletionRequestManager extends ElasticInferenceServiceRequestManager {
 
-    private static final Logger logger = LogManager.getLogger(EISUnifiedCompletionRequestManager.class);
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceUnifiedCompletionRequestManager.class);
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
-    public static EISUnifiedCompletionRequestManager of(
+    public static ElasticInferenceServiceUnifiedCompletionRequestManager of(
         ElasticInferenceServiceCompletionModel model,
         ThreadPool threadPool,
         TraceContext traceContext
     ) {
-        return new EISUnifiedCompletionRequestManager(
+        return new ElasticInferenceServiceUnifiedCompletionRequestManager(
             Objects.requireNonNull(model),
             Objects.requireNonNull(threadPool),
             Objects.requireNonNull(traceContext)
@@ -44,7 +44,7 @@ public class EISUnifiedCompletionRequestManager extends ElasticInferenceServiceR
     private final ElasticInferenceServiceCompletionModel model;
     private final TraceContext traceContext;
 
-    private EISUnifiedCompletionRequestManager(
+    private ElasticInferenceServiceUnifiedCompletionRequestManager(
         ElasticInferenceServiceCompletionModel model,
         ThreadPool threadPool,
         TraceContext traceContext

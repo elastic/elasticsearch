@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -78,7 +79,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
-    private static final Supplier<String> K_SORTED_TIME_BASED_ID_GENERATOR = UUIDs::base64TimeBasedKOrderedUUID;
 
     /**
      * Max length of the source document to include into string()
@@ -685,8 +685,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        indexRouting.process(this);
+    public void preRoutingProcess(IndexRouting indexRouting) {
+        indexRouting.preProcess(this);
+    }
+
+    @Override
+    public void postRoutingProcess(IndexRouting indexRouting) {
+        indexRouting.postProcess(this);
     }
 
     /**
@@ -700,9 +705,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public void autoGenerateTimeBasedId() {
+        autoGenerateTimeBasedId(OptionalInt.empty());
+    }
+
+    /**
+     *  Set the {@code #id()} to an automatically generated one, optimized for storage (compression) efficiency.
+     *  If a routing hash is passed, it is included in the generated id starting at 9 bytes before the end.
+     * @param hash optional routing hash value, used to route requests by id to the right shard.
+     */
+    public void autoGenerateTimeBasedId(OptionalInt hash) {
         assertBeforeGeneratingId();
         autoGenerateTimestamp();
-        id(K_SORTED_TIME_BASED_ID_GENERATOR.get());
+        id(UUIDs.base64TimeBasedKOrderedUUIDWithHash(hash));
     }
 
     private void autoGenerateTimestamp() {
@@ -885,7 +899,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source, this::routing);
+        return indexRouting.indexShard(id, routing, contentType, source);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

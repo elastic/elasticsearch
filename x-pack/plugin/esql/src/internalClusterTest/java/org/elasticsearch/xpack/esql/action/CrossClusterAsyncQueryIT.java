@@ -19,14 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -35,7 +29,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -45,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -78,10 +70,10 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(PauseFieldPlugin.class);
+        plugins.add(SimplePauseFieldPlugin.class);
         return plugins;
     }
 
@@ -100,64 +92,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
     @Before
     public void resetPlugin() {
-        PauseFieldPlugin.allowEmitting = new CountDownLatch(1);
-        PauseFieldPlugin.startEmitting = new CountDownLatch(1);
-    }
-
-    public static class PauseFieldPlugin extends Plugin implements ScriptPlugin {
-        public static CountDownLatch startEmitting = new CountDownLatch(1);
-        public static CountDownLatch allowEmitting = new CountDownLatch(1);
-
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-
-                public String getType() {
-                    return "pause";
-                }
-
-                @Override
-                @SuppressWarnings("unchecked")
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> params
-                ) {
-                    if (context == LongFieldScript.CONTEXT) {
-                        return (FactoryType) new LongFieldScript.Factory() {
-                            @Override
-                            public LongFieldScript.LeafFactory newFactory(
-                                String fieldName,
-                                Map<String, Object> params,
-                                SearchLookup searchLookup,
-                                OnScriptError onScriptError
-                            ) {
-                                return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        startEmitting.countDown();
-                                        try {
-                                            assertTrue(allowEmitting.await(30, TimeUnit.SECONDS));
-                                        } catch (InterruptedException e) {
-                                            throw new AssertionError(e);
-                                        }
-                                        emit(1);
-                                    }
-                                };
-                            }
-                        };
-                    }
-                    throw new IllegalStateException("unsupported type " + context);
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT);
-                }
-            };
-        }
+        SimplePauseFieldPlugin.resetPlugin();
     }
 
     /**
@@ -185,7 +120,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
 
         // wait until we know that the query against 'remote-b:blocking' has started
-        PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+        SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
         assertBusy(() -> {
@@ -235,7 +170,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
 
         // allow remoteB query to proceed
-        PauseFieldPlugin.allowEmitting.countDown();
+        SimplePauseFieldPlugin.allowEmitting.countDown();
 
         // wait until both remoteB and local queries have finished
         assertBusy(() -> {

@@ -702,6 +702,64 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(expectedJsonFalse, jsonStringFalse);
     }
 
+    // 9. a test without the content field to show that the content field is optional
+    public void testSerializationWithoutContentField() throws IOException {
+        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+            null,
+            "assistant",
+            "name\nwith\nnewlines",
+            "tool_call_id\twith\ttabs",
+            Collections.singletonList(
+                new UnifiedCompletionRequest.ToolCall(
+                    "id\\with\\backslashes",
+                    new UnifiedCompletionRequest.ToolCall.FunctionField("arguments\"with\"quotes", "function_name/with/slashes"),
+                    "type"
+                )
+            )
+        );
+        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        messageList.add(message);
+        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
+
+        OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "name": "name\\nwith\\nnewlines",
+                        "tool_call_id": "tool_call_id\\twith\\ttabs",
+                        "tool_calls": [
+                            {
+                                "id": "id\\\\with\\\\backslashes",
+                                "function": {
+                                    "arguments": "arguments\\"with\\"quotes",
+                                    "name": "function_name/with/slashes"
+                                },
+                                "type": "type"
+                            }
+                        ]
+                   }
+                ],
+                "model": "test-endpoint",
+                "n": 1,
+                "stream": true,
+                "stream_options": {
+                    "include_usage": true
+                }
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
     public static Map<String, Object> createParameters() {
         Map<String, Object> parameters = new LinkedHashMap<>();
         parameters.put("type", "object");

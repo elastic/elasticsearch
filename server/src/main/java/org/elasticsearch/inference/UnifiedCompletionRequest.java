@@ -148,7 +148,7 @@ public record UnifiedCompletionRequest(
 
         public Message(StreamInput in) throws IOException {
             this(
-                in.readNamedWriteable(Content.class),
+                in.readOptionalNamedWriteable(Content.class),
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
@@ -158,7 +158,7 @@ public record UnifiedCompletionRequest(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(content);
+            out.writeOptionalNamedWriteable(content);
             out.writeString(role);
             out.writeOptionalString(name);
             out.writeOptionalString(toolCallId);

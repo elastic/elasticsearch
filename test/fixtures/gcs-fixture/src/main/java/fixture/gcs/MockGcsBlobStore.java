@@ -109,7 +109,7 @@ public class MockGcsBlobStore {
             if (contentRange.hasRange() == false) {
                 // Content-Range: */... is a status check https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
                 if (existing.completed) {
-                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), null));
+                    updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), calculateRangeHeader(blobs.get(existing.path))));
                 } else {
                     final HttpHeaderParser.Range range = calculateRangeHeader(existing);
                     updateResponse.set(new UpdateResponse(RESUME_INCOMPLETE, range));
@@ -152,6 +152,10 @@ public class MockGcsBlobStore {
 
     private static HttpHeaderParser.Range calculateRangeHeader(ResumableUpload resumableUpload) {
         return resumableUpload.contents.length() > 0 ? new HttpHeaderParser.Range(0, resumableUpload.contents.length() - 1) : null;
+    }
+
+    private static HttpHeaderParser.Range calculateRangeHeader(BlobVersion blob) {
+        return blob.contents.length() > 0 ? new HttpHeaderParser.Range(0, blob.contents.length() - 1) : null;
     }
 
     record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader) {}

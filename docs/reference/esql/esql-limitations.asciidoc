@@ -49,7 +49,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 {esql} does not yet support the following field types:
 
 * TSDB metrics
-** `counter`
+** `counter` (<<limited-support-for-counter, limited support>>)
 ** `position`
 ** `aggregate_metric_double`
 * Date/time
@@ -69,6 +69,20 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `rank_feature`
 ** `rank_features`
 ** `search_as_you_type`
+
+[discrete]
+[[limited-support-for-counter]]
+[NOTE]
+====
+ES|QL allows limited interaction with the counter field types -- `counter_long`, `counter_integer`, and `counter_double` -- through explicit casting. Users can:
+
+* Retrieve raw values without processing
+* Cast to the root numeric type (e.g., `to_long(a_long_counter)`)
+* Use these fields in the metrics rate aggregation
+
+These capabilities provide partial support, intended for controlled use and to prevent misuse of cumulative metrics as regular numeric fields.
+
+====
 
 Querying a column with an unsupported type returns an error. If a column with an
 unsupported type is not explicitly used in a query, it is returned with `null`

@@ -12,8 +12,6 @@ setup:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               key:
@@ -27,6 +25,7 @@ setup:
           settings:
             index:
               mode: lookup
+            number_of_shards: 1
           mappings:
             properties:
               key:

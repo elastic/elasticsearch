@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
@@ -242,15 +241,6 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
             request.includeCCSMetadata(ccsMetadataInResponse);
         }
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
-    }
-
-    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
-        return switch (randomIntBetween(1, 3)) {
-            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
-            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
-            case 3 -> new Tuple<>(null, Boolean.FALSE);
-            default -> throw new AssertionError("should not get here");
-        };
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {

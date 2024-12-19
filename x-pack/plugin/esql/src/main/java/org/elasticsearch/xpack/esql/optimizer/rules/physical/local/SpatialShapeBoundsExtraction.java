@@ -41,11 +41,12 @@ import java.util.stream.Collectors;
  * <ul>
  *     <li>The spatial data is of type GEO_SHAPE or CARTESIAN_SHAPE.</li>
  *     <li>The spatial data is consumed directly by an <code>ST_EXTENT_AGG</code>.</li>
- *     <li>The spatial is not consumed by any other operation. While is this is stricter than necessary,
- *     it is a good enough approximation for now. </li>
+ *     <li>The spatial data is not consumed by any other operation. While is this is stricter than necessary,
+ *     it is a good enough approximation for now. For example, an aggregation like {@code count} shouldn't stop this optimization,
+ *     not a check like {@code isNotNull}.</li>
  * </ul>
  */
-public class SpatialShapeBoundExtraction extends ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
+public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<Attribute>();
@@ -55,7 +56,7 @@ public class SpatialShapeBoundExtraction extends ParameterizedOptimizerRule<Aggr
                 case AggregateExec agg -> {
                     List<AggregateFunction> aggregateFunctions = agg.aggregates()
                         .stream()
-                        .flatMap(e -> SpatialShapeBoundExtraction.extractAggregateFunction(e).stream())
+                        .flatMap(e -> SpatialShapeBoundsExtraction.extractAggregateFunction(e).stream())
                         .toList();
                     List<SpatialExtent> spatialExtents = aggregateFunctions.stream()
                         .filter(SpatialExtent.class::isInstance)
@@ -74,14 +75,19 @@ public class SpatialShapeBoundExtraction extends ParameterizedOptimizerRule<Aggr
                         .map(SpatialExtent::field)
                         .filter(FieldAttribute.class::isInstance)
                         .map(FieldAttribute.class::cast)
-                        .filter(f -> isShape(f.field().getDataType()) && fieldsAppearingInNonSpatialExtents.contains(f.field()) == false)
+                        .filter(
+                            f -> isShape(f.field().getDataType())
+                                && fieldsAppearingInNonSpatialExtents.contains(f.field()) == false
+                                && ctx.searchStats().hasDocValues(f.fieldName())
+                        )
                         .forEach(foundAttributes::add);
                 }
                 case EvalExec evalExec -> foundAttributes.removeAll(evalExec.references());
                 case FilterExec filterExec -> foundAttributes.removeAll(filterExec.condition().references());
                 case FieldExtractExec fieldExtractExec -> {
                     foundAttributes.retainAll(fieldExtractExec.attributesToExtract());
-                    return fieldExtractExec.withBoundAttributes(foundAttributes);
+                    return fieldExtractExec.withBoundsAttributes(foundAttributes)
+                        .withDocValuesAttributes(fieldExtractExec.docValuesAttributes());
                 }
                 default -> { // Do nothing
                 }

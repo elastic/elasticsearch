@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -79,7 +79,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             Limiter.ONCE,
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundExtraction()
+            new SpatialShapeBoundsExtraction()
         );
         return asList(pushdown, fieldExtraction);
     }

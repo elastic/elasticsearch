@@ -398,11 +398,22 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
-                var model = responses.get(0).model();
+                Model model = null;
+
+                InferenceFieldMetadata inferenceFieldMetadata = fieldInferenceMap.get(fieldName);
+                if (inferenceFieldMetadata == null) {
+                    throw new IllegalStateException("No inference field metadata for field [" + fieldName + "]");
+                }
+
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
                 for (var resp : responses) {
+                    // Get the first non-null model from the response list
+                    if (model == null) {
+                        model = resp.model;
+                    }
+
                     var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
                     lst.addAll(
                         SemanticTextField.toSemanticTextFieldChunks(
@@ -414,21 +425,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         )
                     );
                 }
+
                 List<String> inputs = responses.stream()
                     .filter(r -> r.sourceField().equals(fieldName))
                     .map(r -> r.input)
                     .collect(Collectors.toList());
+
+                // The model can be null if we are only processing update requests that clear inference results. This is ok because we will
+                // merge in the field's existing model settings on the data node.
                 var result = new SemanticTextField(
                     indexCreatedVersion,
                     fieldName,
                     addMetadataField ? null : inputs,
                     new SemanticTextField.InferenceResult(
-                        model.getInferenceEntityId(),
-                        new SemanticTextField.ModelSettings(model),
+                        inferenceFieldMetadata.getInferenceId(),
+                        model != null ? new SemanticTextField.ModelSettings(model) : null,
                         chunkMap
                     ),
                     indexRequest.getContentType()
                 );
+
                 if (addMetadataField) {
                     inferenceFieldsMap.put(fieldName, result);
                 } else {
@@ -518,7 +534,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                              * preventing any unintended carryover of prior inference results.
                              */
                             var slot = ensureResponseAccumulatorSlot(itemIndex);
-                            slot.addOrUpdateResponse(new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE));
+                            slot.addOrUpdateResponse(
+                                new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                            );
                             continue;
                         }
                         if (valueObj == null || valueObj == EXPLICIT_NULL) {

@@ -349,9 +349,10 @@ public record SemanticTextField(
         );
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
-        INFERENCE_RESULT_PARSER.declareObject(
+        INFERENCE_RESULT_PARSER.declareObjectOrNull(
             constructorArg(),
             (p, c) -> MODEL_SETTINGS_PARSER.parse(p, null),
+            null,
             new ParseField(MODEL_SETTINGS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {

@@ -279,7 +279,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
 
             if (sourceModeIsNoop) {
-                return indexMode.defaultSourceMode();
+                if (indexMode == null || indexMode == IndexMode.STANDARD) {
+                    return null;
+                } else {
+                    return indexMode.defaultSourceMode();
+                }
             }
 
             // If `_source.mode` is not set we need to apply a default according to index mode.

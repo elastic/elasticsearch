@@ -76,21 +76,14 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         RestStatus status = null;
         for (ShardSearchFailure shardFailure : shardFailures) {
             RestStatus shardStatus = shardFailure.status();
-            switch (shardStatus) {
-                // Return if it's an error that can be retried.
-                // These currently take precedence over other status code(s).
-                case RestStatus.BAD_GATEWAY:
-                case RestStatus.SERVICE_UNAVAILABLE:
-                case RestStatus.GATEWAY_TIMEOUT:
-                    return shardStatus;
+            int statusCode = shardStatus.getStatus();
 
-                // Although these status codes cannot be retried, they should still be tracked because
-                // they're still of interest to us.
-                case RestStatus.INTERNAL_SERVER_ERROR:
-                case RestStatus.NOT_IMPLEMENTED:
-                case RestStatus.HTTP_VERSION_NOT_SUPPORTED:
-                case RestStatus.INSUFFICIENT_STORAGE:
-                    status = shardStatus;
+            // Return if it's an error that can be retried.
+            // These currently take precedence over other status code(s).
+            if (statusCode >= 502 && statusCode <= 504) {
+                return shardStatus;
+            } else if (statusCode >= 500) {
+                status = shardStatus;
             }
         }
 

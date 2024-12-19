@@ -113,7 +113,7 @@ After identifying problematic threads and tasks, resolve the issue by increasing
 [[resolve-task-queue-backlog-resources]]
 ===== Increase available resources
 
-If tasks are progressing slowly, try reducing <<reduce-cpu-usage,CPU usage>>.
+If tasks are progressing slowly, try <<reduce-cpu-usage,reducing CPU usage>>.
 
 In some cases, you might need to increase the thread pool size. For example, the `force_merge` thread pool defaults to a single thread. 
 Increasing the size to 2 might help reduce a backlog of force merge requests.

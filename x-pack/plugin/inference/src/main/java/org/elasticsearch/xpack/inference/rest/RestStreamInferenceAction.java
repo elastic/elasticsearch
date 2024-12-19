@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.Scope;
@@ -23,9 +24,9 @@ import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_TASK_TYPE_INFE
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestStreamInferenceAction extends BaseInferenceAction {
-    private final ThreadPool threadPool;
+    private final SetOnce<ThreadPool> threadPool;
 
-    public RestStreamInferenceAction(ThreadPool threadPool) {
+    public RestStreamInferenceAction(SetOnce<ThreadPool> threadPool) {
         super();
         this.threadPool = Objects.requireNonNull(threadPool);
     }

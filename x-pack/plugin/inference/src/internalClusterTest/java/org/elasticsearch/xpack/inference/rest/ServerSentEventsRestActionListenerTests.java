@@ -133,7 +133,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
                     var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
-                    new ServerSentEventsRestActionListener(channel, threadPool.get()).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
                 @Override
@@ -143,7 +143,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    new ServerSentEventsRestActionListener(channel, threadPool.get()).onFailure(expectedException);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -154,7 +154,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
-                    new ServerSentEventsRestActionListener(channel, threadPool.get()).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             });
         }

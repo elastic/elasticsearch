@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -58,7 +59,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
     private final RestChannel channel;
     private final ToXContent.Params params;
-    private final ThreadPool threadPool;
+    private final SetOnce<ThreadPool> threadPool;
 
     /**
      * A listener for the first part of the next entry to become available for transmission.
@@ -70,11 +71,11 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
      */
     private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
 
-    public ServerSentEventsRestActionListener(RestChannel channel, ThreadPool threadPool) {
+    public ServerSentEventsRestActionListener(RestChannel channel, SetOnce<ThreadPool> threadPool) {
         this(channel, channel.request(), threadPool);
     }
 
-    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params, ThreadPool threadPool) {
+    public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params, SetOnce<ThreadPool> threadPool) {
         this.channel = channel;
         this.params = params;
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -123,7 +124,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
 
         nextBodyPartListener = ContextPreservingActionListener.wrapPreservingContext(
             chunkedResponseBodyActionListener,
-            threadPool.getThreadContext()
+            threadPool.get().getThreadContext()
         );
 
         // subscribe will call onSubscribe, which requests the first chunk

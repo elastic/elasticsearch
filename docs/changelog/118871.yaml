@@ -1,0 +1,5 @@
+pr: 118871
+summary: "Add EIS Unified `ChatCompletions` Integration"
+area: Inference
+type: enhancement
+issues: []

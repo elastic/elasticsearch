@@ -3,7 +3,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / packaging-tests-unix"
         command: ./.ci/scripts/packaging-test.sh destructivePackagingTest
-        timeout_in_minutes: 420
+        timeout_in_minutes: 300
         matrix:
           setup:
             image:

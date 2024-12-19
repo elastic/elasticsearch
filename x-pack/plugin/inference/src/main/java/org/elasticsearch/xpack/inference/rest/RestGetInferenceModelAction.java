@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENC
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetInferenceModelAction extends BaseRestHandler {
     public static final String DEFAULT_ELSER_2_CAPABILITY = "default_elser_2";
-    public static final String INFERENCE_METADATA_FIELDS_CAPABILITY = "inference_metadata_fields";
 
     @Override
     public String getName() {
@@ -67,6 +66,6 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DEFAULT_ELSER_2_CAPABILITY, INFERENCE_METADATA_FIELDS_CAPABILITY);
+        return Set.of(DEFAULT_ELSER_2_CAPABILITY);
     }
 }

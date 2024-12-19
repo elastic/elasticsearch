@@ -55,7 +55,7 @@ Although the hot threads API response does not list the specific tasks running o
 it provides a summary of the thread's activities. You can correlate a hot threads response 
 with a <<tasks,task management API response>> to identify any overlap with specific tasks. For 
 example, if the hot threads response indicates the thread is `performing a search query`, you can 
-<<diagnose-task-queue-long-running-node-tasks,check for long-running search tasks>> via the task management API.
+<<diagnose-task-queue-long-running-node-tasks,check for long-running search tasks>> using the task management API.
 
 [discrete]
 [[diagnose-task-queue-long-running-node-tasks]]

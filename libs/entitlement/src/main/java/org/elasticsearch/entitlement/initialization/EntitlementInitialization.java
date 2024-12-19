@@ -53,6 +53,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
 public class EntitlementInitialization {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
 
@@ -92,7 +93,7 @@ public class EntitlementInitialization {
             "server",
             List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
         );
-        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
+        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver(), ENTITLEMENTS_MODULE);
     }
 
     private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {

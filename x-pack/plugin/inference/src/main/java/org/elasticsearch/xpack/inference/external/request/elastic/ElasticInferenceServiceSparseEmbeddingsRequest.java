@@ -16,15 +16,16 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.TraceContextPropagator;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
+import org.elasticsearch.xpack.inference.telemetry.TraceContextAware;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceSparseEmbeddingsRequest
+    implements ElasticInferenceServiceRequest, TraceContextAware {
 
     private final URI uri;
 
@@ -56,7 +57,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
-        TraceContextPropagator.propagateTraceContext(httpPost, traceContext);
+        propagateTraceContext(httpPost);
 
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
@@ -73,6 +74,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
         return this.uri;
     }
 
+    @Override
     public TraceContext getTraceContext() {
         return traceContext;
     }

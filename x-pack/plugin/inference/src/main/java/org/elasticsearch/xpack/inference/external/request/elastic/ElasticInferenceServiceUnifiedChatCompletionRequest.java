@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -20,12 +19,14 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiRequest;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
+import org.elasticsearch.xpack.inference.telemetry.TraceContextAware;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequest implements OpenAiRequest {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest
+    implements OpenAiRequest, TraceContextAware {
 
     // Implementing OpenAiRequest to ensure compatibility with the OpenAI API interface
     // This allows the ElasticInferenceService to handle requests in a standardized manner
@@ -94,20 +95,8 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Open
         return true;
     }
 
+    @Override
     public TraceContext getTraceContext() {
         return traceContext;
-    }
-
-    private void propagateTraceContext(HttpPost httpPost) {
-        var traceParent = traceContext.traceParent();
-        var traceState = traceContext.traceState();
-
-        if (traceParent != null) {
-            httpPost.setHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParent);
-        }
-
-        if (traceState != null) {
-            httpPost.setHeader(Task.TRACE_STATE, traceState);
-        }
     }
 }

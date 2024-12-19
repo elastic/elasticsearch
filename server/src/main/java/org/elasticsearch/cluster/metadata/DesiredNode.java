@@ -47,7 +47,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
 
     public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
-    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated");
+    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated", true);
 
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
 

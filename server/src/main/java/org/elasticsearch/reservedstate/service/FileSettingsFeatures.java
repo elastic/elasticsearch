@@ -18,7 +18,7 @@ public class FileSettingsFeatures implements FeatureSpecification {
 
     // Although file settings were supported starting in 8.4.0, this is really about whether file settings
     // are used in readiness.
-    public static final NodeFeature FILE_SETTINGS_SUPPORTED = new NodeFeature("file_settings");
+    public static final NodeFeature FILE_SETTINGS_SUPPORTED = new NodeFeature("file_settings", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {

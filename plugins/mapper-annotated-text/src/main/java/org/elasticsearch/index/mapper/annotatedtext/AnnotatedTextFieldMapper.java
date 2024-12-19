@@ -64,7 +64,7 @@ import java.util.regex.Pattern;
  **/
 public class AnnotatedTextFieldMapper extends FieldMapper {
 
-    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source");
+    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source", true);
 
     public static final String CONTENT_TYPE = "annotated_text";
 

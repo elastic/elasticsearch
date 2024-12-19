@@ -50,7 +50,7 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 
 public class DefaultHighlighter implements Highlighter {
 
-    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields");
+    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields", true);
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {

@@ -41,16 +41,19 @@ import java.util.List;
 import java.util.Locale;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
+    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback", true);
     public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
-        "mapper.source.synthetic_source_stored_fields_advance_fix"
+        "mapper.source.synthetic_source_stored_fields_advance_fix",
+        true
     );
     public static final NodeFeature SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT = new NodeFeature(
-        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false"
+        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false",
+        true
     );
-    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix");
+    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix", true);
     public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX = new NodeFeature(
-        "mapper.source.synthetic_source_copy_to_inside_objects_fix"
+        "mapper.source.synthetic_source_copy_to_inside_objects_fix",
+        true
     );
     public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
         "mapper.source.remove_synthetic_source_only_validation"

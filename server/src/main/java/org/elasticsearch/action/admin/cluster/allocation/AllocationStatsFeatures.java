@@ -15,7 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 public class AllocationStatsFeatures implements FeatureSpecification {
-    public static final NodeFeature INCLUDE_DISK_THRESHOLD_SETTINGS = new NodeFeature("stats.include_disk_thresholds");
+    public static final NodeFeature INCLUDE_DISK_THRESHOLD_SETTINGS = new NodeFeature("stats.include_disk_thresholds", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {

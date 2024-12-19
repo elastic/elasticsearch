@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
@@ -244,6 +245,15 @@ public class PlannerUtils {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);
+    }
+
+    public static Block.Builder blockBuilder(DataType dataType, int estimatedSize, BlockFactory blockFactory) {
+        ElementType elementType = switch (dataType) {
+            case SHORT -> ElementType.INT;
+            case FLOAT, HALF_FLOAT, SCALED_FLOAT -> ElementType.DOUBLE;
+            default -> toElementType(dataType);
+        };
+        return elementType.newBlockBuilder(estimatedSize, blockFactory);
     }
 
     /**

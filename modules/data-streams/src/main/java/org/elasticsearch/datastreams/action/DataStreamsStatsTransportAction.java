@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -104,10 +103,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
 
     @Override
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNames(
+        return DataStreamsActionUtil.resolveConcreteIndexNamesWithSelector(
             indexNameExpressionResolver,
             clusterState,
             request.indices(),
+            IndexComponentSelector.ALL_APPLICABLE,
             request.indicesOptions()
         ).toArray(String[]::new);
     }
@@ -160,21 +160,22 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
-        List<ResolvedExpression> abstractionNames = indexNameExpressionResolver.dataStreams(
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
             clusterState,
             request.indicesOptions(),
             request.indices()
         );
-        for (ResolvedExpression abstraction : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction.resource());
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(
-                    IndexComponentSelector.FAILURES.equals(abstraction.selector())
-                );
-                dataStreamIndices.getIndices().stream().map(Index::getName).forEach(index -> {
+                dataStream.getBackingIndices().getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().getIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

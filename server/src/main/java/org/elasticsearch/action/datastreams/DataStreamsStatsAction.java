@@ -38,9 +38,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
     public static class Request extends BroadcastRequest<Request> {
         public Request() {
-            // this mostly doesn't matter since data stream name resolution isn't affected by IndicesOptions much and
-            // a data stream's backing indices are retrieved from its metadata, but we need to ensure selectors are configured
-            // correctly for this request
             super(
                 null,
                 IndicesOptions.builder()
@@ -59,7 +56,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                             .allowAliasToMultipleIndices(true)
                             .allowClosedIndices(true)
                             .ignoreThrottled(false)
-                            .allowSelectors(true)
+                            .allowSelectors(false)
                             .build()
                     )
                     .build()

@@ -4,17 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-package org.elasticsearch.xpack.inference.external.request;
+package org.elasticsearch.xpack.inference.telemetry;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
-public final class TraceContextPropagator {
-    private TraceContextPropagator() {} // Utility class
+public interface TraceContextAware {
+    TraceContext getTraceContext();
 
-    public static void propagateTraceContext(HttpPost httpPost, TraceContext traceContext) {
+    default void propagateTraceContext(HttpPost httpPost) {
+        TraceContext traceContext = this.getTraceContext();
         if (traceContext == null) {
             return;
         }

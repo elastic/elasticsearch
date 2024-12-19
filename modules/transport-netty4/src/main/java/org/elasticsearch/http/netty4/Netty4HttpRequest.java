@@ -11,11 +11,14 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
@@ -23,7 +26,6 @@ import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpBody;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
@@ -39,9 +41,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-public class Netty4HttpRequest implements HttpRequest {
+public class Netty4HttpRequest implements org.elasticsearch.http.HttpRequest {
 
-    private final FullHttpRequest request;
+    private final HttpRequest request;
     private final HttpBody content;
     private final Map<String, List<String>> headers;
     private final AtomicBoolean released;
@@ -49,8 +51,9 @@ public class Netty4HttpRequest implements HttpRequest {
     private final boolean pooled;
     private final int sequence;
     private final QueryStringDecoder queryStringDecoder;
+    private final int contentLength;
 
-    Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
+    Netty4HttpRequest(int sequence, HttpRequest request, Netty4HttpRequestBodyStream contentStream) {
         this(
             sequence,
             new DefaultFullHttpRequest(
@@ -72,17 +75,18 @@ public class Netty4HttpRequest implements HttpRequest {
         this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.fullHttpBodyFrom(request.content()));
     }
 
-    Netty4HttpRequest(int sequence, FullHttpRequest request, Exception inboundException) {
-        this(sequence, request, new AtomicBoolean(false), true, Netty4Utils.fullHttpBodyFrom(request.content()), inboundException);
+    Netty4HttpRequest(int sequence, HttpRequest request, Exception inboundException) {
+        this(sequence, request, new AtomicBoolean(false), true, HttpBody.empty(), inboundException);
+
     }
 
-    private Netty4HttpRequest(int sequence, FullHttpRequest request, AtomicBoolean released, boolean pooled, HttpBody content) {
+    private Netty4HttpRequest(int sequence, HttpRequest request, AtomicBoolean released, boolean pooled, HttpBody content) {
         this(sequence, request, released, pooled, content, null);
     }
 
     private Netty4HttpRequest(
         int sequence,
-        FullHttpRequest request,
+        HttpRequest request,
         AtomicBoolean released,
         boolean pooled,
         HttpBody content,
@@ -96,6 +100,15 @@ public class Netty4HttpRequest implements HttpRequest {
         this.released = released;
         this.inboundException = inboundException;
         this.queryStringDecoder = new QueryStringDecoder(request.uri());
+        this.contentLength = getContentLength(request);
+    }
+
+    static int getContentLength(io.netty.handler.codec.http.HttpRequest request) {
+        if (HttpUtil.isTransferEncodingChunked(request)) {
+            return -1;
+        } else {
+            return HttpUtil.getContentLength(request, 0);
+        }
     }
 
     @Override
@@ -114,6 +127,11 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
+    public int contentLength() {
+        return contentLength;
+    }
+
+    @Override
     public HttpBody body() {
         assert released.get() == false;
         return content;
@@ -122,7 +140,6 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public void release() {
         if (pooled && released.compareAndSet(false, true)) {
-            request.release();
             content.close();
         }
     }
@@ -147,27 +164,23 @@ public class Netty4HttpRequest implements HttpRequest {
     @Override
     public HttpVersion protocolVersion() {
         if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
-            return HttpRequest.HttpVersion.HTTP_1_0;
+            return org.elasticsearch.http.HttpRequest.HttpVersion.HTTP_1_0;
         } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
-            return HttpRequest.HttpVersion.HTTP_1_1;
+            return org.elasticsearch.http.HttpRequest.HttpVersion.HTTP_1_1;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }
     }
 
     @Override
-    public HttpRequest removeHeader(String header) {
+    public org.elasticsearch.http.HttpRequest removeHeader(String header) {
         HttpHeaders copiedHeadersWithout = request.headers().copy();
         copiedHeadersWithout.remove(header);
-        HttpHeaders copiedTrailingHeadersWithout = request.trailingHeaders().copy();
-        copiedTrailingHeadersWithout.remove(header);
-        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(
+        HttpRequest requestWithoutHeader = new DefaultHttpRequest(
             request.protocolVersion(),
             request.method(),
             request.uri(),
-            request.content(),
-            copiedHeadersWithout,
-            copiedTrailingHeadersWithout
+            copiedHeadersWithout
         );
         return new Netty4HttpRequest(sequence, requestWithoutHeader, released, pooled, content);
     }

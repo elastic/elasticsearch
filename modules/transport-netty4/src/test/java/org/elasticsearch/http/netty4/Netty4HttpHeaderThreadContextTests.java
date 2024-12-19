@@ -73,6 +73,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
+        channel.pipeline().fireChannelRegistered();
         // send first request through
         sendRequestThrough(isValidationSuccessful.get(), null);
         // send second request through, to check in case the context got stained by the first one through
@@ -93,6 +94,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
+        channel.pipeline().fireChannelRegistered();
         // send first request through
         sendRequestThrough(isValidationSuccessful.get(), null);
         // send second request through, to check in case the context got stained by the first one through
@@ -115,6 +117,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
+        channel.pipeline().fireChannelRegistered();
         // send first request through
         sendRequestThrough(isValidationSuccessful.get(), validationDone);
         // send second request through, to check in case the context got stained by the first one through
@@ -137,6 +140,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
                 )
             );
         channel.pipeline().addLast(defaultContextAssertingChannelHandler(threadPool.getThreadContext()));
+        channel.pipeline().fireChannelRegistered();
         // send first request through
         sendRequestThrough(isValidationSuccessful.get(), validationDone);
         // send second request through, to check in case the context got stained by the first one through

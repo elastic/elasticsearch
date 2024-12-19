@@ -28,6 +28,15 @@ public interface HttpRequest extends HttpPreRequest {
         HTTP_1_1
     }
 
+    /**
+     * Returns HTTP request content length, empty content has 0 length, unknown -1. Fully aggregated content returns its actual size.
+     * Streamed request returns content-length header value. There are two cases when content-length header is not present.
+     * First, when transfer-encoding is chunked. Request must not specify content-length header. Method returns -1. Second, when
+     * request does not have a body, for example, GET request without body can omit header. Method returns 0.
+     * <br><br>See <a href=https://www.rfc-editor.org/rfc/rfc9112.html#name-message-body-length>RFC 9112 # Content-Length</a>.
+     */
+    int contentLength();
+
     HttpBody body();
 
     List<String> strictCookies();

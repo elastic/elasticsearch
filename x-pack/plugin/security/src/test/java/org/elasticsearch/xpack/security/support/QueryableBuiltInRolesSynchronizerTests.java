@@ -51,6 +51,7 @@ import java.util.Set;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_FEATURE;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesUtilsTests.buildQueryableBuiltInRoles;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -145,6 +146,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         );
         when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
         mockEnabledNativeStore(builtInRoles.roleDescriptors(), Set.of());
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
 
         synchronizer.clusterChanged(event(clusterState));
 
@@ -159,8 +161,9 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
             eq(false),
             any()
         );
-        verify(clusterService, times(2)).state();
+        verify(clusterService, times(3)).state();
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
     }
 
     public void testNotMaster() {
@@ -339,6 +342,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR));
         when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
         mockEnabledNativeStore(builtInRoles.roleDescriptors(), Set.of());
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
 
         synchronizer.clusterChanged(event(currentClusterState, previousClusterState));
 
@@ -352,8 +356,9 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
             eq(false),
             any()
         );
-        verify(clusterService, times(2)).state();
+        verify(clusterService, times(3)).state();
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
     }
 
     public void testSecurityIndexClosed() {
@@ -390,10 +395,17 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static MasterServiceTaskQueue<MarkRolesAsSyncedTask> mockTaskQueue(ClusterService clusterService) {
+    private MasterServiceTaskQueue<MarkRolesAsSyncedTask> mockTaskQueue(ClusterService clusterService) {
         final MasterServiceTaskQueue<MarkRolesAsSyncedTask> masterServiceTaskQueue = mock(MasterServiceTaskQueue.class);
         when(clusterService.<MarkRolesAsSyncedTask>createTaskQueue(eq("mark-built-in-roles-as-synced-task-queue"), eq(Priority.LOW), any()))
             .thenReturn(masterServiceTaskQueue);
+        doAnswer(i -> {
+            assertThat(synchronizer.isSynchronizationInProgress(), equalTo(true));
+            MarkRolesAsSyncedTask task = i.getArgument(1);
+            var result = task.execute(clusterService.state());
+            task.success(result.v2());
+            return null;
+        }).when(masterServiceTaskQueue).submitTask(any(), any(), any());
         return masterServiceTaskQueue;
     }
 
@@ -419,7 +431,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     private DiscoveryNodes mixedVersionNodes() {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -473,6 +485,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     private void mockEnabledNativeStore(final Collection<RoleDescriptor> rolesToUpsert, final Collection<String> rolesToDelete) {
         when(nativeRolesStore.isEnabled()).thenReturn(true);
         doAnswer(i -> {
+            assertThat(synchronizer.isSynchronizationInProgress(), equalTo(true));
             ((ActionListener) i.getArgument(3)).onResponse(
                 new BulkRolesResponse(
                     rolesToUpsert.stream()

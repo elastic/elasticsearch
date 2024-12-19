@@ -48,7 +48,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private final Set<Attribute> docValuesAttributes;
 
     /**
-     * Attributes of a shape whose extent can be extracted directly from the encoded geometry.
+     * Attributes of a shape whose extent can be extracted directly from the doc-values encoded geometry.
      * <p>
      *     This is never serialized between nodes and only used locally.
      * </p>
@@ -81,7 +81,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
-        // docValueAttributes are only used on the data node and never serialized.
+        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -89,7 +89,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(attributesToExtract());
-        // docValueAttributes are only used on the data node and never serialized.
+        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override

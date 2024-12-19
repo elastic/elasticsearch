@@ -677,7 +677,9 @@ public abstract class MappedFieldType {
          * Load the field from doc-values into a BlockLoader supporting doc-values.
          */
         DOC_VALUES,
-        /** Loads the field by extracting the extent from the binary encoded representation */
+        /**
+         *  Loads the field by extracting the extent from the binary encoded representation
+         */
         EXTRACT_SPATIAL_BOUNDS,
         /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.

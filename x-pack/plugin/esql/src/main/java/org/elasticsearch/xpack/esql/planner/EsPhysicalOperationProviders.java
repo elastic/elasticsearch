@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -322,7 +323,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
             }
-            MappedFieldType fieldType = ctx.getFieldType(name);
+
+            QueryRewriteContext.UnmappedType unmappedType = null;
+            if (name.endsWith(".keyword")) {
+                name = name.replace(".keyword", "");
+                unmappedType = QueryRewriteContext.UnmappedType.KEYWORD;
+            } else if (name.endsWith(".long")) {
+                name = name.replace(".long", "");
+                unmappedType = QueryRewriteContext.UnmappedType.LONG;
+            } else if (name.endsWith(".double")) {
+                name = name.replace(".double", "");
+                unmappedType = QueryRewriteContext.UnmappedType.DOUBLE;
+            }
+
+            MappedFieldType fieldType = ctx.getFieldType(name, unmappedType);
             if (fieldType == null) {
                 // the field does not exist in this context
                 return BlockLoader.CONSTANT_NULLS;

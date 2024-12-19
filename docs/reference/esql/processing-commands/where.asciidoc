@@ -73,7 +73,10 @@ include::{esql-specs}/match-function.csv-spec[tag=match-with-field]
 include::{esql-specs}/match-function.csv-spec[tag=match-with-field-result]
 |===
 
-For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` instead of `MATCH`.
+[TIP]
+====
+You can also use the shorthand <<esql-search-operators,match operator>> `:` instead of `MATCH`.
+====
 
 include::../functions/like.asciidoc[tag=body]
 

@@ -139,7 +139,7 @@ FROM books
 | WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
 ----
 
-but this one will succeed, as it uses full text functions on both OR clauses:
+However this query will succeed because it uses full text functions on both `OR` clauses:
 
 [source,esql]
 ----

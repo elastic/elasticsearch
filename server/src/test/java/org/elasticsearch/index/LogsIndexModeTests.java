@@ -25,9 +25,12 @@ public class LogsIndexModeTests extends ESTestCase {
     public void testDefaultHostNameSortField() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
         assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
-        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
-        assertThat(IndexMode.LOGSDB.getDefaultMapping(settings).string(), containsString("host.name"));
+        boolean sortOnHostName = randomBoolean();
+        final IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder().put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), sortOnHostName).build()
+        );
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(sortOnHostName));
     }
 
     public void testCustomSortField() {

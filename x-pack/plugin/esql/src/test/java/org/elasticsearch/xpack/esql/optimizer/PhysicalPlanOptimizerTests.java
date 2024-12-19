@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
@@ -6848,6 +6849,83 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String query = """
               FROM test
             | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | KEEP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | EVAL bar = 10
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | RENAME bar AS foobar
+            | KEEP f*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | STATS count_distinct(foo) BY bar
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar")), true);
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | MV_EXPAND foo
+            | KEEP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | MV_EXPAND foo
+            | DROP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM lookup_index
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM lookup_index
+            | LOOKUP JOIN lookup_index ON first_name
+            | KEEP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+    }
+
+    public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
             | DROP foo
             | LOOKUP JOIN lookup_index ON first_name
             | DROP b*
@@ -6857,17 +6935,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {
+        assertLookupJoinFieldNames(query, data, expectedFieldNames, false);
+    }
+
+
+    private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames, boolean useDataNodePlan) {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
         var plan = physicalPlan(query, data, false);
 
-        var physicalOperations = physicalOperationsFromPhysicalPlan(plan);
+        var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
 
         List<Set<String>> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
 
-        assertEquals(fields.size(), expectedFieldNames.size());
+        assertEquals(expectedFieldNames.size(), fields.size());
         for (int i = 0; i < expectedFieldNames.size(); i++) {
-            assertEquals(fields.get(i), expectedFieldNames.get(i));
+            assertEquals(expectedFieldNames.get(i), fields.get(i));
         }
     }
 
@@ -6902,9 +6985,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return fields;
     }
 
-    private LocalExecutionPlanner.LocalExecutionPlan physicalOperationsFromPhysicalPlan(PhysicalPlan plan) {
+    private LocalExecutionPlanner.LocalExecutionPlan physicalOperationsFromPhysicalPlan(PhysicalPlan plan, boolean useDataNodePlan) {
         // The TopN needs an estimated row size for the planner to work
-        plan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config).v1();
+        var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
+        plan = useDataNodePlan? plans.v2() : plans.v1();
         plan = PlannerUtils.localPlan(List.of(), config, plan);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -6915,7 +6999,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Settings.EMPTY,
             config,
             new ExchangeSourceHandler(10, null, null),
-            null,
+            new ExchangeSinkHandler(null, 10, () -> 10),
             null,
             null,
             new EsPhysicalOperationProviders(List.of(), null)

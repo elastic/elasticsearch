@@ -271,7 +271,7 @@ final class FetchSearchPhase extends SearchPhase {
     ) {
         context.executeNextPhase(this, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
-            context.addReleasable(resp::decRef);
+            context.addReleasable(resp);
             return nextPhaseFactory.apply(resp, searchPhaseShardResults);
         });
     }

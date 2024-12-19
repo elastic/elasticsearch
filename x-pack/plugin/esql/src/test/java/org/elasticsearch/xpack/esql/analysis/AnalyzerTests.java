@@ -2139,7 +2139,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownIndex() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V4.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
@@ -2149,7 +2149,7 @@ public class AnalyzerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),
-                missingLookupIndex,
+                Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution()
             ),
             TEST_VERIFIER
@@ -2168,7 +2168,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V4.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         String errorMessage = "1:45: Unknown column [last_name] in right side of join";
@@ -2188,6 +2188,35 @@ public class AnalyzerTests extends ESTestCase {
         e = expectThrows(VerificationException.class, () -> analyze(query3));
         assertThat(e.getMessage(), containsString(errorMessage3 + "left side of join"));
         assertThat(e.getMessage(), containsString(errorMessage3 + "right side of join"));
+    }
+
+    public void testLookupJoinIndexMode() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
+        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
+        var indexResolutionAsLookup = Map.of("test", indexResolution);
+        var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
+
+        analyze("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+        analyze(
+            "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
+            AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
+        );
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyze(
+                "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
+                AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
+            )
+        );
+        assertThat(e.getMessage(), containsString("1:70: invalid [test] resolution in lookup mode to an index in [standard] mode"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyze("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
+        );
+        assertThat(e.getMessage(), containsString("1:25: invalid [test] resolution in lookup mode to an index in [standard] mode"));
     }
 
     public void testImplicitCasting() {

@@ -9,12 +9,12 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
@@ -53,6 +53,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
 public class EntitlementInitialization {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
 
@@ -65,13 +66,12 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
-            "org.elasticsearch.entitlement.bridge.EntitlementChecker"
-        );
+        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter(checkMethods), classesToTransform), true);
+        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         // TODO: should we limit this array somehow?
         var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
         inst.retransformClasses(classesToRetransform);
@@ -93,28 +93,28 @@ public class EntitlementInitialization {
             "server",
             List.of(new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement())))
         );
-        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
+        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver(), ENTITLEMENTS_MODULE);
     }
 
-    private static Map<String, Policy> createPluginPolicies(Collection<Tuple<Path, Boolean>> pluginData) throws IOException {
+    private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
-        for (Tuple<Path, Boolean> entry : pluginData) {
-            Path pluginRoot = entry.v1();
-            boolean isModular = entry.v2();
-
+        for (var entry : pluginData) {
+            Path pluginRoot = entry.pluginPath();
             String pluginName = pluginRoot.getFileName().toString();
-            final Policy policy = loadPluginPolicy(pluginRoot, isModular, pluginName);
+
+            final Policy policy = loadPluginPolicy(pluginRoot, entry.isModular(), pluginName, entry.isExternalPlugin());
 
             pluginPolicies.put(pluginName, policy);
         }
         return pluginPolicies;
     }
 
-    private static Policy loadPluginPolicy(Path pluginRoot, boolean isModular, String pluginName) throws IOException {
+    private static Policy loadPluginPolicy(Path pluginRoot, boolean isModular, String pluginName, boolean isExternalPlugin)
+        throws IOException {
         Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
 
         final Set<String> moduleNames = getModuleNames(pluginRoot, isModular);
-        final Policy policy = parsePolicyIfExists(pluginName, policyFile);
+        final Policy policy = parsePolicyIfExists(pluginName, policyFile, isExternalPlugin);
 
         // TODO: should this check actually be part of the parser?
         for (Scope scope : policy.scopes) {
@@ -125,9 +125,9 @@ public class EntitlementInitialization {
         return policy;
     }
 
-    private static Policy parsePolicyIfExists(String pluginName, Path policyFile) throws IOException {
+    private static Policy parsePolicyIfExists(String pluginName, Path policyFile, boolean isExternalPlugin) throws IOException {
         if (Files.exists(policyFile)) {
-            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName).parsePolicy();
+            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName, isExternalPlugin).parsePolicy();
         }
         return new Policy(pluginName, List.of());
     }

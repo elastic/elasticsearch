@@ -326,7 +326,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
             }
 
             double avg = 0;
-            long totalWeight = 1;
+            long totalWeight = 0;
             long current = 1;
 
             for (double value : window) {

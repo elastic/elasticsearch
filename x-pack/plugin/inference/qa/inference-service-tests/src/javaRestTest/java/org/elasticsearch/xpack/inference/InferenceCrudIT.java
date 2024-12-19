@@ -236,7 +236,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(9));
+        assertThat(services.size(), equalTo(10));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -254,6 +254,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
+                "elastic",
                 "googleaistudio",
                 "openai",
                 "streaming_completion_test_service"

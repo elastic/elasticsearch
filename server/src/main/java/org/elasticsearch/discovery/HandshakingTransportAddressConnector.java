@@ -110,6 +110,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
                         IndexVersions.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                         IndexVersion.current()
                     )
                 ),

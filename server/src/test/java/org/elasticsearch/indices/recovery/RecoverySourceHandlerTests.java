@@ -721,7 +721,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                indexSettings(IndexVersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                indexSettings(IndexVersionUtils.randomVersion(), between(1, 5), between(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     UUIDs.randomBase64UUID(random())
                 )

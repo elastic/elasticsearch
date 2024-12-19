@@ -118,6 +118,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -234,6 +235,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = indexResolution.get();
+
+            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
+                String indexResolutionMessage = null;
+
+                var indexNameWithModes = esIndex.indexNameWithModes();
+                if (indexNameWithModes.size() != 1) {
+                    indexResolutionMessage = "invalid ["
+                        + table
+                        + "] resolution in lookup mode to ["
+                        + indexNameWithModes.size()
+                        + "] indices";
+                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                    indexResolutionMessage = "invalid ["
+                        + table
+                        + "] resolution in lookup mode to an index in ["
+                        + indexNameWithModes.values().iterator().next()
+                        + "] mode";
+                }
+
+                if (indexResolutionMessage != null) {
+                    return new UnresolvedRelation(
+                        plan.source(),
+                        plan.table(),
+                        plan.frozen(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        indexResolutionMessage,
+                        plan.commandName()
+                    );
+                }
+            }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
@@ -659,15 +691,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
                     resolved.add(resolvedCol);
-                }
-                // columns are expected to be unresolved - if that's not the case return an error
-                else {
-                    return singletonList(
-                        new UnresolvedAttribute(
-                            col.source(),
-                            col.name(),
-                            "Surprised to discover column [ " + col.name() + "] already resolved"
-                        )
+                } else {
+                    throw new IllegalStateException(
+                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
                     );
                 }
             }
@@ -1050,21 +1076,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison, In and GroupingFunction to desired data types.
      * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
-     * date > "2024-08-21"
-     * date in ("2024-08-21", "2024-08-22", "2024-08-23")
-     * date = "2024-08-21" + 3 days
-     * ip == "127.0.0.1"
-     * version != "1.0"
-     * bucket(dateField, "1 month")
-     * date_trunc("1 minute", dateField)
-     *
+     * <ul>
+     * <li>date > "2024-08-21"</li>
+     * <li>date in ("2024-08-21", "2024-08-22", "2024-08-23")</li>
+     * <li>date = "2024-08-21" + 3 days</li>
+     * <li>ip == "127.0.0.1"</li>
+     * <li>version != "1.0"</li>
+     * <li>bucket(dateField, "1 month")</li>
+     * <li>date_trunc("1 minute", dateField)</li>
+     * </ul>
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
      * applicable. For example, implicit casting converts:
-     * Coalesce(Long, Int) to Coalesce(Long, Long)
-     * Coalesce(null, Long, Int) to Coalesce(null, Long, Long)
-     * Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)
-     * Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)
-     *
+     * <ul>
+     * <li>Coalesce(Long, Int) to Coalesce(Long, Long)</li>
+     * <li>Coalesce(null, Long, Int) to Coalesce(null, Long, Long)</li>
+     * <li>Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)</li>
+     * <li>Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)</li>
+     * </ul>
      * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
      */
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
@@ -1245,7 +1273,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
+            return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {

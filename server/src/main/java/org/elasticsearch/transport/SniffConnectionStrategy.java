@@ -505,6 +505,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
             IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current()
         );
         if (proxyAddress == null || proxyAddress.isEmpty()) {

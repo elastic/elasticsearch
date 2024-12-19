@@ -364,11 +364,18 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         private final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
+        private final int totalShards;
 
-        private NodeQueryRequest(List<ShardToQuery> shards, SearchRequest searchRequest, Map<String, AliasFilter> aliasFilters) {
+        private NodeQueryRequest(
+            List<ShardToQuery> shards,
+            SearchRequest searchRequest,
+            Map<String, AliasFilter> aliasFilters,
+            int totalShards
+        ) {
             this.shards = shards;
             this.searchRequest = searchRequest;
             this.aliasFilters = aliasFilters;
+            this.totalShards = totalShards;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -376,6 +383,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             this.shards = in.readCollectionAsImmutableList(ShardToQuery::readFrom);
             this.searchRequest = new SearchRequest(in);
             this.aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
+            this.totalShards = in.readVInt();
         }
 
         @Override
@@ -389,6 +397,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             out.writeCollection(shards);
             searchRequest.writeTo(out);
             out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
+            out.writeVInt(totalShards);
         }
     }
 
@@ -525,7 +534,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         && minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION)) {
                         perNodeQueries.computeIfAbsent(
                             routing.getNodeId(),
-                            ignored -> new NodeQueryRequest(new ArrayList<>(), request, aliasFilter)
+                            ignored -> new NodeQueryRequest(new ArrayList<>(), request, aliasFilter, shardsIts.size())
                         ).shards.add(
                             new ShardToQuery(
                                 concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
@@ -1049,17 +1058,18 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         Runnable onDone
     ) {
         var pitBuilder = request.searchRequest.pointInTimeBuilder();
+        final int dataNodeLocalIdx = shardIndex.getAndIncrement();
         final ShardSearchRequest req = buildShardSearchRequest(
             shardToQuery.shardId,
             null,
-            shardIndex.getAndIncrement(),
+            shardToQuery.shardIndex,
             shardToQuery.contextId,
             shardToQuery.originalIndices,
             request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
             pitBuilder == null ? null : pitBuilder.getKeepAlive(),
             shardToQuery.boost,
             request.searchRequest,
-            2,
+            request.totalShards,
             System.currentTimeMillis(),
             false
         );
@@ -1070,7 +1080,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     @Override
                     public void onResponse(SearchPhaseResult searchPhaseResult) {
                         try {
-                            searchPhaseResult.setShardIndex(req.shardRequestIndex());
+                            searchPhaseResult.setShardIndex(dataNodeLocalIdx);
                             queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
                         } catch (Throwable e) {
                             throw new AssertionError(e);
@@ -1082,7 +1092,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     @Override
                     public void onFailure(Exception e) {
                         try {
-                            failures.put(req.shardRequestIndex(), e);
+                            failures.put(dataNodeLocalIdx, e);
                             onDone.run();
                             maybeNext();
                         } catch (Throwable expected) {
@@ -1117,7 +1127,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             public void onFailure(Exception e) {
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
-                failures.put(req.shardRequestIndex(), e);
+                failures.put(dataNodeLocalIdx, e);
                 onDone.run();
                 // TODO SO risk!
                 maybeNext();

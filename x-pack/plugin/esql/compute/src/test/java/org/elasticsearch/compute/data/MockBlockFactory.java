@@ -363,6 +363,13 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
+    public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions, long preAdjustedBytes) {
+        var b = super.newConstantBytesRefBlockWith(value, positions, preAdjustedBytes);
+        track(b, trackDetail());
+        return b;
+    }
+
+    @Override
     public Block newConstantNullBlock(int positions) {
         var b = super.newConstantNullBlock(positions);
         track(b, trackDetail());

@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -133,17 +133,34 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
             // For intermediate output, the keys are the delegate PackedValuesBlockHash's
             // keys, with the category IDs replaced by the categorizer's internal state
             // together with the list of category IDs.
-            BytesRef state;
-            // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeBytesRef(categorizeBlockHash.serializeCategorizer());
+            Long copyEstimate = null;
+            try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(blockFactory.bigArrays())) {
+                CategorizeBlockHash.SerializedCategorizer serializedCategorizer = null;
+                try {
+                    serializedCategorizer = categorizeBlockHash.serializeCategorizer();
+                    out.writeBytesRef(serializedCategorizer.bytesRef());
+                    serializedCategorizer = null;
+                } finally {
+                    if (serializedCategorizer != null) {
+                        blockFactory.breaker().addWithoutBreaking(-serializedCategorizer.preAdjustedBytes());
+                    }
+                }
                 ((IntVector) keys[0].asVector()).writeTo(out);
-                state = out.bytes().toBytesRef();
+                // Converting a BytesStreamOutput to a BytesRef may copy the bytes anyway for bigger paged arrays,
+                // so we're using ReleasableBytesStreamOutput instead and copying it ourselves
+                copyEstimate = (long) out.size();
+                blockFactory.breaker().addEstimateBytesAndMaybeBreak(copyEstimate, "CategorizePackedValuesBlockHash getKeys");
+                BytesRef state = out.copyBytes().toBytesRef();
+                keys[0].close();
+                keys[0] = blockFactory.newConstantBytesRefBlockWith(state, keys[0].getPositionCount(), copyEstimate);
+                copyEstimate = null;
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } finally {
+                if (copyEstimate != null) {
+                    blockFactory.breaker().addWithoutBreaking(-copyEstimate);
+                }
             }
-            keys[0].close();
-            keys[0] = blockFactory.newConstantBytesRefBlockWith(state, keys[0].getPositionCount());
         }
         return keys;
     }

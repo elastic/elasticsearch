@@ -1,0 +1,5 @@
+_id:integer,language.id:integer,language.name:text,language.code:keyword
+1,1,English,EN
+2,2,French,FR
+3,3,Spanish,ES
+4,4,German,DE

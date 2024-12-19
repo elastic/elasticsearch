@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
+import java.util.List;
 
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
@@ -66,5 +67,15 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         URLStreamHandlerFactory factory
     ) {
         policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$$start(Class<?> callerClass, ProcessBuilder processBuilder, ProcessBuilder.Redirect[] redirects) {
+        policyManager.checkStartProcess(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ProcessBuilder$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
+        policyManager.checkStartProcess(callerClass);
     }
 }

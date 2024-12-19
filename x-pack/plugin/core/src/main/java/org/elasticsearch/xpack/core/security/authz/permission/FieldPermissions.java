@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -77,7 +77,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
     public FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition) {
-        this(fieldPermissionsDefinition, initializePermittedFieldsAutomaton(fieldPermissionsDefinition));
+        this(fieldPermissionsDefinition, Collections.emptySet());
+    }
+
+    public FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition, Set<String> metadataFieldAllowlist) {
+        this(fieldPermissionsDefinition, initializePermittedFieldsAutomaton(fieldPermissionsDefinition, metadataFieldAllowlist));
     }
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
@@ -141,11 +145,14 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return a.getNumStates() * 5; // wild guess, better than 0
     }
 
-    public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
+    public static Automaton initializePermittedFieldsAutomaton(
+        FieldPermissionsDefinition fieldPermissionsDefinition,
+        Set<String> metadataFieldAllowlist
+    ) {
         Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
         assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
         List<Automaton> automatonList = groups.stream()
-            .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
+            .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields(), metadataFieldAllowlist))
             .collect(Collectors.toList());
         return Automatons.unionAndDeterminize(automatonList);
     }
@@ -154,15 +161,16 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
      * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
      */
-    public static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+    public static Automaton buildPermittedFieldsAutomaton(
+        final String[] grantedFields,
+        final String[] deniedFields,
+        Set<String> metadataFieldAllowlist
+    ) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            // an automaton that includes metadata fields, including join fields created by the _parent field such
-            // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), Automatons.patterns(metadataFieldAllowlist));
         }
 
         Automaton deniedFieldsAutomaton;

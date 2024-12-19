@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -42,11 +43,18 @@ public final class FieldPermissionsCache {
     );
     private final Cache<FieldPermissionsDefinition, FieldPermissions> cache;
 
-    public FieldPermissionsCache(Settings settings) {
+    private final Set<String> metadataFieldAllowlist;
+
+    public FieldPermissionsCache(Settings settings, Set<String> metadataFieldAllowlist) {
         this.cache = CacheBuilder.<FieldPermissionsDefinition, FieldPermissions>builder()
             .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))
             .weigher((key, fieldPermissions) -> fieldPermissions.ramBytesUsed())
             .build();
+        this.metadataFieldAllowlist = metadataFieldAllowlist;
+    }
+
+    public FieldPermissionsCache(Settings settings) {
+        this(settings, Collections.emptySet());
     }
 
     public Cache.CacheStats getCacheStats() {
@@ -69,7 +77,7 @@ public final class FieldPermissionsCache {
         try {
             return cache.computeIfAbsent(
                 fieldPermissionsDefinition,
-                (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key))
+                (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key, metadataFieldAllowlist))
             );
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ElasticsearchException es) {

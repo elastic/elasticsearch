@@ -99,7 +99,8 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+        // The random IndexMetadata.SETTING_VERSION_CREATED in IndexMetadata can be as low as MINIMUM_READONLY_COMPATIBLE
+        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {

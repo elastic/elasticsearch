@@ -602,7 +602,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
-            IndexVersions.MINIMUM_COMPATIBLE,
+            // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             metadata

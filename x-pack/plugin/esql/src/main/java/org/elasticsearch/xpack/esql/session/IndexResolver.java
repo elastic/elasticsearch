@@ -227,12 +227,12 @@ public class IndexResolver {
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
     }
 
-    private UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
+    private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
         String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
         return new UnsupportedEsField(name, originalType);
     }
 
-    private EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);

@@ -100,6 +100,8 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
      * @return {@code true} if the {@link InferenceMetadataFieldsMapper} is present; {@code false} otherwise
      */
     public static boolean isEnabled(MappingLookup mappingLookup) {
-        return mappingLookup != null && mappingLookup.getMapping().getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME) != null;
+        return mappingLookup != null
+            && mappingLookup.getMapping()
+                .getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME) instanceof InferenceMetadataFieldsMapper;
     }
 }

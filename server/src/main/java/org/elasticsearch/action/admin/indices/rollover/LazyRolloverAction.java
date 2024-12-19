@@ -53,7 +53,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
     private static final Logger logger = LogManager.getLogger(LazyRolloverAction.class);
 
-    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy");
+    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy", true);
 
     public static final LazyRolloverAction INSTANCE = new LazyRolloverAction();
     public static final String NAME = "indices:admin/data_stream/lazy_rollover";

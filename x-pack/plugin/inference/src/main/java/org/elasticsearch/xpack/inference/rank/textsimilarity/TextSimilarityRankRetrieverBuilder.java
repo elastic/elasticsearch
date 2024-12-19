@@ -37,10 +37,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder<TextSimilarityRankRetrieverBuilder> {
 
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_supported"
+        "text_similarity_reranker_retriever_supported",
+        true
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_composition_supported"
+        "text_similarity_reranker_retriever_composition_supported",
+        true
     );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");

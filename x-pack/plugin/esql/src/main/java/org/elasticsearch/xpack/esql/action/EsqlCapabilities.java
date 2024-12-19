@@ -453,6 +453,10 @@ public class EsqlCapabilities {
          * Hash function
          */
         HASH_FUNCTION,
+        /**
+         * Hash functions such as MD5
+         */
+        SHORT_HASH_FUNCTIONS,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.

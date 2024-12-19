@@ -103,3 +103,12 @@ FROM sample_data
 count:long | hash(md5, message):keyword
 3          | 2e92ae79ff32b37fee4368a594792183
 ;
+
+md5Hash
+required_capability: short_hash_functions
+
+ROW input="input" | EVAL md5 = hash("md5", input);
+
+input:keyword | md5:keyword
+input         | a43c1b0aa53a0c908810c06ab1ff3967
+;

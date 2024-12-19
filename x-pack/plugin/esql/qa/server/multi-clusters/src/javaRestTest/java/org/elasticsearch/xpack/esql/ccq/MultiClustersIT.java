@@ -38,9 +38,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -259,7 +259,7 @@ public class MultiClustersIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> clusters = (Map<String, Object>) result.get("_clusters");
         assertThat(clusters.size(), greaterThanOrEqualTo(7));
-        assertThat(clusters.keySet(), containsInAnyOrder("total", "successful", "running", "skipped", "partial", "failed", "details"));
+        assertThat(clusters.keySet(), hasItems("total", "successful", "running", "skipped", "partial", "failed", "details"));
         int expectedNumClusters = remoteOnly ? 1 : 2;
         Set<String> expectedClusterAliases = remoteOnly ? Set.of("remote_cluster") : Set.of("remote_cluster", "(local)");
 

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -235,7 +236,10 @@ public class CsvTests extends ESTestCase {
              * are tested in integration tests.
              */
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
-            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse(
+                "enrich can't load fields in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
+            );
             assumeFalse(
                 "can't use match in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
@@ -253,7 +257,18 @@ public class CsvTests extends ESTestCase {
                 "can't use MATCH function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
-
+            assumeFalse(
+                "can't use KQL function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
+            );
+            assumeFalse(
+                "lookup join disabled for csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V8.capabilityName())
+            );
+            assumeFalse(
+                "can't use TERM function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TERM_FUNCTION.capabilityName())
+            );
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
@@ -307,13 +322,14 @@ public class CsvTests extends ESTestCase {
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
         /*
-         * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
+         * Enable the next two lines to see the results returned by ES.
          * This is useful when creating a new test or trying to figure out what are the actual results.
          */
         // CsvTestUtils.logMetaData(actual.columnNames(), actual.columnTypes(), LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
+
+        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
     }
 
     private static IndexResolution loadIndexResolution(String mappingName, String indexName, Map<String, String> typeMapping) {
@@ -410,7 +426,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {
-        var testData = loadPageFromCsv(CsvTests.class.getResource("/" + dataset.dataFileName()), dataset.typeMapping());
+        var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
         return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
     }
 
@@ -430,7 +446,8 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanningMetrics(),
-            null
+            null,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 
@@ -528,7 +545,7 @@ public class CsvTests extends ESTestCase {
             bigArrays,
             ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
         );
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor, ActionListener.noop());
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
@@ -542,6 +559,7 @@ public class CsvTests extends ESTestCase {
             exchangeSource,
             exchangeSink,
             Mockito.mock(EnrichLookupService.class),
+            Mockito.mock(LookupFromIndexService.class),
             physicalOperationProviders
         );
 
@@ -557,7 +575,14 @@ public class CsvTests extends ESTestCase {
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
-            exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
+            exchangeSource.addRemoteSink(
+                exchangeSink::fetchPageAsync,
+                Randomness.get().nextBoolean(),
+                randomIntBetween(1, 3),
+                ActionListener.<Void>noop().delegateResponse((l, e) -> {
+                    throw new AssertionError("expected no failure", e);
+                })
+            );
             LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));

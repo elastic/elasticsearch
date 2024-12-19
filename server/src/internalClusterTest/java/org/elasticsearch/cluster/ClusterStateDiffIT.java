@@ -71,6 +71,7 @@ import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassi
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.test.index.IndexVersionUtils.randomVersion;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomWriteVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -147,7 +148,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 for (Map.Entry<String, DiscoveryNode> node : clusterStateFromDiffs.nodes().getNodes().entrySet()) {
                     DiscoveryNode node1 = clusterState.nodes().get(node.getKey());
                     DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.getKey());
-                    assertThat(node1.getVersion(), equalTo(node2.getVersion()));
+                    assertThat(node1.getBuildVersion(), equalTo(node2.getBuildVersion()));
                     assertThat(node1.getAddress(), equalTo(node2.getAddress()));
                     assertThat(node1.getAttributes(), equalTo(node2.getAttributes()));
                 }
@@ -218,7 +219,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     private DiscoveryNode randomNode(String nodeId) {
         Version nodeVersion = VersionUtils.randomVersion(random());
-        IndexVersion indexVersion = randomVersion(random());
+        IndexVersion indexVersion = randomVersion();
         return DiscoveryNodeUtils.builder(nodeId)
             .roles(emptySet())
             .version(nodeVersion, IndexVersion.fromId(indexVersion.id() - 1_000_000), indexVersion)
@@ -561,7 +562,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 IndexMetadata.Builder builder = IndexMetadata.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
                 setRandomIndexSettings(random(), settingsBuilder);
-                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()));
+                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomWriteVersion());
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
                 builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current());
@@ -736,7 +737,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             ImmutableOpenMap.of(),
                             null,
                             SnapshotInfoTestUtils.randomUserMetadata(),
-                            randomVersion(random())
+                            randomVersion()
                         )
                     );
                     case 1 -> new RestoreInProgress.Builder().add(

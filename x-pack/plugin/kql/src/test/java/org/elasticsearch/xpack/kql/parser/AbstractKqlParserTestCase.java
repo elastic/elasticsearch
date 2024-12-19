@@ -7,19 +7,22 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,15 +40,51 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
-
     protected static final String SUPPORTED_QUERY_FILE_PATH = "/supported-queries";
     protected static final String UNSUPPORTED_QUERY_FILE_PATH = "/unsupported-queries";
     protected static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\]*(NOT|AND|OR)[^}]*");
+    protected static final String NESTED_FIELD_NAME = "mapped_nested";
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
+
+        mapping.startObject(TEXT_FIELD_NAME).field("type", "text").endObject();
+        mapping.startObject(NESTED_FIELD_NAME);
+        {
+            mapping.field("type", "nested");
+            mapping.startObject("properties");
+            {
+                mapping.startObject(TEXT_FIELD_NAME).field("type", "text").endObject();
+                mapping.startObject(KEYWORD_FIELD_NAME).field("type", "keyword").endObject();
+                mapping.startObject(INT_FIELD_NAME).field("type", "integer").endObject();
+                mapping.startObject(NESTED_FIELD_NAME);
+                {
+                    mapping.field("type", "nested");
+                    mapping.startObject("properties");
+                    {
+                        mapping.startObject(TEXT_FIELD_NAME).field("type", "text").endObject();
+                        mapping.startObject(KEYWORD_FIELD_NAME).field("type", "keyword").endObject();
+                        mapping.startObject(INT_FIELD_NAME).field("type", "integer").endObject();
+                    }
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        mapping.endObject().endObject().endObject();
+
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
 
     protected static String wrapWithRandomWhitespaces(String input) {
         return String.join("", randomWhitespaces(), input, randomWhitespaces());
@@ -94,7 +133,18 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
     protected List<String> mappedLeafFields() {
         return Stream.concat(
             Arrays.stream(MAPPED_LEAF_FIELD_NAMES),
-            List.of(DATE_FIELD_NAME, INT_FIELD_NAME).stream().map(subfieldName -> OBJECT_FIELD_NAME + "." + subfieldName)
+            Stream.of(
+                // Adding mapped_object subfields
+                Strings.format("%s.%s", OBJECT_FIELD_NAME, INT_FIELD_NAME),
+                Strings.format("%s.%s", OBJECT_FIELD_NAME, DATE_FIELD_NAME),
+                // Adding mapped_nested subfields
+                Strings.format("%s.%s", NESTED_FIELD_NAME, TEXT_FIELD_NAME),
+                Strings.format("%s.%s", NESTED_FIELD_NAME, KEYWORD_FIELD_NAME),
+                Strings.format("%s.%s", NESTED_FIELD_NAME, INT_FIELD_NAME),
+                Strings.format("%s.%s.%s", NESTED_FIELD_NAME, NESTED_FIELD_NAME, TEXT_FIELD_NAME),
+                Strings.format("%s.%s.%s", NESTED_FIELD_NAME, NESTED_FIELD_NAME, KEYWORD_FIELD_NAME),
+                Strings.format("%s.%s.%s", NESTED_FIELD_NAME, NESTED_FIELD_NAME, INT_FIELD_NAME)
+            )
         ).toList();
     }
 
@@ -111,9 +161,8 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
 
     protected QueryBuilder parseKqlQuery(String kqlQuery) {
         KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        return parser.parseKqlQuery(kqlQuery, searchExecutionContext);
+        KqlParsingContext kqlParserContext = KqlParsingContext.builder(createQueryRewriteContext()).build();
+        return parser.parseKqlQuery(kqlQuery, kqlParserContext);
     }
 
     protected static void assertMultiMatchQuery(QueryBuilder query, String expectedValue, MultiMatchQueryBuilder.Type expectedType) {

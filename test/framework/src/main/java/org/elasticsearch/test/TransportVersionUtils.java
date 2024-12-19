@@ -19,32 +19,30 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
-
 public class TransportVersionUtils {
     /** Returns all released versions */
     public static List<TransportVersion> allReleasedVersions() {
-        return ALL_VERSIONS;
+        return TransportVersion.getAllVersions();
     }
 
     /** Returns the oldest known {@link TransportVersion} */
     public static TransportVersion getFirstVersion() {
-        return ALL_VERSIONS.get(0);
+        return allReleasedVersions().getFirst();
     }
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
-        return ESTestCase.randomFrom(ALL_VERSIONS);
+        return ESTestCase.randomFrom(allReleasedVersions());
     }
 
     /** Returns a random {@link TransportVersion} from all available versions without the ignore set */
     public static TransportVersion randomVersion(Set<TransportVersion> ignore) {
-        return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
+        return ESTestCase.randomFrom(allReleasedVersions().stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
-        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+        return allReleasedVersions().get(random.nextInt(allReleasedVersions().size()));
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -58,12 +56,13 @@ public class TransportVersionUtils {
         }
 
         int minVersionIndex = 0;
+        List<TransportVersion> allReleasedVersions = allReleasedVersions();
         if (minVersion != null) {
-            minVersionIndex = Collections.binarySearch(ALL_VERSIONS, minVersion);
+            minVersionIndex = Collections.binarySearch(allReleasedVersions, minVersion);
         }
-        int maxVersionIndex = ALL_VERSIONS.size() - 1;
+        int maxVersionIndex = allReleasedVersions.size() - 1;
         if (maxVersion != null) {
-            maxVersionIndex = Collections.binarySearch(ALL_VERSIONS, maxVersion);
+            maxVersionIndex = Collections.binarySearch(allReleasedVersions, maxVersion);
         }
         if (minVersionIndex < 0) {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
@@ -72,7 +71,7 @@ public class TransportVersionUtils {
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
-            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
+            return allReleasedVersions.get(minVersionIndex + random.nextInt(range));
         }
     }
 
@@ -83,7 +82,7 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {
-        int place = Collections.binarySearch(ALL_VERSIONS, version);
+        int place = Collections.binarySearch(allReleasedVersions(), version);
         if (place < 0) {
             // version does not exist - need the item before the index this version should be inserted
             place = -(place + 1);
@@ -92,7 +91,7 @@ public class TransportVersionUtils {
         if (place < 1) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
-        return ALL_VERSIONS.get(place - 1);
+        return allReleasedVersions().get(place - 1);
     }
 
     public static TransportVersion getNextVersion(TransportVersion version) {
@@ -100,7 +99,8 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
-        int place = Collections.binarySearch(ALL_VERSIONS, version);
+        List<TransportVersion> allReleasedVersions = allReleasedVersions();
+        int place = Collections.binarySearch(allReleasedVersions, version);
         if (place < 0) {
             // version does not exist - need the item at the index this version should be inserted
             place = -(place + 1);
@@ -109,7 +109,7 @@ public class TransportVersionUtils {
             place++;
         }
 
-        if (place < 0 || place >= ALL_VERSIONS.size()) {
+        if (place < 0 || place >= allReleasedVersions.size()) {
             if (createIfNecessary) {
                 // create a new transport version one greater than specified
                 return new TransportVersion(version.id() + 1);
@@ -117,7 +117,7 @@ public class TransportVersionUtils {
                 throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
             }
         }
-        return ALL_VERSIONS.get(place);
+        return allReleasedVersions.get(place);
     }
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */

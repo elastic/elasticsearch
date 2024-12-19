@@ -97,7 +97,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         RestRequest restRequest = fakeRestRequestBuilder.build();
 
         // Send the request and verify the response status code
-        FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);
+        FakeRestChannel restChannel = new FakeRestChannel(restRequest, randomBoolean(), 1);
         restController.dispatchRequest(restRequest, restChannel, new ThreadContext(Settings.EMPTY));
         assertThat(restChannel.capturedResponse().status().getStatus(), is(405));
 

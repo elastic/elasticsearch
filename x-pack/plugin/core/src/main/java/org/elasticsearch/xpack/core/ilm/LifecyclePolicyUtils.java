@@ -23,16 +23,16 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * A utility class used for index lifecycle policies
  */
 public class LifecyclePolicyUtils {
 
-    private LifecyclePolicyUtils() {};
+    private LifecyclePolicyUtils() {}
 
     /**
      * Loads a built-in index lifecycle policy and returns its source.
@@ -48,16 +48,29 @@ public class LifecyclePolicyUtils {
             source = replaceVariables(source, variables);
             validate(source);
 
-            try (
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source)
-            ) {
-                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-                policy.validate();
-                return policy;
-            }
+            return parsePolicy(source, name, xContentRegistry, XContentType.JSON);
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to load policy [" + name + "] from [" + resource + "]", e);
+        }
+    }
+
+    /**
+     * Parses lifecycle policy based on the provided content type without doing any variable substitution.
+     * It is caller's responsibility to do any variable substitution if required.
+     */
+    public static LifecyclePolicy parsePolicy(
+        String rawPolicy,
+        String name,
+        NamedXContentRegistry xContentRegistry,
+        XContentType contentType
+    ) throws IOException {
+        try (
+            XContentParser parser = contentType.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), rawPolicy)
+        ) {
+            LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+            policy.validate();
+            return policy;
         }
     }
 
@@ -107,7 +120,7 @@ public class LifecyclePolicyUtils {
             .stream()
             .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
-            .collect(Collectors.toList());
+            .toList();
 
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
@@ -122,12 +135,12 @@ public class LifecyclePolicyUtils {
             } else {
                 return false;
             }
-        }).collect(Collectors.toList());
+        }).toList();
 
         final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
             Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
             return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-        }).collect(Collectors.toList());
+        }).toList();
 
         return new ItemUsage(indices, dataStreams, composableTemplates);
     }

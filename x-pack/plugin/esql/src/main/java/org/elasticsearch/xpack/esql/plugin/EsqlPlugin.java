@@ -21,8 +21,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -38,6 +38,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -45,6 +46,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
@@ -58,17 +60,10 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -116,7 +111,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry()),
+            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
@@ -129,6 +124,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         } catch (IllegalAccessException e) {
             throw new AssertionError(e);
         }
+    }
+
+    // to be overriden by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 
     /**
@@ -192,18 +192,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
-        entries.addAll(Block.getNamedWriteables());
-        entries.addAll(Attribute.getNamedWriteables());
-        entries.add(UnsupportedAttribute.ENTRY);  // TODO combine with above once these are in the same project
-        entries.addAll(NamedExpression.getNamedWriteables());
-        entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY); // TODO combine with above once these are in the same project
-        entries.addAll(Expression.getNamedWriteables());
-        entries.add(UnsupportedAttribute.EXPRESSION_ENTRY); // TODO combine with above once these are in the same project
-        entries.addAll(EsqlScalarFunction.getNamedWriteables());
-        entries.addAll(AggregateFunction.getNamedWriteables());
-        entries.addAll(LogicalPlan.getNamedWriteables());
-        entries.addAll(PhysicalPlan.getNamedWriteables());
-        entries.addAll(FullTextFunction.getNamedWriteables());
+
+        entries.addAll(BlockWritables.getNamedWriteables());
+        entries.addAll(ExpressionWritables.getNamedWriteables());
+        entries.addAll(PlanWritables.getNamedWriteables());
         return entries;
     }
 

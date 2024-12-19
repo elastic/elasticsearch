@@ -1,8 +1,8 @@
 setup:
-  - skip:
+  - requires:
       cluster_features: [ "gte_v7.8.0" ]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -92,10 +92,9 @@ setup:
 
 ---
 "Add data stream lifecycle":
-  - skip:
+  - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -127,10 +126,9 @@ setup:
 
 ---
 "Get data stream lifecycle with default rollover":
-  - skip:
+  - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:

@@ -295,12 +295,16 @@ public class GatewayMetaState implements Closeable {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE);
+            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                indexMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            );
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
         // upgrade current templates
-        if (applyPluginUpgraders(
+        if (applyPluginTemplateUpgraders(
             metadata.getTemplates(),
             metadataUpgrader.indexTemplateMetadataUpgraders,
             upgradedMetadata::removeTemplate,
@@ -308,10 +312,23 @@ public class GatewayMetaState implements Closeable {
         )) {
             changed = true;
         }
+        // upgrade custom metadata
+        for (Map.Entry<String, UnaryOperator<Metadata.Custom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
+            String type = entry.getKey();
+            Function<Metadata.Custom, Metadata.Custom> upgrader = entry.getValue();
+            Metadata.Custom original = metadata.custom(type);
+            if (original != null) {
+                Metadata.Custom upgraded = upgrader.apply(original);
+                if (upgraded.equals(original) == false) {
+                    upgradedMetadata.putCustom(type, upgraded);
+                    changed = true;
+                }
+            }
+        }
         return changed ? upgradedMetadata.build() : metadata;
     }
 
-    private static boolean applyPluginUpgraders(
+    private static boolean applyPluginTemplateUpgraders(
         Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,

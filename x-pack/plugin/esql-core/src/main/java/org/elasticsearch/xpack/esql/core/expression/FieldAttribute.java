@@ -174,18 +174,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(
-            this,
-            FieldAttribute::new,
-            parentName,
-            name(),
-            dataType(),
-            field,
-            (String) null,
-            nullable(),
-            id(),
-            synthetic()
-        );
+        return NodeInfo.create(this, FieldAttribute::new, parentName, name(), field, nullable(), id(), synthetic());
     }
 
     public String parentName() {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
@@ -86,13 +86,14 @@ public class RequestTaskTests extends ESTestCase {
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             thrownException.getMessage(),
             is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
         );
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertThat(thrownException.status().getStatus(), is(408));
     }
 
     public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {

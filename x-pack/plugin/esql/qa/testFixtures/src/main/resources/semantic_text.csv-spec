@@ -88,19 +88,75 @@ _id:keyword | my_field:semantic_text
 3           | be excellent to each other
 ;
 
-simpleStats
-required_capability: semantic_text_type
+statsWithCount
+required_capability: semantic_text_aggregations
 
 FROM semantic_text METADATA _id
-| STATS COUNT(*)
+| STATS result = COUNT(st_version)
 ;
 
-COUNT(*):long
-3
+result:long
+2
+;
+
+statsWithCountDistinct
+required_capability: semantic_text_aggregations
+
+FROM semantic_text METADATA _id
+| STATS result = COUNT_DISTINCT(st_version)
+;
+
+result:long
+2
+;
+
+statsWithValues
+required_capability: semantic_text_aggregations
+
+FROM semantic_text METADATA _id
+| STATS result = VALUES(st_version)
+| EVAL result = MV_SORT(result)
+;
+
+result:keyword
+["1.2.3", "9.0.0"]
+;
+
+statsWithMin
+required_capability: semantic_text_aggregations
+
+FROM semantic_text METADATA _id
+| STATS result = min(st_version)
+;
+
+result:keyword
+1.2.3
+;
+
+statsWithMax
+required_capability: semantic_text_aggregations
+
+FROM semantic_text METADATA _id
+| STATS result = max(st_version)
+;
+
+result:keyword
+9.0.0
+;
+
+statsWithTop
+required_capability: semantic_text_aggregations
+
+FROM semantic_text METADATA _id
+| STATS result = top(st_version, 2, "asc")
+;
+
+result:keyword
+["1.2.3", "9.0.0"]
 ;
 
 statsWithGrouping
-required_capability: semantic_text_type
+required_capability: semantic_text_aggregations
 
 FROM semantic_text METADATA _id
 | STATS COUNT(*) BY st_version
@@ -130,6 +186,36 @@ COUNT(*):long | my_field:semantic_text
 1             | Hello there!
 1             | This is a random value
 1             | bye bye!
+;
+
+grok
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| GROK st_logs """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}"""
+| KEEP st_logs, date, ip, email, num
+| SORT st_logs
+;
+
+st_logs:semantic_text                                     | date:keyword             | ip:keyword | email:keyword       | num:keyword
+2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42  | 2023-01-23T12:15:00.000Z | 127.0.0.1  | some.email@foo.com  | 42
+2024-01-23T12:15:00.000Z 1.2.3.4 foo@example.com 42       | 2024-01-23T12:15:00.000Z | 1.2.3.4    | foo@example.com     | 42
+2024-12-23T12:15:00.000Z 1.2.3.4 example@example.com 4553 | 2024-12-23T12:15:00.000Z | 1.2.3.4    | example@example.com | 4553
+;
+
+dissect
+required_capability: semantic_text_type
+
+FROM semantic_text METADATA _id
+| DISSECT st_logs """%{date} %{ip} %{email} %{num}"""
+| KEEP st_logs, date, ip, email, num
+| SORT st_logs
+;
+
+st_logs:semantic_text                                     | date:keyword             | ip:keyword | email:keyword       | num:keyword
+2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42  | 2023-01-23T12:15:00.000Z | 127.0.0.1  | some.email@foo.com  | 42
+2024-01-23T12:15:00.000Z 1.2.3.4 foo@example.com 42       | 2024-01-23T12:15:00.000Z | 1.2.3.4    | foo@example.com     | 42
+2024-12-23T12:15:00.000Z 1.2.3.4 example@example.com 4553 | 2024-12-23T12:15:00.000Z | 1.2.3.4    | example@example.com | 4553
 ;
 
 simpleWithLongValue

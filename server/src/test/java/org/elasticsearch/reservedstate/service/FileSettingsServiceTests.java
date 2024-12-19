@@ -33,14 +33,17 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -55,18 +58,28 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -79,6 +92,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
     private FileSettingsService fileSettingsService;
+    private FileSettingsHealthIndicatorService healthIndicatorService;
 
     @Before
     public void setUp() throws Exception {
@@ -124,7 +138,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of(new ReservedClusterSettingsAction(clusterSettings))
             )
         );
-        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
+        healthIndicatorService = spy(new FileSettingsHealthIndicatorService());
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorService));
     }
 
     @After
@@ -155,6 +170,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
+        verify(healthIndicatorService, times(1)).startOccurred();
+        verify(healthIndicatorService, times(1)).stopOccurred();
     }
 
     public void testOperatorDirName() {
@@ -201,6 +218,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
+
+        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
+        verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
     }
 
     @SuppressWarnings("unchecked")
@@ -225,6 +246,10 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
+
+        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
+        verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, times(1)).successOccurred();
     }
 
     @SuppressWarnings("unchecked")
@@ -260,6 +285,75 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileChanges();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
+
+        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
+        verify(healthIndicatorService, times(2)).changeOccurred();
+        verify(healthIndicatorService, times(2)).successOccurred();
+    }
+
+    public void testInvalidJSON() throws Exception {
+        // Chop off the functionality so we don't run too much of the actual cluster logic that we're not testing
+        doNothing().when(controller).updateErrorState(any());
+        doAnswer(
+            (Answer<Void>) invocation -> { throw new AssertionError("Parse error should happen before this process method is called"); }
+        ).when(controller).process(any(), any(ReservedStateChunk.class), any(), any());
+
+        // Don't really care about the initial state
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        doNothing().when(fileSettingsService).processInitialFileMissing();
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+
+        // Now break the JSON and wait
+        CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                awaitOrBust(fileChangeBarrier);
+            }
+        }).when(fileSettingsService).processFileChanges();
+        writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
+        awaitOrBust(fileChangeBarrier);
+
+        // These checks use atLeast(1) because the initial JSON is also invalid,
+        // and so we sometimes get two calls to these error-reporting methods
+        // depending on timing. Rather than trace down the root cause and fix
+        // it, we tolerate this for now because, hey, invalid JSON is invalid JSON
+        // and this is still testing what we want to test.
+
+        verify(fileSettingsService, Mockito.atLeast(1)).onProcessFileChangesException(
+            argThat(e -> unwrapException(e) instanceof XContentParseException)
+        );
+
+        // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
+        // referring to fileSettingsService.start(). Rather, it is referring to the initialization
+        // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
+
+        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
+        verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
+    }
+
+    /**
+     * Looks for the ultimate cause of {@code e} by stripping off layers of bookkeeping exception wrappers.
+     */
+    private Throwable unwrapException(Throwable e) {
+        while (e != null) {
+            if (e instanceof ExecutionException || e instanceof IllegalStateException) {
+                e = e.getCause();
+            } else {
+                break;
+            }
+        }
+        return e;
+    }
+
+    private static void awaitOrBust(CyclicBarrier barrier) {
+        try {
+            barrier.await(20, TimeUnit.SECONDS);
+        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+            throw new AssertionError("Unexpected exception waiting for barrier", e);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -302,6 +396,11 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
         fileSettingsService.close();
+
+        // When the service is stopped, the health indicator should be green
+        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
+        verify(healthIndicatorService).stopOccurred();
+
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
     }
@@ -356,10 +455,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         Path tempFilePath = createTempFile();
         Files.writeString(tempFilePath, contents);
         try {
-            Files.move(tempFilePath, path, ATOMIC_MOVE);
+            Files.move(tempFilePath, path, REPLACE_EXISTING, ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             logger.info("Atomic move not available. Falling back on non-atomic move to write [{}]", path.toAbsolutePath());
-            Files.move(tempFilePath, path);
+            Files.move(tempFilePath, path, REPLACE_EXISTING);
         }
     }
 
@@ -374,4 +473,5 @@ public class FileSettingsServiceTests extends ESTestCase {
             fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
         }
     }
+
 }

@@ -305,7 +305,7 @@ public class FilterTests extends ESTestCase {
         // System.out.println("physical\n" + physical);
         physical = physical.transformUp(
             FragmentExec.class,
-            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize(), f.reducer())
+            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize())
         );
         physical = physicalPlanOptimizer.optimize(physical);
         // System.out.println("optimized\n" + physical);
@@ -318,7 +318,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(plan, EMP_NO, x -> true);
+        return PlannerUtils.detectFilter(plan, EMP_NO);
     }
 
     @Override

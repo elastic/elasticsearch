@@ -1,5 +1,0 @@
-pr: 110734
-summary: Fix bug in ML serverless autoscaling which prevented trained model updates from triggering a scale up
-area: Machine Learning
-type: bug
-issues: [ ]

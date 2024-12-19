@@ -59,10 +59,9 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     @Override
     protected InternalFilters createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalFilters.InternalBucket> buckets = new ArrayList<>();
-        for (int i = 0; i < keys.size(); ++i) {
-            String key = keys.get(i);
+        for (String key : keys) {
             int docCount = randomIntBetween(0, 1000);
-            buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed, keyedBucket));
+            buckets.add(new InternalBucket(key, docCount, aggregations));
         }
         return new InternalFilters(name, buckets, keyed, keyedBucket, metadata);
     }
@@ -94,7 +93,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
-                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed, keyedBucket));
+                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY));
             }
             default -> {
                 if (metadata == null) {

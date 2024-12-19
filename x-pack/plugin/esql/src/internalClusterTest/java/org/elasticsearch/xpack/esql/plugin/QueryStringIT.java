@@ -13,18 +13,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends AbstractEsqlIntegTestCase {
 
@@ -42,11 +37,9 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id")));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of("INTEGER")));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1)).item(List.of(3)).item(List.of(4)).item(List.of(5)));
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(3), List.of(4), List.of(5)));
         }
     }
 
@@ -58,11 +51,9 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id")));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of("INTEGER")));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values.size(), equalTo(5));
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValuesInAnyOrder(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5)));
         }
     }
 
@@ -146,5 +137,100 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);
+    }
+
+    public void testWhereQstrWithScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(
+                resp.values(),
+                List.of(
+                    List.of(2, 0.3028995096683502),
+                    List.of(3, 0.3028995096683502),
+                    List.of(4, 0.2547692656517029),
+                    List.of(5, 0.28161853551864624)
+                )
+            );
+
+        }
+    }
+
+    public void testWhereQstrWithScoringSorted() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content:fox fox")
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(3, 1.5605685710906982),
+                    List.of(2, 0.6057990193367004),
+                    List.of(5, 0.5632370710372925),
+                    List.of(4, 0.5095385313034058)
+                )
+            );
+
+        }
+    }
+
+    public void testWhereQstrWithScoringNoSort() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(
+                resp.values(),
+                List.of(
+                    List.of(2, 0.3028995096683502),
+                    List.of(3, 0.3028995096683502),
+                    List.of(4, 0.2547692656517029),
+                    List.of(5, 0.28161853551864624)
+                )
+            );
+        }
+    }
+
+    public void testWhereQstrWithNonPushableAndScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+              AND abs(id) > 0
+            | EVAL c_score = ceil(_score)
+            | KEEP id, c_score
+            | SORT id DESC
+            | LIMIT 2
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "c_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(resp.values(), List.of(List.of(5, 1.0), List.of(4, 1.0)));
+        }
     }
 }

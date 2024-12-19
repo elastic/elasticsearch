@@ -1,5 +1,0 @@
-pr: 112412
-summary: Expose `HexFormat` in Painless
-area: Infra/Scripting
-type: enhancement
-issues: []

@@ -1,5 +1,0 @@
-pr: 112850
-summary: Fix synthetic source field names for multi-fields
-area: Mapping
-type: bug
-issues: []

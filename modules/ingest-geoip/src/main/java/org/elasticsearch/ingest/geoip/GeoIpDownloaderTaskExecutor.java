@@ -268,7 +268,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Set<String> ids = new HashSet<>();
         // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
         for (PipelineConfiguration configuration : configurations) {
-            List<Map<String, Object>> processors = (List<Map<String, Object>>) configuration.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
+            List<Map<String, Object>> processors = (List<Map<String, Object>>) configuration.getConfig().get(Pipeline.PROCESSORS_KEY);
             if (hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation)) {
                 ids.add(configuration.getId());
             }

@@ -7,6 +7,9 @@
 lhs | rhs | result
 date | date_period | date
 date | time_duration | date
+date_nanos | date_period | date_nanos
+date_nanos | time_duration | date_nanos
+date_period | date_nanos | date_nanos
 date_period | date_period | date_period
 double | double | double
 double | integer | double
@@ -17,6 +20,7 @@ integer | long | long
 long | double | double
 long | integer | long
 long | long | long
+time_duration | date_nanos | date_nanos
 time_duration | time_duration | time_duration
 unsigned_long | unsigned_long | unsigned_long
 |===

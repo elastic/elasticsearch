@@ -15,10 +15,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -69,11 +66,6 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        Set<String> capabilities = new HashSet<>();
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            capabilities.add(DEFAULT_ELSER_2_CAPABILITY);
-        }
-
-        return Collections.unmodifiableSet(capabilities);
+        return Set.of(DEFAULT_ELSER_2_CAPABILITY);
     }
 }

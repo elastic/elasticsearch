@@ -143,4 +143,13 @@ public final class TranslogConfig {
     public boolean fsync() {
         return fsync;
     }
+
+    /**
+     * @return {@code true} if the configuration allows the Translog files to exist, {@code false} otherwise. In the case there is no
+     * translog, the shard is not writeable.
+     */
+    public boolean hasTranslog() {
+        // Expect no translog files to exist for searchable snapshots
+        return false == indexSettings.getIndexMetadata().isSearchableSnapshot();
+    }
 }

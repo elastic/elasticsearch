@@ -10,7 +10,6 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -65,6 +65,7 @@ public class NodeService implements Closeable {
     private final Coordinator coordinator;
     private final RepositoriesService repositoriesService;
     private final Map<String, Integer> componentVersions;
+    private final CompatibilityVersions compatibilityVersions;
 
     NodeService(
         Settings settings,
@@ -84,7 +85,8 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressure indexingPressure,
         AggregationUsageService aggregationUsageService,
-        RepositoriesService repositoriesService
+        RepositoriesService repositoriesService,
+        CompatibilityVersions compatibilityVersions
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -104,6 +106,7 @@ public class NodeService implements Closeable {
         this.aggregationUsageService = aggregationUsageService;
         this.repositoriesService = repositoriesService;
         this.componentVersions = findComponentVersions(pluginService);
+        this.compatibilityVersions = compatibilityVersions;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -124,7 +127,7 @@ public class NodeService implements Closeable {
         return new NodeInfo(
             // TODO: revert to Build.current().version() when Kibana is updated
             Version.CURRENT.toString(),
-            TransportVersion.current(),
+            compatibilityVersions,
             IndexVersion.current(),
             componentVersions,
             Build.current(),

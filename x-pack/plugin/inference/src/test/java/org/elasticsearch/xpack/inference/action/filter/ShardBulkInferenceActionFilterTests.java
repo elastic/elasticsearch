@@ -21,7 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -34,8 +34,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -57,9 +57,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSparseEmbeddings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
 import static org.hamcrest.Matchers.containsString;
@@ -102,7 +102,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new BulkItemRequest[0]
         );
         request.setInferenceFieldMap(
-            Map.of("foo", new InferenceFieldMetadata("foo", "bar", generateRandomStringArray(5, 10, false, false)))
+            Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false)))
         );
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -160,8 +160,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10)
         );
-        model.putResult("I am a failure", new ErrorChunkedInferenceResults(new IllegalArgumentException("boom")));
-        model.putResult("I am a success", randomSparseEmbeddings(List.of("I am a success")));
+        model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
+        model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -290,10 +290,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
-            ActionListener<List<ChunkedInferenceServiceResults>> listener = (ActionListener<
-                List<ChunkedInferenceServiceResults>>) invocationOnMock.getArguments()[7];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
             Runnable runnable = () -> {
-                List<ChunkedInferenceServiceResults> results = new ArrayList<>();
+                List<ChunkedInference> results = new ArrayList<>();
                 for (String input : inputs) {
                     results.add(model.getResults(input));
                 }
@@ -310,7 +309,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any(), any());
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
@@ -348,7 +347,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             // This prevents a situation where embeddings in the expected docMap do not match those in the model, which could happen if
             // embeddings were overwritten.
             if (model.hasResult(inputText)) {
-                ChunkedInferenceServiceResults results = model.getResults(inputText);
+                var results = model.getResults(inputText);
                 semanticTextField = semanticTextFieldFromChunkedInferenceResults(
                     field,
                     model,
@@ -371,7 +370,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     private static class StaticModel extends TestModel {
-        private final Map<String, ChunkedInferenceServiceResults> resultMap;
+        private final Map<String, ChunkedInference> resultMap;
 
         StaticModel(
             String inferenceEntityId,
@@ -397,11 +396,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
         }
 
-        ChunkedInferenceServiceResults getResults(String text) {
-            return resultMap.getOrDefault(text, new InferenceChunkedSparseEmbeddingResults(List.of()));
+        ChunkedInference getResults(String text) {
+            return resultMap.getOrDefault(text, new ChunkedInferenceEmbeddingSparse(List.of()));
         }
 
-        void putResult(String text, ChunkedInferenceServiceResults result) {
+        void putResult(String text, ChunkedInference result) {
             resultMap.put(text, result);
         }
 

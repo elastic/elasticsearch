@@ -1,4 +1,10 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -13,7 +19,7 @@ restResources {
 }
 
 // randomise between sniff and proxy modes
-boolean proxyMode = BuildParams.random.nextBoolean()
+boolean proxyMode = buildParams.random.nextBoolean()
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   setting 'xpack.security.enabled', 'true'

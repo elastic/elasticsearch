@@ -44,7 +44,7 @@ final class DfsQueryPhase extends SearchPhase {
     private final AggregatedDfs dfs;
     private final List<DfsKnnResults> knnResults;
     private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
@@ -54,7 +54,7 @@ final class DfsQueryPhase extends SearchPhase {
         List<DfsKnnResults> knnResults,
         SearchPhaseResults<SearchPhaseResult> queryResult,
         Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
-        SearchPhaseContext context
+        AbstractSearchAsyncAction<?> context
     ) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
@@ -119,11 +119,7 @@ final class DfsQueryPhase extends SearchPhase {
                                 // the query might not have been executed at all (for example because thread pool rejected
                                 // execution) and the search context that was created in dfs phase might not be released.
                                 // release it again to be in the safe side
-                                context.sendReleaseSearchContext(
-                                    querySearchRequest.contextId(),
-                                    connection,
-                                    context.getOriginalIndices(shardIndex)
-                                );
+                                context.sendReleaseSearchContext(querySearchRequest.contextId(), connection);
                             }
                         }
                     }

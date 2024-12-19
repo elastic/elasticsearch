@@ -14,8 +14,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -34,7 +33,7 @@ configurations {
   }
   featuresMetadata {
     attributes {
-      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
     }
   }
 }
@@ -71,10 +70,10 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   // Explicitly add the dependency on the RHEL UBI Docker base image
   String[] rhelUbiFields = [
     'Red Hat Universal Base Image minimal',
-    '8',
-    'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
+    '9',
+    'https://catalog.redhat.com/software/containers/ubi9-minimal/61832888c0d15aff4912fe0d',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/9/ubi-minimal-9-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
 }
@@ -208,7 +207,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
   dependencies.add('featuresMetadata', module)
-  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -378,7 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (BuildParams.isSnapshotBuild()) {
+        if (buildParams.isSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {

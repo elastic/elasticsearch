@@ -27,7 +27,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
-import org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.List;
@@ -226,20 +224,29 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         List<QueryRulesetListItem> results = response.queryPage().results();
         IntSummaryStatistics ruleStats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
 
-        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
-        results.stream()
-            .flatMap(result -> result.criteriaTypeToCountMap().entrySet().stream())
-            .forEach(entry -> criteriaTypeCountMap.merge(entry.getKey(), entry.getValue(), Integer::sum));
+        Map<String, Object> ruleCriteriaTypeCountMap = new HashMap<>();
+        Map<String, Object> ruleTypeCountMap = new HashMap<>();
 
-        Map<String, Object> rulesTypeCountMap = new HashMap<>();
-        criteriaTypeCountMap.forEach((criteriaType, count) -> rulesTypeCountMap.put(criteriaType.name().toLowerCase(Locale.ROOT), count));
+        results.forEach(result -> {
+            populateCounts(ruleCriteriaTypeCountMap, result.criteriaTypeToCountMap());
+            populateCounts(ruleTypeCountMap, result.ruleTypeToCountMap());
+        });
 
         queryRulesUsage.put(TOTAL_COUNT, response.queryPage().count());
         queryRulesUsage.put(TOTAL_RULE_COUNT, ruleStats.getSum());
         queryRulesUsage.put(MIN_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMin());
         queryRulesUsage.put(MAX_RULE_COUNT, results.isEmpty() ? 0 : ruleStats.getMax());
-        if (rulesTypeCountMap.isEmpty() == false) {
-            queryRulesUsage.put(RULE_CRITERIA_TOTAL_COUNTS, rulesTypeCountMap);
+        if (ruleCriteriaTypeCountMap.isEmpty() == false) {
+            queryRulesUsage.put(RULE_CRITERIA_TOTAL_COUNTS, ruleCriteriaTypeCountMap);
         }
+        if (ruleTypeCountMap.isEmpty() == false) {
+            queryRulesUsage.put(EnterpriseSearchFeatureSetUsage.RULE_TYPE_TOTAL_COUNTS, ruleTypeCountMap);
+        }
+    }
+
+    private void populateCounts(Map<String, Object> targetMap, Map<? extends Enum<?>, Integer> sourceMap) {
+        sourceMap.forEach(
+            (key, value) -> targetMap.merge(key.name().toLowerCase(Locale.ROOT), value, (v1, v2) -> (Integer) v1 + (Integer) v2)
+        );
     }
 }

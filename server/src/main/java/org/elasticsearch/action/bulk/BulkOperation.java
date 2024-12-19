@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,6 +43,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -97,6 +99,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
     private final Map<ShardId, Exception> shortCircuitShardFailures = ConcurrentCollections.newConcurrentMap();
     private final FailureStoreMetrics failureStoreMetrics;
+    private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
 
     BulkOperation(
         Task task,
@@ -110,7 +113,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
-        FailureStoreMetrics failureStoreMetrics
+        FailureStoreMetrics failureStoreMetrics,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         this(
             task,
@@ -126,7 +130,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             listener,
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
             new FailureStoreDocumentConverter(),
-            failureStoreMetrics
+            failureStoreMetrics,
+            dataStreamFailureStoreSettings
         );
     }
 
@@ -144,7 +149,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
         FailureStoreDocumentConverter failureStoreDocumentConverter,
-        FailureStoreMetrics failureStoreMetrics
+        FailureStoreMetrics failureStoreMetrics,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         super(listener);
         this.task = task;
@@ -163,6 +169,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.shortCircuitShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
         this.failureStoreMetrics = failureStoreMetrics;
+        this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
     }
 
     @Override
@@ -313,8 +320,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                docWriteRequest.process(indexRouting);
+                docWriteRequest.preRoutingProcess(indexRouting);
                 int shardId = docWriteRequest.route(indexRouting);
+                docWriteRequest.postRoutingProcess(indexRouting);
                 List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                     new ShardId(concreteIndex, shardId),
                     shard -> new ArrayList<>()
@@ -542,8 +550,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Do not redirect documents to a failure store that were already headed to one.
             var isFailureStoreRequest = isFailureStoreRequest(docWriteRequest);
             if (isFailureStoreRequest == false
-                && failureStoreCandidate.isFailureStoreEnabled()
-                && error instanceof VersionConflictEngineException == false) {
+                && failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)
+                && error instanceof VersionConflictEngineException == false
+                && error instanceof EsRejectedExecutionException == false) {
                 // Prepare the data stream failure store if necessary
                 maybeMarkFailureStoreForRollover(failureStoreCandidate);
 
@@ -563,8 +572,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
             } else {
                 // If we can't redirect to a failure store (because either the data stream doesn't have the failure store enabled
-                // or this request was already targeting a failure store), or this was a version conflict we increment the
-                // rejected counter.
+                // or this request was already targeting a failure store), or this was an error that is not eligible for the failure store
+                // such as a version conflict or a load rejection we increment the rejected counter.
                 failureStoreMetrics.incrementRejected(
                     bulkItemRequest.index(),
                     errorType,
@@ -574,7 +583,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (isFailureStoreRequest) {
                     return IndexDocFailureStoreStatus.FAILED;
                 }
-                if (failureStoreCandidate.isFailureStoreEnabled() == false) {
+                if (failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings) == false) {
                     return IndexDocFailureStoreStatus.NOT_ENABLED;
                 }
             }

@@ -22,11 +22,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +38,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -51,7 +50,7 @@ public class DesiredBalanceComputer {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
     private final ShardsAllocator delegateAllocator;
-    private final LongSupplier timeSupplierMillis;
+    private final TimeProvider timeProvider;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -74,13 +73,9 @@ public class DesiredBalanceComputer {
     private TimeValue progressLogInterval;
     private long maxBalanceComputationTimeDuringIndexCreationMillis;
 
-    public DesiredBalanceComputer(ClusterSettings clusterSettings, ThreadPool threadPool, ShardsAllocator delegateAllocator) {
-        this(clusterSettings, delegateAllocator, threadPool::relativeTimeInMillis);
-    }
-
-    DesiredBalanceComputer(ClusterSettings clusterSettings, ShardsAllocator delegateAllocator, LongSupplier timeSupplierMillis) {
+    public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
-        this.timeSupplierMillis = timeSupplierMillis;
+        this.timeProvider = timeProvider;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -280,7 +275,7 @@ public class DesiredBalanceComputer {
 
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
-        final long computationStartedTime = timeSupplierMillis.getAsLong();
+        final long computationStartedTime = timeProvider.relativeTimeInMillis();
         long nextReportTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
@@ -328,7 +323,7 @@ public class DesiredBalanceComputer {
 
             i++;
             final int iterations = i;
-            final long currentTime = timeSupplierMillis.getAsLong();
+            final long currentTime = timeProvider.relativeTimeInMillis();
             final boolean reportByTime = nextReportTime <= currentTime;
             final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
             if (reportByTime || reportByIterationCount) {

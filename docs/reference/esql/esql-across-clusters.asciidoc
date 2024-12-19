@@ -8,11 +8,6 @@
 
 preview::["{ccs-cap} for {esql} is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
-[NOTE]
-====
-For {ccs-cap} with {esql} on version 8.16 or later, remote clusters must also be on version 8.16 or later.
-====
-
 With {esql}, you can execute a single query across multiple clusters.
 
 [discrete]

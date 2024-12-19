@@ -1819,7 +1819,15 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+            shard.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            ).close();
         }
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
@@ -1837,7 +1845,15 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+            shard.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            ).close();
         }
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(2));

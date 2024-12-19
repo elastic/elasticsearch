@@ -13,7 +13,9 @@ module org.elasticsearch.kql {
     requires org.apache.lucene.queryparser;
     requires org.elasticsearch.logging;
     requires org.apache.lucene.core;
+    requires org.apache.lucene.join;
 
     exports org.elasticsearch.xpack.kql;
     exports org.elasticsearch.xpack.kql.parser;
+    exports org.elasticsearch.xpack.kql.query;
 }

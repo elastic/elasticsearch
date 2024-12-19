@@ -1,6 +1,0 @@
-pr: 113027
-summary: Retrieve the source for objects and arrays in a separate parsing phase
-area: Mapping
-type: bug
-issues:
- - 112374

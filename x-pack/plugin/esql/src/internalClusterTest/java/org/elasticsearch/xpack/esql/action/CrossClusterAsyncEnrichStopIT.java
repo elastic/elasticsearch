@@ -25,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -83,15 +82,14 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.COORDINATOR));
 
         // Start the async query
-        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
-        startAsyncQuery(client(), query, asyncExecutionId, randomIncludeCCSMetadata());
+        final String asyncExecutionId = startAsyncQuery(client(), query, randomIncludeCCSMetadata());
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until c1 is done
-        waitForCluster(client(), "c1", asyncExecutionId.get());
+        waitForCluster(client(), "c1", asyncExecutionId);
 
         // Run the stop request
-        var stopRequest = new AsyncStopRequest(asyncExecutionId.get());
+        var stopRequest = new AsyncStopRequest(asyncExecutionId);
         var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
         // Allow the processing to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
@@ -114,7 +112,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
         } finally {
-            assertAcked(deleteAsyncId(client(), asyncExecutionId.get()));
+            assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }
     }
 

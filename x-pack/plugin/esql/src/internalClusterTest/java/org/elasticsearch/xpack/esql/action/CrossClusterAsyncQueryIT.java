@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
@@ -107,31 +106,28 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
-        int remote2NumShards = (Integer) testClusterInfo.get("remote2.blocking_index.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
-
-        startAsyncQuery(
+        final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10",
-            asyncExecutionId,
             includeCCSMetadata
         );
         // wait until we know that the query against 'remote-b:blocking' has started
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
-        waitForCluster(client(), "cluster-a", asyncExecutionId.get());
+        waitForCluster(client(), "cluster-a", asyncExecutionId);
 
         /* at this point:
          *  the query against cluster-a should be finished
          *  the query against remote-b should be running (blocked on the PauseFieldPlugin.allowEmitting CountDown)
          *  the query against the local cluster should be running because it has a STATS clause that needs to wait on remote-b
          */
-        try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId.get())) {
+        try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
             assertThat(asyncResponse.isRunning(), is(true));
             assertThat(
@@ -163,7 +159,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         // wait until both remoteB and local queries have finished
         assertBusy(() -> {
-            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId.get())) {
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
                 EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
                 assertNotNull(executionInfo);
                 EsqlExecutionInfo.Cluster remoteB = executionInfo.getCluster(REMOTE_CLUSTER_2);
@@ -174,7 +170,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             }
         });
 
-        try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId.get())) {
+        try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
             assertNotNull(executionInfo);
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(1L));
@@ -191,15 +187,13 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
             // Check that stop produces the same result
             try (
-                EsqlQueryResponse stopResponse = client().execute(
-                    EsqlAsyncStopAction.INSTANCE,
-                    new AsyncStopRequest(asyncExecutionId.get())
-                ).get()
+                EsqlQueryResponse stopResponse = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncExecutionId))
+                    .get()
             ) {
                 assertThat(stopResponse, equalTo(asyncResponse));
             }
         } finally {
-            assertAcked(deleteAsyncId(client(), asyncExecutionId.get()));
+            assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }
     }
 
@@ -264,17 +258,15 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
-        int remote2NumShards = (Integer) testClusterInfo.get("remote2.blocking_index.num_shards");
+        int remote2NumShards = 1;
+        populateRuntimeIndex(REMOTE_CLUSTER_2, "pause", INDEX_WITH_RUNTIME_MAPPING);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
-
-        startAsyncQuery(
+        final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(coalesce(const,v)) | LIMIT 1",
-            asyncExecutionId,
             includeCCSMetadata
         );
 
@@ -282,7 +274,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
-        waitForCluster(client(), "cluster-a", asyncExecutionId.get());
+        waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
 
         /* at this point:
          *  the query against cluster-a should be finished
@@ -291,7 +283,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
          */
 
         // run the stop query
-        var stopRequest = new AsyncStopRequest(asyncExecutionId.get());
+        var stopRequest = new AsyncStopRequest(asyncExecutionId);
         var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
         // allow remoteB query to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
@@ -328,7 +320,76 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
             assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
         } finally {
-            assertAcked(deleteAsyncId(client(), asyncExecutionId.get()));
+            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+        }
+    }
+
+    public void testStopQueryLocal() throws Exception {
+        Map<String, Object> testClusterInfo = setupClusters(3);
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
+        populateRuntimeIndex(LOCAL_CLUSTER, "pause", INDEX_WITH_RUNTIME_MAPPING);
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        final String asyncExecutionId = startAsyncQuery(
+            client(),
+            "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
+            includeCCSMetadata
+        );
+
+        // wait until we know that the query against 'remote-b:blocking' has started
+        SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+
+        // wait until the remotes are done
+        waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
+        waitForCluster(client(), REMOTE_CLUSTER_2, asyncExecutionId);
+
+        /* at this point:
+         *  the query against remotes should be finished
+         *  the query against the local cluster should be running because it's blocked
+         */
+
+        // run the stop query
+        var stopRequest = new AsyncStopRequest(asyncExecutionId);
+        var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        // allow local query to proceed
+        SimplePauseFieldPlugin.allowEmitting.countDown();
+
+        // Since part of the query has not been stopped, we expect some result to emerge here
+        try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
+            assertThat(asyncResponse.isRunning(), is(false));
+            assertThat(asyncResponse.columns().size(), equalTo(1));
+            assertThat(asyncResponse.values().hasNext(), is(true));
+            Iterator<Object> row = asyncResponse.values().next();
+            // sum of 0-9 squared is 285, from two remotes it's 570
+            assertThat(row.next(), equalTo(570L));
+
+            EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+            assertNotNull(executionInfo);
+            assertThat(executionInfo.isCrossClusterSearch(), is(true));
+            long overallTookMillis = executionInfo.overallTook().millis();
+            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
+            assertThat(executionInfo.isPartial(), equalTo(true));
+
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
+            assertClusterInfoSuccess(remoteCluster, remote1NumShards);
+
+            EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("logs-*"));
+            assertClusterInfoSuccess(remote2Cluster, remote2NumShards);
+
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getIndexExpression(), equalTo("blocking"));
+            assertClusterInfoSuccess(localCluster, 1);
+
+            assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
+        } finally {
+            assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }
     }
 
@@ -337,9 +398,11 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         populateRuntimeIndex(REMOTE_CLUSTER_1, "pause_fail", INDEX_WITH_FAIL_MAPPING);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
-
-        startAsyncQuery(client(), "FROM logs-*,cluster-a:failing | STATS total=sum(const) | LIMIT 1", asyncExecutionId, includeCCSMetadata);
+        final String asyncExecutionId = startAsyncQuery(
+            client(),
+            "FROM logs-*,cluster-a:failing | STATS total=sum(const) | LIMIT 1",
+            includeCCSMetadata
+        );
         // wait until we know that the query against remote has started
         FailingPauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
         // Allow to proceed
@@ -347,14 +410,14 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         // wait until local queries have finished
         try {
-            assertBusy(() -> assertThrows(Exception.class, () -> getAsyncResponse(client(), asyncExecutionId.get())));
+            assertBusy(() -> assertThrows(Exception.class, () -> getAsyncResponse(client(), asyncExecutionId)));
             // Ensure stop query fails too when get fails
             assertThrows(
                 ElasticsearchException.class,
-                () -> client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncExecutionId.get())).actionGet()
+                () -> client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncExecutionId)).actionGet()
             );
         } finally {
-            assertAcked(deleteAsyncId(client(), asyncExecutionId.get()));
+            assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }
     }
 
@@ -413,11 +476,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         if (numClusters == 3) {
             int numShardsRemote2 = randomIntBetween(1, 5);
             populateRemoteIndices(REMOTE_CLUSTER_2, REMOTE_INDEX, numShardsRemote2);
-            populateRuntimeIndex(REMOTE_CLUSTER_2, "pause", INDEX_WITH_RUNTIME_MAPPING);
             clusterInfo.put("remote2.index", REMOTE_INDEX);
             clusterInfo.put("remote2.num_shards", numShardsRemote2);
-            clusterInfo.put("remote2.blocking_index", INDEX_WITH_RUNTIME_MAPPING);
-            clusterInfo.put("remote2.blocking_index.num_shards", 1);
         }
 
         String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER_1);

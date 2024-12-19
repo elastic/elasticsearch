@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
@@ -31,18 +30,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlAsyncTestUtils {
-    public static void startAsyncQuery(
-        Client client,
-        String q,
-        AtomicReference<String> asyncExecutionId,
-        Tuple<Boolean, Boolean> includeCCSMetadata
-    ) {
+    public static String startAsyncQuery(Client client, String q, Tuple<Boolean, Boolean> includeCCSMetadata) {
         try (EsqlQueryResponse resp = runAsyncQuery(client, q, includeCCSMetadata.v1(), null, TimeValue.timeValueMillis(100))) {
             assertTrue(resp.isRunning());
             assertNotNull("async execution id is null", resp.asyncExecutionId());
-            asyncExecutionId.set(resp.asyncExecutionId().get());
             // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
             // so we do not check for it here
+            return resp.asyncExecutionId().get();
         }
     }
 

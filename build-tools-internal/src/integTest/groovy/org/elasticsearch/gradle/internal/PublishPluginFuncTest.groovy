@@ -282,7 +282,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
             esplugin {
                 name = 'hello-world-plugin'
-                classname 'org.acme.HelloWorldPlugin'
+                classname = 'org.acme.HelloWorldPlugin'
                 description = "shadowed es plugin"
             }
 
@@ -371,7 +371,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
             esplugin {
                 name = 'hello-world-plugin'
-                classname 'org.acme.HelloWorldPlugin'
+                classname = 'org.acme.HelloWorldPlugin'
                 description = "custom project description"
             }
 

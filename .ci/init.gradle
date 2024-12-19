@@ -61,8 +61,8 @@ if (USE_ARTIFACTORY) {
   logger.info("Using elastic artifactory repos")
   Closure configCache = {
     return {
-      name "artifactory-gradle-release"
-      url "https://artifactory.elstc.co/artifactory/gradle-release"
+      name = "artifactory-gradle-release"
+      url = "https://artifactory.elstc.co/artifactory/gradle-release"
       credentials {
         username artifactoryCredentials.get("username")
         password artifactoryCredentials.get("token")

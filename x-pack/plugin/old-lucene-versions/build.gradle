@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'old-lucene-versions'
-  description 'A plugin for accessing older Lucene indices'
-  classname 'org.elasticsearch.xpack.lucene.bwc.OldLuceneVersions'
+  name = 'old-lucene-versions'
+  description = 'A plugin for accessing older Lucene indices'
+  classname = 'org.elasticsearch.xpack.lucene.bwc.OldLuceneVersions'
   extendedPlugins = ['x-pack-core']
 }
 base {

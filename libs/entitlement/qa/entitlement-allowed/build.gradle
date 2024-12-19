@@ -10,9 +10,9 @@
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
-  name 'entitlement-allowed'
-  description 'A test module that invokes entitlement checks that are supposed to be granted'
-  classname 'org.elasticsearch.entitlement.qa.EntitlementAllowedPlugin'
+  name = 'entitlement-allowed'
+  description = 'A test module that invokes entitlement checks that are supposed to be granted'
+  classname = 'org.elasticsearch.entitlement.qa.EntitlementAllowedPlugin'
 }
 
 dependencies {

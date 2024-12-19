@@ -749,7 +749,7 @@ public class LocalExecutionPlanner {
             return Stream.concat(
                 Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
                 Stream.of(sinkOperatorFactory)
-            ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
+            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
         }
 
         @Override

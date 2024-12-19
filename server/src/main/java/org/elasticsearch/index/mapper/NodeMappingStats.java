@@ -28,7 +28,7 @@ import java.util.Objects;
  */
 public class NodeMappingStats implements Writeable, ToXContentFragment {
 
-    public static final NodeFeature SEGMENT_LEVEL_FIELDS_STATS = new NodeFeature("mapper.segment_level_fields_stats");
+    public static final NodeFeature SEGMENT_LEVEL_FIELDS_STATS = new NodeFeature("mapper.segment_level_fields_stats", true);
 
     private static final class Fields {
         static final String MAPPINGS = "mappings";

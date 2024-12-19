@@ -46,7 +46,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "knn";
-    public static final NodeFeature KNN_RETRIEVER_SUPPORTED = new NodeFeature("knn_retriever_supported");
+    public static final NodeFeature KNN_RETRIEVER_SUPPORTED = new NodeFeature("knn_retriever_supported", true);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");

@@ -43,7 +43,7 @@ public class DataStreamAutoShardingService {
     private static final Logger logger = LogManager.getLogger(DataStreamAutoShardingService.class);
     public static final String DATA_STREAMS_AUTO_SHARDING_ENABLED = "data_streams.auto_sharding.enabled";
 
-    public static final NodeFeature DATA_STREAM_AUTO_SHARDING_FEATURE = new NodeFeature("data_stream.auto_sharding");
+    public static final NodeFeature DATA_STREAM_AUTO_SHARDING_FEATURE = new NodeFeature("data_stream.auto_sharding", true);
 
     public static final Setting<List<String>> DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING = Setting.listSetting(
         "data_streams.auto_sharding.excludes",

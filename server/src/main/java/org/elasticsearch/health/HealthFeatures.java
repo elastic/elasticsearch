@@ -16,7 +16,7 @@ import java.util.Set;
 
 public class HealthFeatures implements FeatureSpecification {
 
-    public static final NodeFeature SUPPORTS_EXTENDED_REPOSITORY_INDICATOR = new NodeFeature("health.extended_repository_indicator");
+    public static final NodeFeature SUPPORTS_EXTENDED_REPOSITORY_INDICATOR = new NodeFeature("health.extended_repository_indicator", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {

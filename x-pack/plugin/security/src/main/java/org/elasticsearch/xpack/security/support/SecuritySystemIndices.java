@@ -56,9 +56,9 @@ public class SecuritySystemIndices {
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
-    public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
-    public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
-    public static final NodeFeature SECURITY_ROLE_MAPPING_CLEANUP = new NodeFeature("security.role_mapping_cleanup");
+    public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework", true);
+    public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened", true);
+    public static final NodeFeature SECURITY_ROLE_MAPPING_CLEANUP = new NodeFeature("security.role_mapping_cleanup", true);
 
     /**
      * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings

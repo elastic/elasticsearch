@@ -112,8 +112,11 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
  */
 public final class FlattenedFieldMapper extends FieldMapper {
 
-    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support");
-    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature("mapper.flattened.ignore_above_with_arrays_support");
+    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support", true);
+    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature(
+        "mapper.flattened.ignore_above_with_arrays_support",
+        true
+    );
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";

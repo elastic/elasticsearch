@@ -30,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class RandomRankRetrieverBuilder extends RetrieverBuilder {
 
-    public static final NodeFeature RANDOM_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature("random_reranker_retriever_supported");
+    public static final NodeFeature RANDOM_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature("random_reranker_retriever_supported", true);
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");

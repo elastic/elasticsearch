@@ -36,11 +36,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
-        var seenProjection = new Holder<>(Boolean.FALSE);
-
         // track used references
-        var used = new AttributeSet();
+        var used = plan.outputSet();
         // while going top-to-bottom (upstream)
         var pl = plan.transformDown(p -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs. It is perfectly fine that transformDown descends
@@ -62,7 +59,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck = false;
                 if (p instanceof Aggregate aggregate) {
-                    var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
+                    var remaining = removeUnused(aggregate.aggregates(), used);
 
                     if (remaining != null) {
                         if (remaining.isEmpty()) {
@@ -96,10 +93,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             );
                         }
                     }
-
-                    seenProjection.set(Boolean.TRUE);
                 } else if (p instanceof Eval eval) {
-                    var remaining = seenProjection.get() ? removeUnused(eval.fields(), used) : null;
+                    var remaining = removeUnused(eval.fields(), used);
                     // no fields, no eval
                     if (remaining != null) {
                         if (remaining.isEmpty()) {
@@ -109,13 +104,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             p = new Eval(eval.source(), eval.child(), remaining);
                         }
                     }
-                } else if (p instanceof Project) {
-                    seenProjection.set(Boolean.TRUE);
                 } else if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
-                    // Normally, we do not prune EsRelation because InsertFieldExtraction only extracts the required fields, anyway.
+                    // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
                     // The field extraction for LOOKUP JOIN works differently, however - we extract all fields (other than the join key)
                     // that the EsRelation has.
-                    var remaining = seenProjection.get() ? removeUnused(esRelation.output(), used) : null;
+                    var remaining = removeUnused(esRelation.output(), used);
                     // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet.
                     if (remaining != null && remaining.isEmpty() == false) {
                         p = new EsRelation(esRelation.source(), esRelation.index(), remaining, esRelation.indexMode(), esRelation.frozen());

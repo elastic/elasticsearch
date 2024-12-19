@@ -2,4 +2,4 @@
 
 *Description*
 
-Concatenates values of two multi-value fields.
+Concatenates values of two or more multi-value fields.

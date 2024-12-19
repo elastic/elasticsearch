@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
@@ -37,11 +38,14 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESTestCase.WithoutSecurityManager
 public class PolicyManagerTests extends ESTestCase {
 
+    private static final Module NO_ENTITLEMENTS_MODULE = null;
+
     public void testGetEntitlementsThrowsOnMissingPluginUnnamedModule() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
-            c -> "plugin1"
+            c -> "plugin1",
+            NO_ENTITLEMENTS_MODULE
         );
 
         // Any class from the current module (unnamed) will do
@@ -62,7 +66,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1");
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -82,7 +86,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsFailureIsCached() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1");
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -103,7 +107,8 @@ public class PolicyManagerTests extends ESTestCase {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2"
+            c -> "plugin2",
+            NO_ENTITLEMENTS_MODULE
         );
 
         // Any class from the current module (unnamed) will do
@@ -115,7 +120,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -138,7 +143,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -155,12 +160,13 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsReturnsEntitlementsForPluginModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
-        Path jar = creteMockPluginJar(home);
+        Path jar = createMockPluginJar(home);
 
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
-            c -> "mock-plugin"
+            c -> "mock-plugin",
+            NO_ENTITLEMENTS_MODULE
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -179,7 +185,8 @@ public class PolicyManagerTests extends ESTestCase {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2"
+            c -> "plugin2",
+            NO_ENTITLEMENTS_MODULE
         );
 
         // Any class from the current module (unnamed) will do
@@ -195,6 +202,73 @@ public class PolicyManagerTests extends ESTestCase {
         // Nothing new in the map
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         assertThat(entitlementsAgain, sameInstance(cachedResult));
+    }
+
+    public void testRequestingModuleFastPath() throws IOException, ClassNotFoundException {
+        var callerClass = makeClassInItsOwnModule();
+        assertEquals(callerClass.getModule(), policyManagerWithEntitlementsModule(NO_ENTITLEMENTS_MODULE).requestingModule(callerClass));
+    }
+
+    public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
+        var requestingClass = makeClassInItsOwnModule();
+        var runtimeClass = makeClassInItsOwnModule(); // A class in the entitlements library itself
+        var ignorableClass = makeClassInItsOwnModule();
+        var systemClass = Object.class;
+
+        var policyManager = policyManagerWithEntitlementsModule(runtimeClass.getModule());
+
+        var requestingModule = requestingClass.getModule();
+
+        assertEquals(
+            "Skip one system frame",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(systemClass, requestingClass, ignorableClass)).orElse(null)
+        );
+        assertEquals(
+            "Skip multiple system frames",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(systemClass, systemClass, systemClass, requestingClass, ignorableClass))
+                .orElse(null)
+        );
+        assertEquals(
+            "Skip system frame between runtime frames",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(runtimeClass, systemClass, runtimeClass, requestingClass, ignorableClass))
+                .orElse(null)
+        );
+        assertEquals(
+            "Skip runtime frame between system frames",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(systemClass, runtimeClass, systemClass, requestingClass, ignorableClass))
+                .orElse(null)
+        );
+        assertEquals(
+            "No system frames",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(requestingClass, ignorableClass)).orElse(null)
+        );
+        assertEquals(
+            "Skip runtime frames up to the first system frame",
+            requestingModule,
+            policyManager.findRequestingModule(Stream.of(runtimeClass, runtimeClass, systemClass, requestingClass, ignorableClass))
+                .orElse(null)
+        );
+        assertThrows(
+            "Non-modular caller frames are not supported",
+            NullPointerException.class,
+            () -> policyManager.findRequestingModule(Stream.of(systemClass, null))
+        );
+    }
+
+    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
+        final Path home = createTempDir();
+        Path jar = createMockPluginJar(home);
+        var layer = createLayerForJar(jar, "org.example.plugin");
+        return layer.findLoader("org.example.plugin").loadClass("q.B");
+    }
+
+    private static PolicyManager policyManagerWithEntitlementsModule(Module entitlementsModule) {
+        return new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "test", entitlementsModule);
     }
 
     private static Policy createEmptyTestServerPolicy() {
@@ -219,7 +293,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
     }
 
-    private static Path creteMockPluginJar(Path home) throws IOException {
+    private static Path createMockPluginJar(Path home) throws IOException {
         Path jar = home.resolve("mock-plugin.jar");
 
         Map<String, CharSequence> sources = Map.ofEntries(

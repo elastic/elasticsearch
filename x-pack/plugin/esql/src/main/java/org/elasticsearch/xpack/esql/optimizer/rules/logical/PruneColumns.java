@@ -112,6 +112,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 } else if (p instanceof Project) {
                     seenProjection.set(Boolean.TRUE);
                 } else if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                    // Normally, we do not prune EsRelation because InsertFieldExtraction only extracts the required fields, anyway.
+                    // The field extraction for LOOKUP JOIN works differently, however - we extract all fields (other than the join key)
+                    // that the EsRelation has.
                     var remaining = seenProjection.get() ? removeUnused(esRelation.output(), used) : null;
                     // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet.
                     if (remaining != null && remaining.isEmpty() == false) {

@@ -6840,7 +6840,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoading() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V6.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndexWithFields("first_name", "foo", "bar", "baz");
 

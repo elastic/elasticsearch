@@ -7,7 +7,7 @@ the input table for which the provided condition evaluates to `true`.
 
 [TIP]
 ====
-In case of value exclusions, fields with `null` values will be excluded from search results. 
+In case of value exclusions, fields with `null` values will be excluded from search results.
 In this context a `null` means either there is an explicit `null` value in the document or there is no value at all.
 For example: `WHERE field != "value"` will be interpreted as `WHERE field != "value" AND field IS NOT NULL`.
 ====
@@ -57,6 +57,26 @@ include::{esql-specs}/docs.csv-spec[tag=whereFunction]
 For a complete list of all functions, refer to <<esql-functions>>.
 
 include::../functions/predicates.asciidoc[tag=body]
+
+For matching text, you can use <<esql-search-functions,full text search functions>> like `MATCH`.
+
+Use <<esql-match,`MATCH`>> to perform a <<query-dsl-match-query,match query>> on a specified field.
+
+Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/match-function.csv-spec[tag=match-with-field]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/match-function.csv-spec[tag=match-with-field-result]
+|===
+
+[TIP]
+====
+You can also use the shorthand <<esql-search-operators,match operator>> `:` instead of `MATCH`.
+====
 
 include::../functions/like.asciidoc[tag=body]
 

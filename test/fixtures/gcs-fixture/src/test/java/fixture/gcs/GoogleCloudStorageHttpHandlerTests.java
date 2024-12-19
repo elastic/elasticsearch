@@ -72,9 +72,11 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             listBlobs(handler, bucket, null)
         );
 
-        // Multipart upload
         final var body = randomAlphaOfLength(50);
-        assertEquals(RestStatus.OK, executeMultipartUpload(handler, bucket, blobName, body, null).restStatus());
+        assertEquals(
+            RestStatus.OK,
+            executeUpload(handler, bucket, blobName, new BytesArray(body.getBytes(StandardCharsets.UTF_8)), null).restStatus()
+        );
 
         assertEquals(new TestHttpResponse(RestStatus.OK, body), getBlobContents(handler, bucket, blobName, null, null));
 
@@ -421,16 +423,6 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         GoogleCloudStorageHttpHandler handler,
         String bucket,
         String blobName,
-        String bytes,
-        Long ifGenerationMatch
-    ) {
-        return executeMultipartUpload(handler, bucket, blobName, new BytesArray(bytes.getBytes(StandardCharsets.UTF_8)), ifGenerationMatch);
-    }
-
-    private static TestHttpResponse executeMultipartUpload(
-        GoogleCloudStorageHttpHandler handler,
-        String bucket,
-        String blobName,
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
@@ -572,10 +564,6 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
     private static Headers rangeHeader(long start, long end) {
         return Headers.of("Range", Strings.format("bytes=%d-%d", start, end));
-    }
-
-    private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, String content) {
-        return createGzipCompressedMultipartUploadBody(bucketName, path, new BytesArray(content.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, BytesReference content) {

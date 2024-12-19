@@ -425,3 +425,9 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
   method: testCancellationDuringTimeSeriesAggregation
   issue: https://github.com/elastic/elasticsearch/issues/118992
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/basic}
+  issue: https://github.com/elastic/elasticsearch/issues/119035
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/non-lookup index}
+  issue: https://github.com/elastic/elasticsearch/issues/119036

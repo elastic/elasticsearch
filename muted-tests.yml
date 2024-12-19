@@ -289,9 +289,18 @@ tests:
   method: testThreadContext
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.create/20_synthetic_source/create index with use_synthetic_source}
   issue: https://github.com/elastic/elasticsearch/issues/118955
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118970
+- class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
+  method: testInvalidToken
+  issue: https://github.com/elastic/elasticsearch/issues/119019
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116777
+- class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
+  issue: https://github.com/elastic/elasticsearch/issues/115727
 
 # Examples:
 #

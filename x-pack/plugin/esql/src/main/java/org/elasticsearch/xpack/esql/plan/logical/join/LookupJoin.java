@@ -50,9 +50,8 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
      */
     @Override
     public LogicalPlan surrogate() {
-        Join normalized = new Join(source(), left(), right(), config());
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Project(source(), normalized, output());
+        return new Join(source(), left(), right(), config());
     }
 
     @Override

@@ -8,7 +8,7 @@ setup:
         index: synthetic_source_test
         body:
           settings:
-            index.mappings.source.mode: synthetic
+            index.mapping.source.mode: synthetic
           mappings:
             "properties":
               "integer_range":

@@ -207,16 +207,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MODE,
         IndexMetadata.INDEX_ROUTING_PATH,
         IndexSettings.TIME_SERIES_START_TIME,
-        IndexSettings.TIME_SERIES_END_TIME,
-
-        // Legacy index settings we must keep around for BWC from 7.x
-        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
-        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
-        Store.FORCE_RAM_TERM_DICT
+        IndexSettings.TIME_SERIES_END_TIME
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

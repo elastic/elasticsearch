@@ -122,19 +122,6 @@ public final class EngineConfig {
     // don't convert to Setting<> and register... we only set this in tests and register via a test plugin
     public static final String USE_COMPOUND_FILE = "index.use_compound_file";
 
-    /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
-     */
-    @Deprecated
-    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
-        "index.optimize_auto_generated_id",
-        true,
-        Property.IndexScope,
-        Property.Dynamic,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
-    );
-
     private final TranslogConfig translogConfig;
 
     private final LongSupplier relativeTimeInNanosSupplier;

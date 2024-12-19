@@ -25,8 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     private static final int FRAMETYPE_ROOT = 0x100;
@@ -77,24 +76,30 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             return builder.build();
         }
 
-        SortedMap<String, StackTrace> sortedStacktraces = new TreeMap<>(response.getStackTraces());
-        for (Map.Entry<String, StackTrace> st : sortedStacktraces.entrySet()) {
-            StackTrace stackTrace = st.getValue();
+        Map<String, StackTrace> stackTraces = response.getStackTraces();
+        AtomicInteger lostStackTraces = new AtomicInteger();
+
+        response.getStackTraceEvents().forEach((eventId, event) -> {
+            StackTrace stackTrace = stackTraces.get(eventId.stacktraceID());
+            if (stackTrace == null) {
+                lostStackTraces.getAndIncrement();
+                return;
+            }
+
+            long samples = event.count;
+            double annualCO2Tons = event.annualCO2Tons;
+            double annualCostsUSD = event.annualCostsUSD;
+
+            String executableName = eventId.executableName();
+            if (executableName.isEmpty() && stackTrace.typeIds.length > 0 && stackTrace.typeIds[0] == StackTrace.KERNEL_FRAME_TYPE) {
+                // kernel threads are not associated with an executable
+                executableName = "kernel";
+            }
+
             builder.setCurrentNode(0);
-
-            long samples = stackTrace.count;
-            double annualCO2Tons = stackTrace.annualCO2Tons;
-            double annualCostsUSD = stackTrace.annualCostsUSD;
-
             builder.addToRootNode(samples, annualCO2Tons, annualCostsUSD);
-            builder.addOrUpdateAggregationNode(
-                stackTrace.getExecutableName(),
-                samples,
-                annualCO2Tons,
-                annualCostsUSD,
-                FRAMETYPE_EXECUTABLE
-            );
-            builder.addOrUpdateAggregationNode(stackTrace.getThreadName(), samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_THREAD);
+            builder.addOrUpdateAggregationNode(executableName, samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_EXECUTABLE);
+            builder.addOrUpdateAggregationNode(eventId.threadName(), samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_THREAD);
 
             int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {
@@ -140,6 +145,9 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                     builder.setCurrentNode(nodeId);
                 });
             }
+        });
+        if (lostStackTraces.get() != 0) {
+            log.warn("Lost {} stacktraces.", lostStackTraces);
         }
         return builder.build();
     }

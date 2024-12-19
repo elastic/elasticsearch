@@ -70,6 +70,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -429,6 +431,10 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, uni(Kql::new), "kql"),
+                // The map_count and log_with_base_in_map are for debug/snapshot environments only
+                // and should never be enabled in a non-snapshot build. They are for the purpose of testing MapExpression only.
+                def(MapCount.class, MapCount::new, "map_count"),
+                def(LogWithBaseInMap.class, LogWithBaseInMap::new, "log_with_base_in_map"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Term.class, bi(Term::new), "term") } };
     }
@@ -460,10 +466,26 @@ public class EsqlFunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+    public record ArgSignature(
+        String name,
+        String[] type,
+        String description,
+        boolean optional,
+        DataType targetDataType,
+        boolean mapExpression,
+        Map<String, String> hint
+    ) {
 
         public ArgSignature(String name, String[] type, String description, boolean optional) {
-            this(name, type, description, optional, UNSUPPORTED);
+            this(name, type, description, optional, UNSUPPORTED, false, Map.of());
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+            this(name, type, description, optional, targetDataType, false, Map.of());
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, Map<String, String> hint) {
+            this(name, type, description, optional, UNSUPPORTED, true, hint);
         }
 
         @Override
@@ -479,7 +501,11 @@ public class EsqlFunctionRegistry {
                 + optional
                 + ", targetDataType="
                 + targetDataType
-                + '}';
+                + ", map="
+                + mapExpression
+                + ", mapParamHint={"
+                + hint.entrySet().stream().map(e -> "{" + e.getKey() + " : " + e.getValue() + "}").collect(Collectors.joining(", "))
+                + "}}";
         }
     }
 
@@ -541,17 +567,33 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
+        boolean isAggregation = functionInfo != null && functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String name = paramInfo == null ? params[i].getName() : paramInfo.name();
-                variadic |= List.class.isAssignableFrom(params[i].getType());
-                String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
+                if (mapParamInfo != null) {
+                    String name = mapParamInfo.name();
+                    String[] valueType = removeUnderConstruction(mapParamInfo.type());
+                    String desc = mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo.optional();
+                    Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
+                    for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
+                        String hintVale = hint.value().length <= 1
+                            ? Arrays.toString(hint.value())
+                            : "[" + String.join(", ", hint.value()) + "]";
+                        hints.put(hint.key(), hintVale);
+                    }
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, hints));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String name = paramInfo == null ? params[i].getName() : paramInfo.name();
+                    variadic |= List.class.isAssignableFrom(params[i].getType());
+                    String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
+                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                    boolean optional = paramInfo != null && paramInfo.optional();
+                    DataType targetDataType = getTargetType(type);
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                }
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);

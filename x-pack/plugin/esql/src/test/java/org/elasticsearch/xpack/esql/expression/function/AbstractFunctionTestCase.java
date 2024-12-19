@@ -738,6 +738,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue;
             }
             log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
+            if (annotationTypes.size() == 1 && annotationTypes.iterator().next().equalsIgnoreCase("map")) { // map is not a DataType
+                continue;
+            }
             assertEquals(
                 "Mismatch between actual and declared param type for ["
                     + arg.name()
@@ -891,7 +894,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     description.isAggregation()
                 );
             }
-            renderTypes(description.argNames());
+            renderTypes(description.args());
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(description.description(), info.detailedDescription(), info.note());
@@ -913,8 +916,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             + "may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview "
             + "are not subject to the support SLA of official GA features.\"]\n";
 
-    private static void renderTypes(List<String> argNames) throws IOException {
+    private static void renderTypes(List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder header = new StringBuilder();
+        List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
         for (String arg : argNames) {
             header.append(arg).append(" | ");
         }
@@ -929,8 +933,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue;
             }
             StringBuilder b = new StringBuilder();
-            for (DataType arg : sig.getKey()) {
-                b.append(arg.esNameIfPossible()).append(" | ");
+            for (int i = 0; i < sig.getKey().size(); i++) {
+                DataType argType = sig.getKey().get(i);
+                if (argType == DataType.UNSUPPORTED && args.get(i).mapExpression()) {
+                    b.append("map | ");
+                } else {
+                    b.append(argType.esNameIfPossible()).append(" | ");
+                }
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
             b.append(sig.getValue().esNameIfPossible());
@@ -1080,16 +1089,32 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
-                String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
+                if (mapParamInfo != null) {
+                    String paramName = mapParamInfo.name();
+                    String[] valueType = mapParamInfo.type();
+                    String desc = mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo.optional();
+                    Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
+                    for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
+                        String hintVale = hint.value().length <= 1
+                            ? Arrays.toString(hint.value())
+                            : "[" + String.join(", ", hint.value()) + "]";
+                        hints.put(hint.key(), hintVale);
+                    }
+                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, valueType, desc, optional, hints));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
+                    String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                    boolean optional = paramInfo != null && paramInfo.optional();
+                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
+                }
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
-        renderTypes(args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList());
+        renderTypes(args);
     }
 
     private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
@@ -1164,7 +1189,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                     builder.startObject();
                     builder.field("name", arg.name());
-                    builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                    if (arg.mapExpression()) { // This is a MapParam
+                        builder.field("type", "map");
+                        builder.field(
+                            "mapParamHint",
+                            arg.hint()
+                                .entrySet()
+                                .stream()
+                                .map(e -> "{" + e.getKey() + " : " + e.getValue() + "}")
+                                .collect(Collectors.joining(", "))
+                        );
+                    } else { // this is a Param
+                        builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                    }
                     builder.field("optional", arg.optional());
                     builder.field("description", arg.description());
                     builder.endObject();

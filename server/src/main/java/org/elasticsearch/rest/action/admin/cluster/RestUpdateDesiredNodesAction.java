@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,9 +27,6 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestUpdateDesiredNodesAction.class);
-    private static final String VERSION_DEPRECATION_MESSAGE =
-        "[version removal] Specifying node_version in desired nodes requests is deprecated.";
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
     public RestUpdateDesiredNodesAction(Predicate<NodeFeature> clusterSupportsFeature) {

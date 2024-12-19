@@ -14,13 +14,17 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -36,6 +40,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -64,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -115,10 +121,13 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -130,12 +139,14 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -155,6 +166,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
@@ -251,7 +263,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "mapping-airports_no_doc_values.json",
             functionRegistry,
             enrichResolution,
-            new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location")
+            new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location").exclude(Config.DOC_VALUES, "city_location")
         );
         this.airportsNotIndexed = makeTestDataSource(
             "airports-not-indexed",
@@ -281,14 +293,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String indexName,
         String mappingFileName,
         EsqlFunctionRegistry functionRegistry,
+        Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
-        Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(
+            new AnalyzerContext(config, functionRegistry, getIndexResult, lookupResolution, enrichResolution),
+            TEST_VERIFIER
+        );
         return new TestDataSource(mapping, index, analyzer, stats);
+    }
+
+    TestDataSource makeTestDataSource(
+        String indexName,
+        String mappingFileName,
+        EsqlFunctionRegistry functionRegistry,
+        EnrichResolution enrichResolution,
+        SearchStats stats
+    ) {
+        return makeTestDataSource(indexName, mappingFileName, functionRegistry, defaultLookupResolution(), enrichResolution, stats);
     }
 
     TestDataSource makeTestDataSource(
@@ -2312,6 +2338,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
     }
 
+    public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan("""
+              FROM test
+            | RENAME languages AS language_code
+            | SORT language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, testData, false);
+
+        var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
+
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+
+        var planWithInvalidJoinRightSide = plan.transformUp(
+            LookupJoinExec.class,
+            // LookupJoinExec.rightReferences() is currently EMPTY (hack); use a HashJoinExec instead.
+            join -> new HashJoinExec(
+                join.source(),
+                join.left(),
+                join.left(),
+                join.leftFields(),
+                join.leftFields(),
+                join.rightFields(),
+                join.output()
+            )
+        );
+
+        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+    }
+
     public void testVerifierOnDuplicateOutputAttributes() {
         var plan = physicalPlan("""
             from test
@@ -2755,7 +2816,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Also note that the type converting function is removed when it does not actually convert the type,
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
-    public void testSpatialTypesAndStatsUseDocValues() {
+    public void testSpatialTypesAndStatsCentroidUseDocValues() {
         for (String query : new String[] {
             "from airports | stats centroid = st_centroid_agg(location)",
             "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
@@ -2784,6 +2845,129 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 agg = as(exchange.child(), AggregateExec.class);
                 // below the exchange (in data node) the aggregation is using doc-values
                 assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, withDocValues);
+                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
+            }
+        }
+    }
+
+    /**
+     * Before local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     *   \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],FINAL,[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54,
+     * maxPosX{r}#55, maxY{r}#56, minY{r}#57],null]
+     *     \_ExchangeExec[[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54, maxPosX{r}#55, maxY{r}#56, minY{r}#57],true]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent]]
+     *         \_EsRelation[airports][abbrev{f}#44, city{f}#50, city_location{f}#51, coun..]]]
+     * </code>
+     * After local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     *   \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],FINAL,[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54,
+     * maxPosX{r}#55, maxY{r}#56, minY{r}#57],21]
+     *     \_ExchangeExec[[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54, maxPosX{r}#55, maxY{r}#56, minY{r}#57],true]
+     *       \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],INITIAL,[
+     * minNegX{r}#73, minPosX{r}#74, maxNegX{rb#75, maxPosX{r}#76, maxY{r}#77, minY{r}#78],21]
+     *         \_FieldExtractExec[location{f}#48][location{f}#48]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{"exists":{"field":"location","boost":1.0}}][
+     * _doc{f}#79], limit[], sort[] estimatedRowSize[25]
+     * </code>
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
+     */
+    public void testSpatialTypesAndStatsExtentUseDocValues() {
+        for (String query : new String[] {
+            "from airports | stats extent = st_extent_agg(location)",
+            "from airports | stats extent = st_extent_agg(to_geopoint(location))",
+            "from airports | eval location = to_geopoint(location) | stats extent = st_extent_agg(location)" }) {
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query, testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, false);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                as(fAgg.child(), EsRelation.class);
+
+                // Now optimize the plan and assert the aggregation uses doc-values
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, withDocValues);
+                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
+            }
+        }
+    }
+
+    /**
+     * Before local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     *   \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],FINAL,[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54,
+     * maxPosX{r}#55, maxY{r}#56, minY{r}#57],null]
+     *     \_ExchangeExec[[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54, maxPosX{r}#55, maxY{r}#56, minY{r}#57],true]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent]]
+     *         \_EsRelation[airports][abbrev{f}#44, city{f}#50, city_location{f}#51, coun..]]]
+     * </code>
+     * After local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER]]
+     *   \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],FINAL,[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54,
+     * maxPosX{r}#55, maxY{r}#56, minY{r}#57],21]
+     *     \_ExchangeExec[[minNegX{r}#52, minPosX{r}#53, maxNegX{r}#54, maxPosX{r}#55, maxY{r}#56, minY{r}#57],true]
+     *       \_AggregateExec[[],[SPATIALSTEXTENT(location{f}#48,true[BOOLEAN]) AS extent],INITIAL,[
+     * minNegX{r}#73, minPosX{r}#74, maxNegX{rb#75, maxPosX{r}#76, maxY{r}#77, minY{r}#78],21]
+     *         \_FieldExtractExec[location{f}#48][location{f}#48]
+     *           \_EsQueryExec[airports], indexMode[standard], query[{"exists":{"field":"location","boost":1.0}}][
+     * _doc{f}#79], limit[], sort[] estimatedRowSize[25]
+     * </code>
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
+     */
+    public void testSpatialTypesAndStatsExtentAndCentroidUseDocValues() {
+        for (String query : new String[] {
+            "from airports | stats extent = st_extent_agg(location), centroid = st_centroid_agg(location)",
+            "from airports | stats extent = st_extent_agg(location), centroid = st_centroid_agg(city_location)", }) {
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query, testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregation does not use doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, false);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                as(fAgg.child(), EsRelation.class);
+
+                // Now optimize the plan and assert the aggregation uses doc-values
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, false);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, withDocValues);
                 assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
             }
         }
@@ -6657,6 +6841,299 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoinFieldLoading() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | KEEP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | EVAL bar = 10
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | RENAME bar AS foobar
+            | KEEP f*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | STATS count_distinct(foo) BY bar
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar")), true);
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | MV_EXPAND foo
+            | KEEP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | MV_EXPAND foo
+            | DROP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM lookup_index
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM lookup_index
+            | LOOKUP JOIN lookup_index ON first_name
+            | KEEP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+    }
+
+    public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(
+            Map.of(
+                "lookup_index1",
+                List.of("first_name", "foo", "bar", "baz"),
+                "lookup_index2",
+                List.of("first_name", "foo", "bar2", "baz2")
+            )
+        );
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | KEEP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP baz*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar"), Set.of("foo", "bar2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | EVAL foo = to_upper(foo)
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | EVAL foo = to_lower(foo)
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
+    public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(
+            Map.of(
+                "lookup_index1",
+                List.of("first_name", "foo", "bar", "baz"),
+                "lookup_index2",
+                List.of("first_name", "foo", "bar2", "baz2")
+            )
+        );
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | RENAME foo AS foo1
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | DROP bar
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | KEEP first_name, b*
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP bar*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("baz"), Set.of("foo", "baz2")));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
+    public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP foo, b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of()));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of(), Set.of("foo", "bar", "baz")));
+    }
+
+    private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {
+        assertLookupJoinFieldNames(query, data, expectedFieldNames, false);
+    }
+
+    private void assertLookupJoinFieldNames(
+        String query,
+        TestDataSource data,
+        List<Set<String>> expectedFieldNames,
+        boolean useDataNodePlan
+    ) {
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan(query, data, false);
+
+        var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
+
+        List<Set<String>> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
+
+        assertEquals(expectedFieldNames.size(), fields.size());
+        for (int i = 0; i < expectedFieldNames.size(); i++) {
+            assertEquals(expectedFieldNames.get(i), fields.get(i));
+        }
+    }
+
+    private TestDataSource dataSetWithLookupIndices(Map<String, Collection<String>> indexNameToFieldNames) {
+        Map<String, IndexResolution> lookupIndices = new HashMap<>();
+
+        for (Map.Entry<String, Collection<String>> entry : indexNameToFieldNames.entrySet()) {
+            String lookupIndexName = entry.getKey();
+            Map<String, EsField> lookup_fields = fields(entry.getValue());
+
+            EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
+            lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
+        }
+
+        return makeTestDataSource(
+            "test",
+            "mapping-basic.json",
+            new EsqlFunctionRegistry(),
+            lookupIndices,
+            setupEnrichResolution(),
+            TEST_SEARCH_STATS
+        );
+    }
+
+    private Map<String, EsField> fields(Collection<String> fieldNames) {
+        Map<String, EsField> fields = new HashMap<>();
+
+        for (String fieldName : fieldNames) {
+            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false));
+        }
+
+        return fields;
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan physicalOperationsFromPhysicalPlan(PhysicalPlan plan, boolean useDataNodePlan) {
+        // The TopN needs an estimated row size for the planner to work
+        var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
+        plan = useDataNodePlan ? plans.v2() : plans.v1();
+        plan = PlannerUtils.localPlan(List.of(), config, plan);
+        LocalExecutionPlanner planner = new LocalExecutionPlanner(
+            "test",
+            "",
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            Settings.EMPTY,
+            config,
+            new ExchangeSourceHandler(10, null, null),
+            new ExchangeSinkHandler(null, 10, () -> 10),
+            null,
+            null,
+            new EsPhysicalOperationProviders(List.of(), null)
+        );
+
+        return planner.plan(plan);
+    }
+
+    private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
+
+        String[] descriptionLines = physicalOperations.describe().split("\\r?\\n|\\r");
+
+        // Capture the inside of "...load_fields=[field{f}#19, other_field{f}#20]".
+        String insidePattern = "[^\\]]*";
+        Pattern expected = Pattern.compile("\\\\_LookupOperator.*load_fields=\\[(" + insidePattern + ")].*");
+
+        List<Set<String>> results = new ArrayList<>();
+        for (String line : descriptionLines) {
+            var matcher = expected.matcher(line);
+            if (matcher.find()) {
+                String allFields = matcher.group(1);
+                Set<String> loadedFields = Arrays.stream(allFields.split(","))
+                    .map(name -> name.trim().split("\\{f}#")[0])
+                    .collect(Collectors.toSet());
+                results.add(loadedFields);
+            }
+        }
+
+        return results;
+    }
+
     public void testScore() {
         assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
@@ -6756,7 +7233,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFunc = assertAggregation(plan, aliasName, aggClass);
         var aggField = as(aggFunc.field(), Attribute.class);
         var spatialAgg = as(aggFunc, SpatialAggregateFunction.class);
-        assertThat("Expected spatial aggregation to use doc-values", spatialAgg.useDocValues(), equalTo(useDocValues));
+        assertThat(
+            "Expected spatial aggregation to use doc-values",
+            spatialAgg.fieldExtractPreference(),
+            equalTo(useDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE)
+        );
         assertThat("", aggField.dataType(), equalTo(fieldType));
     }
 
@@ -6863,11 +7344,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
+        return physicalPlan(query, dataSource, true);
+    }
+
+    private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println(physical);
-        assertSerialization(physical);
+        if (assertSerialization) {
+            assertSerialization(physical);
+        }
         return physical;
     }
 

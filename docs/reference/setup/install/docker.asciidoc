@@ -25,6 +25,21 @@ TIP: This setup doesn't run multiple {es} nodes or {kib} by default. To create a
 multi-node cluster with {kib}, use Docker Compose instead. See
 <<docker-compose-file>>.
 
+[[docker-wolfi-hardened-image]]
+===== Hardened Docker images
+
+You can also use the hardened https://wolfi.dev/[Wolfi] image for additional security.
+Using Wolfi images requires Docker version 20.10.10 or higher.
+
+To use the Wolfi image, append `-wolfi` to the image tag in the Docker command.
+
+For example:
+
+[source,sh,subs="attributes"]
+----
+docker pull {docker-wolfi-image}
+----
+
 ===== Start a single-node cluster
 
 . Install Docker. Visit https://docs.docker.com/get-docker/[Get Docker] to

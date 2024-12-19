@@ -85,6 +85,7 @@ public class GetDataStreamActionTests extends ESTestCase {
         DataStream dataStream = newDataStreamInstance(isSystem, retention);
         return new GetDataStreamAction.Response.DataStreamInfo(
             dataStream,
+            randomBoolean(),
             randomFrom(ClusterHealthStatus.values()),
             null,
             null,

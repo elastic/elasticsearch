@@ -1553,100 +1553,36 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         try (var service = createService(mock(Client.class))) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "elasticsearch",
-                       "task_types": [
-                            {
-                                "task_type": "text_embedding",
-                                "configuration": {}
-                            },
-                            {
-                                "task_type": "sparse_embedding",
-                                "configuration": {}
-                            },
-                            {
-                                "task_type": "rerank",
-                                "configuration": {
-                                    "return_documents": {
-                                        "default_value": null,
-                                        "depends_on": [],
-                                        "display": "toggle",
-                                        "label": "Return Documents",
-                                        "order": 1,
-                                        "required": false,
-                                        "sensitive": false,
-                                        "tooltip": "Returns the document instead of only the index.",
-                                        "type": "bool",
-                                        "ui_restrictions": [],
-                                        "validations": [],
-                                        "value": true
-                                    }
-                                }
-                            }
-                       ],
-                       "configuration": {
+                       "service": "elasticsearch",
+                       "name": "Elasticsearch",
+                       "task_types": ["text_embedding", "sparse_embedding", "rerank"],
+                       "configurations": {
                            "num_allocations": {
                                "default_value": 1,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "The total number of allocations this model is assigned across machine learning nodes.",
                                "label": "Number Allocations",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The total number of allocations this model is assigned across machine learning nodes.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": true,
+                               "type": "int"
                            },
                            "num_threads": {
                                "default_value": 2,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Sets the number of threads used by each model allocation during inference.",
                                "label": "Number Threads",
-                               "order": 3,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "Sets the number of threads used by each model allocation during inference.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            },
                            "model_id": {
                                "default_value": ".multilingual-e5-small",
-                               "depends_on": [],
-                               "display": "dropdown",
+                               "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
-                               "options": [
-                                   {
-                                       "label": ".elser_model_1",
-                                       "value": ".elser_model_1"
-                                   },
-                                   {
-                                       "label": ".elser_model_2",
-                                       "value": ".elser_model_2"
-                                   },
-                                   {
-                                       "label": ".elser_model_2_linux-x86_64",
-                                       "value": ".elser_model_2_linux-x86_64"
-                                   },
-                                   {
-                                       "label": ".multilingual-e5-small",
-                                       "value": ".multilingual-e5-small"
-                                   },
-                                   {
-                                       "label": ".multilingual-e5-small_linux-x86_64",
-                                       "value": ".multilingual-e5-small_linux-x86_64"
-                                   }
-                               ],
-                               "order": 1,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The name of the model to use for the inference task.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            }
                        }
                    }

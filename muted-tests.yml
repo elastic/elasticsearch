@@ -238,8 +238,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
-- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/118224
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test60StartAndStop
   issue: https://github.com/elastic/elasticsearch/issues/118216
@@ -281,22 +279,35 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
   issue: https://github.com/elastic/elasticsearch/issues/118806
-- class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
-  method: testPruneSome
-  issue: https://github.com/elastic/elasticsearch/issues/118728
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/indices/shard-stores/line_150}
   issue: https://github.com/elastic/elasticsearch/issues/118896
 - class: org.elasticsearch.cluster.service.MasterServiceTests
   method: testThreadContext
   issue: https://github.com/elastic/elasticsearch/issues/118914
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/118955
-- class: org.elasticsearch.xpack.migrate.task.ReindexDataStreamStatusTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/118965
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118970
+- class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
+  method: testCancellationDuringTimeSeriesAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/118992
+- class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
+  method: testInvalidToken
+  issue: https://github.com/elastic/elasticsearch/issues/119019
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116777
+- class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
+  issue: https://github.com/elastic/elasticsearch/issues/115727
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
+  issue: https://github.com/elastic/elasticsearch/issues/118414
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  issue: https://github.com/elastic/elasticsearch/issues/119086
+- class: org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilderOverShapeTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119090
+- class: org.elasticsearch.xpack.spatial.index.query.GeoShapeQueryBuilderGeoShapeTests
+  method: testToQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119091
 
 # Examples:
 #

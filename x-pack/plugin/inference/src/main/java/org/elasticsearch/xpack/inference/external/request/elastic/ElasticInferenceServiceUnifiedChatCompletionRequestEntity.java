@@ -15,13 +15,13 @@ import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionR
 import java.io.IOException;
 import java.util.Objects;
 
-public class EISUnifiedChatCompletionRequestEntity implements ToXContentObject {
+public class ElasticInferenceServiceUnifiedChatCompletionRequestEntity implements ToXContentObject {
     private static final String MODEL_FIELD = "model";
 
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
     private final String modelId;
 
-    public EISUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, String modelId) {
+    public ElasticInferenceServiceUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, String modelId) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(Objects.requireNonNull(unifiedChatInput));
         this.modelId = Objects.requireNonNull(modelId);
     }

@@ -27,6 +27,10 @@ import java.util.Objects;
 
 public class ElasticInferenceServiceUnifiedChatCompletionRequest implements OpenAiRequest {
 
+    // Implementing OpenAiRequest to ensure compatibility with the OpenAI API interface
+    // This allows the ElasticInferenceService to handle requests in a standardized manner
+    // and leverage existing infrastructure for processing OpenAI-like requests.
+
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
     private final URI uri;
@@ -48,7 +52,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Open
     public HttpRequest createHttpRequest() {
         var httpPost = new HttpPost(uri);
         var requestEntity = Strings.toString(
-            new EISUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
+            new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));

@@ -69,7 +69,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
     '^indices.resolve_index/*/*',
-    '^indices.segments/*/*',
     '^indices.shard_stores/*/*',
     '^indices.shrink/*/*',
     '^indices.simulate_index_template/*/*',
@@ -87,7 +86,6 @@ tasks.named("yamlRestTest").configure {
     '^test/ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover', // uses lazy rollover
     '^migration/*/*',
     '^search/80_indices_options/Closed index',
-    '^search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added',
     '^search.highlight/10_unified/*',
     '^search.vectors/41_knn_search_bbq_hnsw/*',
     '^search.vectors/41_knn_search_byte_quantized/*',

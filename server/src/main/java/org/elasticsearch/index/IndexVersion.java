@@ -124,7 +124,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     }
 
     public boolean isLegacyIndexVersion() {
-        return before(IndexVersions.MINIMUM_COMPATIBLE);
+        return before(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }
 
     public static IndexVersion getMinimumCompatibleIndexVersion(int versionId) {

@@ -463,7 +463,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         final var componentResponse = client().execute(
             GetComponentTemplateAction.INSTANCE,
-            new GetComponentTemplateAction.Request("other*")
+            new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "other*")
         ).get();
 
         assertTrue(componentResponse.getComponentTemplates().isEmpty());

@@ -1,17 +1,17 @@
 setup:
   - requires:
       cluster_features: "gte_v8.15.0"
-      reason: Test suite targets semantic text with inference metadata fields
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
+      reason: semantic_text introduced in 8.15.0
 
   - do:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:

@@ -137,6 +137,7 @@ class GetStackTracesResponseBuilder {
     }
 
     public GetStackTracesResponse build() {
+        /*
         // Merge the TraceEvent data into the StackTraces.
         if (stackTraces != null && stackTraceEvents != null) {
             stackTraceEvents.forEach((id, event) -> {
@@ -154,6 +155,7 @@ class GetStackTracesResponseBuilder {
                 stackTrace.annualCostsUSD += event.annualCostsUSD;
             });
         }
+        */
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, totalSamples);
     }
 }

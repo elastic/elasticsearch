@@ -425,12 +425,12 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 }
 
 void addBuildEssDockerImageTask(Architecture architecture) {
-  DockerBase base = DockerBase.CLOUD_ESS
+  DockerBase dockerBase = DockerBase.CLOUD_ESS
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-  String contextDir = "${project.buildDir}/docker-context/elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+  String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
 
   final TaskProvider<Sync> buildContextTask =
-    tasks.register(taskName('build', architecture, base, 'DockerContext'), Sync) {
+    tasks.register(taskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
       into contextDir
 
       final Path projectDir = project.projectDir.toPath()
@@ -439,28 +439,52 @@ void addBuildEssDockerImageTask(Architecture architecture) {
         from configurations.allPlugins
       }
 
-      from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {
-        expand([
-          base_image: "elasticsearch${DockerBase.CLOUD.suffix}:${architecture.classifier}"
-        ])
+      // If we're performing a release build, but `build.id` hasn't been set, we can
+      // infer that we're not at the Docker building stage of the build, and therefore
+      // we should skip the beats part of the build.
+      String buildId = providers.systemProperty('build.id').getOrNull()
+      boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
+
+      if (includeBeats) {
+        from configurations.getByName("filebeat_${architecture.classifier}")
+        from configurations.getByName("metricbeat_${architecture.classifier}")
+      }
+      // For some reason, the artifact name can differ depending on what repository we used.
+      rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
+
+      String baseSuffix = DockerBase.DEFAULT.suffix
+      from(projectDir.resolve("src/docker/Dockerfile.ess")) {
+        expand(
+          [
+            base_image: "elasticsearch${baseSuffix}:${architecture.classifier}",
+            docker_base: "${dockerBase.name().toLowerCase()}",
+            version: "${VersionProperties.elasticsearch}",
+            retry: ShellRetry
+          ]
+        )
         filter SquashNewlinesFilter
-        rename ~/Dockerfile\.cloud-ess$/, 'Dockerfile'
+        rename ~/Dockerfile\.ess$/, 'Dockerfile'
       }
     }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
+    tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
 
-      TaskProvider<DockerBuildTask> buildCloudTask = tasks.named(taskName("build", architecture, DockerBase.CLOUD, "DockerImage"))
-      inputs.files(buildCloudTask)
+      DockerBase base = DockerBase.DEFAULT
+
+      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
+      inputs.files(buildBaseTask)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
       noCache = buildParams.isCi()
       baseImages = []
-      tags = generateTags(base, architecture)
+      tags = generateTags(dockerBase, architecture)
       platforms.add(architecture.dockerPlatform)
-      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
+      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
+        project.gradle.sharedServices,
+        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
+      )
       onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
 
     }

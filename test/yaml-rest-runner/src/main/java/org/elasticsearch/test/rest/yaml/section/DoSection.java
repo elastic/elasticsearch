@@ -593,8 +593,7 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static NodeSelector buildNodeSelector(String name, XContentParser parser)
-        throws IOException {
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
         return switch (name) {
             case "attribute" -> parseAttributeValuesSelector(parser);
             case "version" -> parseVersionSelector(parser);

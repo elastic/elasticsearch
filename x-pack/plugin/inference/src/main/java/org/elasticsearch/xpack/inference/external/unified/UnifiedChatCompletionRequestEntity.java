@@ -140,17 +140,17 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
 
         if (usesTools) {
             builder.startArray(TOOL_FIELD);
-            for (UnifiedCompletionRequest.Tool t : unifiedRequest.tools()) {
+            for (UnifiedCompletionRequest.Tool tool : unifiedRequest.tools()) {
                 builder.startObject();
                 {
-                    builder.field(TYPE_FIELD, t.type());
+                    builder.field(TYPE_FIELD, tool.type());
                     builder.startObject(FUNCTION_FIELD);
                     {
-                        builder.field(DESCRIPTION_FIELD, t.function().description());
-                        builder.field(NAME_FIELD, t.function().name());
-                        builder.field(PARAMETERS_FIELD, t.function().parameters());
-                        if (t.function().strict() != null) {
-                            builder.field(STRICT_FIELD, t.function().strict());
+                        builder.field(DESCRIPTION_FIELD, tool.function().description());
+                        builder.field(NAME_FIELD, tool.function().name());
+                        builder.field(PARAMETERS_FIELD, tool.function().parameters());
+                        if (tool.function().strict() != null) {
+                            builder.field(STRICT_FIELD, tool.function().strict());
                         }
                     }
                     builder.endObject();

@@ -3014,6 +3014,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(limit.child(), EsRelation.class);
     }
 
+    public void testPruneChainedEvalNoProjection() {
+        var plan = plan("""
+              from test
+            | eval garbage = salary + 3
+            | eval garbage = emp_no / garbage, garbage = garbage
+            | eval garbage = 1
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+
+        assertEquals(1, eval.fields().size());
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertEquals(alias.name(), "garbage");
+        var literal = as(alias.child(), Literal.class);
+        assertEquals(1, literal.value());
+    }
+
     /**
      * Expects
      * Limit[1000[INTEGER]]
@@ -4917,8 +4935,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             """);
 
-        var project = as(plan, Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(plan, Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
@@ -5924,10 +5941,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(plan, Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
         var limit = as(project.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
         var filter = as(limit.child(), Filter.class);
@@ -5968,10 +5984,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(plan, Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
 
         var limit = as(project.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
@@ -6012,8 +6027,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 
         var filter = as(limit.child(), Filter.class);
@@ -6025,7 +6039,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
 
         var leftRel = as(project.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);
@@ -6057,8 +6071,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
         // filter kept in place, working on the right side
         var filter = as(limit.child(), Filter.class);
@@ -6070,7 +6083,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
         // filter pushed down
         filter = as(project.child(), Filter.class);
         op = as(filter.condition(), GreaterThan.class);
@@ -6082,7 +6095,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var leftRel = as(filter.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);
-
     }
 
     /**
@@ -6110,8 +6122,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 
         var filter = as(limit.child(), Filter.class);
@@ -6131,7 +6142,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
 
         var leftRel = as(project.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);

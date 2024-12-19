@@ -22,8 +22,8 @@ public final class ChangePointLongAggregatorFunctionSupplier implements Aggregat
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public ChangePointLongAggregatorFunction aggregator(DriverContext driverContext) {
+    return ChangePointLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

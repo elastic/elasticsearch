@@ -215,8 +215,7 @@ final class AggregateMapper {
     }
 
     private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
-        // TODO: also non-grouping change point
-        if (tuple.v1().isAssignableFrom(Rate.class) || tuple.v1().isAssignableFrom(ChangePoint.class)) {
+        if (tuple.v1().isAssignableFrom(Rate.class)) {
             // rate doesn't support non-grouping aggregations
             return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
         } else {

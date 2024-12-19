@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -109,6 +110,14 @@ public class IndexMetadataVerifier {
      * previous major version.
      */
     private static void checkSupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+        // Special case for archive indices that have been restored first in a previous major version. Their compatibility version
+        // is < N - 1 and needs special treatment. This can be removed once N - 2 support has been implemented for all indices.
+        if (indexMetadata.getCreationVersion().equals(indexMetadata.getCompatibilityVersion()) == false
+            && indexMetadata.getCreationVersion().isLegacyIndexVersion()
+            && indexMetadata.getCompatibilityVersion().onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+            return;
+        }
+
         boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(

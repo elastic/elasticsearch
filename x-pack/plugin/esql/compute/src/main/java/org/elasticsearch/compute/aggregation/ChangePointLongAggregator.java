@@ -249,8 +249,7 @@ class ChangePointLongAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
-        }
+        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {}
 
         @Override
         public void close() {

@@ -786,15 +786,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
             } else {
-                boolean missingIndex = false;
-                for (Index index : dataStream.getIndices()) {
-                    final String indexName = index.getName();
-                    if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
-                        missingIndex = true;
-                        break;
-                    }
-                }
-                final DataStream reconciled = missingIndex ? dataStream.snapshot(indicesInSnapshot) : dataStream;
+                final DataStream reconciled = dataStream.snapshot(indicesInSnapshot, builder);
                 if (reconciled != null) {
                     dataStreams.put(dataStreamName, reconciled);
                 }

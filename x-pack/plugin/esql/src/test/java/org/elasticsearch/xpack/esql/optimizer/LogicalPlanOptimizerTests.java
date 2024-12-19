@@ -3023,7 +3023,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(limit.child(), EsRelation.class);
 
         assertEquals(1, eval.fields().size());
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertEquals(alias.name(), "garbage");
         var literal = as(alias.child(), Literal.class);
         assertEquals(1, literal.value());

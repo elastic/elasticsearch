@@ -558,11 +558,6 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V9(Build.current().isSnapshot()),
 
         /**
-         * LOOKUP JOIN with the same index as the FROM
-         */
-        JOIN_LOOKUP_REPEATED_INDEX_FROM(JOIN_LOOKUP_V9.isEnabled()),
-
-        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,

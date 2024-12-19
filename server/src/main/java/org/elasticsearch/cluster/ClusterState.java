@@ -66,6 +66,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -758,8 +759,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             // customs
             metrics.contains(Metric.CUSTOMS)
-                ? ChunkedToXContent.builder(outerParams)
-                    .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
+                ? Iterators.flatMap(customs.entrySet().iterator(), e -> object(e.getKey(), e.getValue().toXContentChunked(outerParams)))
                 : Collections.emptyIterator()
         );
     }

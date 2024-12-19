@@ -21,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -47,6 +47,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -552,7 +554,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).field("last_allocation_id", lastAllocationId).array("tasks", tasks.values().iterator());
+        return NewChunkedXContentBuilder.of(field("last_allocation_id", lastAllocationId), array("tasks", tasks.values().iterator()));
     }
 
     public static Builder builder() {

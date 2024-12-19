@@ -85,11 +85,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.common.collect.Iterators.flatMap;
+import static org.elasticsearch.common.collect.Iterators.map;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
-import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObject;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 /**
@@ -1527,13 +1528,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
                 return b.endObject();
             }) : empty(),
-            object("templates", templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p)),
-            context == XContentContext.API ? xContentObject("indices", indices().values().iterator()) : empty(),
-            NewChunkedXContentBuilder.forEach(
+            object(
+                "templates",
+                map(templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
+            ),
+            context == XContentContext.API ? NewChunkedXContentBuilder.object("indices", indices().values().iterator()) : empty(),
+            flatMap(
                 customs.entrySet().iterator(),
                 e -> e.getValue().context().contains(context) ? object(e.getKey(), e.getValue().toXContentChunked(params)) : empty()
             ),
-            xContentObject("reserved_state", reservedStateMetadata().values().iterator()),
+            NewChunkedXContentBuilder.object("reserved_state", reservedStateMetadata().values().iterator()),
             chunk((b, p) -> b.endObject())  // close the metadata/meta-data start object
         );
     }

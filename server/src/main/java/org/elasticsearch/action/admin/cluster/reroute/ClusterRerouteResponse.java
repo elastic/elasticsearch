@@ -32,7 +32,6 @@ import static org.elasticsearch.action.support.master.AcknowledgedResponse.ACKNO
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
-import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObject;
 
 /**
  * Response returned after a cluster reroute request
@@ -99,7 +98,7 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         return NewChunkedXContentBuilder.of(
             object(
                 chunk((b, p) -> b.field(ACKNOWLEDGED_KEY, isAcknowledged())),
-                emitState(outerParams) ? xContentObject("state", state.toXContentChunked(outerParams)) : empty(),
+                emitState(outerParams) ? NewChunkedXContentBuilder.object("state", state.toXContentChunked(outerParams)) : empty(),
                 outerParams.paramAsBoolean("explain", false) ? chunk(explanations) : empty()
             )
         );

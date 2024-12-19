@@ -36,6 +36,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
+import static org.elasticsearch.common.collect.Iterators.map;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 
@@ -141,7 +142,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return NewChunkedXContentBuilder.of(object("nodes", leastAvailableSpaceUsage.entrySet().iterator(), c -> (b, p) -> {
+        return NewChunkedXContentBuilder.of(object("nodes", map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (b, p) -> {
             b.startObject(c.getKey());
             { // node
                 b.field("node_name", c.getValue().nodeName());
@@ -160,23 +161,27 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 b.endObject(); // end "most_available"
             }
             return b.endObject(); // end $nodename
-        }),
+        })),
             object(
                 "shard_sizes",
-                shardSizes.entrySet().iterator(),
-                c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
+                map(
+                    shardSizes.entrySet().iterator(),
+                    c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
+                )
             ),
             object(
                 "shard_data_set_sizes",
-                shardDataSetSizes.entrySet().iterator(),
-                c -> (builder, p) -> builder.humanReadableField(
-                    c.getKey() + "_bytes",
-                    c.getKey().toString(),
-                    ByteSizeValue.ofBytes(c.getValue())
+                map(
+                    shardDataSetSizes.entrySet().iterator(),
+                    c -> (builder, p) -> builder.humanReadableField(
+                        c.getKey() + "_bytes",
+                        c.getKey().toString(),
+                        ByteSizeValue.ofBytes(c.getValue())
+                    )
                 )
             ),
-            object("shard_paths", dataPath.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().toString(), e.getValue())),
-            array("reserved_sizes", reservedSpace.entrySet().iterator(), c -> (b, p) -> {
+            object("shard_paths", map(dataPath.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().toString(), e.getValue()))),
+            array("reserved_sizes", map(reservedSpace.entrySet().iterator(), c -> (b, p) -> {
                 b.startObject();
                 {
                     b.field("node_id", c.getKey().nodeId);
@@ -184,7 +189,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     c.getValue().toXContent(b, p);
                 }
                 return b.endObject(); // NodeAndPath
-            })
+            }))
         );
     }
 

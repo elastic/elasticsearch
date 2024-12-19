@@ -11,7 +11,7 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -20,6 +20,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.collect.Iterators.flatMap;
+import static org.elasticsearch.common.collect.Iterators.map;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
 
 /**
@@ -77,18 +82,17 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            var builder = ChunkedToXContent.builder(params);
             if (nodes != null) {
-                return builder.array(type.displayValue, nodes.iterator(), node -> (b, p) -> {
+                return NewChunkedXContentBuilder.array(type.displayValue, map(nodes.iterator(), node -> (b, p) -> {
                     b.startObject();
                     b.field(ID_FIELD, node.getId());
                     if (node.getName() != null) {
                         b.field(NAME_FIELD, node.getName());
                     }
                     return b.endObject();
-                });
+                }));
             } else {
-                return builder.array(type.displayValue, values.toArray(String[]::new));
+                return chunk((b, p) -> b.array(type.displayValue, values.toArray(String[]::new)));
             }
         }
 
@@ -141,17 +145,16 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.append((b, p) -> {
-                b.field("id", definition.getUniqueId());
-                b.field("cause", definition.cause);
-                b.field("action", definition.action);
-                b.field("help_url", definition.helpURL);
-                return b;
-            });
-            if (affectedResources != null && affectedResources.isEmpty() == false) {
-                ob.object("affected_resources", affectedResources.iterator(), ChunkedToXContentBuilder::append);
-            }
-        });
+        return object(chunk((b, p) -> {
+            b.field("id", definition.getUniqueId());
+            b.field("cause", definition.cause);
+            b.field("action", definition.action);
+            b.field("help_url", definition.helpURL);
+            return b;
+        }),
+            affectedResources != null && affectedResources.isEmpty() == false
+                ? object("affected_resources", flatMap(affectedResources.iterator(), r -> r.toXContentChunked(params)))
+                : empty()
+        );
     }
 }

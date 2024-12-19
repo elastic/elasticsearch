@@ -34,6 +34,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.collect.Iterators.map;
 import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
 
 /**
@@ -281,11 +282,11 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return NewChunkedXContentBuilder.of(
-            array(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
+            array(map(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);
                 Arrays.sort(features);
                 return builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
-            })
+            }))
         );
     }
 

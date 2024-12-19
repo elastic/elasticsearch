@@ -9,13 +9,17 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Iterator;
 import java.util.List;
+
+import static org.elasticsearch.common.collect.Iterators.flatMap;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
 
 public record HealthIndicatorResult(
     String name,
@@ -27,21 +31,20 @@ public record HealthIndicatorResult(
 ) implements ChunkedToXContentObject {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.append((b, p) -> {
-                b.field("status", status.xContentValue());
-                b.field("symptom", symptom);
-                if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
-                    b.field("details", details, p);
-                }
-                if (impacts != null && impacts.isEmpty() == false) {
-                    b.field("impacts", impacts);
-                }
-                return b;
-            });
-            if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-                ob.array("diagnosis", diagnosisList.iterator(), ChunkedToXContentBuilder::append);
+        return NewChunkedXContentBuilder.object(chunk((b, p) -> {
+            b.field("status", status.xContentValue());
+            b.field("symptom", symptom);
+            if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
+                b.field("details", details, p);
             }
-        });
+            if (impacts != null && impacts.isEmpty() == false) {
+                b.field("impacts", impacts);
+            }
+            return b;
+        }),
+            diagnosisList != null && diagnosisList.isEmpty() == false
+                ? array("diagnosis", flatMap(diagnosisList.iterator(), d -> d.toXContentChunked(params)))
+                : empty()
+        );
     }
 }

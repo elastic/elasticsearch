@@ -19,7 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObjectFields;
 
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
@@ -232,9 +235,10 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams)
-            .xContentObject(DATA_STREAM_ALIASES.getPreferredName(), dataStreamAliases.values().iterator());
+        return NewChunkedXContentBuilder.of(
+            xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams),
+            object(DATA_STREAM_ALIASES.getPreferredName(), dataStreamAliases.values().iterator())
+        );
     }
 
     @Override

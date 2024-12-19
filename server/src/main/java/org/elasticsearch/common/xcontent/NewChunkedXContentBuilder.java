@@ -14,10 +14,12 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.function.Function;
+import java.util.Map;
+
+import static org.elasticsearch.common.collect.Iterators.map;
 
 public class NewChunkedXContentBuilder {
-
+    // TODO: merge with ChunkedXContentHelper
     private static Iterator<? extends ToXContent> startObject() {
         return chunk((b, p) -> b.startObject());
     }
@@ -90,27 +92,24 @@ public class NewChunkedXContentBuilder {
         return of(startObject(), of(items), endObject());
     }
 
-    public static <T> Iterator<? extends ToXContent> object(String name, Iterator<T> items, Function<? super T, ToXContent> create) {
-        return of(startObject(name), Iterators.map(items, create), endObject());
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static Iterator<? extends ToXContent> object(String name, Iterator<? extends ToXContent>... items) {
+        return of(startObject(name), of(items), endObject());
+    }
+
+    public static Iterator<? extends ToXContent> array(Iterator<? extends ToXContent> items) {
+        return of(startArray(), items, endArray());
     }
 
     public static Iterator<? extends ToXContent> array(String name, Iterator<? extends ToXContent> items) {
         return of(startArray(name), items, endArray());
     }
 
-    public static <T> Iterator<? extends ToXContent> array(Iterator<T> items, Function<? super T, ToXContent> create) {
-        return of(startArray(), Iterators.map(items, create), endArray());
-    }
-
-    public static <T> Iterator<? extends ToXContent> array(String name, Iterator<T> items, Function<? super T, ToXContent> create) {
-        return of(startArray(name), Iterators.map(items, create), endArray());
-    }
-
-    public static Iterator<? extends ToXContent> xContentObject(String name, Iterator<? extends ToXContent> contents) {
-        return of(startObject(name), contents, endObject());
-    }
-
-    public static <T> Iterator<? extends ToXContent> forEach(Iterator<T> items, Function<T, Iterator<? extends ToXContent>> map) {
-        return Iterators.flatMap(items, map);
+    /**
+     * Creates an object named {@code name}, with the contents of each field created from each entry in {@code map}
+     */
+    public static Iterator<? extends ToXContent> xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
+        return of(startObject(name), map(map.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey(), e.getValue(), p)), endObject());
     }
 }

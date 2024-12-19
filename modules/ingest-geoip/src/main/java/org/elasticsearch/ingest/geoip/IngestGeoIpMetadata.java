@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -91,7 +91,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases);
+        return NewChunkedXContentBuilder.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases);
     }
 
     @Override

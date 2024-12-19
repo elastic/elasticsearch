@@ -16,12 +16,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+
+import static org.elasticsearch.common.collect.Iterators.flatMap;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 
 public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
@@ -41,12 +44,17 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
-        return ChunkedToXContent.builder(outerParams)
-            .object(
-                "nodes",
+        return NewChunkedXContentBuilder.object(
+            "nodes",
+            flatMap(
                 getNodes().iterator(),
-                (b, ns) -> b.object(ns.getNode().getId(), ob -> ob.field("timestamp", ns.getTimestamp()).append(ns))
-            );
+                ns -> NewChunkedXContentBuilder.object(
+                    ns.getNode().getId(),
+                    chunk((b, p) -> b.field("timestamp", ns.getTimestamp())),
+                    ns.toXContentChunked(outerParams)
+                )
+            )
+        );
     }
 
     @Override

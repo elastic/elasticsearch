@@ -805,10 +805,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -845,10 +861,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -887,10 +919,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1032,10 +1080,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1081,10 +1145,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1130,10 +1210,10 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},
+                "data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1179,10 +1259,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1563,10 +1659,26 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1640,10 +1752,34 @@ public class JinaAIServiceTests extends ESTestCase {
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
             // Batching will call the service with 2 input
-            String responseJson =
-                """
-                    {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},"data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}, {"object":"embedding","index":1,"embedding":[0.223, -0.223]}]}
-                    """;
+            String responseJson = """
+                {
+                    "model": "jina-clip-v2",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5,
+                        "prompt_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        },
+                        {
+                            "object": "embedding",
+                            "index": 1,
+                            "embedding": [
+                                0.223,
+                                -0.223
+                            ]
+                        }
+                    ]
+                }
+                """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();

@@ -32,10 +32,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.recovery.IndexRecoveryIT;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -98,9 +96,9 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         ensureStableCluster(1);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
         plugin.resetMeter();
 
         assertAcked(prepareCreate("index_no_refresh", Settings.builder().put("index.refresh_interval", "-1")));
@@ -117,11 +115,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             }
             {
                 var e = expectThrows(
-                        VersionConflictEngineException.class,
-                        () -> client(dataNode).get(
-                                new GetRequest(indexName, docId).version(10)
-                                        .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
-                        ).actionGet()
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).get(
+                        new GetRequest(indexName, docId).version(10).versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                    ).actionGet()
                 );
                 assertThat(e.getMessage(), containsString("version conflict"));
                 assertThat(e.status(), is(RestStatus.CONFLICT));
@@ -132,12 +129,12 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             client(dataNode).admin().indices().prepareRefresh(indexName).get();
             {
                 var e = expectThrows(
-                        VersionConflictEngineException.class,
-                        () -> client(dataNode).get(
-                                new GetRequest(indexName, docId).version(5)
-                                        .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
-                                        .realtime(false)
-                        ).actionGet()
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).get(
+                        new GetRequest(indexName, docId).version(5)
+                            .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                            .realtime(false)
+                    ).actionGet()
                 );
                 assertThat(e.getMessage(), containsString("version conflict"));
                 assertThat(e.status(), is(RestStatus.CONFLICT));
@@ -186,9 +183,9 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         ensureStableCluster(1);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
         plugin.resetMeter();
 
         assertAcked(
@@ -223,9 +220,9 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         // if_seq_no conflict
         {
             var e = expectThrows(
-                    VersionConflictEngineException.class,
-                    () -> client(dataNode).index(new IndexRequest("test").id(docId).source(Map.of()).setIfSeqNo(1).setIfPrimaryTerm(1))
-                            .actionGet()
+                VersionConflictEngineException.class,
+                () -> client(dataNode).index(new IndexRequest("test").id(docId).source(Map.of()).setIfSeqNo(1).setIfPrimaryTerm(1))
+                    .actionGet()
             );
             assertThat(e.getMessage(), containsString("version conflict"));
             assertThat(e.status(), is(RestStatus.CONFLICT));
@@ -250,10 +247,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         {
             var e = expectThrows(
                 MapperParsingException.class,
-                () -> client(dataNode).index(
-                    new IndexRequest("test").id(docId + "other")
-                          .source(Map.of("test_field", "this will error"))
-                ).actionGet()
+                () -> client(dataNode).index(new IndexRequest("test").id(docId + "other").source(Map.of("test_field", "this will error")))
+                    .actionGet()
             );
             assertThat(e.status(), is(RestStatus.BAD_REQUEST));
         }
@@ -267,7 +262,6 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(measurements.get(1).value(), is(3L));
         assertThat(measurements.get(1).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "version_conflict")));
     }
-
 
     public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
         final AtomicBoolean throwParsingError = new AtomicBoolean(false);

@@ -1052,8 +1052,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex(
             "test",
-            indexSettings(1, 0)
-                .put("index.analysis.analyzer.test_analyzer.type", "custom")
+            indexSettings(1, 0).put("index.analysis.analyzer.test_analyzer.type", "custom")
                 .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
                 .build()

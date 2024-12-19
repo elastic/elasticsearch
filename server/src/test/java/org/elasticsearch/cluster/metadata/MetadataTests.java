@@ -1985,8 +1985,6 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2037,8 +2035,6 @@ public class MetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2052,8 +2048,6 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2068,8 +2062,6 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),

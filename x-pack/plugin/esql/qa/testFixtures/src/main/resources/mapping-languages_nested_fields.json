@@ -6,7 +6,12 @@
           "type": "integer"
         },
         "name": {
-          "type": "keyword"
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
         },
         "code": {
           "type": "keyword"

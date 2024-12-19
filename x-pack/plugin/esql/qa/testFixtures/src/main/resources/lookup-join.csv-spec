@@ -431,12 +431,38 @@ FROM employees
 | KEEP emp_no, language.id, language.name
 ;
 
-emp_no:integer | language.id:integer | language.name:keyword
+emp_no:integer | language.id:integer | language.name:text
 10001          | 1                   | English
 10002          | 2                   | French
 10003          | 3                   | Spanish
 10004          | 4                   | German
 10005          | 5                   | null
+;
+
+
+joinOnNestedFieldRow
+required_capability: join_lookup_v8
+
+ROW language.code = "EN"
+| LOOKUP JOIN languages_nested_fields ON language.code
+| KEEP language.id, language.code, language.name.keyword
+;
+
+language.id:integer | language.code:keyword | language.name.keyword:keyword
+1                   | EN                    | English
+;
+
+
+joinOnNestedNestedFieldRow
+required_capability: join_lookup_v8
+
+ROW language.name.keyword = "English"
+| LOOKUP JOIN languages_nested_fields ON language.name.keyword
+| KEEP language.id, language.name, language.name.keyword
+;
+
+language.id:integer | language.name:text | language.name.keyword:keyword
+1                   | English            | English
 ;
 
 ###############################################

@@ -1,4 +1,4 @@
-_id:integer,language.id:integer,language.name:keyword,language.code:keyword
+_id:integer,language.id:integer,language.name:text,language.code:keyword
 1,1,English,EN
 2,2,French,FR
 3,3,Spanish,ES

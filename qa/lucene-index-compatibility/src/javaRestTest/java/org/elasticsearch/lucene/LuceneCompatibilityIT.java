@@ -10,20 +10,18 @@
 package org.elasticsearch.lucene;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.util.Version;
 
-import java.util.stream.IntStream;
-
-import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
 
@@ -35,22 +33,19 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
         super(version);
     }
 
+    /**
+     * Creates an index and a snapshot on N-2, then restores the snapshot on N.
+     */
     public void testRestoreIndex() throws Exception {
         final String repository = suffix("repository");
         final String snapshot = suffix("snapshot");
         final String index = suffix("index");
         final int numDocs = 1234;
 
-        logger.debug("--> registering repository [{}]", repository);
-        registerRepository(
-            client(),
-            repository,
-            FsRepository.TYPE,
-            true,
-            Settings.builder().put("location", REPOSITORY_PATH.getRoot().getPath()).build()
-        );
-
         if (VERSION_MINUS_2.equals(clusterVersion())) {
+            logger.debug("--> registering repository [{}]", repository);
+            registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
+
             logger.debug("--> creating index [{}]", index);
             createIndex(
                 client(),
@@ -63,17 +58,7 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
             );
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
-            final var bulks = new StringBuilder();
-            IntStream.range(0, numDocs).forEach(n -> bulks.append(Strings.format("""
-                {"index":{"_id":"%s","_index":"%s"}}
-                {"test":"test"}
-                """, n, index)));
-
-            var bulkRequest = new Request("POST", "/_bulk");
-            bulkRequest.setJsonEntity(bulks.toString());
-            var bulkResponse = client().performRequest(bulkRequest);
-            assertOK(bulkResponse);
-            assertThat(entityAsMap(bulkResponse).get("errors"), allOf(notNullValue(), is(false)));
+            indexDocs(index, numDocs);
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
@@ -83,7 +68,7 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
         if (VERSION_MINUS_1.equals(clusterVersion())) {
             ensureGreen(index);
 
-            assertThat(indexLuceneVersion(index), equalTo(VERSION_MINUS_2));
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
             logger.debug("--> deleting index [{}]", index);
@@ -93,9 +78,9 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
 
         if (VERSION_CURRENT.equals(clusterVersion())) {
             var restoredIndex = suffix("index-restored");
-            logger.debug("--> restoring index [{}] as archive [{}]", index, restoredIndex);
+            logger.debug("--> restoring index [{}] as [{}]", index, restoredIndex);
 
-            // Restoring the archive will fail as Elasticsearch does not support reading N-2 yet
+            // Restoring the index will fail as Elasticsearch does not support reading N-2 yet
             var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");
             request.addParameter("wait_for_completion", "true");
             request.setJsonEntity(Strings.format("""
@@ -106,9 +91,20 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
                   "rename_replacement": "%s",
                   "include_aliases": false
                 }""", index, restoredIndex));
-            var responseBody = createFromResponse(client().performRequest(request));
-            assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.failed")));
-            assertThat(responseBody.evaluate("snapshot.shards.successful"), equalTo(0));
+
+            var responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), responseException.getResponse().getStatusLine().getStatusCode());
+            assertThat(
+                responseException.getMessage(),
+                allOf(
+                    containsString("cannot restore index [[" + index),
+                    containsString("because it cannot be upgraded"),
+                    containsString("has current compatibility version [" + VERSION_MINUS_2 + '-' + VERSION_MINUS_1.getMajor() + ".0.0]"),
+                    containsString("but the minimum compatible version is [" + VERSION_MINUS_1.getMajor() + ".0.0]."),
+                    containsString("It should be re-indexed in Elasticsearch " + VERSION_MINUS_1.getMajor() + ".x"),
+                    containsString("before upgrading to " + VERSION_CURRENT)
+                )
+            );
         }
     }
 }

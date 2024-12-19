@@ -77,7 +77,8 @@ public class MapperFeatures implements FeatureSpecification {
             DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-            SPARSE_VECTOR_STORE_SUPPORT
+            SPARSE_VECTOR_STORE_SUPPORT,
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE
         );
     }
 }

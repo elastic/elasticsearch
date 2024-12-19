@@ -81,7 +81,7 @@ public class ArchiveAllocationDeciderTests extends ESTestCase {
 
     private static ProjectMetadata.Builder addRandomIndices(ProjectMetadata.Builder projectbuilder, int count) {
         for (int i = 0; i < count; i++) {
-            addIndex(projectbuilder, randomAlphaOfLengthBetween(5, 16), randomUUID(), IndexVersionUtils.randomVersion(random()));
+            addIndex(projectbuilder, randomAlphaOfLengthBetween(5, 16), randomUUID(), IndexVersionUtils.randomVersion());
         }
         return projectbuilder;
     }

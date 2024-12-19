@@ -53,7 +53,10 @@ public class TransportVersions {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
+    public static final TransportVersion V_7_1_0 = def(7_01_00_99);
+    public static final TransportVersion V_7_2_0 = def(7_02_00_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
+    public static final TransportVersion V_7_3_2 = def(7_03_02_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
     public static final TransportVersion V_7_6_0 = def(7_06_00_99);
     public static final TransportVersion V_7_8_0 = def(7_08_00_99);
@@ -141,6 +144,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
     public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_809_00_0);
     public static final TransportVersion NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION = def(8_810_00_0);
+    public static final TransportVersion ERROR_TRACE_IN_TRANSPORT_HEADER = def(8_811_00_0);
 
     /*
      * WARNING: DO NOT MERGE INTO MAIN!

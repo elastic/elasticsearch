@@ -1483,20 +1483,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
         var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-        testBlockLoader(FieldExtractPreference.forColumnReader(columnReader), example, blockReaderSupport, sourceLoader);
+        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 
     protected final void testBlockLoader(
-        FieldExtractPreference fieldExtractPreference,
+        boolean columnReader,
         SyntheticSourceExample example,
         BlockReaderSupport blockReaderSupport,
         SourceLoader sourceLoader
     ) throws IOException {
-        var columnReader = switch (fieldExtractPreference) {
-            case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> true;
-            case NONE -> false;
-        };
-        BlockLoader loader = blockReaderSupport.getBlockLoader(fieldExtractPreference);
+        BlockLoader loader = blockReaderSupport.getBlockLoader(FieldExtractPreference.forColumnReader(columnReader));
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
         if (valuesConvert == null) {
             assertNull(loader);

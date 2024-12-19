@@ -2935,23 +2935,25 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Before local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     *   \_AggregateExec[[],[SPATIALEXTENT(location{f}#12,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#12,true[BOOLEAN]) AS cen
-     * troid],FINAL,...]
-     *     \_ExchangeExec[[...]]
-     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[..]]
-     *         \_EsRelation[airports-no-doc-values][abbrev{f}#8, city{f}#14, city_location{f}#15, count..]]]
+     * \_AggregateExec[[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]) AS cen
+     * troid],FINAL,[...]]
+     *   \_ExchangeExec[[...]]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[STANDARD,[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]
+     * ) AS centroid]]
+     * \_EsRelation[airports][abbrev{f}#66, city{f}#72, city_location{f}#73, coun..]]]
      * </code>
      * After local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     *   \_AggregateExec[[],[SPATIALEXTENT(location{f}#12,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#12,true[BOOLEAN]) AS cen
-     *   troid],FINAL,[...]]
-     *     \_ExchangeExec[[...]]
-     *       \_AggregateExec[[],[SPATIALEXTENT(location{f}#12,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#12,true[BOOLEAN]) AS cen
-     *   troid],INITIAL,...]
-     *         \_FilterExec[ISNOTNULL(location{f}#12)]
-     *           \_FieldExtractExec[location{f}#12]
-     *             \_EsQueryExec[airports-no-doc-values], indexMode[standard], query[][_doc{f}#59], limit[], sort[] estimatedRowSize[25]
+     * \_AggregateExec[[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]) AS cen
+     * troid],FINAL,[...]]
+     *   \_ExchangeExec[[...]]
+     *     \_AggregateExec[[],[SPATIALEXTENT(location{f}#70,true[BOOLEAN]) AS extent, SPATIALCENTROID(location{f}#70,true[BOOLEAN]) AS cen
+     * troid],INITIAL,[...]]
+     *       \_FieldExtractExec[location{f}#70][location{f}#70],[]
+     *         \_EsQueryExec[airports], indexMode[standard], query[{"exists":{"field":"location","boost":1.0}}][
+     * _doc{f}#117], limit[], sort[] estimatedRowSize[25]
      * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      * <p>
@@ -2996,26 +2998,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Before local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent],FINAL,[$$extent$minNegX{r}#11, $$extent$minPosX{r
-     * }#12, $$extent$maxNegX{r}#13, $$extent$maxPosX{r}#14, $$extent$maxY{r}#15, $$extent$minY{r}#16],null]
-     *   \_ExchangeExec[[$$extent$minNegX{r}#11, $$extent$minPosX{r}#12, $$extent$maxNegX{r}#13, $$extent$maxPosX{r}#14, $$extent$maxY
-     * {r}#15, $$extent$minY{r}#16],true]
-     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * \_AggregateExec[[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent],FINAL,[...]]
+     *   \_ExchangeExec[[...]]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
      * Aggregate[STANDARD,[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent]]
-     *       \_EsRelation[airports_city_boundaries][abbrev{f}#5, airport{f}#6, city{f}#8, city_boundary..]<>]]
+     *       \_EsRelation[airports_city_boundaries][abbrev{f}#5, airport{f}#6, city{f}#8, city_boundary..]]]
      * </code>
      * After local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent],FINAL,[$$extent$minNegX{r}#11, $$extent$minPosX{r
-     * }#12, $$extent$maxNegX{r}#13, $$extent$maxPosX{r}#14, $$extent$maxY{r}#15, $$extent$minY{r}#16],200]
-     *   \_ExchangeExec[[$$extent$minNegX{r}#11, $$extent$minPosX{r}#12, $$extent$maxNegX{r}#13, $$extent$maxPosX{r}#14, $$extent$maxY
-     * {r}#15, $$extent$minY{r}#16],true]
-     *     \_AggregateExec[[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent],INITIAL,[$$extent$minNegX{r}#30, $$extent$minPosX
-     * {r}#31, $$extent$maxNegX{r}#32, $$extent$maxPosX{r}#33, $$extent$maxY{r}#34, $$extent$minY{r}#35],200]
-     *       \_FieldExtractExec[city_boundary{f}#10]<[],[city_boundary{f}#10]>
-     *         \_EsQueryExec[airports_city_boundaries], indexMode[standard], query[{"exists":{"field":"city_boundary","boost":1.0}}][
-     * _doc{f}#36], limit[], sort[] estimatedRowSize[204]
+     * \_AggregateExec[[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent],FINAL,[...]]
+     *   \_ExchangeExec[[...]]
+     *     \_AggregateExec[[],[SPATIALEXTENT(city_boundary{f}#10,true[BOOLEAN]) AS extent],INITIAL,[...]]
+     *       \_FieldExtractExec[city_boundary{f}#10][],[city_boundary{f}#10]
+     *         \_EsQueryExec[airports_city_boundaries], indexMode[standard],
+     * query[{"exists":{"field":"city_boundary","boost":1.0}}][_doc{f}#36], limit[], sort[] estimatedRowSize[204]
      * </code>
      */
     public void testSpatialTypesAndStatsExtentOfShapesUsesBinaryExtraction() {
@@ -3034,9 +3031,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         as(fAgg.child(), EsRelation.class);
 
         // Now optimize the plan and assert the aggregation uses extent extraction
-        System.out.println(plan);
         var optimized = optimizedPlan(plan, testData.stats);
-        System.out.println(optimized);
         limit = as(optimized, LimitExec.class);
         agg = as(limit.child(), AggregateExec.class);
         // Above the exchange (in coordinator) the aggregation is not using doc-values

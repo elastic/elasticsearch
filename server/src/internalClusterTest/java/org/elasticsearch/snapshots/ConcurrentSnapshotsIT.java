@@ -1361,9 +1361,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         if (deleteAndAbortAll) {
             awaitNumberOfSnapshotsInProgress(0);
             for (ActionFuture<CreateSnapshotResponse> snapshotFuture : snapshotFutures) {
-                // just check that the futures resolve, whether or not things worked out with the snapshot actually finalizing or failing
-                // due to the abort does not matter
-                assertBusy(() -> assertTrue(snapshotFuture.isDone()));
+                try {
+                    snapshotFuture.get();
+                } catch (ExecutionException e) {
+                    // just check that the futures resolve, whether or not things worked out with the snapshot actually finalizing or
+                    // failing due to the abort does not matter
+                }
             }
             assertThat(getRepositoryData(repoName).getSnapshotIds(), empty());
         } else {

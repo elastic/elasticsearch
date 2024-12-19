@@ -1585,7 +1585,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(nbReplicas)
                     .build()
-                    .withTimestampRanges(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.UNKNOWN, minTransportVersion),
+                    .withTimestampRanges(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.UNKNOWN),
                 null,
                 MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(settings),
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

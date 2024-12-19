@@ -174,8 +174,12 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     @Override
-    public boolean equals(Object o) {
-        return delegate.equals(o);
+    public boolean equals(Object obj) {
+        if (obj instanceof AttributeSet as) {
+            obj = as.delegate;
+        }
+
+        return delegate.equals(obj);
     }
 
     @Override

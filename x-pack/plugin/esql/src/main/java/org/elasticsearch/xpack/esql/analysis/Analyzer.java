@@ -691,15 +691,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
                     resolved.add(resolvedCol);
-                }
-                // columns are expected to be unresolved - if that's not the case return an error
-                else {
-                    return singletonList(
-                        new UnresolvedAttribute(
-                            col.source(),
-                            col.name(),
-                            "Surprised to discover column [ " + col.name() + "] already resolved"
-                        )
+                } else {
+                    throw new IllegalStateException(
+                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
                     );
                 }
             }

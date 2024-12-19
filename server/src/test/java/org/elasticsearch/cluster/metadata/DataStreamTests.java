@@ -47,8 +47,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -870,23 +872,39 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testSnapshot() {
-        var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
-        var indicesToRemove = randomSubsetOf(preSnapshotDataStream.getIndices());
-        if (indicesToRemove.size() == preSnapshotDataStream.getIndices().size()) {
+        var preSnapshotDataStream = DataStreamTestHelper.randomInstance(true);
+
+        // Mutate backing indices
+        var backingIndicesToRemove = randomSubsetOf(preSnapshotDataStream.getIndices());
+        if (backingIndicesToRemove.size() == preSnapshotDataStream.getIndices().size()) {
             // never remove them all
-            indicesToRemove.remove(0);
+            backingIndicesToRemove.remove(0);
         }
-        var indicesToAdd = randomIndexInstances();
-        var postSnapshotIndices = new ArrayList<>(preSnapshotDataStream.getIndices());
-        postSnapshotIndices.removeAll(indicesToRemove);
-        postSnapshotIndices.addAll(indicesToAdd);
+        var backingIndicesToAdd = randomIndexInstances();
+        var postSnapshotBackingIndices = new ArrayList<>(preSnapshotDataStream.getIndices());
+        postSnapshotBackingIndices.removeAll(backingIndicesToRemove);
+        postSnapshotBackingIndices.addAll(backingIndicesToAdd);
+
+        // Mutate failure indices
+        var failureIndicesToRemove = randomSubsetOf(preSnapshotDataStream.getFailureIndices().getIndices());
+        var failureIndicesToAdd = randomIndexInstances();
+        var postSnapshotFailureIndices = new ArrayList<>(preSnapshotDataStream.getFailureIndices().getIndices());
+        postSnapshotFailureIndices.removeAll(failureIndicesToRemove);
+        postSnapshotFailureIndices.addAll(failureIndicesToAdd);
 
         var replicated = preSnapshotDataStream.isReplicated() && randomBoolean();
         var postSnapshotDataStream = preSnapshotDataStream.copy()
             .setBackingIndices(
                 preSnapshotDataStream.getBackingIndices()
                     .copy()
-                    .setIndices(postSnapshotIndices)
+                    .setIndices(postSnapshotBackingIndices)
+                    .setRolloverOnWrite(replicated == false && preSnapshotDataStream.rolloverOnWrite())
+                    .build()
+            )
+            .setFailureIndices(
+                preSnapshotDataStream.getFailureIndices()
+                    .copy()
+                    .setIndices(postSnapshotFailureIndices)
                     .setRolloverOnWrite(replicated == false && preSnapshotDataStream.rolloverOnWrite())
                     .build()
             )
@@ -895,9 +913,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setReplicated(replicated)
             .build();
 
-        var reconciledDataStream = postSnapshotDataStream.snapshot(
-            preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()
-        );
+        Set<String> indicesInSnapshot = new HashSet<>();
+        preSnapshotDataStream.getIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
+        preSnapshotDataStream.getFailureIndices().getIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
+        var reconciledDataStream = postSnapshotDataStream.snapshot(indicesInSnapshot, Metadata.builder());
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
         assertThat(reconciledDataStream.getGeneration(), equalTo(postSnapshotDataStream.getGeneration()));
@@ -911,9 +930,19 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
         assertThat(reconciledDataStream.isHidden(), equalTo(postSnapshotDataStream.isHidden()));
         assertThat(reconciledDataStream.isReplicated(), equalTo(postSnapshotDataStream.isReplicated()));
-        assertThat(reconciledDataStream.getIndices(), everyItem(not(in(indicesToRemove))));
-        assertThat(reconciledDataStream.getIndices(), everyItem(not(in(indicesToAdd))));
-        assertThat(reconciledDataStream.getIndices().size(), equalTo(preSnapshotDataStream.getIndices().size() - indicesToRemove.size()));
+        assertThat(reconciledDataStream.getIndices(), everyItem(not(in(backingIndicesToRemove))));
+        assertThat(reconciledDataStream.getIndices(), everyItem(not(in(backingIndicesToAdd))));
+        assertThat(
+            reconciledDataStream.getIndices().size(),
+            equalTo(preSnapshotDataStream.getIndices().size() - backingIndicesToRemove.size())
+        );
+        var reconciledFailureIndices = reconciledDataStream.getFailureIndices().getIndices();
+        assertThat(reconciledFailureIndices, everyItem(not(in(failureIndicesToRemove))));
+        assertThat(reconciledFailureIndices, everyItem(not(in(failureIndicesToAdd))));
+        assertThat(
+            reconciledFailureIndices.size(),
+            equalTo(preSnapshotDataStream.getFailureIndices().getIndices().size() - failureIndicesToRemove.size())
+        );
     }
 
     public void testSnapshotWithAllBackingIndicesRemoved() {
@@ -924,7 +953,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setBackingIndices(preSnapshotDataStream.getBackingIndices().copy().setIndices(indicesToAdd).build())
             .build();
 
-        assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
+        assertNull(
+            postSnapshotDataStream.snapshot(
+                preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toSet()),
+                Metadata.builder()
+            )
+        );
     }
 
     public void testSelectTimeSeriesWriteIndex() {

@@ -252,7 +252,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 );
 
                 if (updateResponse.rangeHeader() != null) {
-                    exchange.getResponseHeaders().add("Range", updateResponse.rangeHeader().toString());
+                    exchange.getResponseHeaders().add("Range", updateResponse.rangeHeader().headerString());
                 }
                 exchange.getResponseHeaders().add("Content-Length", "0");
                 exchange.sendResponseHeaders(updateResponse.statusCode(), -1);

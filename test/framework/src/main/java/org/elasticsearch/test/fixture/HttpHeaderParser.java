@@ -41,8 +41,7 @@ public enum HttpHeaderParser {
 
     public record Range(long start, long end) {
 
-        @Override
-        public String toString() {
+        public String headerString() {
             return "bytes=" + start + "-" + end;
         }
     }
@@ -105,8 +104,7 @@ public enum HttpHeaderParser {
             return size != null;
         }
 
-        @Override
-        public String toString() {
+        public String headerString() {
             final String rangeString = hasRange() ? start + "-" + end : "*";
             final String sizeString = hasSize() ? String.valueOf(size) : "*";
             return "bytes " + rangeString + "/" + sizeString;

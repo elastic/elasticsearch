@@ -51,6 +51,12 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
     }
 
+    public void testRangeHeaderString() {
+        final long start = randomLongBetween(0, 10_000);
+        final long end = randomLongBetween(start, start + 10_000);
+        assertEquals("bytes=" + start + "-" + end, new HttpHeaderParser.Range(start, end).headerString());
+    }
+
     public void testParseContentRangeHeaderFull() {
         final long start = randomLongBetween(0, 10_000);
         final long end = randomLongBetween(start, start + 10_000);
@@ -79,13 +85,13 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertEquals(new HttpHeaderParser.ContentRange(null, null, null), HttpHeaderParser.parseContentRangeHeader("bytes */*"));
     }
 
-    public void testToString() {
+    public void testContentRangeHeaderString() {
         final long start = randomLongBetween(0, 10_000);
         final long end = randomLongBetween(start, start + 10_000);
         final long size = randomLongBetween(end, Long.MAX_VALUE);
-        assertEquals("bytes */*", new HttpHeaderParser.ContentRange(null, null, null).toString());
-        assertEquals("bytes */" + size, new HttpHeaderParser.ContentRange(null, null, size).toString());
-        assertEquals("bytes " + start + "-" + end + "/*", new HttpHeaderParser.ContentRange(start, end, null).toString());
-        assertEquals("bytes " + start + "-" + end + "/" + size, new HttpHeaderParser.ContentRange(start, end, size).toString());
+        assertEquals("bytes */*", new HttpHeaderParser.ContentRange(null, null, null).headerString());
+        assertEquals("bytes */" + size, new HttpHeaderParser.ContentRange(null, null, size).headerString());
+        assertEquals("bytes " + start + "-" + end + "/*", new HttpHeaderParser.ContentRange(start, end, null).headerString());
+        assertEquals("bytes " + start + "-" + end + "/" + size, new HttpHeaderParser.ContentRange(start, end, size).headerString());
     }
 }

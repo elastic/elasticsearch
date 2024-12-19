@@ -334,7 +334,7 @@ final class AggregateMapper {
             case GEO_SHAPE -> "GeoShape";
             case CARTESIAN_SHAPE -> "CartesianShape";
             case UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD, TIME_DURATION,
-                DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
+                DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new EsqlIllegalArgumentException(
                     "illegal agg type: " + type.typeName()
                 );
         };

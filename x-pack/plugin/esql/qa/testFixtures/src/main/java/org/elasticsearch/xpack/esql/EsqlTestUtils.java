@@ -126,6 +126,7 @@ import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -749,6 +750,7 @@ public final class EsqlTestUtils {
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
             case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case AGGREGATE_METRIC_DOUBLE -> randomDouble();
             case NULL -> null;
             case SOURCE -> {
                 try {

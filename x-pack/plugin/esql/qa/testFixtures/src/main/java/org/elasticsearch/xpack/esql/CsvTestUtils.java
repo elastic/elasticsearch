@@ -478,7 +478,8 @@ public final class CsvTestUtils {
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        AGGREGATE_METRIC_DOUBLE(Double::parseDouble, Double.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 

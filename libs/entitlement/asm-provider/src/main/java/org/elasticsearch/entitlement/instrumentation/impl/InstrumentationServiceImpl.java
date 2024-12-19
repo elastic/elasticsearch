@@ -29,15 +29,13 @@ import java.util.Map;
 public class InstrumentationServiceImpl implements InstrumentationService {
 
     @Override
-    public Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods) {
-        return InstrumenterImpl.create(checkMethods);
+    public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods) {
+        return InstrumenterImpl.create(clazz, methods);
     }
 
     @Override
-    public Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
-        IOException {
+    public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws IOException {
         var methodsToInstrument = new HashMap<MethodKey, CheckMethod>();
-        var checkerClass = Class.forName(entitlementCheckerClassName);
         var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
         ClassReader reader = new ClassReader(classFileInfo.bytecodes());
         ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {

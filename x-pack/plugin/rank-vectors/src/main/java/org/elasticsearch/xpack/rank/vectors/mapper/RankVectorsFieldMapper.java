@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.index.mapper.vectors;
+package org.elasticsearch.xpack.rank.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -15,7 +13,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -31,12 +28,15 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -50,11 +50,11 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT_BIT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.namesToElementType;
+import static org.elasticsearch.xpack.rank.vectors.RankVectorsPlugin.RANK_VECTORS_FEATURE;
 
 public class RankVectorsFieldMapper extends FieldMapper {
 
     public static final String VECTOR_MAGNITUDES_SUFFIX = "._magnitude";
-    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("rank_vectors");
     public static final String CONTENT_TYPE = "rank_vectors";
 
     private static RankVectorsFieldMapper toType(FieldMapper in) {
@@ -122,57 +122,39 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return new Parameter<?>[] { elementType, dims, meta };
         }
 
-        public RankVectorsFieldMapper.Builder dimensions(int dimensions) {
-            this.dims.setValue(dimensions);
-            return this;
-        }
-
-        public RankVectorsFieldMapper.Builder elementType(DenseVectorFieldMapper.ElementType elementType) {
-            this.elementType.setValue(elementType);
-            return this;
-        }
-
         @Override
         public RankVectorsFieldMapper build(MapperBuilderContext context) {
+            // Validate on Mapping creation
+            if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+                throw LicenseUtils.newComplianceException("Rank Vectors");
+            }
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
             return new RankVectorsFieldMapper(
                 leafName(),
-                new RankVectorsFieldType(
-                    context.buildFullName(leafName()),
-                    elementType.getValue(),
-                    dims.getValue(),
-                    indexCreatedVersion,
-                    meta.getValue()
-                ),
+                new RankVectorsFieldType(context.buildFullName(leafName()), elementType.getValue(), dims.getValue(), meta.getValue()),
                 builderParams(this, context),
                 indexCreatedVersion
             );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new RankVectorsFieldMapper.Builder(n, c.indexVersionCreated()),
-        notInMultiFields(CONTENT_TYPE)
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("Rank Vectors");
+        }
+        return new Builder(n, c.indexVersionCreated());
+    }, notInMultiFields(CONTENT_TYPE));
 
     public static final class RankVectorsFieldType extends SimpleMappedFieldType {
         private final DenseVectorFieldMapper.ElementType elementType;
         private final Integer dims;
-        private final IndexVersion indexCreatedVersion;
 
-        public RankVectorsFieldType(
-            String name,
-            DenseVectorFieldMapper.ElementType elementType,
-            Integer dims,
-            IndexVersion indexCreatedVersion,
-            Map<String, String> meta
-        ) {
+        public RankVectorsFieldType(String name, DenseVectorFieldMapper.ElementType elementType, Integer dims, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.elementType = elementType;
             this.dims = dims;
-            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         @Override
@@ -195,9 +177,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
-            );
+            return DocValueFormat.DENSE_VECTOR;
         }
 
         @Override
@@ -207,7 +187,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return new RankVectorsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexCreatedVersion, dims, elementType);
+            if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+                throw LicenseUtils.newComplianceException("Rank Vectors");
+            }
+            return new RankVectorsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, dims, elementType);
         }
 
         @Override
@@ -248,6 +231,9 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
+        if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("Rank Vectors");
+        }
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["
@@ -281,7 +267,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 fieldType().name(),
                 fieldType().elementType,
                 currentDims,
-                indexCreatedVersion,
                 fieldType().meta()
             );
             Mapper update = new RankVectorsFieldMapper(leafName(), updatedFieldType, builderParams, indexCreatedVersion);
@@ -366,12 +351,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new RankVectorsFieldMapper.Builder(leafName(), indexCreatedVersion).init(this);
+        return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(new RankVectorsFieldMapper.DocValuesSyntheticFieldLoader());
+        return new SyntheticSourceSupport.Native(new DocValuesSyntheticFieldLoader());
     }
 
     private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {

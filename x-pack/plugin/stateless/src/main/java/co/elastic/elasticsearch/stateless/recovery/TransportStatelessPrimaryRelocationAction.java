@@ -442,14 +442,17 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(10), "starting");
 
         final var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId());
-        final Releasable cleanUpTrackedSearchNodes = () -> statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(
-            request.shardId(),
-            null
-        );
+        final Releasable cleanUpTrackedSearchNodes = () -> {
+            try {
+                statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), null);
+            } catch (AlreadyClosedException ignored) {
+                // engine is closed
+            }
+        };
         ActionListener.run(
             ActionListener.releaseAfter(
                 listener,
-                Releasables.wrap(recoveryRef.target().disableRecoveryMonitor(), recoveryRef, cleanUpTrackedSearchNodes)
+                Releasables.wrap(cleanUpTrackedSearchNodes, recoveryRef.target().disableRecoveryMonitor(), recoveryRef)
             ),
             l -> indexShard.preRecovery(l.map(ignored -> {
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());

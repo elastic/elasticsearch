@@ -106,7 +106,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
-        int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
+        populateRuntimeIndex(REMOTE_CLUSTER_2, "pause", INDEX_WITH_RUNTIME_MAPPING);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
@@ -180,7 +180,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertClusterInfoSuccess(clusterA, remote1NumShards);
 
             EsqlExecutionInfo.Cluster remoteB = executionInfo.getCluster(REMOTE_CLUSTER_2);
-            assertClusterInfoSuccess(remoteB, remote2NumShards);
+            assertClusterInfoSuccess(remoteB, 1);
 
             EsqlExecutionInfo.Cluster local = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertClusterInfoSuccess(local, localNumShards);

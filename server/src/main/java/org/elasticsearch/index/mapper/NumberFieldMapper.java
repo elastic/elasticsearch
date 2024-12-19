@@ -1376,7 +1376,7 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser(
+            this.parser = createTypeParserWithLegacySupport(
                 (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated(), c.getIndexSettings().getMode())
             );
         }

@@ -63,7 +63,7 @@ public final class MapperRegistry {
             }
             return parser;
         } else {
-            assert parser.supportsVersion(indexVersionCreated);
+            assert parser == null || parser.supportsVersion(indexVersionCreated);
             return parser;
         }
     }

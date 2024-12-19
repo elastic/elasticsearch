@@ -29,47 +29,63 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
+import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.forPlugins;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
     private final String prefix;
 
-    private record CheckAction(Runnable action, boolean isServerOnly) {
-
-        static CheckAction serverOnly(Runnable action) {
+    record CheckAction(Runnable action, boolean isAlwaysDeniedToPlugins) {
+        /**
+         * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
+         * Used both for always-denied entitlements as well as those granted only to the server itself.
+         */
+        static CheckAction deniedToPlugins(Runnable action) {
             return new CheckAction(action, true);
         }
 
-        static CheckAction serverAndPlugin(Runnable action) {
+        static CheckAction forPlugins(Runnable action) {
             return new CheckAction(action, false);
         }
     }
 
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
-        entry("runtime_exit", CheckAction.serverOnly(RestEntitlementsCheckAction::runtimeExit)),
-        entry("runtime_halt", CheckAction.serverOnly(RestEntitlementsCheckAction::runtimeHalt)),
-        entry("create_classloader", CheckAction.serverAndPlugin(RestEntitlementsCheckAction::createClassLoader))
+        entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
+        entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
+        entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
+        // entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
+        entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline))
     );
 
     @SuppressForbidden(reason = "Specifically testing Runtime.exit")
     private static void runtimeExit() {
-        logger.info("Calling Runtime.exit;");
         Runtime.getRuntime().exit(123);
     }
 
     @SuppressForbidden(reason = "Specifically testing Runtime.halt")
     private static void runtimeHalt() {
-        logger.info("Calling Runtime.halt;");
         Runtime.getRuntime().halt(123);
     }
 
     private static void createClassLoader() {
-        logger.info("Calling new URLClassLoader");
         try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             logger.info("Created URLClassLoader [{}]", classLoader.getName());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void processBuilder_start() {
+        // TODO: processBuilder().start();
+    }
+
+    private static void processBuilder_startPipeline() {
+        try {
+            ProcessBuilder.startPipeline(List.of());
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -80,7 +96,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static Set<String> getServerAndPluginsCheckActions() {
         return checkActions.entrySet()
             .stream()
-            .filter(kv -> kv.getValue().isServerOnly() == false)
+            .filter(kv -> kv.getValue().isAlwaysDeniedToPlugins() == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
     }
@@ -112,6 +128,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
 
         return channel -> {
+            logger.info("Calling check action [{}]", actionName);
             checkAction.action().run();
             channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
         };

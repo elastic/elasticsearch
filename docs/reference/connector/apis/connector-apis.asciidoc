@@ -1,6 +1,12 @@
 [[connector-apis]]
 == Connector APIs
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+--
+
 beta::[]
 
 The connector and sync jobs APIs provide a convenient way to create and manage Elastic <<es-connectors,connectors>>.

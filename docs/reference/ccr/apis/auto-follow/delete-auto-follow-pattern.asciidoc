@@ -5,6 +5,12 @@
 <titleabbrev>Delete auto-follow pattern</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+--
+
 Delete {ccr} <<ccr-auto-follow,auto-follow patterns>>.
 
 [[ccr-delete-auto-follow-pattern-request]]

@@ -4,6 +4,11 @@
 <titleabbrev>cat plugins</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[CAT APIs].
+--
 
 [IMPORTANT]
 ====

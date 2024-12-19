@@ -4,6 +4,12 @@
 <titleabbrev>Voting configuration exclusions</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[cluster APIs].
+--
+
 Adds or removes master-eligible nodes from the
 <<modules-discovery-voting,voting configuration exclusion list>>.
 

@@ -6,6 +6,12 @@
 
 beta::[]
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+--
+
 Manages the `features` of a connector. This endpoint can be used to control the following aspects of a connector:
 
 * document-level security

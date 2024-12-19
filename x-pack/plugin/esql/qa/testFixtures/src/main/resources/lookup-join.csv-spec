@@ -8,7 +8,7 @@
 ###############################################
 
 basicOnTheDataNode
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = languages
@@ -25,7 +25,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 basicRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -36,7 +36,7 @@ language_code:integer  | language_name:keyword
 ;
 
 basicOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -53,7 +53,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 subsequentEvalOnTheDataNode
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = languages
@@ -71,7 +71,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 subsequentEvalOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -89,7 +89,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 sortEvalBeforeLookup
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -106,7 +106,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 nonUniqueLeftKeyOnTheDataNode
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | WHERE emp_no <= 10030
@@ -130,7 +130,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 nonUniqueRightKeyOnTheDataNode
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = emp_no % 10
@@ -150,7 +150,7 @@ emp_no:integer | language_code:integer | language_name:keyword       | country:k
 ;
 
 nonUniqueRightKeyOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -170,7 +170,7 @@ emp_no:integer | language_code:integer | language_name:keyword       | country:k
 ;
 
 nonUniqueRightKeyFromRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -183,8 +183,7 @@ language_code:integer | language_name:keyword       | country:keyword
 ;
 
 repeatedIndexOnFrom
-required_capability: join_lookup_v8
-required_capability: join_lookup_repeated_index_from
+required_capability: join_lookup_v9
 
 FROM languages_lookup
 | LOOKUP JOIN languages_lookup ON language_code
@@ -203,7 +202,7 @@ language_code:integer | language_name:keyword
 ###############################################
 
 filterOnLeftSide
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = languages
@@ -220,7 +219,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnRightSide
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -236,7 +235,7 @@ FROM sample_data
 ;
 
 filterOnRightSideAfterStats
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -249,7 +248,7 @@ count:long | type:keyword
 ;
 
 filterOnJoinKey
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = languages
@@ -264,7 +263,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnJoinKeyAndRightSide
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | WHERE emp_no < 10006
@@ -281,7 +280,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnRightSideOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -297,7 +296,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnJoinKeyOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -313,7 +312,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnJoinKeyAndRightSideOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -330,7 +329,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 filterOnTheDataNodeThenFilterOnTheCoordinator
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = languages
@@ -351,7 +350,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ###########################################################################
 
 nullJoinKeyOnTheDataNode
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | WHERE emp_no < 10004
@@ -368,7 +367,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnTheDataNode
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
@@ -386,7 +385,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyFromRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW language_code = [4, 5, 6, 7]
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -399,7 +398,7 @@ language_code:integer | language_name:keyword       | country:keyword
 ;
 
 mvJoinKeyFromRowExpanded
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW language_code = [4, 5, 6, 7, 8]
 | MV_EXPAND language_code
@@ -470,7 +469,7 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 ###############################################
 
 lookupIPFromRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -481,7 +480,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromKeepRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
 | KEEP left, client_ip, right
@@ -493,7 +492,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowing
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -504,7 +503,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowingKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -517,7 +516,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowingKeepReordered
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -530,7 +529,7 @@ right         | Development | 172.21.0.5
 ;
 
 lookupIPFromIndex
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -549,7 +548,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -569,7 +568,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeepKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | KEEP client_ip, event_duration, @timestamp, message
@@ -591,7 +590,7 @@ timestamp:date           | client_ip:keyword | event_duration:long | msg:keyword
 ;
 
 lookupIPFromIndexStats
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -607,7 +606,7 @@ count:long | env:keyword
 ;
 
 lookupIPFromIndexStatsKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -624,7 +623,7 @@ count:long | env:keyword
 ;
 
 statsAndLookupIPFromIndex
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -645,7 +644,7 @@ count:long | client_ip:keyword | env:keyword
 ###############################################
 
 lookupMessageFromRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -656,7 +655,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromKeepRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
 | KEEP left, message, right
@@ -668,7 +667,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromRowWithShadowing
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -679,7 +678,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromRowWithShadowingKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -691,7 +690,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromIndex
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -709,7 +708,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -728,7 +727,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeepKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | KEEP client_ip, event_duration, @timestamp, message
@@ -748,7 +747,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeepReordered
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -767,7 +766,7 @@ Success      | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
 ;
 
 lookupMessageFromIndexStats
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -782,7 +781,7 @@ count:long | type:keyword
 ;
 
 lookupMessageFromIndexStatsKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -798,7 +797,7 @@ count:long | type:keyword
 ;
 
 statsAndLookupMessageFromIndex
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | STATS count = count(message) BY message
@@ -816,7 +815,7 @@ count:long | type:keyword | message:keyword
 ;
 
 lookupMessageFromIndexTwice
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -838,7 +837,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexTwiceKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -865,7 +864,7 @@ ignoreOrder:true
 ###############################################
 
 lookupIPAndMessageFromRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -877,7 +876,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepBefore
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | KEEP left, client_ip, message, right
@@ -890,7 +889,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepBetween
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -903,7 +902,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepAfter
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -916,7 +915,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowing
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", type = "type", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -928,7 +927,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -942,7 +941,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -957,7 +956,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepKeepKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -973,7 +972,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepReordered
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -987,7 +986,7 @@ right         | Development  | Success      | 172.21.0.5
 ;
 
 lookupIPAndMessageFromIndex
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1007,7 +1006,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1028,7 +1027,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexStats
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1046,7 +1045,7 @@ count:long | env:keyword | type:keyword
 ;
 
 lookupIPAndMessageFromIndexStatsKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1065,7 +1064,7 @@ count:long | env:keyword | type:keyword
 ;
 
 statsAndLookupIPAndMessageFromIndex
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1084,7 +1083,7 @@ count:long | client_ip:keyword | message:keyword       | env:keyword | type:keyw
 ;
 
 lookupIPAndMessageFromIndexChainedEvalKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1106,7 +1105,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexChainedRenameKeep
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword

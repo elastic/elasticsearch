@@ -102,7 +102,7 @@ public class PolicyManager {
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
-        return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name, scope -> scope.entitlements));
+        return policy.scopes().stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name(), scope -> scope.entitlements()));
     }
 
     public void checkStartProcess(Class<?> callerClass) {

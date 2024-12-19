@@ -387,11 +387,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testPrepareResizeIndexSettings() {
-        final List<IndexVersion> versions = Stream.of(IndexVersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion(random()))
-            .sorted()
-            .toList();
-        final IndexVersion version = versions.get(0);
-        final IndexVersion upgraded = versions.get(1);
+        final IndexVersion version = IndexVersionUtils.randomWriteVersion();
         final Settings.Builder indexSettingsBuilder = Settings.builder()
             .put("index.version.created", version)
             .put("index.similarity.default.type", "BM25")

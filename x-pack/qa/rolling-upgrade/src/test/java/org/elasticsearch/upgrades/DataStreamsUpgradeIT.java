@@ -7,6 +7,8 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -174,7 +176,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testUpgradeDataStream() throws Exception {
         String dataStreamName = "reindex_test_data_stream";
-        int numRollovers = 5;
+        int numRollovers = randomIntBetween(0, 5);
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createAndRolloverDataStream(dataStreamName, numRollovers);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
@@ -274,16 +276,35 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
-            if (isOriginalClusterCurrent()) {
+            /*
+             * total_indices_in_data_stream is determined at the beginning of the reindex, and does not take into account the write
+             * index being rolled over
+             */
+            assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(numRollovers + 1));
+            if (isOriginalClusterSameMajorVersionAsCurrent()) {
                 // If the original cluster was the same as this one, we don't want any indices reindexed:
+                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
                 assertThat(statusResponseMap.get("successes"), equalTo(0));
             } else {
+                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(numRollovers + 1));
                 assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
             }
         }, 60, TimeUnit.SECONDS);
         Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
         Response cancelResponse = client().performRequest(cancelRequest);
         assertOK(cancelResponse);
+    }
+
+    /*
+     * Similar to isOriginalClusterCurrent, but returns true if the major versions of the clusters are the same. So true
+     * for 8.6 and 8.17, but false for 7.17 and 8.18.
+     */
+    private boolean isOriginalClusterSameMajorVersionAsCurrent() {
+        /*
+         * Since data stream reindex is specifically about upgrading a data stream from one major version to the next, it's ok to use the
+         * deprecated Version.fromString here
+         */
+        return Version.fromString(UPGRADE_FROM_VERSION).major == Version.fromString(Build.current().version()).major;
     }
 
     private static void bulkLoadData(String dataStreamName) throws IOException {

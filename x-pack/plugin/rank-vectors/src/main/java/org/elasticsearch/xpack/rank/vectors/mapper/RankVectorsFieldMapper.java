@@ -31,12 +31,12 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -111,10 +111,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final IndexVersion indexCreatedVersion;
+        private final XPackLicenseState licenseState;
 
-        public Builder(String name, IndexVersion indexCreatedVersion) {
+        public Builder(String name, IndexVersion indexCreatedVersion, XPackLicenseState licenseState) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -125,7 +127,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
         @Override
         public RankVectorsFieldMapper build(MapperBuilderContext context) {
             // Validate on Mapping creation
-            if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
             // Validate again here because the dimensions or element type could have been set programmatically,
@@ -133,28 +135,36 @@ public class RankVectorsFieldMapper extends FieldMapper {
             validate();
             return new RankVectorsFieldMapper(
                 leafName(),
-                new RankVectorsFieldType(context.buildFullName(leafName()), elementType.getValue(), dims.getValue(), meta.getValue()),
+                new RankVectorsFieldType(
+                    context.buildFullName(leafName()),
+                    elementType.getValue(),
+                    dims.getValue(),
+                    licenseState,
+                    meta.getValue()
+                ),
                 builderParams(this, context),
-                indexCreatedVersion
+                indexCreatedVersion,
+                licenseState
             );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-            throw LicenseUtils.newComplianceException("Rank Vectors");
-        }
-        return new Builder(n, c.indexVersionCreated());
-    }, notInMultiFields(CONTENT_TYPE));
-
     public static final class RankVectorsFieldType extends SimpleMappedFieldType {
         private final DenseVectorFieldMapper.ElementType elementType;
         private final Integer dims;
+        private final XPackLicenseState licenseState;
 
-        public RankVectorsFieldType(String name, DenseVectorFieldMapper.ElementType elementType, Integer dims, Map<String, String> meta) {
+        public RankVectorsFieldType(
+            String name,
+            DenseVectorFieldMapper.ElementType elementType,
+            Integer dims,
+            XPackLicenseState licenseState,
+            Map<String, String> meta
+        ) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.elementType = elementType;
             this.dims = dims;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -187,7 +197,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
             return new RankVectorsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, dims, elementType);
@@ -213,10 +223,18 @@ public class RankVectorsFieldMapper extends FieldMapper {
     }
 
     private final IndexVersion indexCreatedVersion;
+    private final XPackLicenseState licenseState;
 
-    private RankVectorsFieldMapper(String simpleName, MappedFieldType fieldType, BuilderParams params, IndexVersion indexCreatedVersion) {
+    private RankVectorsFieldMapper(
+        String simpleName,
+        MappedFieldType fieldType,
+        BuilderParams params,
+        IndexVersion indexCreatedVersion,
+        XPackLicenseState licenseState
+    ) {
         super(simpleName, fieldType, params);
         this.indexCreatedVersion = indexCreatedVersion;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -231,7 +249,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+        if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
             throw LicenseUtils.newComplianceException("Rank Vectors");
         }
         if (context.doc().getByKey(fieldType().name()) != null) {
@@ -267,9 +285,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 fieldType().name(),
                 fieldType().elementType,
                 currentDims,
+                licenseState,
                 fieldType().meta()
             );
-            Mapper update = new RankVectorsFieldMapper(leafName(), updatedFieldType, builderParams, indexCreatedVersion);
+            Mapper update = new RankVectorsFieldMapper(leafName(), updatedFieldType, builderParams, indexCreatedVersion, licenseState);
             context.addDynamicMapper(update);
             return;
         }
@@ -351,7 +370,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion).init(this);
+        return new Builder(leafName(), indexCreatedVersion, licenseState).init(this);
     }
 
     @Override

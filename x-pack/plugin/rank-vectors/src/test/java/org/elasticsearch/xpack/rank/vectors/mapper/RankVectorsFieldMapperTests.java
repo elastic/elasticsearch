@@ -27,10 +27,12 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -38,6 +40,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -56,6 +60,11 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     public RankVectorsFieldMapperTests() {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singletonList(new LocalStateRankVectors(SETTINGS));
     }
 
     @Override

@@ -11,6 +11,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.RankVectorsFieldType;
 
 import java.io.IOException;
@@ -22,12 +25,17 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_
 
 public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
+    private final XPackLicenseState licenseState = new XPackLicenseState(
+        System::currentTimeMillis,
+        new XPackLicenseStatus(License.OperationMode.TRIAL, true, null)
+    );
+
     private RankVectorsFieldType createFloatFieldType() {
-        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.FLOAT, BBQ_MIN_DIMS, Collections.emptyMap());
+        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.FLOAT, BBQ_MIN_DIMS, licenseState, Collections.emptyMap());
     }
 
     private RankVectorsFieldMapper.RankVectorsFieldType createByteFieldType() {
-        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.BYTE, 5, Collections.emptyMap());
+        return new RankVectorsFieldType("f", DenseVectorFieldMapper.ElementType.BYTE, 5, licenseState, Collections.emptyMap());
     }
 
     public void testHasDocValues() {

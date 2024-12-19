@@ -5,7 +5,7 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 number | map | result
-double | unsupported | double
-integer | unsupported | double
-long | unsupported | double
+double | map | double
+integer | map | double
+long | map | double
 |===

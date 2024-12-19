@@ -1854,6 +1854,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * If the data is a MapExpression, return it as it is.
+         */
+        public MapExpression asMapExpression() {
+            return mapExpression ? (MapExpression) data : null;
+        }
+
+        /**
          * @return the data value being supplied, casting to java objects when appropriate
          */
         public Object getValue() {
@@ -1883,10 +1890,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public String name() {
             return name;
-        }
-
-        public MapExpression asMapExpression() {
-            return mapExpression ? (MapExpression) data : null;
         }
     }
 }

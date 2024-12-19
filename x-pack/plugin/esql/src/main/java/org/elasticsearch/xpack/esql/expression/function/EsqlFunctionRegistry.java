@@ -472,15 +472,20 @@ public class EsqlFunctionRegistry {
         String description,
         boolean optional,
         DataType targetDataType,
+        boolean mapExpression,
         Map<String, String> hint
     ) {
 
         public ArgSignature(String name, String[] type, String description, boolean optional) {
-            this(name, type, description, optional, UNSUPPORTED, Map.of());
+            this(name, type, description, optional, UNSUPPORTED, false, Map.of());
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+            this(name, type, description, optional, targetDataType, false, Map.of());
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, Map<String, String> hint) {
-            this(name, type, description, optional, UNSUPPORTED, hint);
+            this(name, type, description, optional, UNSUPPORTED, true, hint);
         }
 
         @Override
@@ -496,6 +501,8 @@ public class EsqlFunctionRegistry {
                 + optional
                 + ", targetDataType="
                 + targetDataType
+                + ", map="
+                + mapExpression
                 + ", mapParamHint={"
                 + hint.entrySet().stream().map(e -> "{" + e.getKey() + " : " + e.getValue() + "}").collect(Collectors.joining(", "))
                 + "}}";
@@ -569,7 +576,6 @@ public class EsqlFunctionRegistry {
                     String[] valueType = removeUnderConstruction(mapParamInfo.type());
                     String desc = mapParamInfo.description().replace('\n', ' ');
                     boolean optional = mapParamInfo.optional();
-                    DataType targetDataType = getTargetType(valueType);
                     Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
                     for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
                         String hintVale = hint.value().length <= 1
@@ -577,7 +583,7 @@ public class EsqlFunctionRegistry {
                             : "[" + String.join(", ", hint.value()) + "]";
                         hints.put(hint.key(), hintVale);
                     }
-                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, targetDataType, hints));
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, hints));
                 } else {
                     Param paramInfo = params[i].getAnnotation(Param.class);
                     String name = paramInfo == null ? params[i].getName() : paramInfo.name();
@@ -586,7 +592,7 @@ public class EsqlFunctionRegistry {
                     String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                     boolean optional = paramInfo != null && paramInfo.optional();
                     DataType targetDataType = getTargetType(type);
-                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType, Map.of()));
+                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
                 }
             }
         }

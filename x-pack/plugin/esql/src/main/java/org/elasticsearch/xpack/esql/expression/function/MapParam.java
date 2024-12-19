@@ -22,7 +22,7 @@ public @interface MapParam {
 
     // AbstractFunctionTestCase validate if the type match the one used in the testcase.
     // map is not a supported data type in ES|QL yet, mark it as unsupported both here and in the AbstractFunctionTestCase.
-    String[] type() default "unsupported";
+    String[] type() default "map";
 
     MapEntry[] paramHint() default {};
 

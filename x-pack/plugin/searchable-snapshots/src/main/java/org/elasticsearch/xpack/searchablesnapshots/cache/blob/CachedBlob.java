@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -60,14 +58,10 @@ public class CachedBlob implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
-        // we can remove the version field when we no longer need to keep compatibility with <8.12
-        final int version = Version.CURRENT.id;
         builder.startObject();
         {
             builder.field("type", TYPE);
             builder.field(CREATION_TIME_FIELD, creationTime.toEpochMilli());
-            builder.field("version", version);
             builder.field("repository", repository);
             builder.startObject("blob");
             {

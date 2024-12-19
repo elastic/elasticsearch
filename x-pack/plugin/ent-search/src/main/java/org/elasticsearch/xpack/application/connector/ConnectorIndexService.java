@@ -1182,8 +1182,8 @@ public class ConnectorIndexService {
     }
 
     /**
-     * This method determines if any documents in the connector index have the same index name as the one specified,
-     * excluding the document with the given _id if it is provided.
+     * This method determines if any records in the connector index have the same index name as the one specified,
+     * excluding the docs marked as deleted (soft-deleted) and document with the given _id if it is provided.
      *
      * @param indexName    The name of the index to check for existence in the connector index.
      * @param connectorId  The ID of the {@link Connector} to exclude from the search. Can be null if no document should be excluded.
@@ -1198,6 +1198,9 @@ public class ConnectorIndexService {
             BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 
             boolFilterQueryBuilder.must().add(new TermQueryBuilder(Connector.INDEX_NAME_FIELD.getPreferredName(), indexName));
+
+            // exclude soft-deleted connectors
+            boolFilterQueryBuilder.mustNot(new TermQueryBuilder(Connector.IS_DELETED_FIELD.getPreferredName(), true));
 
             // If we know the connector _id, exclude this from search query
             if (connectorId != null) {

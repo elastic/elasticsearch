@@ -11,9 +11,6 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
   }
 }
@@ -68,10 +65,6 @@ gradlePlugin {
 }
 
 repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-
     mavenCentral()
     gradlePluginPortal()
 }

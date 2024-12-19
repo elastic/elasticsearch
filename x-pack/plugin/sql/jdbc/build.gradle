@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 
 description = 'JDBC driver for Elasticsearch'
 

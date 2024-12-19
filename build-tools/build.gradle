@@ -8,9 +8,6 @@
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
   }
 }
@@ -116,9 +113,6 @@ configurations {
 }
 
 repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
 }

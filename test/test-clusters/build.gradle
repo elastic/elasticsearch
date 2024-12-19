@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 
 dependencies {
   shadow("junit:junit:${versions.junit}") {

@@ -367,10 +367,10 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(RestStatus.PRECONDITION_FAILED, getBlobContents(handler, bucket, blobName, 13L, null).restStatus());
 
         // Get metadata, matching generation
-        assertEquals(RestStatus.OK, getBlobMetadata(handler, bucket, blobName, 1L, null).restStatus());
+        assertEquals(RestStatus.OK, getBlobMetadata(handler, bucket, blobName, 1L).restStatus());
 
         // Get metadata, mismatched generation
-        assertEquals(RestStatus.PRECONDITION_FAILED, getBlobMetadata(handler, bucket, blobName, 13L, null).restStatus());
+        assertEquals(RestStatus.PRECONDITION_FAILED, getBlobMetadata(handler, bucket, blobName, 13L).restStatus());
     }
 
     private static TestHttpResponse executeUpload(
@@ -469,15 +469,12 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         GoogleCloudStorageHttpHandler handler,
         String bucket,
         String blobName,
-        @Nullable Long ifGenerationMatch,
-        @Nullable HttpHeaderParser.Range range
+        @Nullable Long ifGenerationMatch
     ) {
         return handleRequest(
             handler,
             "GET",
-            "/storage/v1/b/" + bucket + "/o/" + blobName + (ifGenerationMatch != null ? "?ifGenerationMatch=" + ifGenerationMatch : ""),
-            BytesArray.EMPTY,
-            range != null ? rangeHeader(range.start(), range.end()) : TestHttpExchange.EMPTY_HEADERS
+            "/storage/v1/b/" + bucket + "/o/" + blobName + (ifGenerationMatch != null ? "?ifGenerationMatch=" + ifGenerationMatch : "")
         );
     }
 

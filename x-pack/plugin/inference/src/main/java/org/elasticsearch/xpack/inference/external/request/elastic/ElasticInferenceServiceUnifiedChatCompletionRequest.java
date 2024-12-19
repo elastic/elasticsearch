@@ -25,8 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequest
-    implements OpenAiRequest, TraceContextAware {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest implements OpenAiRequest, TraceContextAware {
 
     // Implementing OpenAiRequest to ensure compatibility with the OpenAI API interface
     // This allows the ElasticInferenceService to handle requests in a standardized manner

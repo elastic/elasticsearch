@@ -24,8 +24,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceSparseEmbeddingsRequest
-    implements ElasticInferenceServiceRequest, TraceContextAware {
+public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticInferenceServiceRequest, TraceContextAware {
 
     private final URI uri;
 

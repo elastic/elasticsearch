@@ -6845,23 +6845,30 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
-        // Do not assert serialization:
-        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan("""
+        String query = """
               FROM test
             | LOOKUP JOIN lookup_index ON first_name
             | DROP foo
             | LOOKUP JOIN lookup_index ON first_name
             | DROP b*
-            """, data, false);
+            """;
+
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo")));
+    }
+
+    private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan(query, data, false);
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan);
 
         List<Set<String>> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
 
-        assertEquals(fields.size(), 2);
-        assertThat(fields.getFirst(), contains("bar", "baz"));
-        assertThat(fields.get(1), contains("foo"));
+        assertEquals(fields.size(), expectedFieldNames.size());
+        for (int i = 0; i < expectedFieldNames.size(); i++) {
+            assertEquals(fields.get(i), expectedFieldNames.get(i));
+        }
     }
 
     private TestDataSource dataSetWithLookupIndices(Map<String, Collection<String>> indexNameToFieldNames) {

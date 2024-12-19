@@ -236,7 +236,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ReservedRolesStore.LISTS_INDEX,
                         ReservedRolesStore.LISTS_ITEMS_INDEX,
                         ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
-                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,    
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
                     )
                     .privileges("all")
                     .build(),

@@ -28,7 +28,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$java_lang_System$exit(Class<?> callerClass, int status) {
+    public void check$$exit(Class<?> callerClass, Runtime runtime, int status) {
+        policyManager.checkExitVM(callerClass);
+    }
+
+    @Override
+    public void check$$halt(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
     }
 

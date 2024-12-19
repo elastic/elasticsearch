@@ -585,8 +585,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString(
                         "Revert this node to version ["
                             + (previousNodeVersion.major == Version.CURRENT.major
-                            ? Version.CURRENT.minimumCompatibilityVersion()
-                            : previousNodeVersion)
+                                ? Version.CURRENT.minimumCompatibilityVersion()
+                                : previousNodeVersion)
                             + "]"
                     )
                 )

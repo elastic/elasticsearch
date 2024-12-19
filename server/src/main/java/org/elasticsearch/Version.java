@@ -243,12 +243,12 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     private static void assertRestApiVersion() {
         assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
             : "RestApiVersion must be upgraded "
-            + "to reflect major from Version.CURRENT ["
-            + CURRENT.major
-            + "]"
-            + " but is still set to ["
-            + RestApiVersion.current().major
-            + "]";
+                + "to reflect major from Version.CURRENT ["
+                + CURRENT.major
+                + "]"
+                + " but is still set to ["
+                + RestApiVersion.current().major
+                + "]";
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

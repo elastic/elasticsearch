@@ -45,8 +45,6 @@
   - do:
       indices.close:
         index: logs-*
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
   - length: { indices: 0 }
 

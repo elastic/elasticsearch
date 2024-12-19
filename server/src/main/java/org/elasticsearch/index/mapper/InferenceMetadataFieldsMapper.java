@@ -96,10 +96,10 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
      * This indicates whether the new format for semantic text fields is active by verifying the existence
      * of the {@link InferenceMetadataFieldsMapper} in the mapping's metadata.
      *
-     * @param mapping the mapping to evaluate
+     * @param mappingLookup the mapping to evaluate
      * @return {@code true} if the {@link InferenceMetadataFieldsMapper} is present; {@code false} otherwise
      */
-    public static boolean isEnabled(Mapping mapping) {
-        return mapping.getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME) != null;
+    public static boolean isEnabled(MappingLookup mappingLookup) {
+        return mappingLookup != null && mappingLookup.getMapping().getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME) != null;
     }
 }

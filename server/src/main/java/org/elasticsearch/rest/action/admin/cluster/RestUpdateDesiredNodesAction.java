@@ -12,13 +12,11 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -65,16 +63,6 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
                 dryRun,
                 parser
             );
-        }
-
-        if (clusterSupportsFeature.test(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED)) {
-            if (updateDesiredNodesRequest.getNodes().stream().anyMatch(DesiredNode::hasVersion)) {
-                deprecationLogger.compatibleCritical("desired_nodes_version", VERSION_DEPRECATION_MESSAGE);
-            }
-        } else {
-            if (updateDesiredNodesRequest.getNodes().stream().anyMatch(n -> n.hasVersion() == false)) {
-                throw new XContentParseException("[node_version] field is required and must have a valid value");
-            }
         }
 
         return restChannel -> client.execute(

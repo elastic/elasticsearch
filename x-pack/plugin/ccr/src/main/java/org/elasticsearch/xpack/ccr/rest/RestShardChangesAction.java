@@ -293,7 +293,7 @@ public class RestShardChangesAction extends BaseRestHandler {
                 .prepareState(new TimeValue(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS))
                 .get(GET_INDEX_UUID_TIMEOUT)
                 .getState();
-            final IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(indexAbstractionName);
+            final IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(indexAbstractionName);
             if (indexAbstraction == null) {
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "Invalid index or data stream name [%s]", indexAbstractionName)

@@ -68,7 +68,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     @Override
     protected void doExecute(Task task, CreateIndexFromSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(request.getSourceIndex());
+        IndexMetadata sourceIndex = clusterService.state().getMetadata().getProject().index(request.getSourceIndex());
 
         if (sourceIndex == null) {
             listener.onFailure(new IndexNotFoundException(request.getSourceIndex()));

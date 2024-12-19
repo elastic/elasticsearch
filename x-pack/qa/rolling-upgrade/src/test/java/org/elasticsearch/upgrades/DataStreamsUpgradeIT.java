@@ -274,10 +274,17 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
+            /*
+             * total_indices_in_data_stream is determined at the beginning of the reindex, and does not take into account the write
+             * index being rolled over
+             */
+            assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(numRollovers + 1));
             if (isOriginalClusterCurrent()) {
                 // If the original cluster was the same as this one, we don't want any indices reindexed:
+                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
                 assertThat(statusResponseMap.get("successes"), equalTo(0));
             } else {
+                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(numRollovers + 1));
                 assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
             }
         }, 60, TimeUnit.SECONDS);

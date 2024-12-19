@@ -1,5 +1,5 @@
 pr: 118871
 summary: "[WIP] EIS Unified `ChatCompletions` Integration"
 area: Inference
-type: feature
+type: enhancement
 issues: []

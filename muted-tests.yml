@@ -434,3 +434,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
   method: test {p0=esql/190_lookup_join/basic}
   issue: https://github.com/elastic/elasticsearch/issues/119112
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/119159

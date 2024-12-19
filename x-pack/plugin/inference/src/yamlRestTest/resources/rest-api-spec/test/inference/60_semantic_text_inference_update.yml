@@ -39,6 +39,11 @@ setup:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -52,14 +57,6 @@ setup:
 
 ---
 "Updating non semantic_text fields does not recalculate embeddings":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - skip:
       features: [ "headers" ]
 
@@ -116,14 +113,6 @@ setup:
 
 ---
 "Updating semantic_text fields recalculates embeddings":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -224,18 +213,15 @@ setup:
 
 ---
 "Update logic handles source fields in object fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -388,18 +374,15 @@ setup:
 
 ---
 "Partial updates work when using the update API":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -486,18 +469,15 @@ setup:
 
 ---
 "Partial updates work when using the update API and the semantic_text field's original value is null":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -579,14 +559,6 @@ setup:
 
 ---
 "Updates with script via bulk API are not allowed":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         index: test-index
@@ -611,14 +583,6 @@ setup:
 
 ---
 "Updates with script works when using the update API":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         index: test-index
@@ -662,18 +626,15 @@ setup:
 
 ---
 "semantic_text copy_to does not need values for every source field for bulk updates":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -726,14 +687,6 @@ setup:
 
 ---
 "Calculates embeddings for bulk operations - update":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         body:
@@ -789,14 +742,6 @@ setup:
 
 ---
 "Calculates embeddings for bulk operations - upsert":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   # Initial update fails
   - do:
       bulk:
@@ -877,14 +822,6 @@ setup:
 # TODO: Uncomment this test once we implement a fix
 #---
 #"Bypass inference on bulk update operation":
-#  - requires:
-#      test_runner_features: [ capabilities ]
-#      reason: Test targets semantic text with inference metadata fields
-#      capabilities:
-#        - method: GET
-#          path: /_inference
-#          capabilities: [ inference_metadata_fields ]
-#
 #  # Update as upsert
 #  - do:
 #      bulk:

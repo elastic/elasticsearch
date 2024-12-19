@@ -25,14 +25,14 @@ import static org.hamcrest.Matchers.is;
 public class JinaAIEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
-        var model = createModel("url", "api_key", null, null, null);
+        var model = createModel("url", "api_key", null, null, "model");
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
-        var model = createModel("url", "api_key", null, null, null);
+        var model = createModel("url", "api_key", null, null, "model");
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
         MatcherAssert.assertThat(overriddenModel, is(model));
@@ -95,7 +95,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
-        @Nullable String model
+        String model
     ) {
         return createModel(url, apiKey, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, dimensions, model);
     }
@@ -107,7 +107,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         ChunkingSettings chunkingSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
-        @Nullable String model
+        String model
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
@@ -130,7 +130,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         JinaAIEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
-        @Nullable String model
+        String model
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
@@ -153,7 +153,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         JinaAIEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
-        @Nullable String model,
+        String model,
         @Nullable SimilarityMeasure similarityMeasure
     ) {
         return new JinaAIEmbeddingsModel(

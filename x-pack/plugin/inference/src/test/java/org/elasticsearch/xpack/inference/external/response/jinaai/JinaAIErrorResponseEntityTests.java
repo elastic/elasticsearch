@@ -11,6 +11,7 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;
@@ -28,11 +29,11 @@ public class JinaAIErrorResponseEntityTests extends ESTestCase {
             }
             """, escapedMessage);
 
-        JinaAIErrorResponseEntity errorMessage = JinaAIErrorResponseEntity.fromResponse(
+        ErrorResponse errorResponse = JinaAIErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertNotNull(errorMessage);
-        MatcherAssert.assertThat(errorMessage.getErrorMessage(), is(message));
+        assertNotNull(errorResponse);
+        MatcherAssert.assertThat(errorResponse.getErrorMessage(), is(message));
     }
 
     public void testFromResponse_noMessage() {
@@ -42,9 +43,9 @@ public class JinaAIErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        JinaAIErrorResponseEntity errorMessage = JinaAIErrorResponseEntity.fromResponse(
+        ErrorResponse errorResponse = JinaAIErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertNull(errorMessage);
+        MatcherAssert.assertThat(errorResponse, is(ErrorResponse.UNDEFINED_ERROR));
     }
 }

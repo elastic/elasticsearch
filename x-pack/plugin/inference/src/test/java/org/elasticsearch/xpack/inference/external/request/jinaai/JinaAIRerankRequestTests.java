@@ -96,7 +96,7 @@ public class JinaAIRerankRequestTests extends ESTestCase {
     }
 
     public void testTruncate_DoesNotTruncate() {
-        var request = createRequest("query", "input", null, null);
+        var request = createRequest("query", "input", "null", null);
         var truncatedRequest = request.truncate();
 
         assertThat(truncatedRequest, sameInstance(request));

@@ -30,7 +30,7 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
         return new JinaAIRerankServiceSettings(
             new JinaAIServiceSettings(
                 randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-                randomFrom(new String[] { null, randomAlphaOfLength(10) }),
+                randomAlphaOfLength(10),
                 RateLimitSettingsTests.createRandom()
             )
         );

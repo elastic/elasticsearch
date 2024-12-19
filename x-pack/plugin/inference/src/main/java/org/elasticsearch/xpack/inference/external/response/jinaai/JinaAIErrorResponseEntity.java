@@ -27,7 +27,7 @@ public class JinaAIErrorResponseEntity extends ErrorResponse {
      * @return An error entity if the response is JSON with a `detail` field containing the error message
      * or null if the response does not contain the message field
      */
-    public static JinaAIErrorResponseEntity fromResponse(HttpResult response) {
+    public static ErrorResponse fromResponse(HttpResult response) {
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
@@ -41,6 +41,6 @@ public class JinaAIErrorResponseEntity extends ErrorResponse {
             // swallow the error
         }
 
-        return null;
+        return ErrorResponse.UNDEFINED_ERROR;
     }
 }

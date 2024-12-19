@@ -44,7 +44,7 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     private static JinaAIServiceSettings createRandom(String url) {
-        var model = randomBoolean() ? randomAlphaOfLength(15) : null;
+        var model = randomAlphaOfLength(15);
 
         return new JinaAIServiceSettings(ServiceUtils.createOptionalUri(url), model, RateLimitSettingsTests.createRandom());
     }
@@ -95,7 +95,10 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = JinaAIServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
+        var serviceSettings = JinaAIServiceSettings.fromMap(
+            new HashMap<>(Map.of(JinaAIServiceSettings.MODEL_ID, "model")),
+            ConfigurationParseContext.PERSISTENT
+        );
         assertNull(serviceSettings.uri());
     }
 
@@ -132,14 +135,14 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testXContent_WritesModelId() throws IOException {
-        var entity = new JinaAIServiceSettings((String) null, "modelId", new RateLimitSettings(1));
+        var entity = new JinaAIServiceSettings((String) null, "model", new RateLimitSettings(1));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"model_id":"modelId","rate_limit":{"requests_per_minute":1}}"""));
+            {"model_id":"model","rate_limit":{"requests_per_minute":1}}"""));
     }
 
     @Override
@@ -157,16 +160,14 @@ public class JinaAIServiceSettingsTests extends AbstractWireSerializingTestCase<
         return randomValueOtherThan(instance, JinaAIServiceSettingsTests::createRandom);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String model) {
         var map = new HashMap<String, Object>();
 
         if (url != null) {
             map.put(ServiceFields.URL, url);
         }
 
-        if (model != null) {
-            map.put(JinaAIServiceSettings.MODEL_ID, model);
-        }
+        map.put(JinaAIServiceSettings.MODEL_ID, model);
 
         return map;
     }

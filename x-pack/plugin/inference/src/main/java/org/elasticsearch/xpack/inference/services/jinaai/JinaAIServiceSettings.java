@@ -31,13 +31,15 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class JinaAIServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
 
     public static final String NAME = "jinaai_service_settings";
     public static final String MODEL_ID = "model_id";
+    private static final String DEFAULT_MODEL_ID = "jina-embeddings-v3";
     private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000); // https://jina.ai/contact-sales/#rate-limit
 
     public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -52,7 +54,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -65,13 +67,13 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public JinaAIServiceSettings(@Nullable URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public JinaAIServiceSettings(@Nullable URI uri, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.uri = uri;
-        this.modelId = modelId;
+        this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public JinaAIServiceSettings(@Nullable String url, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public JinaAIServiceSettings(@Nullable String url, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this(createOptionalUri(url), modelId, rateLimitSettings);
     }
 
@@ -83,7 +85,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     // should only be used for testing, public because it's accessed outside of the package
     public JinaAIServiceSettings() {
-        this((URI) null, null, null);
+        this((URI) null, DEFAULT_MODEL_ID, null);
     }
 
     @Override

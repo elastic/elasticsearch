@@ -29,7 +29,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_UrlDefined() throws IOException {
         var request = createRequest(
             List.of("abc"),
-            JinaAIEmbeddingsModelTests.createModel("url", "secret", JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, null)
+            JinaAIEmbeddingsModelTests.createModel("url", "secret", JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, "model")
         );
 
         var httpRequest = request.createHttpRequest();
@@ -46,7 +46,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model")));
     }
 
     public void testCreateRequest_AllOptionsDefined() throws IOException {

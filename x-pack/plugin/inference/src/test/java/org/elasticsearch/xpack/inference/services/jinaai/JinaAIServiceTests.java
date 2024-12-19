@@ -223,7 +223,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                    JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
                     JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
@@ -242,7 +242,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createJinaAIService()) {
             var config = getRequestConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 getSecretSettingsMap("secret")
             );
@@ -301,7 +301,7 @@ public class JinaAIServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
@@ -329,7 +329,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
+                    JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "model"),
                     JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
@@ -420,7 +420,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createJinaAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "oldmodel"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 getSecretSettingsMap("secret")
             );
@@ -445,7 +445,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAJinaAIEmbeddingsModelWithoutUrl() throws IOException {
         try (var service = createJinaAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "model"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
                 getSecretSettingsMap("secret")
             );
@@ -462,6 +462,7 @@ public class JinaAIServiceTests extends ESTestCase {
             var embeddingsModel = (JinaAIEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -498,7 +499,7 @@ public class JinaAIServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
@@ -514,6 +515,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var embeddingsModel = (JinaAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -547,7 +549,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createJinaAIService()) {
-            var serviceSettingsMap = JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null);
+            var serviceSettingsMap = JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -567,6 +569,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var embeddingsModel = (JinaAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -663,7 +666,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createJinaAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model_old"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty()
             );
 
@@ -701,7 +704,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createJinaAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null),
+                JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
                 JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty()
             );
             persistedConfig.config().put("extra_key", "value");
@@ -712,6 +715,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var embeddingsModel = (JinaAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -719,7 +723,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createJinaAIService()) {
-            var serviceSettingsMap = JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null);
+            var serviceSettingsMap = JinaAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -733,6 +737,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var embeddingsModel = (JinaAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new JinaAIEmbeddingsTaskSettings(InputType.SEARCH)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -749,7 +754,6 @@ public class JinaAIServiceTests extends ESTestCase {
             );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
             MatcherAssert.assertThat(model, instanceOf(JinaAIEmbeddingsModel.class));
 
             var embeddingsModel = (JinaAIEmbeddingsModel) model;
@@ -813,7 +817,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 10,
                 1,
-                null
+                "jina-clip-v2"
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
@@ -829,7 +833,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                         10,
                         2,
-                        null
+                        "jina-clip-v2"
                     )
                 )
             );
@@ -853,7 +857,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 10,
                 1,
-                null,
+                "jina-clip-v2",
                 null
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
@@ -870,7 +874,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                         10,
                         2,
-                        null,
+                        "jina-clip-v2",
                         SimilarityMeasure.DOT_PRODUCT
                     )
                 )
@@ -895,7 +899,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 10,
                 1,
-                null,
+                "jina-clip-v2",
                 SimilarityMeasure.COSINE
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
@@ -912,7 +916,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                         10,
                         2,
-                        null,
+                        "jina-clip-v2",
                         SimilarityMeasure.COSINE
                     )
                 )
@@ -969,7 +973,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                null,
+                "model",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1003,7 +1007,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "modelId", 1024, false);
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "model", 1024, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1040,7 +1044,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "model",
+                "jina-clip-v2",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1068,7 +1072,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.passage")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "task", "retrieval.passage")));
         }
     }
 
@@ -1089,7 +1093,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "model",
+                "jina-clip-v2",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1117,7 +1121,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.query")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "task", "retrieval.query")));
         }
     }
 
@@ -1138,7 +1142,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "model",
+                "jina-clip-v2",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1166,7 +1170,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "task", "separation")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "task", "separation")));
         }
     }
 
@@ -1187,7 +1191,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "model",
+                "jina-clip-v2",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1206,7 +1210,7 @@ public class JinaAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model")));
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2")));
         }
     }
 
@@ -1237,7 +1241,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", null, false);
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1283,7 +1287,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         "documents",
                         List.of("candidate1", "candidate2", "candidate3"),
                         "model",
-                        "modelId",
+                        "model",
                         "return_documents",
                         false
                     )
@@ -1320,7 +1324,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", 3, false);
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1366,7 +1370,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         "documents",
                         List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                         "model",
-                        "modelId",
+                        "model",
                         "return_documents",
                         false,
                         "top_n",
@@ -1382,7 +1386,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_Get_Response_ReturnDocumentsNull_NoTopN() throws IOException {
         String responseJson = """
             {
-                "model": "modelId",
+                "model": "model",
                 "results": [
                     {
                         "index": 2,
@@ -1415,7 +1419,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", null, null);
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1453,7 +1457,7 @@ public class JinaAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("query", "query", "documents", List.of("candidate1", "candidate2", "candidate3"), "model", "modelId"))
+                is(Map.of("query", "query", "documents", List.of("candidate1", "candidate2", "candidate3"), "model", "model"))
             );
 
         }
@@ -1463,7 +1467,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {
         String responseJson = """
             {
-                "model": "modelId",
+                "model": "model",
                 "results": [
                     {
                         "index": 2,
@@ -1496,7 +1500,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "modelId", 3, true);
+            var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1541,7 +1545,7 @@ public class JinaAIServiceTests extends ESTestCase {
                         "documents",
                         List.of("candidate1", "candidate2", "candidate3", "candidate4"),
                         "model",
-                        "modelId",
+                        "model",
                         "return_documents",
                         true,
                         "top_n",

@@ -26,10 +26,12 @@ public record JinaAIRerankRequestEntity(String model, String query, List<String>
     public JinaAIRerankRequestEntity {
         Objects.requireNonNull(query);
         Objects.requireNonNull(documents);
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(taskSettings);
     }
 
     public JinaAIRerankRequestEntity(String query, List<String> input, JinaAIRerankTaskSettings taskSettings, String model) {
-        this(model, query, input, taskSettings);
+        this(model, query, input, taskSettings != null ? taskSettings : JinaAIRerankTaskSettings.EMPTY_SETTINGS);
     }
 
     @Override
@@ -40,15 +42,13 @@ public record JinaAIRerankRequestEntity(String model, String query, List<String>
         builder.field(QUERY_FIELD, query);
         builder.field(DOCUMENTS_FIELD, documents);
 
-        if (taskSettings != null) {
-            if (taskSettings.getTopNDocumentsOnly() != null) {
-                builder.field(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, taskSettings.getTopNDocumentsOnly());
-            }
+        if (taskSettings.getTopNDocumentsOnly() != null) {
+            builder.field(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, taskSettings.getTopNDocumentsOnly());
+        }
 
-            var return_documents = taskSettings.getDoesReturnDocuments();
-            if (return_documents != null) {
-                builder.field(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, return_documents);
-            }
+        var return_documents = taskSettings.getDoesReturnDocuments();
+        if (return_documents != null) {
+            builder.field(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, return_documents);
         }
 
         builder.endObject();

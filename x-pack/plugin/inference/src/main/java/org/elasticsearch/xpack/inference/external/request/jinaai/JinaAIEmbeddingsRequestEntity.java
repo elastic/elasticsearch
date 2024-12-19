@@ -34,15 +34,14 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
         Objects.requireNonNull(taskSettings);
+        Objects.requireNonNull(model);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INPUT_FIELD, input);
-        if (model != null) {
-            builder.field(MODEL_FIELD, model);
-        }
+        builder.field(MODEL_FIELD, model);
 
         if (taskSettings.getInputType() != null) {
             builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));

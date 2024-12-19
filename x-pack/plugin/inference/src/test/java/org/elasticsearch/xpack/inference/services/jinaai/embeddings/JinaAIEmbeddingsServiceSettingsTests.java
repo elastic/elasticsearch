@@ -122,49 +122,12 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_PrefersModelId_OverModel() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = JinaAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    JinaAIServiceSettings.MODEL_ID,
-                    model
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(
-                new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens
-                )
-            )
-        );
-    }
-
     public void testFromMap_InvalidSimilarity_ThrowsError() {
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)),
+                new HashMap<>(Map.of(JinaAIServiceSettings.MODEL_ID, "model", ServiceFields.SIMILARITY, similarity)),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -180,7 +143,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAIEmbeddingsServiceSettings(
-            new JinaAIServiceSettings("url", "model_id", new RateLimitSettings(3)),
+            new JinaAIServiceSettings("url", "model", new RateLimitSettings(3)),
             SimilarityMeasure.COSINE,
             5,
             10
@@ -190,7 +153,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
         assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model_id",""" + """
+            {"url":"url","model_id":"model",""" + """
             "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10}"""));
     }
 
@@ -217,7 +180,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         return new NamedWriteableRegistry(entries);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String model) {
         var map = new HashMap<>(JinaAIServiceSettingsTests.getServiceSettingsMap(url, model));
         return map;
     }

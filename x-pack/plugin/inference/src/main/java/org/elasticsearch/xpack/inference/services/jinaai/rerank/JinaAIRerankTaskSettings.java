@@ -37,7 +37,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
 
-    static final JinaAIRerankTaskSettings EMPTY_SETTINGS = new JinaAIRerankTaskSettings(null, null);
+    public static final JinaAIRerankTaskSettings EMPTY_SETTINGS = new JinaAIRerankTaskSettings(null, null);
 
     public static JinaAIRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

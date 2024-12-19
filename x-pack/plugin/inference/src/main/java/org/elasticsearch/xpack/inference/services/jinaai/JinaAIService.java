@@ -65,11 +65,6 @@ public class JinaAIService extends SenderService {
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
-    // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
-    // the JinaAI*RequestManager via the JinaAIActionCreator class
-    // The reason it needs to be done here is that the batching logic needs to hold state but the *RequestManagers are instantiated
-    // on every request
-
     public JinaAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
@@ -117,7 +112,7 @@ public class JinaAIService extends SenderService {
         }
     }
 
-    private static JinaAIModel createModelWithoutLoggingDeprecations(
+    private static JinaAIModel createModelFromPersistent(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -179,7 +174,7 @@ public class JinaAIService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelWithoutLoggingDeprecations(
+        return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -200,7 +195,7 @@ public class JinaAIService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelWithoutLoggingDeprecations(
+        return createModelFromPersistent(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -291,7 +286,6 @@ public class JinaAIService extends SenderService {
      */
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
         ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 

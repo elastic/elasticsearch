@@ -34,14 +34,14 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new JinaAIEmbeddingsRequestEntity(List.of("abc"), JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null);
+        var entity = new JinaAIEmbeddingsRequestEntity(List.of("abc"), JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
+            {"input":["abc"],"model":"model"}"""));
     }
 
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {

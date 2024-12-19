@@ -40,6 +40,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -51,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +70,8 @@ import java.util.stream.Collectors;
  */
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     protected static final int DEFAULT_BATCH_SIZE = 512;
+    private static final Object EXPLICIT_NULL = new Object();
+    private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
     private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
@@ -394,16 +398,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
-                if (responses == null) {
-                    if (item.request() instanceof UpdateRequest == false) {
-                        // could be an assert
-                        throw new IllegalArgumentException(
-                            "Inference results can only be cleared for update requests where a field is explicitly set to null."
-                        );
-                    }
-                    inferenceFieldsMap.put(fieldName, null);
-                    continue;
-                }
                 var model = responses.get(0).model();
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
@@ -490,7 +484,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
 
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
-                Object explicitNull = new Object();
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
@@ -499,10 +492,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
                             InferenceMetadataFieldsMapper.NAME + "." + field,
                             docMap,
-                            explicitNull
+                            EXPLICIT_NULL
                         );
                         if (inferenceMetadataFieldsValue != null) {
-                            // Inference has already been computed for this source field
+                            // Inference has already been computed
                             continue;
                         }
                     } else {
@@ -515,8 +508,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
-                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, explicitNull);
-                        if (useInferenceMetadataFieldsFormat && isUpdateRequest && valueObj == explicitNull) {
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
+                        if (useInferenceMetadataFieldsFormat && isUpdateRequest && valueObj == EXPLICIT_NULL) {
                             /**
                              * It's an update request, and the source field is explicitly set to null,
                              * so we need to propagate this information to the inference fields metadata
@@ -525,10 +518,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                              * preventing any unintended carryover of prior inference results.
                              */
                             var slot = ensureResponseAccumulatorSlot(itemIndex);
-                            slot.responses.put(sourceField, null);
+                            slot.addOrUpdateResponse(new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE));
                             continue;
                         }
-                        if (valueObj == null || valueObj == explicitNull) {
+                        if (valueObj == null || valueObj == EXPLICIT_NULL) {
                             if (isUpdateRequest && (useInferenceMetadataFieldsFormat == false)) {
                                 addInferenceResponseFailure(
                                     item.id(),
@@ -576,6 +569,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             return updateRequest.doc();
         } else {
             return null;
+        }
+    }
+
+    private static class EmptyChunkedInference implements ChunkedInference {
+        @Override
+        public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+            return Collections.emptyIterator();
         }
     }
 }

@@ -73,6 +73,44 @@ create logsdb data stream with host.name as keyword and timestamp as date:
   - is_true: acknowledged
 
 ---
+create logsdb data stream with host.name as integer and timestamp as date:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "integer"
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+
+---
 create logsdb data stream with host as keyword:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
@@ -380,10 +418,10 @@ create logsdb data stream with custom sorting and host object:
   - match: { .$backing_index.mappings.properties.host.properties.ip.type: ip }
   - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
   - match: { .$backing_index.mappings.properties.host.properties.region.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: integer } # Overrides LogsDB injected
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: integer }
 
 ---
-create logsdb data stream with custom sorting and dynamically mapped host.name:
+create logsdb data stream with custom sorting and no host.name:
   - skip:
       features: [ "allowed_warnings" ]
   - requires:

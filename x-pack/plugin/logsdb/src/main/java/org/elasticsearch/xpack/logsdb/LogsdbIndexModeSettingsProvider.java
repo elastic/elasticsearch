@@ -210,11 +210,15 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
                 if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false) {
+                    // Custom sort config, no point for further checks on [host.name] field.
                     return new MappingData(hasSyntheticSourceUsage, false);
+                }
+                if (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)) {
+                    // Setting for sorting on [host.name] is already injected, propagate it.
+                    return new MappingData(hasSyntheticSourceUsage, true);
                 }
             }
 
-            // TODO: remove this when _source.mode attribute has been removed:
             try (var mapperService = mapperServiceFactory.get().apply(tmpIndexMetadata)) {
                 // combinedTemplateMappings can be null when creating system indices
                 // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
@@ -224,7 +228,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
                 return new MappingData(
                     hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic(),
-                    mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper
+                    IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
+                        || mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper
                 );
             }
         } catch (AssertionError | Exception e) {

@@ -10,14 +10,6 @@ setup:
 
 ---
 create logs index:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       indices.create:
         index: test
@@ -78,14 +70,6 @@ create logs index:
 
 ---
 using default timestamp field mapping:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       indices.create:
         index: test-timestamp-missing
@@ -110,14 +94,6 @@ using default timestamp field mapping:
 
 ---
 missing hostname field:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       indices.create:
         index: test-hostname-missing
@@ -149,14 +125,6 @@ missing hostname field:
 
 ---
 missing sort field:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       catch: bad_request
       indices.create:
@@ -190,14 +158,6 @@ missing sort field:
 
 ---
 non-default sort settings:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       indices.create:
         index: test-sort
@@ -244,13 +204,8 @@ non-default sort settings:
 ---
 override sort order settings:
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
+      cluster_features: [ "index.logsdb_no_host_name_field" ]
+      reason: "Change in default sort config for logsdb"
   - do:
       catch: bad_request
       indices.create:
@@ -285,13 +240,8 @@ override sort order settings:
 ---
 override sort missing settings:
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
+      cluster_features: [ "index.logsdb_no_host_name_field" ]
+      reason: "Change in default sort config for logsdb"
   - do:
       catch: bad_request
       indices.create:
@@ -326,13 +276,8 @@ override sort missing settings:
 ---
 override sort mode settings:
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
+      cluster_features: [ "index.logsdb_no_host_name_field" ]
+      reason: "Change in default sort config for logsdb"
   - do:
       catch: bad_request
       indices.create:
@@ -415,12 +360,7 @@ override sort field using nested field type in sorting:
 override sort field using nested field type:
   - requires:
       cluster_features: ["mapper.index_sorting_on_nested"]
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
+      reason: "Support for index sorting on indexes with nested objects required"
 
   - do:
       indices.create:
@@ -454,14 +394,6 @@ override sort field using nested field type:
 
 ---
 routing path not allowed in logs mode:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       catch: bad_request
       indices.create:
@@ -536,14 +468,6 @@ routing path allowed in logs mode with routing on sort fields:
 
 ---
 start time not allowed in logs mode:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       catch: bad_request
       indices.create:
@@ -577,14 +501,6 @@ start time not allowed in logs mode:
 
 ---
 end time not allowed in logs mode:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ logsdb_index_mode ]
-      reason: "Support for 'logsdb' index mode capability required"
-
   - do:
       catch: bad_request
       indices.create:
@@ -666,8 +582,8 @@ ignore dynamic beyond limit logsdb override value:
 ---
 logsdb with default ignore dynamic beyond limit and default sorting:
   - requires:
-      cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
-      reason: requires default value for ignore_dynamic_beyond_limit
+      cluster_features: [ "index.logsdb_no_host_name_field" ]
+      reason: "No host.name field injection"
 
   - do:
       indices.create:
@@ -722,10 +638,68 @@ logsdb with default ignore dynamic beyond limit and default sorting:
   - match: { hits.hits.1._ignored: [ "message", "pid", "region", "value" ] }
 
 ---
+logsdb with default ignore dynamic beyond limit and default sorting with hostname:
+  - requires:
+      cluster_features: [ "index.logsdb_no_host_name_field" ]
+      reason: "No host.name field injection"
+
+  - do:
+      indices.create:
+        index: test-logsdb-default-sort
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                total_fields:
+                  limit: 3
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: test-logsdb-default-sort
+
+  - match: { test-logsdb-default-sort.settings.index.mode: "logsdb" }
+
+  - do:
+      bulk:
+        index: test-logsdb-default-sort
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:30:00Z", "host.name": "foo", "value": 10, "message": "the quick brown fox", "region": "us-west", "pid": 153462 }'
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:01:00Z", "host.name": "bar", "value": 20, "message": "jumps over the lazy dog", "region": "us-central", "pid": 674972 }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-logsdb-default-sort
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.host.name: "bar" }
+  - match: { hits.hits.0._source.value: 20 }
+  - match: { hits.hits.0._source.message: "jumps over the lazy dog" }
+  - match: { hits.hits.0._ignored: [ "message", "pid", "region", "value" ] }
+  - match: { hits.hits.1._source.host.name: "foo" }
+  - match: { hits.hits.1._source.value: 10 }
+  - match: { hits.hits.1._source.message: "the quick brown fox" }
+  - match: { hits.hits.1._ignored: [ "message", "pid", "region", "value" ] }
+
+---
 logsdb with default ignore dynamic beyond limit and non-default sorting:
   - requires:
-      cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
-      reason: requires default value for ignore_dynamic_beyond_limit
+      cluster_features: [ "index.logsdb_no_host_name_field" ]
+      reason: "No host.name field injection"
 
   - do:
       indices.create:

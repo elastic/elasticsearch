@@ -82,8 +82,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             assertThat(ex.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             long usedBytes = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed();
             if (usedBytes != 0L) {
-                ex.printStackTrace();
-                fail("Expected 0 used bytes, but got " + usedBytes);
+                fail(ex, "Expected 0 used bytes, but got " + usedBytes);
             }
         }
     }

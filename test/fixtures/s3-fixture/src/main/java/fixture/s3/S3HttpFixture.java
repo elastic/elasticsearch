@@ -33,10 +33,6 @@ public class S3HttpFixture extends ExternalResource {
     private final String basePath;
     private final BiPredicate<String, String> authorizationPredicate;
 
-    public S3HttpFixture() {
-        this(true);
-    }
-
     public S3HttpFixture(boolean enabled) {
         this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key"));
     }

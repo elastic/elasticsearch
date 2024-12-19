@@ -64,9 +64,7 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
 
     public void testConditionMet() {
         String notIncludedTier = randomFrom(DataTier.ALL_DATA_TIERS);
-        List<String> otherTiers = DataTier.ALL_DATA_TIERS.stream()
-            .filter(tier -> notIncludedTier.equals(tier) == false)
-            .collect(Collectors.toList());
+        List<String> otherTiers = DataTier.ALL_DATA_TIERS.stream().filter(tier -> notIncludedTier.equals(tier) == false).toList();
         List<String> includedTiers = randomSubsetOf(between(1, otherTiers.size()), otherTiers);
         String tierPreference = String.join(",", includedTiers);
         WaitForDataTierStep step = new WaitForDataTierStep(randomStepKey(), randomStepKey(), tierPreference);
@@ -79,11 +77,11 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
 
     private void verify(WaitForDataTierStep step, ClusterState state, boolean complete, String message) {
         ClusterStateWaitStep.Result result = step.isConditionMet(null, state);
-        assertThat(result.isComplete(), is(complete));
+        assertThat(result.complete(), is(complete));
         if (message != null) {
-            assertThat(Strings.toString(result.getInfomationContext()), containsString(message));
+            assertThat(Strings.toString(result.informationContext()), containsString(message));
         } else {
-            assertThat(result.getInfomationContext(), is(nullValue()));
+            assertThat(result.informationContext(), is(nullValue()));
         }
     }
 

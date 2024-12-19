@@ -20,6 +20,7 @@ import org.elasticsearch.injection.guice.internal.BindingImpl;
 import org.elasticsearch.injection.guice.internal.Errors;
 import org.elasticsearch.injection.guice.internal.ErrorsException;
 import org.elasticsearch.injection.guice.internal.InternalContext;
+import org.elasticsearch.injection.guice.internal.Scoping;
 import org.elasticsearch.injection.guice.internal.Stopwatch;
 import org.elasticsearch.injection.guice.spi.Dependency;
 
@@ -154,7 +155,7 @@ class InjectorBuilder {
     }
 
     private static void loadEagerSingletons(InjectorImpl injector, final Errors errors, BindingImpl<?> binding) {
-        if (binding.getScoping().isEagerSingleton()) {
+        if (binding.getScoping() == Scoping.EAGER_SINGLETON) {
             try {
                 injector.callInContext(new ContextualCallable<Void>() {
                     final Dependency<?> dependency = Dependency.get(binding.getKey());

@@ -89,12 +89,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet required = new AttributeSet(docValuesAttributes);
-
-        required.add(sourceAttribute);
-        required.addAll(attributesToExtract);
-
-        return required;
+        return sourceAttribute != null ? new AttributeSet(sourceAttribute) : AttributeSet.EMPTY;
     }
 
     @Override

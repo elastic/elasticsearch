@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -237,7 +236,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -289,7 +288,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -359,7 +358,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -396,11 +395,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putAlias(AliasMetadata.builder(rolloverAlias))
             .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(
-                new RolloverInfo(
-                    rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
-                    System.currentTimeMillis()
-                )
+                new RolloverInfo(rolloverAlias, List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))), System.currentTimeMillis())
             )
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -432,7 +427,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putRolloverInfo(
                 new RolloverInfo(
                     randomAlphaOfLength(5),
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
+                    List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )
@@ -471,7 +466,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 fail("expecting failure as the write index must be set to true or null");
             }
 
@@ -512,7 +507,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -543,7 +538,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Should have failed with indexing_complete but index is not write index");
             }
 
@@ -573,7 +568,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 actionCompleted.set(complete);
             }
 
@@ -615,7 +610,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -645,7 +640,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -680,7 +675,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 

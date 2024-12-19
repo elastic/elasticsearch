@@ -55,7 +55,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -421,7 +423,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
-    public void testEarlyTerminate() {
+    public void testClosingSinks() {
         BlockFactory blockFactory = blockFactory();
         IntBlock block1 = blockFactory.newConstantIntBlockWith(1, 2);
         IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
@@ -439,6 +441,57 @@ public class ExchangeServiceTests extends ESTestCase {
         assertNull(resp.takePage());
         assertTrue(sink.waitForWriting().listener().isDone());
         assertTrue(sink.isFinished());
+    }
+
+    public void testFinishEarly() throws Exception {
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic(), ActionListener.noop());
+        Semaphore permits = new Semaphore(between(1, 5));
+        BlockFactory blockFactory = blockFactory();
+        Queue<Page> pages = ConcurrentCollections.newQueue();
+        ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
+        AtomicBoolean sinkClosed = new AtomicBoolean();
+        PlainActionFuture<Void> sinkCompleted = new PlainActionFuture<>();
+        sourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+            if (allSourcesFinished) {
+                sinkClosed.set(true);
+                permits.release(10);
+                listener.onResponse(new ExchangeResponse(blockFactory, null, sinkClosed.get()));
+            } else {
+                try {
+                    if (permits.tryAcquire(between(0, 100), TimeUnit.MICROSECONDS)) {
+                        boolean closed = sinkClosed.get();
+                        final Page page;
+                        if (closed) {
+                            page = new Page(blockFactory.newConstantIntBlockWith(1, 1));
+                            pages.add(page);
+                        } else {
+                            page = null;
+                        }
+                        listener.onResponse(new ExchangeResponse(blockFactory, page, closed));
+                    } else {
+                        listener.onResponse(new ExchangeResponse(blockFactory, null, sinkClosed.get()));
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }, false, between(1, 3), sinkCompleted);
+        threadPool.schedule(
+            () -> sourceHandler.finishEarly(randomBoolean(), ActionListener.noop()),
+            TimeValue.timeValueMillis(between(0, 10)),
+            threadPool.generic()
+        );
+        sinkCompleted.actionGet();
+        Page p;
+        while ((p = exchangeSource.pollPage()) != null) {
+            assertSame(p, pages.poll());
+            p.releaseBlocks();
+        }
+        while ((p = pages.poll()) != null) {
+            p.releaseBlocks();
+        }
+        assertTrue(exchangeSource.isFinished());
+        exchangeSource.finish();
     }
 
     public void testConcurrentWithTransportActions() {
@@ -491,7 +544,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
-    public void testFailToRespondPage() {
+    public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
@@ -558,7 +611,9 @@ public class ExchangeServiceTests extends ESTestCase {
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
-            sinkHandler.onFailure(new RuntimeException(cause));
+            PlainActionFuture<Void> sinkCompletionFuture = new PlainActionFuture<>();
+            sinkHandler.addCompletionListener(sinkCompletionFuture);
+            assertBusy(() -> assertTrue(sinkCompletionFuture.isDone()));
             expectThrows(Exception.class, () -> sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS));
         }
     }

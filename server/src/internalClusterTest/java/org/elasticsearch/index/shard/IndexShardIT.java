@@ -715,7 +715,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         IndexShard shard = indexService.getShard(0);
         try (
-            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true, randomBoolean(), randomBoolean());
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot(
+                "test",
+                0,
+                numOps - 1,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            );
             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
         ) {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);

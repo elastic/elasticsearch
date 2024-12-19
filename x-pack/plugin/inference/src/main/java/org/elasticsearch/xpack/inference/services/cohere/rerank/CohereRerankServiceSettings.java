@@ -92,7 +92,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
         this.uri = createOptionalUri(in.readOptionalString());
 
-        if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_COHERE_UNUSED_RERANK_SETTINGS_REMOVED)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             // An older node sends these fields, so we need to skip them to progress through the serialized data
             in.readOptionalEnum(SimilarityMeasure.class);
             in.readOptionalVInt();
@@ -162,7 +162,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
 
-        if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_COHERE_UNUSED_RERANK_SETTINGS_REMOVED)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             // An old node expects this data to be present, so we need to send at least the booleans
             // indicating that the fields are not set
             out.writeOptionalEnum(null);

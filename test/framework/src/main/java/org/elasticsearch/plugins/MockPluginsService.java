@@ -45,7 +45,7 @@ public class MockPluginsService extends PluginsService {
         super(
             settings,
             environment.configFile(),
-            new PluginsLoader(Collections.emptyList(), Collections.emptyList(), Collections.emptyMap())
+            new PluginsLoader(Collections.emptySet(), Collections.emptySet(), Collections.emptyMap())
         );
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();

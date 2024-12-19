@@ -20,7 +20,7 @@ public class PostConnectorActionTests extends ESTestCase {
         PostConnectorAction.Request request = new PostConnectorAction.Request(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomBoolean(),
+            false,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10)
@@ -28,6 +28,24 @@ public class PostConnectorActionTests extends ESTestCase {
         ActionRequestValidationException exception = request.validate();
 
         assertThat(exception, nullValue());
+    }
+
+    public void testValidate_WrongIndexNamePresentForManagedConnector_ExpectValidationError() {
+        PostConnectorAction.Request requestWithIllegalIndexName = new PostConnectorAction.Request(
+            randomAlphaOfLength(10),
+            "wrong-prefix-" + randomAlphaOfLength(10),
+            true,
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10)
+        );
+        ActionRequestValidationException exception = requestWithIllegalIndexName.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(
+            exception.getMessage(),
+            containsString("Index attached to an Elastic-managed connector must start with the prefix: [content-]")
+        );
     }
 
     public void testValidate_WhenMalformedIndexName_ExpectValidationError() {

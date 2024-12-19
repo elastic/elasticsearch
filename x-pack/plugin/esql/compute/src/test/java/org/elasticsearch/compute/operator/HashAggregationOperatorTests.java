@@ -59,7 +59,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
                 new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)
             ),
-            randomPageSize()
+            randomPageSize(),
+            null
         );
     }
 

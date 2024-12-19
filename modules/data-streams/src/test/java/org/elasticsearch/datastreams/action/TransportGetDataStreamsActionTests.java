@@ -406,7 +406,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
-        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(false));
+        assertThat(response.getDataStreams().get(0).isFailureStoreEffectivelyEnabled(), is(false));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledExplicitly() {
@@ -435,7 +435,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
-        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
+        assertThat(response.getDataStreams().get(0).isFailureStoreEffectivelyEnabled(), is(true));
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledByClusterSetting() {
@@ -470,6 +470,6 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             null
         );
         assertThat(response.getDataStreams(), hasSize(1));
-        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
+        assertThat(response.getDataStreams().get(0).isFailureStoreEffectivelyEnabled(), is(true));
     }
 }

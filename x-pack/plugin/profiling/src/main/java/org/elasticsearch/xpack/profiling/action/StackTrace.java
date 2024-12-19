@@ -27,30 +27,12 @@ final class StackTrace implements ToXContentObject {
     String[] frameIds;
     int[] typeIds;
     SubGroup subGroups;
-    double annualCO2Tons;
-    double annualCostsUSD;
-    long count;
-    String executableName;
-    String threadName;
 
-    StackTrace(
-        int[] addressOrLines,
-        String[] fileIds,
-        String[] frameIds,
-        int[] typeIds,
-        double annualCO2Tons,
-        double annualCostsUSD,
-        long count
-    ) {
+    StackTrace(int[] addressOrLines, String[] fileIds, String[] frameIds, int[] typeIds) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;
         this.frameIds = frameIds;
         this.typeIds = typeIds;
-        this.annualCO2Tons = annualCO2Tons;
-        this.annualCostsUSD = annualCostsUSD;
-        this.count = count;
-        this.executableName = "";
-        this.threadName = "";
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -214,7 +196,7 @@ final class StackTrace implements ToXContentObject {
         // Step 2: Convert the run-length byte encoding into a list of uint8s.
         int[] typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
-        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
+        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs);
     }
 
     public void forNativeAndKernelFrames(Consumer<String> consumer) {
@@ -226,22 +208,6 @@ final class StackTrace implements ToXContentObject {
         }
     }
 
-    public String getExecutableName() {
-        if (executableName.isEmpty() && this.typeIds.length > 0 && this.typeIds[0] == KERNEL_FRAME_TYPE) {
-            // kernel threads are not associated with an executable
-            return "kernel";
-        }
-        return executableName;
-    }
-
-    public String getThreadName() {
-        if (threadName.isEmpty()) {
-            // kernel threads are not associated with an executable
-            return executableName;
-        }
-        return threadName;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -249,11 +215,6 @@ final class StackTrace implements ToXContentObject {
         builder.field("file_ids", this.fileIds);
         builder.field("frame_ids", this.frameIds);
         builder.field("type_ids", this.typeIds);
-        builder.field("annual_co2_tons", this.annualCO2Tons);
-        builder.field("annual_costs_usd", this.annualCostsUSD);
-        builder.field("count", this.count);
-        builder.field("executable_name", this.executableName);
-        builder.field("thread_name", this.threadName);
         builder.endObject();
         return builder;
     }
@@ -268,10 +229,8 @@ final class StackTrace implements ToXContentObject {
         return Arrays.equals(addressOrLines, that.addressOrLines)
             && Arrays.equals(fileIds, that.fileIds)
             && Arrays.equals(frameIds, that.frameIds)
-            && Arrays.equals(typeIds, that.typeIds)
-            && executableName.equals(that.executableName)
-            && threadName.equals(that.threadName);
-        // Don't compare metadata like annualized co2, annualized costs, subGroups and count.
+            && Arrays.equals(typeIds, that.typeIds);
+        // Don't compare metadata like subGroups.
     }
 
     // Don't hash metadata like annualized co2, annualized costs, subGroups and count.
@@ -281,8 +240,6 @@ final class StackTrace implements ToXContentObject {
         result = 31 * result + Arrays.hashCode(fileIds);
         result = 31 * result + Arrays.hashCode(frameIds);
         result = 31 * result + Arrays.hashCode(typeIds);
-        result = 31 * result + executableName.hashCode();
-        result = 31 * result + threadName.hashCode();
         return result;
     }
 }

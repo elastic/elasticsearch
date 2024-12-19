@@ -137,23 +137,6 @@ class GetStackTracesResponseBuilder {
     }
 
     public GetStackTracesResponse build() {
-        // Merge the TraceEvent data into the StackTraces.
-        if (stackTraces != null && stackTraceEvents != null) {
-            stackTraceEvents.forEach((id, event) -> {
-                StackTrace stackTrace = stackTraces.get(id.stacktraceID());
-                if (stackTrace == null) {
-                    return;
-                }
-                stackTrace.count += event.count;
-                stackTrace.executableName = event.executableName;
-                stackTrace.threadName = event.threadName;
-                if (event.subGroups != null) {
-                    stackTrace.subGroups = event.subGroups;
-                }
-                stackTrace.annualCO2Tons += event.annualCO2Tons;
-                stackTrace.annualCostsUSD += event.annualCostsUSD;
-            });
-        }
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, totalSamples);
     }
 }

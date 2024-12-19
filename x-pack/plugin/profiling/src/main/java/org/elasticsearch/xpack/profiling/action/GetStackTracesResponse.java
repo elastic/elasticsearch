@@ -102,7 +102,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                 stackTraceEvents,
                 (n, v) -> ChunkedToXContentHelper.wrapWithObject(
                     n,
-                    Iterators.map(v.values().iterator(), e -> (b, p) -> b.field(e.stacktraceID, e.count))
+                    Iterators.map(v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().stacktraceID(), e.getValue().count))
                 )
             ),
             Iterators.single((b, p) -> b.field("total_frames", totalFrames).field("sampling_rate", samplingRate).endObject())

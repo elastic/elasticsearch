@@ -56,7 +56,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -292,7 +291,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     String stackTraceID = stacktraceBucket.getKeyAsString();
 
                     TraceEventID eventID = new TraceEventID("", "", "", stackTraceID);
-                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent(stackTraceID));
+                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
                     event.count += count;
                     subGroups.collectResults(stacktraceBucket, event);
                 }
@@ -398,10 +397,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                                 String stackTraceID = stacktraceBucket.getKeyAsString();
 
                                 TraceEventID eventID = new TraceEventID(executableName, threadName, hostID, stackTraceID);
-                                TraceEvent event = stackTraceEvents.computeIfAbsent(
-                                    eventID,
-                                    k -> new TraceEvent(stackTraceID, executableName, threadName, hostID)
-                                );
+                                TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
                                 event.count += finalCount;
                                 subGroups.collectResults(stacktraceBucket, event);
                             }
@@ -605,7 +601,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.length);
                             stackFrameIds.addAll(List.of(stacktrace.frameIds));
-                            stacktrace.forNativeAndKernelFrames(e -> executableIds.add(e));
+                            stacktrace.forNativeAndKernelFrames(executableIds::add);
                         }
                     }
                 }
@@ -644,10 +640,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 responseBuilder.getCustomCostPerCoreHour()
             );
 
-            for (TraceEvent event : responseBuilder.getStackTraceEvents().values()) {
-                event.annualCO2Tons += co2Calculator.getAnnualCO2Tons(event.hostID, event.count);
-                event.annualCostsUSD += costCalculator.annualCostsUSD(event.hostID, event.count);
-            }
+            responseBuilder.getStackTraceEvents().forEach((eventId, event) -> {
+                event.annualCO2Tons += co2Calculator.getAnnualCO2Tons(eventId.hostID(), event.count);
+                event.annualCostsUSD += costCalculator.annualCostsUSD(eventId.hostID(), event.count);
+            });
 
             log.debug(watch::report);
         }
@@ -843,6 +839,4 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 .execute(new RefCountAwareThreadedActionListener<>(responseExecutor, listener));
         }
     }
-
-    record HostEventCount(String hostID, String stacktraceID, int count) {}
 }

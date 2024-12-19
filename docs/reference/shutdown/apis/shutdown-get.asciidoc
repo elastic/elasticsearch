@@ -72,6 +72,7 @@ including the status of shard migration, task migration, and plugin cleanup:
     "nodes": [
         {
             "node_id": "USpTGYaBSIKbgSUJR2Z9lg",
+            "node_ephemeral_id": "RuDQuHANQCeYhsnwc3zcLA",
             "type": "RESTART",
             "reason": "Demonstrating how the node shutdown API works",
             "shutdown_startedmillis": 1624406108685,
@@ -94,3 +95,4 @@ including the status of shard migration, task migration, and plugin cleanup:
 --------------------------------------------------
 // TESTRESPONSE[s/1624406108685/$body.nodes.0.shutdown_startedmillis/]
 // TESTRESPONSE[s/USpTGYaBSIKbgSUJR2Z9lg/$body.nodes.0.node_id/]
+// TESTRESPONSE[s/RuDQuHANQCeYhsnwc3zcLA/$body.nodes.0.node_ephemeral_id/]

@@ -601,6 +601,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                                     "shutdown_node",
                                     SingleNodeShutdownMetadata.builder()
                                         .setNodeId("shutdown_node")
+                                        .setNodeEphemeralId("shutdown_node")
                                         .setReason("shut down for test")
                                         .setStartedAtMillis(randomNonNegativeLong())
                                         .setType(SingleNodeShutdownMetadata.Type.RESTART)
@@ -632,6 +633,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                                     "shutdown_node",
                                     SingleNodeShutdownMetadata.builder()
                                         .setNodeId("shutdown_node")
+                                        .setNodeEphemeralId("shutdown_node")
                                         .setReason("shut down for test")
                                         .setStartedAtMillis(randomNonNegativeLong())
                                         .setType(type)

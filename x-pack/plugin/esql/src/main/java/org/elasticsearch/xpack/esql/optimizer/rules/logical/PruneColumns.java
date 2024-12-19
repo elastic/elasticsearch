@@ -36,13 +36,20 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        var used = new AttributeSet();
         // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
         var seenProjection = new Holder<>(Boolean.FALSE);
 
-        // start top-to-bottom
-        // and track used references
+        // track used references
+        var used = new AttributeSet();
+        // while going top-to-bottom (upstream)
         var pl = plan.transformDown(p -> {
+            // Note: It is NOT required to do anything special for binary plans like JOINs. It is perfectly fine that transformDown descends
+            // first into the left side, adding all kinds of attributes to the `used` set, and then descends into the right side - even
+            // though the `used` set will contain stuff only used in the left hand side. That's because any attribute that is used in the
+            // left hand side must have been created in the left side as well. Even field attributes belonging to the same index fields will
+            // have different name ids in the left and right hand sides - as in the extreme example
+            // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
+
             // skip nodes that simply pass the input through
             if (p instanceof Limit) {
                 return p;

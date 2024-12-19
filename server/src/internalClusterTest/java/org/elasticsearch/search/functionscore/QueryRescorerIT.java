@@ -38,6 +38,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -840,6 +841,20 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 }
             }
         );
+
+        assertResponse(
+            prepareSearch().addSort(SortBuilders.scoreSort())
+                .addSort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME))
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
+                assertThat(response.getHits().getHits().length, equalTo(5));
+                for (SearchHit hit : response.getHits().getHits()) {
+                    assertThat(hit.getScore(), equalTo(101f));
+                }
+            }
+        );
     }
 
     record GroupDoc(String id, String group, float firstPassScore, float secondPassScore, boolean shouldFilter) {}
@@ -879,6 +894,10 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setQuery(fieldValueScoreQuery("firstPassScore"))
             .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")))
             .setCollapse(new CollapseBuilder("group"));
+        if (randomBoolean()) {
+            request.addSort(SortBuilders.scoreSort());
+            request.addSort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+        }
         assertResponse(request, resp -> {
             assertThat(resp.getHits().getTotalHits().value(), equalTo(5L));
             assertThat(resp.getHits().getHits().length, equalTo(3));
@@ -958,6 +977,10 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f).windowSize(numGroups))
             .setCollapse(new CollapseBuilder("group"))
             .setSize(Math.min(numGroups, 10));
+        if (randomBoolean()) {
+            request.addSort(SortBuilders.scoreSort());
+            request.addSort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+        }
         long expectedNumHits = numHits;
         assertResponse(request, resp -> {
             assertThat(resp.getHits().getTotalHits().value(), equalTo(expectedNumHits));

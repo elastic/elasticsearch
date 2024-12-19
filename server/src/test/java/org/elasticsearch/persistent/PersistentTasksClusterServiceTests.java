@@ -628,6 +628,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                         DiscoveryNode::getId,
                         node -> SingleNodeShutdownMetadata.builder()
                             .setNodeId(node.getId())
+                            .setNodeEphemeralId(node.getEphemeralId())
                             .setReason("shutdown for a unit test")
                             .setType(type)
                             .setStartedAtMillis(randomNonNegativeLong())

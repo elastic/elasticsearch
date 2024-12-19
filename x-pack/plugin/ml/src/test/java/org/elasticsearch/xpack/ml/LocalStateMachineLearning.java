@@ -27,7 +27,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 
@@ -87,12 +86,6 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         });
         plugins.add(new MockedRollupPlugin());
-        plugins.add(new InferencePlugin(settings) {
-            @Override
-            protected SSLService getSslService() {
-                return thisVar.getSslService();
-            }
-        });
     }
 
     @Override

@@ -26,6 +26,10 @@ import java.util.Objects;
 
 public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Request {
 
+    // Implementing OpenAiRequest to ensure compatibility with the OpenAI API interface
+    // This allows the ElasticInferenceService to handle requests in a standardized manner
+    // and leverage existing infrastructure for processing OpenAI-like requests.
+
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
     private final TraceContextHandler traceContextHandler;

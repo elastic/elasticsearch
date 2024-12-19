@@ -502,6 +502,14 @@ s:keyword                  | d:datetime
 12/Jul/2022:10:24:10 +0900 | 2022-07-12T01:24:10.000Z
 ;
 
+evalDateParseWithTimezoneCrossingDayBoundary
+required_capability: date_parse_tz
+row s = "12/Jul/2022:08:24:10 +0900" | eval d = date_parse("dd/MMM/yyyy:HH:mm:ss Z", s);
+
+s:keyword                  | d:datetime
+12/Jul/2022:08:24:10 +0900 | 2022-07-11T23:24:10.000Z
+;
+
 evalDateParseWithTimezone2
 required_capability: date_parse_tz
 row s1 = "12/Jul/2022:10:24:10 +0900", s2 = "2022/12/07 09:24:10 +0800"

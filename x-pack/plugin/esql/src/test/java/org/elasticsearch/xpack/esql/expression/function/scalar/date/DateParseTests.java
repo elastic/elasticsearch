@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,19 +52,21 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                         equalTo(1683244800000L)
                     )
                 ),
-                new TestCaseSupplier(
-                    "Timezoned Case",
-                    List.of(DataType.KEYWORD, DataType.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
+                new TestCaseSupplier("Timezoned Case", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+                    long ts_sec = 1657585450L; // 2022-07-12T00:24:10Z
+                    int hours = randomIntBetween(0, 23);
+                    String date = String.format(Locale.ROOT, "12/Jul/2022:%02d:24:10 +0900", hours);
+                    long expected_ts = (ts_sec + (hours - 9) * 3600L) * 1000L;
+                    return new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(new BytesRef("dd/MMM/yyyy:HH:mm:ss Z"), DataType.KEYWORD, "first"),
-                            new TestCaseSupplier.TypedData(new BytesRef("12/Jul/2022:10:24:10 +0900"), DataType.KEYWORD, "second")
+                            new TestCaseSupplier.TypedData(new BytesRef(date), DataType.KEYWORD, "second")
                         ),
                         "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
-                        equalTo(1657589050000L)
-                    )
-                ),
+                        equalTo(expected_ts)
+                    );
+                }),
                 new TestCaseSupplier(
                     "With Text",
                     List.of(DataType.KEYWORD, DataType.TEXT),

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -96,7 +97,7 @@ public class OperationRouting {
         }
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public List<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -105,7 +106,7 @@ public class OperationRouting {
         return searchShards(clusterState, concreteIndices, routing, preference, null, null);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public List<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -134,7 +135,9 @@ public class OperationRouting {
                 set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
             }
         }
-        return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+        var res = new ArrayList<>(set);
+        CollectionUtil.timSort(res);
+        return res;
     }
 
     private static List<ShardRouting> statefulShardsThatHandleSearches(ShardIterator iterator) {

@@ -46,9 +46,9 @@ public interface BuildParameterExtension {
 
     Provider<String> getRuntimeJavaDetails();
 
-    String getGitRevision();
+    Provider<String> getGitRevision();
 
-    String getGitOrigin();
+    Provider<String> getGitOrigin();
 
     ZonedDateTime getBuildDate();
 

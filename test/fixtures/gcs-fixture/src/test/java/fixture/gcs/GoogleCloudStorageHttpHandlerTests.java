@@ -306,7 +306,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         // new file, zero generation
         assertEquals(
             RestStatus.OK,
-            executeMultipartUpload(handler, bucket, blobName + randomIdentifier(), randomBytesReference(randomIntBetween(100, 5_000)), 0L)
+            executeMultipartUpload(handler, bucket, blobName + "/new/1", randomBytesReference(randomIntBetween(100, 5_000)), 0L)
                 .restStatus()
         );
 
@@ -316,7 +316,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             executeMultipartUpload(
                 handler,
                 bucket,
-                blobName + randomIdentifier(),
+                blobName + "/new/2",
                 randomBytesReference(randomIntBetween(100, 5_000)),
                 randomLongBetween(1, Long.MAX_VALUE)
             ).restStatus()
@@ -372,7 +372,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         // new file, zero generation
         assertEquals(
             RestStatus.OK,
-            executeResumableUpload(handler, bucket, blobName + randomIdentifier(), randomBytesReference(randomIntBetween(100, 5_000)), 0L)
+            executeResumableUpload(handler, bucket, blobName + "/new/1", randomBytesReference(randomIntBetween(100, 5_000)), 0L)
                 .restStatus()
         );
 
@@ -382,7 +382,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             executeResumableUpload(
                 handler,
                 bucket,
-                blobName + randomIdentifier(),
+                blobName + "/new/2",
                 randomBytesReference(randomIntBetween(100, 5_000)),
                 randomLongBetween(1, Long.MAX_VALUE)
             ).restStatus()

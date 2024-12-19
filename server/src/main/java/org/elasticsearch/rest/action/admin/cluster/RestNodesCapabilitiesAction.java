@@ -30,8 +30,8 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
-    public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action");
-    public static final NodeFeature LOCAL_ONLY_CAPABILITIES = new NodeFeature("rest.local_only_capabilities");
+    public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action", true);
+    public static final NodeFeature LOCAL_ONLY_CAPABILITIES = new NodeFeature("rest.local_only_capabilities", true);
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
         "timeout",
         "method",

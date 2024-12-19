@@ -34,7 +34,7 @@ public class ListQueryRulesetsAction {
     public static final String NAME = "cluster:admin/xpack/query_rules/list";
     public static final ActionType<ListQueryRulesetsAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public static final NodeFeature QUERY_RULE_LIST_TYPES = new NodeFeature("query_rule_list_types");
+    public static final NodeFeature QUERY_RULE_LIST_TYPES = new NodeFeature("query_rule_list_types", true);
 
     private ListQueryRulesetsAction() {/* no instances */}
 

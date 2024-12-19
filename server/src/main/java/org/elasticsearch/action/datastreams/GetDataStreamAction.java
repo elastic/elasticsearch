@@ -72,10 +72,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(true)
+                    .allowSelectors(false)
                     .build()
             )
             .build();
+
         private boolean includeDefaults = false;
         private boolean verbose = false;
 

@@ -4137,6 +4137,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 request.partial(),
                 indexIds,
                 CollectionUtils.concatLists(
+                    // It's ok to just get the data stream names here because we've already resolved all the concrete indices.
                     indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
                     systemDataStreamNames
                 ),

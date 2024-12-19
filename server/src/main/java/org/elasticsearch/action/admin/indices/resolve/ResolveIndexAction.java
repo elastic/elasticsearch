@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
@@ -598,12 +599,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private static void enrichIndexAbstraction(
             ClusterState clusterState,
-            ResolvedExpression indexAbstraction,
+            ResolvedExpression resolvedExpression,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction.resource());
+            SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+            IndexAbstraction ia = indicesLookup.get(resolvedExpression.resource());
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
@@ -632,18 +634,75 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         );
                     }
                     case ALIAS -> {
-                        String[] indexNames = ia.getIndices().stream().map(Index::getName).toArray(String[]::new);
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, indicesLookup).map(Index::getName)
+                            .toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                     }
                     case DATA_STREAM -> {
                         DataStream dataStream = (DataStream) ia;
-                        String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
+                        Stream<Index> dataStreamIndices = resolvedExpression.selector() == null
+                            ? dataStream.getIndices().stream()
+                            : switch (resolvedExpression.selector()) {
+                                case DATA -> dataStream.getBackingIndices().getIndices().stream();
+                                case FAILURES -> dataStream.getFailureIndices().getIndices().stream();
+                                case ALL_APPLICABLE -> Stream.concat(
+                                    dataStream.getBackingIndices().getIndices().stream(),
+                                    dataStream.getFailureIndices().getIndices().stream()
+                                );
+                            };
+                        String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
+        }
+
+        private static Stream<Index> getAliasIndexStream(
+            ResolvedExpression resolvedExpression,
+            IndexAbstraction ia,
+            SortedMap<String, IndexAbstraction> indicesLookup
+        ) {
+            Stream<Index> aliasIndices;
+            if (resolvedExpression.selector() == null) {
+                aliasIndices = ia.getIndices().stream();
+            } else {
+                aliasIndices = switch (resolvedExpression.selector()) {
+                    case DATA -> ia.getIndices().stream();
+                    case FAILURES -> {
+                        assert ia.isDataStreamRelated() : "Illegal selector [failures] used on non data stream alias";
+                        yield ia.getIndices()
+                            .stream()
+                            .map(Index::getName)
+                            .map(indicesLookup::get)
+                            .map(IndexAbstraction::getParentDataStream)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .map(DataStream::getFailureIndices)
+                            .flatMap(failureIndices -> failureIndices.getIndices().stream());
+                    }
+                    case ALL_APPLICABLE -> {
+                        if (ia.isDataStreamRelated()) {
+                            yield Stream.concat(
+                                ia.getIndices().stream(),
+                                ia.getIndices()
+                                    .stream()
+                                    .map(Index::getName)
+                                    .map(indicesLookup::get)
+                                    .map(IndexAbstraction::getParentDataStream)
+                                    .filter(Objects::nonNull)
+                                    .distinct()
+                                    .map(DataStream::getFailureIndices)
+                                    .flatMap(failureIndices -> failureIndices.getIndices().stream())
+                            );
+                        } else {
+                            yield ia.getIndices().stream();
+                        }
+                    }
+                };
+            }
+            return aliasIndices;
         }
 
         enum Attribute {

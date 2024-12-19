@@ -16,7 +16,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MapperService;
@@ -81,7 +82,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosedAllowSelectors();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -125,12 +126,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var selector = indicesOptions.selectorOptions().defaultSelector();
-        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
-            validationException = addValidationError(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException
-            );
+        if (rolloverTarget != null) {
+            ResolvedExpression resolvedExpression = SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            IndexComponentSelector selector = resolvedExpression.selector();
+            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
+                validationException = addValidationError(
+                    "rollover cannot be applied to both regular and failure indices at the same time",
+                    validationException
+                );
+            }
         }
 
         return validationException;
@@ -160,13 +164,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
-    }
-
-    /**
-     * @return true of the rollover request targets the failure store, false otherwise.
-     */
-    public boolean targetsFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
     }
 
     public void setIndicesOptions(IndicesOptions indicesOptions) {

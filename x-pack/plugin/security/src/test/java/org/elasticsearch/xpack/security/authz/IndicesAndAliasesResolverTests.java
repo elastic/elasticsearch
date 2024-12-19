@@ -158,6 +158,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final String otherDataStreamName = "logs-foo";
         IndexMetadata dataStreamIndex1 = DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build();
         IndexMetadata dataStreamIndex2 = DataStreamTestHelper.createBackingIndex(dataStreamName, 2).build();
+        IndexMetadata dataStreamFailureStore1 = DataStreamTestHelper.createFailureStore(dataStreamName, 1).build();
+        IndexMetadata dataStreamFailureStore2 = DataStreamTestHelper.createFailureStore(dataStreamName, 2).build();
         IndexMetadata dataStreamIndex3 = DataStreamTestHelper.createBackingIndex(otherDataStreamName, 1).build();
         Metadata metadata = Metadata.builder()
             .put(
@@ -217,7 +219,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex1, true)
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
-            .put(newInstance(dataStreamName, List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
+            .put(dataStreamFailureStore1, true)
+            .put(dataStreamFailureStore2, true)
+            .put(
+                newInstance(
+                    dataStreamName,
+                    List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
+                    List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
+                )
+            )
             .put(newInstance(otherDataStreamName, List.of(dataStreamIndex3.getIndex())))
             .put(indexBuilder(securityIndexName).settings(settings))
             .build();
@@ -432,6 +442,38 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
+    public void testSelectorsDoNotImpactWildcardDetection() {
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.indices()).thenReturn(new String[] { "index*::data" });
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
+        );
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "the action indices:data/read/search[s] does not support wildcards;"
+                    + " the provided index expression(s) [index*::data] are not allowed"
+            )
+        );
+    }
+
+    public void testWildcardSelectorsAreNotAllowedInShardLevelRequests() {
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.indices()).thenReturn(new String[] { "index10::*" });
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
+        );
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "the action indices:data/read/search[s] does not support wildcard selectors;"
+                    + " the provided index expression(s) [index10::*] are not allowed"
+            )
+        );
+    }
+
     public void testAllIsNotAllowedInShardLevelRequests() {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         final boolean literalAll = randomBoolean();
@@ -457,6 +499,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                         + " the provided index expression [_all] is not allowed"
                 )
                 : throwableWithMessage("the action indices:data/read/search[s] requires explicit index names, but none were provided")
+        );
+    }
+
+    public void testSelectorsDoNotImpactAllPatternDetection() {
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.indices()).thenReturn(new String[] { "_all::data" });
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
+        );
+
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "the action indices:data/read/search[s] does not support accessing all indices;"
+                    + " the provided index expression [_all::data] is not allowed"
+            )
         );
     }
 

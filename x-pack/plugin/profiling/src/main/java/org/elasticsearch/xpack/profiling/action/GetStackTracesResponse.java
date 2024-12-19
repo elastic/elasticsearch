@@ -103,7 +103,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                     (steb, n, v) -> steb.object(
                         n,
                         v.entrySet().iterator(),
-                        e -> (b, p) -> b.field(e.getValue().stacktraceID, e.getValue().count)
+                        e -> (b, p) -> b.field(e.getKey().stacktraceID(), e.getValue().count)
                     )
                 )
             );

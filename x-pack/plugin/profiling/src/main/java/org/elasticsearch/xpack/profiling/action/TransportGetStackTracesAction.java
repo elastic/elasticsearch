@@ -291,7 +291,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     String stackTraceID = stacktraceBucket.getKeyAsString();
 
                     TraceEventID eventID = new TraceEventID("", "", "", stackTraceID);
-                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent(stackTraceID));
+                    TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
                     event.count += count;
                     subGroups.collectResults(stacktraceBucket, event);
                 }
@@ -397,7 +397,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                                 String stackTraceID = stacktraceBucket.getKeyAsString();
 
                                 TraceEventID eventID = new TraceEventID(executableName, threadName, hostID, stackTraceID);
-                                TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent(stackTraceID));
+                                TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
                                 event.count += finalCount;
                                 subGroups.collectResults(stacktraceBucket, event);
                             }

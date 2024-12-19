@@ -9,6 +9,7 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -28,8 +29,14 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.recovery.IndexRecoveryIT;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -48,6 +55,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.index.IndexingPressure.MAX_PRIMARY_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -74,7 +82,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class);
+        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class, TestAnalysisPlugin.class);
     }
 
     @Override
@@ -183,11 +191,16 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 .orElseThrow();
         plugin.resetMeter();
 
-        if (randomBoolean()) {
-            assertAcked(prepareCreate("test").get());
-        } else {
-            assertAcked(prepareCreate("test", Settings.builder().put("index.refresh_interval", "-1")).get());
-        }
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.refresh_interval", "-1")
+                    .put("index.analysis.analyzer.test_analyzer.type", "custom")
+                    .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
+                    .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
+            ).setMapping(Map.of("properties", Map.of("test_field", Map.of("type", "text", "analyzer", "test_analyzer")))).get()
+        );
 
         String docId = randomUUID();
         // successful index (with version)
@@ -195,7 +208,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             new IndexRequest("test").id(docId)
                 .version(10)
                 .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
-                .source(Map.of("test_date", "2025/01/01"))
+                .source(Map.of())
         ).actionGet();
         // if_primary_term conflict
         {
@@ -231,15 +244,17 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             assertThat(e.getMessage(), containsString("version conflict"));
             assertThat(e.status(), is(RestStatus.CONFLICT));
         }
-        // indexing failure that is NOT a version conflict (date parsing failure)
+        // indexing failure that is NOT a version conflict
+        PluginsService pluginService = internalCluster().getInstance(PluginsService.class, dataNode);
+        pluginService.filterPlugins(TestAnalysisPlugin.class).forEach(p -> p.throwParsingError.set(true));
         {
             var e = expectThrows(
-                    DocumentParsingException.class,
-                    () -> client(dataNode).index(
-                    new IndexRequest("test").id(docId)
-                            .source(Map.of())
-//                            .source(Map.of("test_date", "foo"))
-            ).actionGet());
+                MapperParsingException.class,
+                () -> client(dataNode).index(
+                    new IndexRequest("test").id(docId + "other")
+                          .source(Map.of("test_field", "this will error"))
+                ).actionGet()
+            );
             assertThat(e.status(), is(RestStatus.BAD_REQUEST));
         }
 
@@ -247,10 +262,28 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement("es.indexing.indexing.failed.total");
         assertThat(measurements, iterableWithSize(2));
-        assertThat(measurements.get(0).value(), is(3L));
+        assertThat(measurements.get(0).value(), is(4L));
         assertThat(measurements.get(0).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "any")));
         assertThat(measurements.get(1).value(), is(3L));
         assertThat(measurements.get(1).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "version_conflict")));
+    }
+
+
+    public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
+        final AtomicBoolean throwParsingError = new AtomicBoolean(false);
+
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+            return singletonMap("test_token_filter", (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name) {
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (throwParsingError.get()) {
+                        throw new MapperParsingException("simulate mapping parsing error");
+                    }
+                    return tokenStream;
+                }
+            });
+        }
     }
 
     public void testNodeIndexingMetricsArePublishing() {

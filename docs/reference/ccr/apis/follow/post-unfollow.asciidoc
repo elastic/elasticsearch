@@ -5,6 +5,12 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+--
+
 Converts a <<xpack-ccr,{ccr}>> follower index to a regular index.
 
 [[ccr-post-unfollow-request]]

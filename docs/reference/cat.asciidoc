@@ -1,6 +1,12 @@
 [[cat]]
 == Compact and aligned text (CAT) APIs
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[CAT APIs].
+--
+
 ["float",id="intro"]
 === Introduction
 

@@ -5,6 +5,12 @@
 <titleabbrev>Create auto-follow pattern</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+--
+
 Creates a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-put-auto-follow-pattern-request]]

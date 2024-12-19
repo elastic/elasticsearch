@@ -427,9 +427,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 @Override
                 public void onResponse(RolloverResponse result) {
                     logger.debug(
-                        "Data stream{} {} has {} over, the latest index is {}",
-                        targetFailureStore ? " failure store" : "",
-                        dataStream,
+                        "Data stream [{}] has {} over, the latest index is {}",
+                        rolloverRequest.getRolloverTarget(),
                         result.isRolledOver() ? "been successfully rolled" : "skipped rolling",
                         result.getNewIndex()
                     );

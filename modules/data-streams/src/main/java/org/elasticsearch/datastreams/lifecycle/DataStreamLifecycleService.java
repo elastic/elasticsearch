@@ -1000,7 +1000,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.indicesOptions()
         );
-        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", resolvedRolloverTarget.resource());
+        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverRequest.getRolloverTarget());
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
@@ -1015,7 +1015,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.info(
                         "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
                             + "conditions {}. The new index is [{}]",
-                        resolvedRolloverTarget.resource(),
+                        rolloverRequest.getRolloverTarget(),
                         metConditions,
                         rolloverResponse.getNewIndex()
                     );

@@ -25,7 +25,6 @@ import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -33,10 +32,8 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
-import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -58,7 +55,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -215,28 +211,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             adminExecutionContext = null;
             clientYamlTestClient = null;
         }
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     * Enables support for parsing the legacy version-based node_selector format.
-     */
-    @Deprecated
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static Iterable<Object[]> createParametersWithLegacyNodeSelectorSupport() throws Exception {
-        var executableSectionRegistry = new NamedXContentRegistry(
-            Stream.concat(
-                ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS.stream().filter(entry -> entry.name.getPreferredName().equals("do") == false),
-                Stream.of(
-                    new NamedXContentRegistry.Entry(
-                        ExecutableSection.class,
-                        new ParseField("do"),
-                        DoSection::parseWithLegacyNodeSelectorSupport
-                    )
-                )
-            ).toList()
-        );
-        return createParameters(executableSectionRegistry, null);
     }
 
     /**

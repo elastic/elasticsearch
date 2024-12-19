@@ -148,11 +148,10 @@ public class Setting<T> implements ToXContentObject {
         PrivateIndex,
 
         /**
-         * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
-         * forbidden in indices created from {@link Version#V_8_0_0} onwards.
+         * Indicates that this index-level setting was deprecated in {@link Version#V_8_18_0} and is
+         * forbidden in indices created from {@link Version#V_9_0_0} onwards.
          */
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
-        IndexSettingDeprecatedInV7AndRemovedInV8,
+        IndexSettingDeprecatedInV8AndRemovedInV9,
 
         /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless
@@ -175,7 +174,7 @@ public class Setting<T> implements ToXContentObject {
     private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
         Property.DeprecatedWarning,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+        Property.IndexSettingDeprecatedInV8AndRemovedInV9
     );
 
     @SuppressWarnings("this-escape")
@@ -214,7 +213,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
-            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -449,7 +448,7 @@ public class Setting<T> implements ToXContentObject {
     private boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
-            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
     }
 
     private boolean isDeprecatedWarningOnly() {
@@ -457,7 +456,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public boolean isDeprecatedAndRemoved() {
-        return properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+        return properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
     }
 
     /**

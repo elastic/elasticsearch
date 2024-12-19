@@ -21,19 +21,18 @@ public enum DockerBase {
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum"),
 
+    // Based on CLOUD above, with more extras. We don't set a base image because
+    // we programmatically extend from the Cloud image.
+    CLOUD_ESS(null, "-cloud-ess", "apt-get"),
+
     // Chainguard based wolfi image with latest jdk
     // This is usually updated via renovatebot
     // spotless:off
     WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:bfdeddb33330a281950c2a54adef991dbbe6a42832bc505d13b11beaf50ae73f",
         "-wolfi",
         "apk"
-    ),
+    );
     // spotless:on
-
-    // Based on WOLFI above, with more extras. We don't set a base image because
-    // we programmatically extend from the wolfi image.
-    CLOUD_ESS(null, "-cloud-ess", "apk");
-
     private final String image;
     private final String suffix;
     private final String packageManager;

@@ -11,7 +11,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.ParsedMediaType;
 

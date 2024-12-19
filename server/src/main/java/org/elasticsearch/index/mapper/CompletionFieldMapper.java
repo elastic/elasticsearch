@@ -19,7 +19,6 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
@@ -157,8 +156,6 @@ public class CompletionFieldMapper extends FieldMapper {
 
         private final NamedAnalyzer defaultAnalyzer;
         private final IndexVersion indexVersionCreated;
-
-        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build

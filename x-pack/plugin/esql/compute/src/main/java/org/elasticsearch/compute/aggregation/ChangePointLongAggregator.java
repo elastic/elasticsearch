@@ -37,15 +37,20 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Aggregates field values for long.
- * TODO: make .java.st from this to support other types
- * TODO: add "includeTimestamp" to @Aggregator
+ * Change point detection for series of long values.
  */
-// TODO: add normal @Aggregator
-// @Aggregator({
-// includeTimestamps = true,
-// @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-// @IntermediateState(name = "values", type = "LONG_BLOCK") })
+
+// TODO: make .java.st from this to support different types
+
+// TODO: add non-grouping @Aggregator, like this:
+/*
+@Aggregator(
+    includeTimestamps = true,
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
+)
+*/
+// This need "includeTimestamps" support in @Aggregator.
+
 @GroupingAggregator(
     includeTimestamps = true,
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
@@ -123,7 +128,7 @@ class ChangePointLongAggregator {
         }
 
         void sort() {
-            // TODO: this is very inefficient and doesn't account for memory!
+            // TODO: this copying is a bit inefficient and doesn't account for memory
             List<TimeAndValue> list = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 list.add(new TimeAndValue(timestamps.get(i), values.get(i)));
@@ -185,6 +190,7 @@ class ChangePointLongAggregator {
         }
 
         public Block evaluateFinal(IntVector selected, BlockFactory blockFactory) {
+            // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     SingleState state = states.get(selected.getInt(s));
@@ -244,7 +250,6 @@ class ChangePointLongAggregator {
         }
 
         void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
-            // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
         }
 
         @Override

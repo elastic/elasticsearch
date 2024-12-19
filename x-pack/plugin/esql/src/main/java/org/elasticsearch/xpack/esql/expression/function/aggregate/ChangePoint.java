@@ -14,10 +14,12 @@ import org.elasticsearch.compute.aggregation.ChangePointLongAggregatorFunctionSu
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -29,21 +31,20 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class ChangePoint extends AggregateFunction implements ToAggregator {
+public class ChangePoint extends AggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ChangePoint",
         ChangePoint::new
     );
 
-    // TODO: make "timestamp" field optional
     @FunctionInfo(returnType = { "string" }, description = "...", isAggregation = true)
     public ChangePoint(
         Source source,
         @Param(name = "field", type = { "double", "integer", "long" }, description = "field") Expression field,
-        @Param(name = "timestamp", type = { "date_nanos", "datetime", "double", "integer", "long" }) Expression timestamp
+        @Param(optional = true, name = "timestamp", type = { "date_nanos", "datetime", "double", "integer", "long" }) Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, timestamp != null ? timestamp : new UnresolvedAttribute(source, "@timestamp"));
     }
 
     public ChangePoint(Source source, Expression field, Expression filter, Expression timestamp) {
@@ -98,10 +99,6 @@ public class ChangePoint extends AggregateFunction implements ToAggregator {
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        // if (inputChannels.size() != 2 && inputChannels.size() != 3) {
-        // throw new IllegalArgumentException("change point requires two for raw input or three channels for partial input; got " +
-        // inputChannels);
-        // }
         final DataType type = field().dataType();
         return switch (type) {
             case LONG -> new ChangePointLongAggregatorFunctionSupplier(inputChannels);

@@ -1,9 +1,24 @@
-change point
+change point with timestamp argument
 # required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute), cluster
   | STATS cp=CHANGE_POINT(count, timestamp) BY cluster
+  | SORT cluster
+;
+
+cp:keyword                                                                                                                          | cluster:keyword
+"{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [21]""}}}" | prod
+"{""type"":{""stationary"":{}}}"                                                                                                    | qa
+"{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [18]""}}}" | staging
+;
+
+change point without timestamp argument
+# required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 minute), cluster
+  | STATS cp=CHANGE_POINT(count) BY cluster
   | SORT cluster
 ;
 

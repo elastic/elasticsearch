@@ -117,6 +117,7 @@ public abstract class DocumentParserContext {
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
+    private final DocumentParser.Listeners listeners;
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
@@ -149,6 +150,7 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
+        DocumentParser.Listeners listeners,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Scope currentScope,
@@ -169,6 +171,7 @@ public abstract class DocumentParserContext {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
+        this.listeners = listeners;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.currentScope = currentScope;
@@ -192,6 +195,7 @@ public abstract class DocumentParserContext {
             in.mappingLookup,
             in.mappingParserContext,
             in.sourceToParse,
+            in.listeners,
             in.ignoredFields,
             in.ignoredFieldValues,
             in.currentScope,
@@ -215,6 +219,7 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse source,
+        DocumentParser.Listeners listeners,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic
     ) {
@@ -222,6 +227,7 @@ public abstract class DocumentParserContext {
             mappingLookup,
             mappingParserContext,
             source,
+            listeners,
             new HashSet<>(),
             new ArrayList<>(),
             Scope.SINGLETON,
@@ -298,12 +304,6 @@ public abstract class DocumentParserContext {
         if (canAddIgnoredField()) {
             // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
-        }
-    }
-
-    final void removeLastIgnoredField(String name) {
-        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
-            ignoredFieldValues.removeLast();
         }
     }
 
@@ -468,6 +468,15 @@ public abstract class DocumentParserContext {
 
     public Set<String> getCopyToFields() {
         return copyToFields;
+    }
+
+    public void publishEvent(DocumentParserListener.Event event) throws IOException {
+        listeners.publish(event, this);
+    }
+
+    public void finishListeners() {
+        var output = listeners.finish();
+        ignoredFieldValues.addAll(output.ignoredSourceValues());
     }
 
     /**
@@ -659,7 +668,7 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that will be used within a nested document.
      */
-    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) {
+    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) throws IOException {
         if (isWithinCopyTo()) {
             // nested context will already have been set up for copy_to fields
             return this;
@@ -688,7 +697,7 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that has the provided document as the current document.
      */
-    public final DocumentParserContext switchDoc(final LuceneDocument document) {
+    public final DocumentParserContext switchDoc(final LuceneDocument document) throws IOException {
         DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {

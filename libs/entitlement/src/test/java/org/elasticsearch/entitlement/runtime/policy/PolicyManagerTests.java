@@ -210,53 +210,30 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var requestingClass = makeClassInItsOwnModule();
-        var runtimeClass = makeClassInItsOwnModule(); // A class in the entitlements library itself
+        var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
+        var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
+        var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
         var ignorableClass = makeClassInItsOwnModule();
-        var systemClass = Object.class;
 
-        var policyManager = policyManagerWithEntitlementsModule(runtimeClass.getModule());
+        var policyManager = policyManagerWithEntitlementsModule(entitlementsClass.getModule());
 
         var requestingModule = requestingClass.getModule();
 
         assertEquals(
-            "Skip one system frame",
+            "Skip entitlement library and the instrumented method",
             requestingModule,
-            policyManager.findRequestingModule(Stream.of(systemClass, requestingClass, ignorableClass)).orElse(null)
+            policyManager.findRequestingModule(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass)).orElse(null)
         );
         assertEquals(
-            "Skip multiple system frames",
+            "Skip multiple library frames",
             requestingModule,
-            policyManager.findRequestingModule(Stream.of(systemClass, systemClass, systemClass, requestingClass, ignorableClass))
-                .orElse(null)
-        );
-        assertEquals(
-            "Skip system frame between runtime frames",
-            requestingModule,
-            policyManager.findRequestingModule(Stream.of(runtimeClass, systemClass, runtimeClass, requestingClass, ignorableClass))
-                .orElse(null)
-        );
-        assertEquals(
-            "Skip runtime frame between system frames",
-            requestingModule,
-            policyManager.findRequestingModule(Stream.of(systemClass, runtimeClass, systemClass, requestingClass, ignorableClass))
-                .orElse(null)
-        );
-        assertEquals(
-            "No system frames",
-            requestingModule,
-            policyManager.findRequestingModule(Stream.of(requestingClass, ignorableClass)).orElse(null)
-        );
-        assertEquals(
-            "Skip runtime frames up to the first system frame",
-            requestingModule,
-            policyManager.findRequestingModule(Stream.of(runtimeClass, runtimeClass, systemClass, requestingClass, ignorableClass))
+            policyManager.findRequestingModule(Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass))
                 .orElse(null)
         );
         assertThrows(
             "Non-modular caller frames are not supported",
             NullPointerException.class,
-            () -> policyManager.findRequestingModule(Stream.of(systemClass, null))
+            () -> policyManager.findRequestingModule(Stream.of(entitlementsClass, null))
         );
     }
 

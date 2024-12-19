@@ -186,11 +186,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         // We want to create a data stream and roll it over several times so that we have several indices to upgrade
         final String template = """
             {
-                "settings":{
-                    "index": {
-                        "mode": "time_series"
-                    }
-                },
                 "mappings":{
                     "dynamic_templates": [
                         {

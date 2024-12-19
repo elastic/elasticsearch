@@ -1,4 +1,4 @@
-pr: 116944
+pr: 118825
 summary: "Remove support for type, fields, `copy_to` and boost in metadata field definition"
 area: Mapping
 type: breaking
@@ -6,6 +6,6 @@ issues: []
 breaking:
   title: "Remove support for type, fields, copy_to and boost in metadata field definition"
   area: Mapping
-  details: The type, fields, copy_to and boost parameters are no longer supported in metadata field definition
+  details: The type, fields, copy_to and boost parameters are no longer supported in metadata field definition starting with version 9.
   impact: Users providing type, fields, copy_to or boost as part of metadata field definition should remove them from their mappings.
   notable: false

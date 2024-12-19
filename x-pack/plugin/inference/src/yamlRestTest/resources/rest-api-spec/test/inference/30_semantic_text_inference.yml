@@ -39,6 +39,11 @@ setup:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -52,14 +57,6 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -95,14 +92,6 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents with integer value":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -137,14 +126,6 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents with boolean value":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -179,14 +160,6 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents with a collection of mixed data types":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -259,14 +232,6 @@ setup:
 
 ---
 "Sparse vector results are indexed as nested chunks and searchable":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         index: test-index
@@ -314,14 +279,6 @@ setup:
 
 ---
 "Dense vector results are indexed as nested chunks and searchable":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         index: test-index
@@ -371,14 +328,6 @@ setup:
 
 ---
 "Reindex works for semantic_text fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -393,6 +342,11 @@ setup:
       indices.create:
         index: destination-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -483,18 +437,15 @@ setup:
 
 ---
 "semantic_text copy_to calculates embeddings for source fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -544,14 +495,6 @@ setup:
 
 ---
 "Calculates embeddings for bulk operations - index":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       bulk:
         body:
@@ -596,18 +539,15 @@ setup:
 
 ---
 "Update by query picks up new semantic_text fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       indices.create:
         index: mapping-update-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             dynamic: false
             properties:
@@ -682,14 +622,6 @@ setup:
 
 ---
 "Update by query works for scripts":
-  - requires:
-      test_runner_features: [ capabilities ]
-      reason: Test targets semantic text with inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
-
   - do:
       index:
         index: test-index
@@ -762,14 +694,16 @@ setup:
         - method: GET
           path: /_inference
           capabilities: [default_elser_2]
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.create:
         index: test-elser-2-default-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -804,17 +738,17 @@ setup:
 "Can be used inside an object field":
   - requires:
       cluster_features: "semantic_text.in_object_field_fix"
-      reason: Test targets semantic text with inference metadata fields
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
+      reason: object field fix added in 8.16.0 & 8.15.4
 
   - do:
       indices.create:
         index: test-in-object-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               level_1:
@@ -871,12 +805,7 @@ setup:
 "Deletes on bulk operation":
   - requires:
       cluster_features: semantic_text.delete_fix
-      reason: Test targets semantic text with inference metadata fields
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
+      reason: Delete operations are properly applied when subsequent operations include a semantic text field.
 
   - do:
       bulk:

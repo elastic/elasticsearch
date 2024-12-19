@@ -2,14 +2,6 @@ setup:
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: semantic_text introduced in 8.15.0
-      test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test suite targets semantic text without inference metadata fields
-      capabilities:
-        - method: GET
-          path: /_inference
-          capabilities: [ inference_metadata_fields ]
 
   - do:
       inference.put:
@@ -47,6 +39,11 @@ setup:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             properties:
               sparse_field:
@@ -315,6 +312,11 @@ setup:
       indices.create:
         index: destination-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             properties:
               sparse_field:
@@ -353,6 +355,11 @@ setup:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             properties:
               sparse_field:
@@ -418,6 +425,11 @@ setup:
       indices.create:
         index: mapping-update-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             dynamic: false
             properties:
@@ -514,6 +526,11 @@ setup:
       indices.create:
         index: test-elser-2-default-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             properties:
               sparse_field:
@@ -545,6 +562,11 @@ setup:
       indices.create:
         index: test-in-object-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
           mappings:
             properties:
               level_1:

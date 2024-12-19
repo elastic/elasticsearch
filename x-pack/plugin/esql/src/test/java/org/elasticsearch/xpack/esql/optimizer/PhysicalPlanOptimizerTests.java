@@ -6921,17 +6921,83 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
-        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index1", List.of("first_name", "foo", "bar", "baz"),
+            "lookup_index2", List.of("first_name", "foo", "bar2", "baz2")));
 
         String query = """
               FROM test
-            | LOOKUP JOIN lookup_index ON first_name
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
             | DROP foo
-            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | KEEP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP baz*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar"), Set.of("foo", "bar2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | EVAL foo = to_upper(foo)
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | EVAL foo = to_lower(foo)
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
+    }
+
+//    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
+    public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index1", List.of("first_name", "foo", "bar", "baz"),
+            "lookup_index2", List.of("first_name", "foo", "bar2", "baz2")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | RENAME foo AS foo1
+            | LOOKUP JOIN lookup_index2 ON first_name
             | DROP b*
             """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
 
-        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo")));
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | DROP bar
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | KEEP first_name, b*
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP bar*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("baz"), Set.of("foo", "baz2")));
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {

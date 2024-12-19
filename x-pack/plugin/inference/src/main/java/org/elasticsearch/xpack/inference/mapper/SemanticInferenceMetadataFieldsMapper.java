@@ -39,7 +39,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(
-        c -> InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated()) ? INSTANCE : null
+        c -> InferenceMetadataFieldsMapper.isEnabled(c.getSettings()) ? INSTANCE : null
     );
 
     static class FieldType extends InferenceMetadataFieldType {
@@ -51,9 +51,6 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (InferenceMetadataFieldsMapper.isEnabled(context.getIndexSettings().getIndexVersionCreated()) == false) {
-                return ValueFetcher.EMPTY;
-            }
             return valueFetcher(context.getMappingLookup(), context::bitsetFilter, context.searcher());
         }
 

@@ -22,7 +22,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SparseVectorFieldType;
@@ -56,7 +55,7 @@ public class SemanticTextHighlighter implements Highlighter {
     public boolean canHighlight(MappedFieldType fieldType) {
         if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
             // TODO: Implement highlighting when using inference metadata fields
-            return InferenceMetadataFieldsMapper.isEnabled(semanticTextFieldType.getIndexVersionCreated()) == false;
+            return semanticTextFieldType.useLegacyFormat();
         }
         return false;
     }

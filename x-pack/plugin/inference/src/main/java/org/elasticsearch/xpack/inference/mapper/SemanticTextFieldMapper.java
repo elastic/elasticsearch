@@ -116,15 +116,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
-    private final IndexSettings indexSettings;
-
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings()),
         List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
     );
 
     public static class Builder extends FieldMapper.Builder {
-        private final IndexSettings indexSettings;
+        private final boolean useLegacyFormat;
+        private final IndexVersion indexVersionCreated;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             INFERENCE_ID_FIELD,
@@ -167,17 +166,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
-            Builder builder = new Builder(mapper.leafName(), mapper.fieldType().getChunksField().bitsetProducer(), mapper.indexSettings);
+            Builder builder = new Builder(
+                mapper.leafName(),
+                mapper.fieldType().getChunksField().bitsetProducer(),
+                mapper.fieldType().getChunksField().indexSettings()
+            );
             builder.init(mapper);
             return builder;
         }
 
         public Builder(String name, Function<Query, BitSetProducer> bitSetProducer, IndexSettings indexSettings) {
             super(name);
-            this.indexSettings = indexSettings;
+            this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+            this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.inferenceFieldBuilder = c -> createInferenceField(
                 c,
                 indexSettings.getIndexVersionCreated(),
+                useLegacyFormat,
                 modelSettings.get(),
                 bitSetProducer,
                 indexSettings
@@ -241,11 +246,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     searchInferenceId.getValue(),
                     modelSettings.getValue(),
                     inferenceField,
-                    indexSettings.getIndexVersionCreated(),
+                    indexVersionCreated,
+                    useLegacyFormat,
                     meta.getValue()
                 ),
-                builderParams(this, context),
-                indexSettings
+                builderParams(this, context)
             );
         }
 
@@ -269,14 +274,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
-    private SemanticTextFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        BuilderParams builderParams,
-        IndexSettings indexSettings
-    ) {
+    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
-        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -296,7 +295,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         final XContentParser parser = context.parser();
         final XContentLocation xContentLocation = parser.getTokenLocation();
 
-        if (InferenceMetadataFieldsMapper.isEnabled(context.indexSettings().getIndexVersionCreated())) {
+        if (fieldType().useLegacyFormat == false) {
             // Detect if field value is an object, which we don't support parsing
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 throw new DocumentParsingException(
@@ -326,7 +325,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             context.path().setWithinLeafObject(true);
             return SemanticTextField.parse(
                 context.parser(),
-                new SemanticTextField.ParserContext(indexSettings.getIndexVersionCreated(), fullPath(), context.parser().contentType())
+                new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType())
             );
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
@@ -353,7 +352,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
-            Builder builder = (Builder) new Builder(leafName(), fieldType().getChunksField().bitsetProducer(), indexSettings).init(this);
+            Builder builder = (Builder) new Builder(
+                leafName(),
+                fieldType().getChunksField().bitsetProducer(),
+                fieldType().getChunksField().indexSettings()
+            ).init(this);
             try {
                 mapper = builder.setModelSettings(field.inference().modelSettings())
                     .setInferenceId(field.inference().inferenceId())
@@ -399,24 +402,26 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     embeddingsField.parse(subContext);
                 }
 
-                if (InferenceMetadataFieldsMapper.isEnabled(indexSettings.getIndexVersionCreated())) {
-                    try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
-                        builder.startObject();
-                        builder.field("field", entry.getKey());
-                        builder.field("start", chunk.startOffset());
-                        builder.field("end", chunk.endOffset());
-                        builder.endObject();
-                        try (
-                            XContentParser subParser = XContentHelper.createParserNotCompressed(
-                                XContentParserConfiguration.EMPTY,
-                                BytesReference.bytes(builder),
-                                context.parser().contentType()
-                            )
-                        ) {
-                            DocumentParserContext subContext = nestedContext.switchParser(subParser);
-                            subParser.nextToken();
-                            offsetsField.parse(subContext);
-                        }
+                if (fieldType().useLegacyFormat) {
+                    continue;
+                }
+
+                try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
+                    builder.startObject();
+                    builder.field("field", entry.getKey());
+                    builder.field("start", chunk.startOffset());
+                    builder.field("end", chunk.endOffset());
+                    builder.endObject();
+                    try (
+                        XContentParser subParser = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY,
+                            BytesReference.bytes(builder),
+                            context.parser().contentType()
+                        )
+                    ) {
+                        DocumentParserContext subContext = nestedContext.switchParser(subParser);
+                        subParser.nextToken();
+                        offsetsField.parse(subContext);
                     }
                 }
             }
@@ -466,6 +471,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final SemanticTextField.ModelSettings modelSettings;
         private final ObjectMapper inferenceField;
         private final IndexVersion indexVersionCreated;
+        private final boolean useLegacyFormat;
 
         public SemanticTextFieldType(
             String name,
@@ -474,6 +480,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
+            boolean useLegacyFormat,
             Map<String, String> meta
         ) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
@@ -482,6 +489,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;
+            this.useLegacyFormat = useLegacyFormat;
+        }
+
+        public boolean useLegacyFormat() {
+            return useLegacyFormat;
         }
 
         @Override
@@ -539,12 +551,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (InferenceMetadataFieldsMapper.isEnabled(indexVersionCreated)) {
-                return SourceValueFetcher.toString(name(), context, null);
-            } else {
+            if (useLegacyFormat) {
                 // Redirect the fetcher to load the original values of the field
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
             }
+            return SourceValueFetcher.toString(name(), context, null);
         }
 
         ValueFetcher valueFetcherWithInferenceResults(Function<Query, BitSetProducer> bitSetCache, IndexSearcher searcher) {
@@ -686,13 +697,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            String name = InferenceMetadataFieldsMapper.isEnabled(indexVersionCreated) ? name() : name().concat(".text");
+            String name = useLegacyFormat ? name().concat(".text") : name();
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
-        }
-
-        public IndexVersion getIndexVersionCreated() {
-            return indexVersionCreated;
         }
 
         private class SemanticTextFieldValueFetcher implements ValueFetcher {
@@ -772,7 +779,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 }
                 return List.of(
                     new SemanticTextField(
-                        indexVersionCreated,
+                        useLegacyFormat,
                         name(),
                         null,
                         new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkMap),
@@ -815,17 +822,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static ObjectMapper createInferenceField(
         MapperBuilderContext context,
         IndexVersion indexVersionCreated,
+        boolean useLegacyFormat,
         @Nullable SemanticTextField.ModelSettings modelSettings,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Optional.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(indexVersionCreated, modelSettings, bitSetProducer, indexSettings))
+            .add(createChunksField(indexVersionCreated, useLegacyFormat, modelSettings, bitSetProducer, indexSettings))
             .build(context);
     }
 
     private static NestedObjectMapper.Builder createChunksField(
         IndexVersion indexVersionCreated,
+        boolean useLegacyFormat,
         @Nullable SemanticTextField.ModelSettings modelSettings,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
@@ -840,11 +849,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (modelSettings != null) {
             chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings));
         }
-        if (InferenceMetadataFieldsMapper.isEnabled(indexVersionCreated)) {
-            chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
-        } else {
+        if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);
             chunksField.add(chunkTextField);
+        } else {
+            chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
         }
         return chunksField;
     }

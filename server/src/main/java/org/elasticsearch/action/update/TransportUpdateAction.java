@@ -375,8 +375,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexMetadata indexMetadata,
         MappingLookup mappingLookup
     ) {
-        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED
-            || InferenceMetadataFieldsMapper.isEnabled(indexMetadata.getCreationVersion())) {
+        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED || InferenceMetadataFieldsMapper.isEnabled(mappingLookup)) {
             return result;
         }
 

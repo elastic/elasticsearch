@@ -13,6 +13,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -53,8 +55,13 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SearchServiceTests extends IndexShardTestCase {
 
@@ -115,6 +122,33 @@ public class SearchServiceTests extends IndexShardTestCase {
             }
         };
         doTestCanMatch(searchRequest, sortField, true, null, false);
+    }
+
+    public void testMaybeWrapListenerForStackTrace() {
+        // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
+        AtomicBoolean isWrapped = new AtomicBoolean(false);
+        ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+                // noop - we only care about failure scenarios
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (isWrapped.get()) {
+                    assertThat(e.getStackTrace().length, is(0));
+                } else {
+                    assertThat(e.getStackTrace().length, is(not(0)));
+                }
+            }
+        };
+        Exception e = new Exception();
+        e.fillInStackTrace();
+        assertThat(e.getStackTrace().length, is(not(0)));
+        listener.onFailure(e);
+        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), threadPool);
+        isWrapped.set(true);
+        listener.onFailure(e);
     }
 
     private void doTestCanMatch(

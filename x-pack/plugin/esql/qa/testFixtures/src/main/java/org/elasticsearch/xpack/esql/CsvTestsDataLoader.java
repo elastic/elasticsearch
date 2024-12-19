@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -105,7 +104,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DISTANCES = new TestsDataset("distances");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
-    private static final TestsDataset BOOKS = new TestsDataset("books");
+    private static final TestsDataset BOOKS = new TestsDataset("books").withSetting("books-settings.json");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
@@ -260,11 +259,22 @@ public class CsvTestsDataLoader {
     public static Set<TestsDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
-        return CSV_DATASET_MAP.values()
-            .stream()
-            .filter(d -> d.requiresInferenceEndpoint == false || inferenceEnabled)
-            .filter(d -> supportsIndexModeLookup || d.indexName.endsWith("_lookup") == false) // TODO: use actual index settings
-            .collect(Collectors.toCollection(HashSet::new));
+        Set<TestsDataset> testDataSets = new HashSet<>();
+
+        for (TestsDataset dataset : CSV_DATASET_MAP.values()) {
+            if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
+                && (supportsIndexModeLookup || isLookupDataset(dataset) == false)) {
+                testDataSets.add(dataset);
+            }
+        }
+
+        return testDataSets;
+    }
+
+    public static boolean isLookupDataset(TestsDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
 
     public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
@@ -349,18 +359,13 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/" + dataset.dataFileName;
+        final String dataName = "/data/" + dataset.dataFileName;
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
-        Settings indexSettings = Settings.EMPTY;
-        final String settingName = dataset.settingFileName != null ? "/" + dataset.settingFileName : null;
-        if (settingName != null) {
-            indexSettings = Settings.builder()
-                .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                .build();
-        }
+
+        Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
         loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
     }
@@ -668,6 +673,18 @@ public class CsvTestsDataLoader {
 
         public TestsDataset withInferenceEndpoint(boolean needsInference) {
             return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+        }
+
+        private Settings readSettingsFile() throws IOException {
+            Settings indexSettings = Settings.EMPTY;
+            final String settingName = settingFileName != null ? "/" + settingFileName : null;
+            if (settingName != null) {
+                indexSettings = Settings.builder()
+                    .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
+                    .build();
+            }
+
+            return indexSettings;
         }
     }
 

@@ -32,13 +32,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class ShardChangesRestIT extends ESRestTestCase {
     private static final String CCR_SHARD_CHANGES_ENDPOINT = "/%s/ccr/shard_changes";
     private static final String BULK_INDEX_ENDPOINT = "/%s/_bulk";
     private static final String DATA_STREAM_ENDPOINT = "/_data_stream/%s";
     private static final String INDEX_TEMPLATE_ENDPOINT = "/_index_template/%s";
-
+    private static final String SHARD_STATS_ENDPOINT = "/%s/_stats";
     private static final String[] SHARD_RESPONSE_FIELDS = new String[] {
         "took_in_millis",
         "operations",
@@ -75,7 +76,8 @@ public class ShardChangesRestIT extends ESRestTestCase {
         assumeTrue("/{index}/ccr/shard_changes endpoint only available in snapshot builds", Build.current().isSnapshot());
     }
 
-    public void testShardChangesNoOperation() throws IOException {
+    @SuppressWarnings("unchecked")
+    public void testShardChangesNoOperation() throws Exception {
         final String indexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -86,6 +88,30 @@ public class ShardChangesRestIT extends ESRestTestCase {
                 .build()
         );
         assertTrue(indexExists(indexName));
+
+        // Wait for the cluster to become ready and global checkpoint to be updated
+        assertBusy(() -> {
+            final Response statsResponse = indexShardStats(indexName);
+            assertOK(statsResponse);
+
+            final Map<String, Object> responseMap = entityAsMap(statsResponse);
+            final Map<String, Object> indicesMap = (Map<String, Object>) responseMap.get("indices");
+            final Map<String, Object> indexMap = (Map<String, Object>) indicesMap.get(indexName);
+            final Map<String, Object> shardsMap = (Map<String, Object>) indexMap.get("shards");
+
+            // We know there is only one primary shard
+            final List<Map<String, Object>> shardList = (List<Map<String, Object>>) shardsMap.values().iterator().next();
+            final Map<String, Object> shardMap = shardList.getFirst();
+
+            final Map<String, Object> seqNoStatsMap = (Map<String, Object>) shardMap.get("seq_no");
+
+            if (seqNoStatsMap != null) {
+                final int globalCheckpoint = (int) seqNoStatsMap.get("global_checkpoint");
+                if (globalCheckpoint < 0) {
+                    return;
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
 
         final Request shardChangesRequest = new Request("GET", shardChangesEndpoint(indexName));
         assertOK(client().performRequest(shardChangesRequest));
@@ -348,6 +374,16 @@ public class ShardChangesRestIT extends ESRestTestCase {
         final Request request = new Request("PUT", indexTemplateEndpoint(templateName));
         request.setJsonEntity(mappings);
         return client().performRequest(request);
+    }
+
+    private static Response indexShardStats(final String indexName) throws IOException {
+        final Request statsRequest = new Request("GET", indexShardStatsEnpoint(indexName));
+        statsRequest.addParameter("level", "shards");
+        return client().performRequest(statsRequest);
+    }
+
+    private static String indexShardStatsEnpoint(final String indexName) {
+        return String.format(Locale.ROOT, SHARD_STATS_ENDPOINT, indexName);
     }
 
     private static String shardChangesEndpoint(final String indexName) {

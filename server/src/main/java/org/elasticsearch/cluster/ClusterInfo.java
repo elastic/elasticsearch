@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,6 +36,8 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -138,32 +141,32 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object("nodes", leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
-            builder.startObject(c.getKey());
+        return NewChunkedXContentBuilder.of(object("nodes", leastAvailableSpaceUsage.entrySet().iterator(), c -> (b, p) -> {
+            b.startObject(c.getKey());
             { // node
-                builder.field("node_name", c.getValue().nodeName());
-                builder.startObject("least_available");
+                b.field("node_name", c.getValue().nodeName());
+                b.startObject("least_available");
                 {
-                    c.getValue().toShortXContent(builder);
+                    c.getValue().toShortXContent(b);
                 }
-                builder.endObject(); // end "least_available"
-                builder.startObject("most_available");
+                b.endObject(); // end "least_available"
+                b.startObject("most_available");
                 {
                     DiskUsage most = this.mostAvailableSpaceUsage.get(c.getKey());
                     if (most != null) {
-                        most.toShortXContent(builder);
+                        most.toShortXContent(b);
                     }
                 }
-                builder.endObject(); // end "most_available"
+                b.endObject(); // end "most_available"
             }
-            return builder.endObject(); // end $nodename
-        })
-            .object(
+            return b.endObject(); // end $nodename
+        }),
+            object(
                 "shard_sizes",
                 shardSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
-            )
-            .object(
+            ),
+            object(
                 "shard_data_set_sizes",
                 shardDataSetSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(
@@ -171,17 +174,18 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     c.getKey().toString(),
                     ByteSizeValue.ofBytes(c.getValue())
                 )
-            )
-            .object("shard_paths", dataPath.entrySet().iterator(), (xb, c) -> xb.field(c.getKey().toString(), c.getValue()))
-            .array("reserved_sizes", reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
-                builder.startObject();
+            ),
+            object("shard_paths", dataPath.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().toString(), e.getValue())),
+            array("reserved_sizes", reservedSpace.entrySet().iterator(), c -> (b, p) -> {
+                b.startObject();
                 {
-                    builder.field("node_id", c.getKey().nodeId);
-                    builder.field("path", c.getKey().path);
-                    c.getValue().toXContent(builder, p);
+                    b.field("node_id", c.getKey().nodeId);
+                    b.field("path", c.getKey().path);
+                    c.getValue().toXContent(b, p);
                 }
-                return builder.endObject(); // NodeAndPath
-            });
+                return b.endObject(); // NodeAndPath
+            })
+        );
     }
 
     /**

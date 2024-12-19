@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -29,6 +29,10 @@ import java.util.Iterator;
 import java.util.Objects;
 
 import static org.elasticsearch.action.support.master.AcknowledgedResponse.ACKNOWLEDGED_KEY;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.ifThen;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObject;
 
 /**
  * Response returned after a cluster reroute request
@@ -92,14 +96,12 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         if (emitState(outerParams)) {
             deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
         }
-        return ChunkedToXContent.builder(outerParams).object(b -> {
-            b.field(ACKNOWLEDGED_KEY, isAcknowledged());
-            if (emitState(outerParams)) {
-                b.xContentObject("state", state);
-            }
-            if (outerParams.paramAsBoolean("explain", false)) {
-                b.append(explanations);
-            }
-        });
+        return NewChunkedXContentBuilder.of(
+            object(
+                chunk((b, p) -> b.field(ACKNOWLEDGED_KEY, isAcknowledged())),
+                ifThen(emitState(outerParams), xContentObject("state", state.toXContentChunked(outerParams))),
+                ifThen(outerParams.paramAsBoolean("explain", false), explanations)
+            )
+        );
     }
 }

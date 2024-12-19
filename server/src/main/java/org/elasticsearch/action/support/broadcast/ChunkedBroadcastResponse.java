@@ -10,14 +10,17 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 
 public abstract class ChunkedBroadcastResponse extends BaseBroadcastResponse implements ChunkedToXContentObject {
     public ChunkedBroadcastResponse(StreamInput in) throws IOException {
@@ -34,9 +37,10 @@ public abstract class ChunkedBroadcastResponse extends BaseBroadcastResponse imp
     }
 
     @Override
-    public final Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .object(ob -> ob.append((b, p) -> RestActions.buildBroadcastShardsHeader(b, p, this)).append(this::customXContentChunks));
+    public final Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return NewChunkedXContentBuilder.of(
+            object(chunk((b, p) -> RestActions.buildBroadcastShardsHeader(b, p, this)), customXContentChunks(params))
+        );
     }
 
     protected abstract Iterator<ToXContent> customXContentChunks(ToXContent.Params params);

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
@@ -296,7 +298,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         checkDecisionState();
-        return ChunkedToXContent.builder(params).append((builder, p) -> {
+        return NewChunkedXContentBuilder.of(chunk((builder, p) -> {
             builder.field("can_allocate", getAllocationDecision());
             builder.field("allocate_explanation", getExplanation());
             if (targetNode != null) {
@@ -320,7 +322,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 );
             }
             return builder;
-        }).append(nodeDecisionsToXContentChunked(nodeDecisions));
+        }), nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

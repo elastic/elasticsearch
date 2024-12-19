@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -33,6 +33,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
 
 /**
  * Stores information on what features are present throughout the cluster
@@ -278,12 +280,13 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .array(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
+        return NewChunkedXContentBuilder.of(
+            array(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);
                 Arrays.sort(features);
                 return builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
-            });
+            })
+        );
     }
 
     @Override

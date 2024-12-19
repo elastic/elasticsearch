@@ -176,6 +176,14 @@ public abstract class IndexRouting {
             }
         }
 
+        private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
+            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+        }
+
+        private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
+            return creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID_BACKPORT);
+        }
+
         @Override
         public int indexShard(
             String id,

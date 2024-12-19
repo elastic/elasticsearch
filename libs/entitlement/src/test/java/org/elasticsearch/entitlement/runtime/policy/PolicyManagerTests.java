@@ -222,7 +222,8 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(
             "Skip entitlement library and the instrumented method",
             requestingModule,
-            policyManager.findRequestingModule(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass)).orElse(null)
+            policyManager.findRequestingModule(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass))
+                .orElse(null)
         );
         assertEquals(
             "Skip multiple library frames",

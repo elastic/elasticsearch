@@ -301,6 +301,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
+- class: org.elasticsearch.cluster.coordination.NodeJoinExecutorTests
+  method: testSuccess
+  issue: https://github.com/elastic/elasticsearch/issues/119052
 
 # Examples:
 #

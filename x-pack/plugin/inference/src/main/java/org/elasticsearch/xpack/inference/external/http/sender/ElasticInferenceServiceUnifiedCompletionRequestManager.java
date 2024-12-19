@@ -72,6 +72,9 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
     }
 
     private static ResponseHandler createCompletionHandler() {
-        return new ElasticInferenceServiceUnifiedChatCompletionResponseHandler("eis completion", OpenAiChatCompletionResponseEntity::fromResponse);
+        return new ElasticInferenceServiceUnifiedChatCompletionResponseHandler(
+            "elastic inference service completion",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
     }
 }

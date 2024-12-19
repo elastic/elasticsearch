@@ -49,7 +49,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -795,27 +794,57 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Reconciles this data stream with a list of indices available in a snapshot. Allows snapshots to store accurate data
-     * stream definitions that do not reference backing indices not contained in the snapshot.
+     * stream definitions that do not reference backing indices and failure indices not contained in the snapshot.
      *
      * @param indicesInSnapshot List of indices in the snapshot
+     * @param snapshotMetadataBuilder a metadata builder with the current view of the snapshot metadata
      * @return Reconciled {@link DataStream} instance or {@code null} if no reconciled version of this data stream could be built from the
      *         given indices
      */
     @Nullable
-    public DataStream snapshot(Collection<String> indicesInSnapshot) {
+    public DataStream snapshot(Set<String> indicesInSnapshot, Metadata.Builder snapshotMetadataBuilder) {
+        boolean backingIndicesChanged = false;
+        boolean failureIndicesChanged = false;
+
         // do not include indices not available in the snapshot
-        List<Index> reconciledIndices = new ArrayList<>(this.backingIndices.indices);
-        if (reconciledIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false) == false) {
+        List<Index> reconciledBackingIndices = this.backingIndices.indices;
+        if (isAnyIndexMissing(this.backingIndices.getIndices(), snapshotMetadataBuilder, indicesInSnapshot)) {
+            reconciledBackingIndices = new ArrayList<>(this.backingIndices.indices);
+            backingIndicesChanged = reconciledBackingIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false);
+            if (reconciledBackingIndices.isEmpty()) {
+                return null;
+            }
+        }
+
+        List<Index> reconciledFailureIndices = this.failureIndices.indices;
+        if (DataStream.isFailureStoreFeatureFlagEnabled()
+            && isAnyIndexMissing(failureIndices.indices, snapshotMetadataBuilder, indicesInSnapshot)) {
+            reconciledFailureIndices = new ArrayList<>(this.failureIndices.indices);
+            failureIndicesChanged = reconciledFailureIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false);
+        }
+
+        if (backingIndicesChanged == false && failureIndicesChanged == false) {
             return this;
         }
 
-        if (reconciledIndices.size() == 0) {
-            return null;
+        Builder builder = copy();
+        if (backingIndicesChanged) {
+            builder.setBackingIndices(backingIndices.copy().setIndices(reconciledBackingIndices).build());
         }
+        if (failureIndicesChanged) {
+            builder.setFailureIndices(failureIndices.copy().setIndices(reconciledFailureIndices).build());
+        }
+        return builder.setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
+    }
 
-        return copy().setBackingIndices(backingIndices.copy().setIndices(reconciledIndices).build())
-            .setMetadata(metadata == null ? null : new HashMap<>(metadata))
-            .build();
+    private static boolean isAnyIndexMissing(List<Index> indices, Metadata.Builder builder, Set<String> indicesInSnapshot) {
+        for (Index index : indices) {
+            final String indexName = index.getName();
+            if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -317,3 +317,43 @@ book_no:keyword | title:text                                                    
 2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | foobar        
 5948            | That We Are Gentle Creatures                                                                                                   | foobar
 ;
+
+
+semanticTextMatch
+required_capability: metadata_score
+required_capability: semantic_text_type
+required_capability: match_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+| sort _score desc
+| keep _id
+;
+
+_id:keyword
+2
+3
+1
+;
+
+semanticTextMatchWithAllTheTextFunctions
+
+required_capability: metadata_score
+required_capability: semantic_text_type
+required_capability: match_function
+required_capability: kql_function
+required_capability: qstr_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+        AND match(description, "some")
+        AND kql("description:some*")
+        AND NOT qstr("host:host1")
+| sort _score desc
+| keep _id
+;
+
+_id:keyword
+2
+3
+;

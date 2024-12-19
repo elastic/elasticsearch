@@ -353,7 +353,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     private void addIndex(ProjectMetadata.Builder projectBuilder, String index, String... aliases) {
         final IndexMetadata.Builder indexprojectBuilder = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         for (final String alias : aliases) {

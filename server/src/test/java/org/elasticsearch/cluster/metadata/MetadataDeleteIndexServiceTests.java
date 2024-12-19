@@ -103,7 +103,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
-                IndexVersionUtils.randomVersion(random())
+                IndexVersionUtils.randomVersion()
             )
         );
         final Index index = new Index(indexName, randomUUID());
@@ -162,7 +162,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String alias = randomAlphaOfLength(5);
 
         IndexMetadata idxMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
             .numberOfShards(1)
             .numberOfReplicas(1)
@@ -403,7 +403,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                     IndexMetadata.builder(index.getName())
                         .settings(
                             indexSettings(
-                                IndexVersionUtils.randomVersion(random()),
+                                IndexVersionUtils.randomVersion(),
                                 index.getUUID(),
                                 randomIntBetween(1, 3),
                                 randomIntBetween(0, 2)
@@ -438,7 +438,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     private ClusterState clusterState(Index index) {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(IndexVersionUtils.randomVersion(random()), index.getUUID(), 1, 1))
+            .settings(indexSettings(IndexVersionUtils.randomVersion(), index.getUUID(), 1, 1))
             .build();
         final ProjectId projectId = randomProjectIdOrDefault();
         final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false));

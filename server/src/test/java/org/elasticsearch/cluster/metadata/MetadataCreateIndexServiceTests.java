@@ -387,11 +387,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testPrepareResizeIndexSettings() {
-        final List<IndexVersion> versions = Stream.of(IndexVersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion(random()))
-            .sorted()
-            .toList();
-        final IndexVersion version = versions.get(0);
-        final IndexVersion upgraded = versions.get(1);
+        final IndexVersion version = IndexVersionUtils.randomWriteVersion();
         final Settings.Builder indexSettingsBuilder = Settings.builder()
             .put("index.version.created", version)
             .put("index.similarity.default.type", "BM25")
@@ -1628,7 +1624,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testClusterStateCreateIndexWithClusterBlockTransformer() {
         {
-            var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
+            var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .putProjectMetadata(ProjectMetadata.builder(projectId))
+                .build();
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
                 projectId,
@@ -1648,6 +1646,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         {
             var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
             var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .putProjectMetadata(ProjectMetadata.builder(projectId))
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
                 .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
                 .build();

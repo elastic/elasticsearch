@@ -246,6 +246,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
         validateDownsamplingIntervals(phases);
+        validateReplicateFor(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -470,6 +471,77 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 );
             }
             firstDownsample = secondDownsample;
+        }
+    }
+
+    static void validateReplicateFor(Collection<Phase> phases) {
+        final Map<String, Phase> phasesWithSearchableSnapshotActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .collect(Collectors.toMap(Phase::getName, Function.identity()));
+
+        // if there are no phases with searchable_snapshot actions, then none of the rest of this logic applies
+        if (phasesWithSearchableSnapshotActions.isEmpty()) {
+            return;
+        }
+
+        // Order phases and extract the searchable_snapshot action instances per phase
+        final List<Phase> orderedPhases = INSTANCE.getOrderedPhases(phasesWithSearchableSnapshotActions);
+        final var searchableSnapshotActions = orderedPhases.stream()
+            .map(phase -> Tuple.tuple(phase.getName(), (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME)))
+            .toList(); // Returns a list of tuples (phase name, searchable_snapshot action)
+
+        // first validation rule: if there's more than one searchable_snapshot action, then we confirm that 'replicate_for' isn't present
+        // except possibly on the first searchable_snapshot action (n.b. this doesn't actually check the first action, since the value
+        // doesn't actually matter)
+        if (searchableSnapshotActions.size() > 1) {
+            for (int i = 1; i < searchableSnapshotActions.size(); i++) { // iterating from the second phase/action tuple
+                final var phaseAndAction = searchableSnapshotActions.get(i);
+                final String phase = phaseAndAction.v1();
+                final boolean hasReplicateFor = phaseAndAction.v2().getReplicateFor() != null;
+                if (hasReplicateFor) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "Only the first searchable_snapshot action in a policy may specify 'replicate_for', "
+                                + "but it was specified in the [%s] phase",
+                            phase
+                        )
+                    );
+                }
+            }
+        }
+
+        final var firstSearchableSnapshotPhase = searchableSnapshotActions.getFirst().v1();
+        final var firstSearchableSnapshotAction = searchableSnapshotActions.getFirst().v2();
+        // second validation rule: if the first searchable_snapshot action has a 'replicate_for', then the replication time
+        // must be less than the next explicit min_age (if there is a min_age)
+        final TimeValue firstReplicateFor = firstSearchableSnapshotAction.getReplicateFor();
+        if (firstReplicateFor != null) {
+            final Map<String, Phase> allPhases = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
+            final List<Phase> allPhasesInOrder = INSTANCE.getOrderedPhases(allPhases);
+            boolean afterReplicatorFor = false;
+            for (Phase phase : allPhasesInOrder) {
+                // loop until we find the phase after the one that has a searchable_snapshot with replicate_for
+                if (phase.getName().equals(firstSearchableSnapshotPhase)) {
+                    afterReplicatorFor = true;
+                    continue; // because we don't want to check the min_age on *this* phase, but on the next ones
+                }
+                // check the min_age requirement for all phases after the one that has the replicate_for set
+                if (afterReplicatorFor) {
+                    final var phaseMinAge = phase.getMinimumAge();
+                    // TimeValue.ZERO is the null value for minimumAge in Phase
+                    if (phaseMinAge != TimeValue.ZERO && phaseMinAge.compareTo(firstReplicateFor) < 0) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "The value for replicate_for [%s] must be less than or equal to the specified min_age for "
+                                    + "subsequent phases, but the [%s] phase has a min_age of [%s]",
+                                firstReplicateFor,
+                                phase.getName(),
+                                phaseMinAge
+                            )
+                        );
+                    }
+                }
+            }
         }
     }
 

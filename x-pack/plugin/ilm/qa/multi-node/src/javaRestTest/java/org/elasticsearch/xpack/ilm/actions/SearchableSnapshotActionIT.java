@@ -938,7 +938,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null))
             ),
             null
         );

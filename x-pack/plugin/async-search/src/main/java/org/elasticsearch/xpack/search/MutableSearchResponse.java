@@ -39,10 +39,10 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse implements Releasable {
-    private final int totalShards;
-    private final int skippedShards;
+    private int totalShards;
+    private int skippedShards;
     private final Clusters clusters;
-    private final AtomicArray<ShardSearchFailure> queryFailures;
+    private AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
     private boolean isPartial;
@@ -82,21 +82,27 @@ class MutableSearchResponse implements Releasable {
     /**
      * Creates a new mutable search response.
      *
-     * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
-     * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
      * @param clusters The remote clusters statistics.
      * @param threadContext The thread context to retrieve the final response headers.
      */
-    MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
-        this.totalShards = totalShards;
-        this.skippedShards = skippedShards;
-
+    MutableSearchResponse(Clusters clusters, ThreadContext threadContext) {
         this.clusters = clusters;
-        this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
         this.localClusterComplete = false;
+    }
+
+    /**
+     * Updates the response with the number of total and skipped shards.
+     *
+     * @param totalShards
+     * @param skippedShards
+     */
+    synchronized void updateShardsCount(int totalShards, int skippedShards) {
+        this.totalShards = totalShards;
+        this.skippedShards = skippedShards;
+        this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
     }
 
     /**

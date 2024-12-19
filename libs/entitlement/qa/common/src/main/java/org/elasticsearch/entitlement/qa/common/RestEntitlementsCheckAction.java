@@ -55,7 +55,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
         entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
-        // entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
+        entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
         entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline))
     );
 
@@ -78,7 +78,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     private static void processBuilder_start() {
-        // TODO: processBuilder().start();
+        try {
+            new ProcessBuilder("").start();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static void processBuilder_startPipeline() {

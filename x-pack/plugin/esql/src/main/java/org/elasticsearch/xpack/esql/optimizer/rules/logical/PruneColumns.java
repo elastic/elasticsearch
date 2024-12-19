@@ -107,9 +107,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     // The field extraction for LOOKUP JOIN works differently, however - we extract all fields (other than the join key)
                     // that the EsRelation has.
                     var remaining = removeUnused(esRelation.output(), used);
-                    // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet.
+                    // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet. That means 1 field in total (key field + lookup).
                     // https://github.com/elastic/elasticsearch/issues/118778
-                    if (remaining != null && remaining.isEmpty() == false) {
+                    if (remaining != null && remaining.size() > 1) {
                         p = new EsRelation(esRelation.source(), esRelation.index(), remaining, esRelation.indexMode(), esRelation.frozen());
                     }
                 }

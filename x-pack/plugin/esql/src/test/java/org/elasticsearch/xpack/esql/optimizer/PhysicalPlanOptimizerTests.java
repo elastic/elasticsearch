@@ -6971,7 +6971,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
     public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
@@ -7010,6 +7010,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | DROP bar*
             """;
         assertLookupJoinFieldNames(query, data, List.of(Set.of("baz"), Set.of("foo", "baz2")));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
+    public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP foo, b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of()));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of(), Set.of("foo", "bar", "baz")));
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {

@@ -367,14 +367,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     /**
      * Randomly write an empty snapshot of an older version to an empty repository to simulate an older repository metadata format.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    // This used to pick an index version from 7.0.0 to 8.9.0. The minimum now is 8.0.0 but it's not clear what the upper range should be
     protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }

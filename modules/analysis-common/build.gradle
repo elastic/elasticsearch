@@ -43,7 +43,7 @@ tasks.named("yamlRestTest").configure {
     "-Des.entitlements.enabled=true".equals(System.getProperty("tests.jvm.argline"))) {
     systemProperty 'tests.rest.blacklist',
       [
-        // this test relies on security manager, which doesn't exist in JDK 24.
+        // AWAITSFIX: this test relies on security manager, which doesn't exist in JDK 24.
         // and entitlements don't yet replace the functionality.
         // see https://github.com/elastic/elasticsearch/issues/119130
         'analysis-common/40_token_filters/stemmer_override file access',

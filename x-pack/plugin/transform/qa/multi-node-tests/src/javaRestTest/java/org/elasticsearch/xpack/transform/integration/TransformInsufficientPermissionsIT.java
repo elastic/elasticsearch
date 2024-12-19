@@ -352,7 +352,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             containsString(
                 Strings.format(
                     "action [cluster:admin/transform/put] is unauthorized for user [%s] with effective roles [%s], "
-                        + "this action is granted by the cluster privileges [manage_data_frame_transforms,manage_transform,manage,all]",
+                        + "this action is granted by the cluster privileges [manage_transform,manage,all]",
                     user.username,
                     user.effectiveRoles
                 )

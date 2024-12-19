@@ -7,6 +7,8 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -269,7 +271,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
-            if (isOriginalClusterCurrent()) {
+            if (isOriginalClusterSameMajorVersionAsCurrent()) {
                 // If the original cluster was the same as this one, we don't want any indices reindexed:
                 assertThat(statusResponseMap.get("successes"), equalTo(0));
             } else {
@@ -279,6 +281,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
         Response cancelResponse = client().performRequest(cancelRequest);
         assertOK(cancelResponse);
+    }
+
+    private boolean isOriginalClusterSameMajorVersionAsCurrent() {
+        return Version.fromString(UPGRADE_FROM_VERSION).major == Version.fromString(Build.current().version()).major;
     }
 
     private static void bulkLoadData(String dataStreamName) throws IOException {

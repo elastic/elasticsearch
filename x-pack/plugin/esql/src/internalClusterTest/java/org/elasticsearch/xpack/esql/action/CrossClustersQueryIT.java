@@ -101,7 +101,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
         try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats sum (v)", requestIncludeMeta)) {
@@ -243,7 +243,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         Map<String, String> clusterToEmptyIndexMap = createEmptyIndicesWithNoMappings(numClusters);
         setSkipUnavailable(REMOTE_CLUSTER_1, randomBoolean());
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -309,7 +309,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -647,7 +647,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -878,7 +878,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -953,7 +953,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
      */
     public void testCCSExecutionOnSearchesWithLimit0() {
         setupTwoClusters();
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -1002,7 +1002,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = AbstractEsqlIntegTestCase.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -1249,20 +1249,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
     protected EsqlQueryResponse runQuery(EsqlQueryRequest request) {
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
-    }
-
-    /**
-     * v1: value to send to runQuery (can be null; null means use default value)
-     * v2: whether to expect CCS Metadata in the response (cannot be null)
-     * @return
-     */
-    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
-        return switch (randomIntBetween(1, 3)) {
-            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
-            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
-            case 3 -> new Tuple<>(null, Boolean.FALSE);
-            default -> throw new AssertionError("should not get here");
-        };
     }
 
     void waitForNoInitializingShards(Client client, TimeValue timeout, String... indices) {

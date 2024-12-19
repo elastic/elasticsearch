@@ -91,7 +91,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, IndexVersion::current);
+        }, IndexVersion::current, true);
         return provider;
     }
 
@@ -408,7 +408,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     }
                 }
                 """;
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertTrue(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
             assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
@@ -444,7 +445,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     }
                     """;
             }
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
             if (withSourceMode) {
@@ -471,7 +473,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             """;
         Settings settings = Settings.EMPTY;
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
-        boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+        boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            .hasSyntheticSourceUsage();
         assertFalse(result);
     }
 
@@ -492,30 +495,27 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
         {
             Settings settings = Settings.builder().put("index.mode", "logsdb").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertTrue(result);
-            assertThat(newMapperServiceCounter.get(), equalTo(0));
-        }
-        {
-            Settings settings = Settings.builder().put("index.mode", "logsdb").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of());
-            assertTrue(result);
-            assertThat(newMapperServiceCounter.get(), equalTo(0));
-        }
-        {
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, Settings.EMPTY, List.of());
-            assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
         }
         {
-            boolean result = provider.newIndexHasSyntheticSourceUsage(
-                indexName,
-                null,
-                Settings.EMPTY,
-                List.of(new CompressedXContent(mapping))
-            );
-            assertFalse(result);
+            Settings settings = Settings.builder().put("index.mode", "logsdb").build();
+            boolean result = provider.getMappingData(indexName, null, settings, List.of()).hasSyntheticSourceUsage();
+            assertTrue(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
+        }
+        {
+            boolean result = provider.getMappingData(indexName, null, Settings.EMPTY, List.of()).hasSyntheticSourceUsage();
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(3));
+        }
+        {
+            boolean result = provider.getMappingData(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(4));
         }
     }
 
@@ -537,25 +537,22 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
         {
             Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertTrue(result);
         }
         {
             Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of());
+            boolean result = provider.getMappingData(indexName, null, settings, List.of()).hasSyntheticSourceUsage();
             assertTrue(result);
         }
         {
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, Settings.EMPTY, List.of());
+            boolean result = provider.getMappingData(indexName, null, Settings.EMPTY, List.of()).hasSyntheticSourceUsage();
             assertFalse(result);
         }
         {
-            boolean result = provider.newIndexHasSyntheticSourceUsage(
-                indexName,
-                null,
-                Settings.EMPTY,
-                List.of(new CompressedXContent(mapping))
-            );
+            boolean result = provider.getMappingData(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertFalse(result);
         }
     }
@@ -580,7 +577,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     }
                 }
                 """;
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
         }
@@ -596,7 +594,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     }
                 }
                 """;
-            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            boolean result = provider.getMappingData(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+                .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
         }
@@ -628,7 +627,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of()
         );
         assertThat(result.size(), equalTo(0));
-        assertThat(newMapperServiceCounter.get(), equalTo(0));
+        assertThat(newMapperServiceCounter.get(), equalTo(1));
 
         syntheticSourceLicenseService.setSyntheticSourceFallback(true);
         result = provider.getAdditionalIndexSettings(
@@ -642,7 +641,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
-        assertThat(newMapperServiceCounter.get(), equalTo(0));
+        assertThat(newMapperServiceCounter.get(), equalTo(2));
 
         result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
@@ -655,7 +654,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
-        assertThat(newMapperServiceCounter.get(), equalTo(0));
+        assertThat(newMapperServiceCounter.get(), equalTo(3));
 
         result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
@@ -668,7 +667,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
-        assertThat(newMapperServiceCounter.get(), equalTo(0));
+        assertThat(newMapperServiceCounter.get(), equalTo(4));
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceFileMatch() throws IOException {

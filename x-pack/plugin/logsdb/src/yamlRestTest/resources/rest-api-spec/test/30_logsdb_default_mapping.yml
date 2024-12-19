@@ -103,12 +103,10 @@ create logsdb data stream with host as keyword:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with host as text and multi fields:
@@ -148,12 +146,10 @@ create logsdb data stream with host as text and multi fields:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with host as text:
@@ -189,12 +185,10 @@ create logsdb data stream with host as text:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with host as text and name as double:
@@ -233,12 +227,10 @@ create logsdb data stream with host as text and name as double:
         - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: "logsdb"
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+  - is_true: acknowledged
 
 ---
 create logsdb data stream with timestamp object mapping:
@@ -512,7 +504,7 @@ create logsdb data stream with custom sorting and host.name object:
   - match: { .$backing_index.mappings.properties.host.properties.name.properties.alias.type: keyword }
 
 ---
-create logsdb data stream with default sorting on malformed host.name:
+create logsdb data stream with no host.name:
   - skip:
       features: [ "allowed_warnings" ]
   - requires:
@@ -571,8 +563,7 @@ create logsdb data stream with default sorting on malformed host.name:
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
   - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
   - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword } # LogsDB injected
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 } # LogsDB injected
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: text }
   - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
 
 ---
@@ -662,23 +653,12 @@ create logsdb data stream with custom sorting and missing host.name field mappin
   - is_true: acknowledged
 
   - do:
+      catch: bad_request
       indices.create_data_stream:
         name: logs-http-qa
-  - is_true: acknowledged
 
-  - do:
-      indices.get_data_stream:
-        name: logs-http-qa
-
-  - set: { data_streams.0.indices.0.index_name: backing_index }
-  - do:
-      indices.get_mapping:
-        index: $backing_index
-
-  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "unknown index sort field:[host.name]" }
 
 ---
 create logsdb data stream with custom sorting and host.name field without doc values:
@@ -1014,8 +994,6 @@ create logsdb data stream with custom empty sorting:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
 
 ---
 create logsdb data stream with custom sorting on timestamp:

@@ -52,7 +52,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider = new LogsdbIndexModeSettingsProvider(syntheticSourceLicenseService, Settings.EMPTY);
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            IndexVersion::current
+            IndexVersion::current,
+            true
         );
     }
 
@@ -113,7 +114,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider = new LogsdbIndexModeSettingsProvider(syntheticSourceLicenseService, Settings.EMPTY);
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            IndexVersion::current
+            IndexVersion::current,
+            true
         );
 
         Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();

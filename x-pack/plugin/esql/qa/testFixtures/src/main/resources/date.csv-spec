@@ -1356,6 +1356,18 @@ t:date
 2023-10-23T13:55:00
 ;
 
+resolvableAggregationWithGrouping
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM sample_data
+| EVAL date = "2024-01-01"::datetime
+| STATS max = MAX(@timestamp) BY c = (date == "2024-01-01");
+
+max:date                 | c:boolean
+2023-10-23T13:55:01.543Z | true
+;
+
+
 evalDateTruncDayInStringNull
 required_capability: implicit_casting_string_literal_to_temporal_amount
 

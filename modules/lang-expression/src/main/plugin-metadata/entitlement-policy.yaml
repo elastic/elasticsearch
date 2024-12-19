@@ -1,0 +1,2 @@
+org.elasticsearch.exc:
+  - create_class_loader

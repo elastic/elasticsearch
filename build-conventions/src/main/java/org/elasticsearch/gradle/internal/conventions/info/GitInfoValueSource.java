@@ -12,7 +12,6 @@ public abstract class GitInfoValueSource implements ValueSource<GitInfo, GitInfo
     @Nullable
     @Override
     public GitInfo obtain() {
-//        throw new RuntimeException("Stub!");
         File path = getParameters().getPath().get();
         return GitInfo.gitInfo(path);
     }

@@ -1,0 +1,5 @@
+pr: 119066
+summary: Add ability to ignore index migration warnings
+area: Data streams
+type: enhancement
+issues: []

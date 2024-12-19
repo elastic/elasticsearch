@@ -41,7 +41,6 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        // TODO does EIS have this?
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,

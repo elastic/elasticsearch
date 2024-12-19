@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 
 import java.util.concurrent.Flow;
 
-public class EISUnifiedChatCompletionResponseHandler extends ElasticInferenceServiceResponseHandler {
-    public EISUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
+public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends ElasticInferenceServiceResponseHandler {
+    public ElasticInferenceServiceUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction);
     }
 

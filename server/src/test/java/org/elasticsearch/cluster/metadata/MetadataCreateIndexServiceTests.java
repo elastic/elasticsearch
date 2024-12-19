@@ -1624,7 +1624,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testClusterStateCreateIndexWithClusterBlockTransformer() {
         {
-            var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
+            var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .putProjectMetadata(ProjectMetadata.builder(projectId))
+                .build();
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
                 projectId,
@@ -1644,6 +1646,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         {
             var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
             var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .putProjectMetadata(ProjectMetadata.builder(projectId))
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
                 .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
                 .build();

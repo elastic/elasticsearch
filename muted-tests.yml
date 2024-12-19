@@ -298,6 +298,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
+- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
+  issue: https://github.com/elastic/elasticsearch/issues/118414
 
 # Examples:
 #

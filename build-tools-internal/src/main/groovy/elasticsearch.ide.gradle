@@ -129,44 +129,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       .findAll { it != null }
   }
 
-<<<<<<< HEAD
-=======
-  // force IntelliJ to generate *.iml files for each imported module
-  tasks.register("enableExternalConfiguration") {
-    group = 'ide'
-    description = 'Enable per-module *.iml files'
-
-    doLast {
-      IdeaXmlUtil.modifyXml('.idea/misc.xml') {xml ->
-        def externalStorageConfig = xml.component.find { it.'@name' == 'ExternalStorageConfigurationManager' }
-        if (externalStorageConfig) {
-          xml.remove(externalStorageConfig)
-        }
-      }
-    }
-  }
-
-  // modifies the idea module config to enable preview features on ':libs:native' module
-  tasks.register("enablePreviewFeatures") {
-    group = 'ide'
-    description = 'Enables preview features on native library module'
-    dependsOn tasks.named("enableExternalConfiguration")
-
-//    ext {
-      def enablePreview = { moduleFile, languageLevel ->
-        IdeaXmlUtil.modifyXml(moduleFile) { xml ->
-          xml.component.find { it.'@name' == 'NewModuleRootManager' }?.'@LANGUAGE_LEVEL' = languageLevel
-        }
-      }
-//    }
-
-    doLast {
-      enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.main.iml', 'JDK_21_PREVIEW')
-      enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.test.iml', 'JDK_21_PREVIEW')
-    }
-  }
-
->>>>>>> 2f25f67b38f ([Gradle] Fix Idea setup when configuration cache enabled (#119123))
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'

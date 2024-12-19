@@ -1493,8 +1493,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceLoader sourceLoader
     ) throws IOException {
         var columnReader = switch (fieldExtractPreference) {
-            case DOC_VALUES -> true;
-            case NONE, EXTRACT_SPATIAL_BOUNDS -> false;
+            case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> true;
+            case NONE -> false;
         };
         BlockLoader loader = blockReaderSupport.getBlockLoader(fieldExtractPreference);
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);

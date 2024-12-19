@@ -16,9 +16,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.TraceContextPropagator;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
-import org.elasticsearch.xpack.inference.external.request.TraceContextPropagator;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;

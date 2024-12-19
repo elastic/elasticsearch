@@ -136,7 +136,7 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
                 builder.endObject();
             }
         }
-       boolean usesTools = unifiedRequest.tools() != null && unifiedRequest.tools().isEmpty() == false;
+        boolean usesTools = unifiedRequest.tools() != null && unifiedRequest.tools().isEmpty() == false;
 
         if (usesTools) {
             builder.startArray(TOOL_FIELD);

@@ -112,7 +112,11 @@ public class ElasticInferenceService extends SenderService {
             String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
 
-        var requestManager = ElasticInferenceServiceUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool(), currentTraceInfo);
+        var requestManager = ElasticInferenceServiceUnifiedCompletionRequestManager.of(
+            overriddenModel,
+            getServiceComponents().threadPool(),
+            currentTraceInfo
+        );
         var action = new SenderExecutableAction(getSender(), requestManager, errorMessage);
 
         action.execute(inputs, timeout, listener);

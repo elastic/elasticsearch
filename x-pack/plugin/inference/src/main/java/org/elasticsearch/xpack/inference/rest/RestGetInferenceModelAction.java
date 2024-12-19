@@ -16,8 +16,6 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -69,9 +67,6 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        Set<String> capabilities = new HashSet<>();
-        capabilities.add(DEFAULT_ELSER_2_CAPABILITY);
-        capabilities.add(INFERENCE_METADATA_FIELDS_CAPABILITY);
-        return Collections.unmodifiableSet(capabilities);
+        return Set.of(DEFAULT_ELSER_2_CAPABILITY, INFERENCE_METADATA_FIELDS_CAPABILITY);
     }
 }

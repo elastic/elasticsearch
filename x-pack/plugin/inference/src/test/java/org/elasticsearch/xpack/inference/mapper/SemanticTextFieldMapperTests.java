@@ -271,7 +271,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 MapperParsingException.class,
                 () -> createMapperService(
                     fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, (String) null)),
-                    false
+                    useLegacyFormat
                 )
             );
             assertThat(
@@ -304,7 +304,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("inference_id", "my_inference_id");
             b.endObject();
             b.endObject();
-        }), false));
+        }), useLegacyFormat));
         assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
     }
 
@@ -312,7 +312,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         String fieldName = randomAlphaOfLengthBetween(5, 15);
         MapperService mapperService = createMapperService(
             mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
-            false
+            useLegacyFormat
         );
         assertSemanticTextField(mapperService, fieldName, false);
         Exception e = expectThrows(

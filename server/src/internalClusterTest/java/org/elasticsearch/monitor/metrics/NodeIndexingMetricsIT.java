@@ -317,8 +317,14 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         var indexingCurrent = getSingleRecordedMetric(plugin::getLongGaugeMeasurement, "es.indexing.docs.current.total");
         assertThat(indexingCurrent.getLong(), equalTo(0L));
 
-        var indexingFailedTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.indexing.failed.total");
-        assertThat(indexingFailedTotal.getLong(), equalTo(0L));
+        {
+            List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement("es.indexing.indexing.failed.total");
+            assertThat(measurements, iterableWithSize(2));
+            assertThat(measurements.get(0).value(), is(0L));
+            assertThat(measurements.get(0).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "any")));
+            assertThat(measurements.get(1).value(), is(0L));
+            assertThat(measurements.get(1).attributes(), is(Map.of("es.indexing.indexing.failed.cause", "version_conflict")));
+        }
 
         var deletionTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
         assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));

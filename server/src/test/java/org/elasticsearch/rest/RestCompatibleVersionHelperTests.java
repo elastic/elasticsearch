@@ -218,6 +218,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
                     + OBSOLETE_VERSION
                     + ". "
                     + "Content-Type="
+                    + acceptHeader(OBSOLETE_VERSION)
             )
         );
     }

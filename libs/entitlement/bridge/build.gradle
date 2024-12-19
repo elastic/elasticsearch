@@ -22,3 +22,7 @@ tasks.named('jar').configure {
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+tasks.named('javadoc').configure {
+  it.enabled = false
+}

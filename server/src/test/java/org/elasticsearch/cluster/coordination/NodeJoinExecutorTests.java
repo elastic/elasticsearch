@@ -131,6 +131,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        assertThat(
+            "8.x has no N-2 support so read-only compatibility is the same as regular read/write compatibility",
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            equalTo(IndexVersions.MINIMUM_COMPATIBLE)
+        );
         {
             var indexMetadata = IndexMetadata.builder("searchable-snapshot")
                 .settings(

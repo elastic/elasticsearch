@@ -192,7 +192,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
         assertResponse(client().search(searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numBulkRequests * numDocsPerBulk));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
 
             for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
                 String id = searchResponse.getHits().getHits()[i].getId();

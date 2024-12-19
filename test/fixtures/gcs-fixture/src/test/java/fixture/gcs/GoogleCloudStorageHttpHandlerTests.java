@@ -36,12 +36,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
     private static final String HOST = "http://127.0.0.1:12345";
     private static final int RESUME_INCOMPLETE = 308;
+    private static final Pattern GENERATION_PATTERN = Pattern.compile("\"generation\"\\s*:\\s*\"(\\d+)\"");
 
     public void testRejectsBadUri() {
         assertEquals(
@@ -267,13 +270,25 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         // update, matched generation
         assertEquals(
             RestStatus.OK,
-            executeMultipartUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), 1L).restStatus()
+            executeMultipartUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                getCurrentGeneration(handler, bucket, blobName)
+            ).restStatus()
         );
 
         // update, mismatched generation
         assertEquals(
             RestStatus.PRECONDITION_FAILED,
-            executeMultipartUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), 13L).restStatus()
+            executeMultipartUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomValueOtherThan(getCurrentGeneration(handler, bucket, blobName), ESTestCase::randomNonNegativeLong)
+            ).restStatus()
         );
 
         // update, no generation
@@ -298,8 +313,13 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         // new file, non-zero generation
         assertEquals(
             RestStatus.PRECONDITION_FAILED,
-            executeMultipartUpload(handler, bucket, blobName + randomIdentifier(), randomBytesReference(randomIntBetween(100, 5_000)), 1L)
-                .restStatus()
+            executeMultipartUpload(
+                handler,
+                bucket,
+                blobName + randomIdentifier(),
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomLongBetween(1, Long.MAX_VALUE)
+            ).restStatus()
         );
     }
 
@@ -316,13 +336,25 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         // update, matched generation
         assertEquals(
             RestStatus.OK,
-            executeResumableUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), 1L).restStatus()
+            executeResumableUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                getCurrentGeneration(handler, bucket, blobName)
+            ).restStatus()
         );
 
         // update, mismatched generation
         assertEquals(
             RestStatus.PRECONDITION_FAILED,
-            executeResumableUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), 13L).restStatus()
+            executeResumableUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomValueOtherThan(getCurrentGeneration(handler, bucket, blobName), ESTestCase::randomNonNegativeLong)
+            ).restStatus()
         );
 
         // update, no generation
@@ -347,8 +379,13 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         // new file, non-zero generation
         assertEquals(
             RestStatus.PRECONDITION_FAILED,
-            executeResumableUpload(handler, bucket, blobName + randomIdentifier(), randomBytesReference(randomIntBetween(100, 5_000)), 1L)
-                .restStatus()
+            executeResumableUpload(
+                handler,
+                bucket,
+                blobName + randomIdentifier(),
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomLongBetween(1, Long.MAX_VALUE)
+            ).restStatus()
         );
     }
 
@@ -362,17 +399,27 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             executeUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
         );
 
+        final long currentGeneration = getCurrentGeneration(handler, bucket, blobName);
+
         // Get contents, matching generation
-        assertEquals(RestStatus.OK, getBlobContents(handler, bucket, blobName, 1L, null).restStatus());
+        assertEquals(RestStatus.OK, getBlobContents(handler, bucket, blobName, currentGeneration, null).restStatus());
 
         // Get contents, mismatched generation
-        assertEquals(RestStatus.PRECONDITION_FAILED, getBlobContents(handler, bucket, blobName, 13L, null).restStatus());
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            getBlobContents(handler, bucket, blobName, randomValueOtherThan(currentGeneration, ESTestCase::randomNonNegativeLong), null)
+                .restStatus()
+        );
 
         // Get metadata, matching generation
-        assertEquals(RestStatus.OK, getBlobMetadata(handler, bucket, blobName, 1L).restStatus());
+        assertEquals(RestStatus.OK, getBlobMetadata(handler, bucket, blobName, currentGeneration).restStatus());
 
         // Get metadata, mismatched generation
-        assertEquals(RestStatus.PRECONDITION_FAILED, getBlobMetadata(handler, bucket, blobName, 13L).restStatus());
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            getBlobMetadata(handler, bucket, blobName, randomValueOtherThan(currentGeneration, ESTestCase::randomNonNegativeLong))
+                .restStatus()
+        );
     }
 
     private static TestHttpResponse executeUpload(
@@ -468,6 +515,14 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             "GET",
             "/storage/v1/b/" + bucket + "/o/" + blobName + (ifGenerationMatch != null ? "?ifGenerationMatch=" + ifGenerationMatch : "")
         );
+    }
+
+    private static long getCurrentGeneration(GoogleCloudStorageHttpHandler handler, String bucket, String blobName) {
+        TestHttpResponse blobMetadata = getBlobMetadata(handler, bucket, blobName, null);
+        assertEquals(RestStatus.OK, blobMetadata.restStatus());
+        Matcher matcher = GENERATION_PATTERN.matcher(blobMetadata.body.utf8ToString());
+        assertTrue(matcher.find());
+        return Long.parseLong(matcher.group(1));
     }
 
     private static TestHttpResponse listBlobs(GoogleCloudStorageHttpHandler handler, String bucket, String prefix) {

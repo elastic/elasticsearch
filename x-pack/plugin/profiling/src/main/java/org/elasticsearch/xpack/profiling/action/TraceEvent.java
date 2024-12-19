@@ -11,31 +11,17 @@ import java.util.Objects;
 
 final class TraceEvent {
     final String stacktraceID;
-    final String executableName;
-    final String threadName;
-    final String hostID;
     long count;
     double annualCO2Tons;
     double annualCostsUSD;
     SubGroup subGroups;
 
     TraceEvent(String stacktraceID) {
-        this(stacktraceID, "", "", "", 0);
+        this(stacktraceID, 0);
     }
 
     TraceEvent(String stacktraceID, long count) {
-        this(stacktraceID, "", "", "", count);
-    }
-
-    TraceEvent(String stacktraceID, String executableName, String threadName, String hostID) {
-        this(stacktraceID, executableName, threadName, hostID, 0);
-    }
-
-    TraceEvent(String stacktraceID, String executableName, String threadName, String hostID, long count) {
         this.stacktraceID = stacktraceID;
-        this.executableName = executableName;
-        this.threadName = threadName;
-        this.hostID = hostID;
         this.count = count;
     }
 
@@ -48,16 +34,12 @@ final class TraceEvent {
             return false;
         }
         TraceEvent event = (TraceEvent) o;
-        return count == event.count
-            && Objects.equals(stacktraceID, event.stacktraceID)
-            && Objects.equals(executableName, event.executableName)
-            && Objects.equals(threadName, event.threadName)
-            && Objects.equals(hostID, event.hostID);
+        return count == event.count && Objects.equals(stacktraceID, event.stacktraceID);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stacktraceID, executableName, threadName, hostID, count);
+        return Objects.hash(stacktraceID, count);
     }
 
     @Override
@@ -65,12 +47,6 @@ final class TraceEvent {
         return "TraceEvent{"
             + "stacktraceID='"
             + stacktraceID
-            + '\''
-            + ", executableName='"
-            + executableName
-            + '\''
-            + ", threadName='"
-            + threadName
             + '\''
             + ", count="
             + count

@@ -39,15 +39,12 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9" },
-                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-                    0.3d,
-                    2.7d,
-                    1
+                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 }
                 )
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of("2buqP1GpF-TXYmL4USW8gA", new TraceEvent("2buqP1GpF-TXYmL4USW8gA", 1L)),
+            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), new TraceEvent(1L)),
             9,
             1.0d,
             1
@@ -104,15 +101,12 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9" },
-                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-                    0.3d,
-                    2.7d,
-                    1
+                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 }
                 )
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of("2buqP1GpF-TXYmL4USW8gA", new TraceEvent("2buqP1GpF-TXYmL4USW8gA", 1L)),
+            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), new TraceEvent(1L)),
             9,
             1.0d,
             1

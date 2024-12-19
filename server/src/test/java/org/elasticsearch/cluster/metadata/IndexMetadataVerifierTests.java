@@ -97,7 +97,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_COMPATIBLE);
+        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {

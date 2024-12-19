@@ -104,7 +104,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DISTANCES = new TestsDataset("distances");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
-    private static final TestsDataset BOOKS = new TestsDataset("books");
+    private static final TestsDataset BOOKS = new TestsDataset("books").withSetting("books-settings.json");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
@@ -359,7 +359,7 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/" + dataset.dataFileName;
+        final String dataName = "/data/" + dataset.dataFileName;
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);

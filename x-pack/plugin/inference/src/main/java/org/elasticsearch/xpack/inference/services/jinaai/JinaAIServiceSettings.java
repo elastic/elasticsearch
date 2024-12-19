@@ -40,7 +40,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     private static final String DEFAULT_MODEL_ID = "jina-embeddings-v3";
     private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
     // See https://jina.ai/contact-sales/#rate-limit
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000); 
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
     public static JinaAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

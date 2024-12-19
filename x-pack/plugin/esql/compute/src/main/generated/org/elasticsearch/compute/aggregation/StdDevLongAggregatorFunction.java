@@ -62,24 +62,23 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
       // Entire page masked away
       return;
     }
+    LongBlock block = page.getBlock(channels.get(0));
+    LongVector vector = block.asVector();
     if (mask.allTrue()) {
       // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
         addRawBlock(block);
       }
       return;
-    }
-    // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
     } else {
-      addRawBlock(block, mask);
+      // Some positions masked away, others kept
+      if (vector != null) {
+        addRawVector(vector, mask);
+      } else {
+        addRawBlock(block, mask);
+      }
     }
   }
 

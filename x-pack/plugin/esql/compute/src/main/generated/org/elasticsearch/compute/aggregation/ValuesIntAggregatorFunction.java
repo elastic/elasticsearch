@@ -58,24 +58,23 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
       // Entire page masked away
       return;
     }
+    IntBlock block = page.getBlock(channels.get(0));
+    IntVector vector = block.asVector();
     if (mask.allTrue()) {
       // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
         addRawBlock(block);
       }
       return;
-    }
-    // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
     } else {
-      addRawBlock(block, mask);
+      // Some positions masked away, others kept
+      if (vector != null) {
+        addRawVector(vector, mask);
+      } else {
+        addRawBlock(block, mask);
+      }
     }
   }
 

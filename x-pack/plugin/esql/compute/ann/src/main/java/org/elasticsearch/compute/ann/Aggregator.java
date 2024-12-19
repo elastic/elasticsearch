@@ -63,4 +63,8 @@ public @interface Aggregator {
      */
     Class<? extends Exception>[] warnExceptions() default {};
 
+    /**
+     * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.
+     */
+    boolean includeTimestamps() default false;
 }

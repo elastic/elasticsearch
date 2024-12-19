@@ -183,12 +183,21 @@ public final class RemoteClusterService extends RemoteClusterAware
         return remoteClusters.get(remoteCluster).isNodeConnected(node);
     }
 
-    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
+    /**
+     * TODO: DOCUMENT ME
+     * @param indicesOptions
+     * @param indices
+     * @param returnLocalAll
+     * @return
+     */
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
         final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
         if (groupedIndices.isEmpty()) {
-            // search on _all in the local cluster if neither local indices nor remote indices were specified
-            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
+            if (returnLocalAll) {
+                // search on _all in the local cluster if neither local indices nor remote indices were specified
+                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
+            }
         } else {
             for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
@@ -197,6 +206,16 @@ public final class RemoteClusterService extends RemoteClusterAware
             }
         }
         return originalIndicesMap;
+    }
+
+    /**
+     * TODO: DOCUMENT ME
+     * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
+     * @param indices Multiple index expressions as string[].
+     * @return
+     */
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
+        return groupIndices(indicesOptions, indices, true);
     }
 
     /**

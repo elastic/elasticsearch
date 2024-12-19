@@ -50,7 +50,9 @@ public class GetDataStreamOptionsAction {
             .wildcardOptions(
                 IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).allowEmptyExpressions(true).resolveAliases(false)
             )
-            .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(true))
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(true).allowSelectors(false)
+            )
             .build();
         private boolean includeDefaults = false;
 

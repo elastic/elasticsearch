@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,7 +44,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            return Set.of("lazy-rollover-failure-store");
+            return Set.of("lazy-rollover-failure-store", "index-expression-selectors");
         } else {
             return Set.of();
         }
@@ -59,16 +58,6 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.ackTimeout(getAckTimeout(request));
         rolloverIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            boolean failureStore = request.paramAsBoolean("target_failure_store", false);
-            if (failureStore) {
-                rolloverIndexRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                        .build()
-                );
-            }
-        }
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

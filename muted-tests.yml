@@ -413,9 +413,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/118514
-- class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
-  method: testPruneSome
-  issue: https://github.com/elastic/elasticsearch/issues/118728
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/20_metrics_ingest/Test metrics-apm.app-* setting event.ingested via ingest pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/118875
@@ -431,5 +428,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
   method: test {p0=esql/190_lookup_join/non-lookup index}
   issue: https://github.com/elastic/elasticsearch/issues/119036
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/118955

@@ -121,9 +121,9 @@ necessarily reflect whether the remote cluster is available or not. The remote c
 be available, while the local cluster is not currently connected to it.
 
 You can use this API to force a reconnection (for example with `GET _resolve/cluster/*:*`) and
-examine the `connected` field in the response for each remote. This will also cause the
-<<cluster-remote-info,remote/info>> endpoint to now reflect the fact that a connection has
-been (re-)established.
+the `connected` field in the response will indicate whether it was successful or not.
+If a connection was (re-)established, this will also cause the
+<<cluster-remote-info,remote/info>> endpoint to now indicate a connected status.
 
 
 === Advantages of using this endpoint before a {ccs}

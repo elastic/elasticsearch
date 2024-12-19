@@ -26,8 +26,7 @@ remote cluster information. It returns connection and endpoint information keyed
 by the configured remote cluster alias.
 
 TIP: This endpoint returns the information that reflects state on the cluster
-you are querying. The `connected` field reports whether the querying cluster is
-currently connected to the remote cluster. It does not necessarily reflect whether
+you are querying. The `connected` field does not necessarily reflect whether
 the remote cluster is down or unavailable, only whether there is currently an open
 connection to it. Elasticsearch does not spontaneously try to reconnect to a
 disconnected remote cluster. To trigger a reconnection, attempt a

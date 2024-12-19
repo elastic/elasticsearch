@@ -32,6 +32,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 
 import java.util.Locale;
 import java.util.Map;
@@ -78,13 +79,13 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = ReindexDataStreamAction.getOldIndexVersionPredicate(clusterService.state().metadata());
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata());
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",
                 sourceIndexName,
                 sourceIndex.getCreationVersion(),
-                ReindexDataStreamAction.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE
+                DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE
             );
         }
 

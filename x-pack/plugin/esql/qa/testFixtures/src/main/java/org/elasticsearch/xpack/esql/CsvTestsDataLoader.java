@@ -64,6 +64,11 @@ public class CsvTestsDataLoader {
         .withSetting("languages_lookup-settings.json");
     private static final TestsDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
+    private static final TestsDataset LANGUAGES_NESTED_FIELDS = new TestsDataset(
+        "languages_nested_fields",
+        "mapping-languages_nested_fields.json",
+        "languages_nested_fields.csv"
+    ).withSetting("languages_lookup-settings.json");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
@@ -104,7 +109,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DISTANCES = new TestsDataset("distances");
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
-    private static final TestsDataset BOOKS = new TestsDataset("books");
+    private static final TestsDataset BOOKS = new TestsDataset("books").withSetting("books-settings.json");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
@@ -116,6 +121,7 @@ public class CsvTestsDataLoader {
         Map.entry(LANGUAGES.indexName, LANGUAGES),
         Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
+        Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
@@ -359,7 +365,7 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/" + dataset.dataFileName;
+        final String dataName = "/data/" + dataset.dataFileName;
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);

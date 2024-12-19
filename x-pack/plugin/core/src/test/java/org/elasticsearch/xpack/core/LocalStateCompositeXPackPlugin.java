@@ -623,7 +623,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @SuppressWarnings("unchecked")
-    protected <T> List<T> filterPlugins(Class<T> type) {
+    private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
     }
 

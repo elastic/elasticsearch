@@ -56,6 +56,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         "mapper.source.remove_synthetic_source_only_validation"
     );
     public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
+    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -442,7 +443,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         var modSourceFilter = sourceFilter;
         if (context != null
-            && InferenceMetadataFieldsMapper.isEnabled(context.indexSettings().getIndexVersionCreated())
+            && InferenceMetadataFieldsMapper.isEnabled(context.mappingLookup())
             && context.mappingLookup().inferenceFields().isEmpty() == false) {
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {

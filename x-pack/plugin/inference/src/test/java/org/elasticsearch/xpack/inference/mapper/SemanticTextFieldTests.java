@@ -7,18 +7,16 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -44,7 +42,16 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTextField> {
     private static final String NAME = "field";
 
-    private IndexVersion currentIndexVersion;
+    private final boolean useLegacyFormat;
+
+    public SemanticTextFieldTests(boolean useLegacyFormat) {
+        this.useLegacyFormat = useLegacyFormat;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
@@ -53,7 +60,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected void assertEqualInstances(SemanticTextField expectedInstance, SemanticTextField newInstance) {
-        assertThat(newInstance.indexCreatedVersion(), equalTo(newInstance.indexCreatedVersion()));
+        assertThat(newInstance.useLegacyFormat(), equalTo(newInstance.useLegacyFormat()));
         assertThat(newInstance.fieldName(), equalTo(expectedInstance.fieldName()));
         assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
@@ -98,14 +105,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField createTestInstance() {
-        currentIndexVersion = randomFrom(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INFERENCE_METADATA_FIELDS),
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INFERENCE_METADATA_FIELDS, IndexVersion.current())
-        );
         List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
         try { // try catch required for override
             return randomSemanticText(
-                currentIndexVersion,
+                useLegacyFormat,
                 NAME,
                 TestModel.createRandomInstance(),
                 rawValues,
@@ -119,7 +122,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField doParseInstance(XContentParser parser) throws IOException {
-        return SemanticTextField.parse(parser, new SemanticTextField.ParserContext(currentIndexVersion, NAME, parser.contentType()));
+        return SemanticTextField.parse(parser, new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType()));
     }
 
     @Override
@@ -209,7 +212,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static SemanticTextField randomSemanticText(
-        IndexVersion indexVersion,
+        boolean useLegacyFormat,
         String fieldName,
         Model model,
         List<String> inputs,
@@ -220,18 +223,17 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
-        return semanticTextFieldFromChunkedInferenceResults(indexVersion, fieldName, model, inputs, results, contentType);
+        return semanticTextFieldFromChunkedInferenceResults(useLegacyFormat, fieldName, model, inputs, results, contentType);
     }
 
     public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
-        IndexVersion indexVersion,
+        boolean useLegacyFormat,
         String fieldName,
         Model model,
         List<String> inputs,
         ChunkedInference results,
         XContentType contentType
     ) throws IOException {
-        final boolean useInferenceMetadataFields = InferenceMetadataFieldsMapper.isEnabled(indexVersion);
 
         // In this test framework, we don't perform "real" chunking; each input generates one chunk. Thus, we can assume there is a
         // one-to-one relationship between inputs and chunks. Iterate over the inputs and chunks to match each input with its
@@ -243,7 +245,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();
-            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, chunk, useInferenceMetadataFields));
+            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, chunk, useLegacyFormat));
 
             // When using the inference metadata fields format, all the input values are concatenated so that the
             // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
@@ -256,9 +258,9 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
 
         return new SemanticTextField(
-            indexVersion,
+            useLegacyFormat,
             fieldName,
-            useInferenceMetadataFields ? null : inputs,
+            useLegacyFormat ? inputs : null,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
                 new SemanticTextField.ModelSettings(model),
@@ -286,7 +288,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
     }
 
-    public static ChunkedInference toChunkedResult(Map<String, List<String>> matchedTextMap, SemanticTextField field) throws IOException {
+    public static ChunkedInference toChunkedResult(
+        boolean useLegacyFormat,
+        Map<String, List<String>> matchedTextMap,
+        SemanticTextField field
+    ) {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
                 List<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk> chunks = new ArrayList<>();
@@ -297,14 +303,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
                     ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
                     for (var chunk : entryChunks) {
+                        String matchedText = matchedTextIt.next();
+                        ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, chunk, matchedText);
                         var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                        chunks.add(
-                            new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
-                                tokens,
-                                matchedTextIt.next(),
-                                new ChunkedInference.TextOffset(chunk.startOffset(), chunk.endOffset())
-                            )
-                        );
+                        chunks.add(new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, matchedText, offset));
                     }
                 }
                 return new ChunkedInferenceEmbeddingSparse(chunks);
@@ -318,6 +320,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
                     ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
                     for (var chunk : entryChunks) {
+                        String matchedText = matchedTextIt.next();
+                        ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, chunk, matchedText);
                         double[] values = parseDenseVector(
                             chunk.rawEmbeddings(),
                             field.inference().modelSettings().dimensions(),
@@ -326,8 +330,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         chunks.add(
                             new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                                 FloatConversionUtils.floatArrayOf(values),
-                                matchedTextIt.next(),
-                                new ChunkedInference.TextOffset(chunk.startOffset(), chunk.endOffset())
+                                matchedText,
+                                offset
                             )
                         );
                     }
@@ -351,6 +355,23 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
 
         return fieldMatchedText;
+    }
+
+    /**
+     * Create a {@link ChunkedInference.TextOffset} instance with valid offset values. When using the legacy semantic text format, the
+     * offset values are not written to {@link SemanticTextField.Chunk}, so we cannot read them from there. Instead, use the knowledge that
+     * the matched text corresponds to one complete input value (i.e. one input value -> one chunk) to calculate the offset values.
+     *
+     * @param useLegacyFormat Whether the old format should be used
+     * @param chunk The chunk to get/calculate offset values for
+     * @param matchedText The matched text to calculate offset values for
+     * @return A {@link ChunkedInference.TextOffset} instance with valid offset values
+     */
+    private static ChunkedInference.TextOffset createOffset(boolean useLegacyFormat, SemanticTextField.Chunk chunk, String matchedText) {
+        final int startOffset = useLegacyFormat ? 0 : chunk.startOffset();
+        final int endOffset = useLegacyFormat ? matchedText.length() : chunk.endOffset();
+
+        return new ChunkedInference.TextOffset(startOffset, endOffset);
     }
 
     private static double[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {

@@ -1,0 +1,6 @@
+pr: 118816
+summary: Support flattened field with downsampling
+area: Downsampling
+type: bug
+issues:
+ - 116319

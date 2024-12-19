@@ -14,8 +14,11 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -122,6 +126,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -133,12 +139,14 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -2331,7 +2339,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V6.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
@@ -6831,6 +6839,299 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookup.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
         );
+    }
+
+    public void testLookupJoinFieldLoading() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | KEEP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | EVAL bar = 10
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "baz")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | RENAME bar AS foobar
+            | KEEP f*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | STATS count_distinct(foo) BY bar
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar")), true);
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | MV_EXPAND foo
+            | KEEP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | MV_EXPAND foo
+            | DROP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM lookup_index
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "bar", "baz")));
+
+        query = """
+              FROM lookup_index
+            | LOOKUP JOIN lookup_index ON first_name
+            | KEEP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo")));
+    }
+
+    public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(
+            Map.of(
+                "lookup_index1",
+                List.of("first_name", "foo", "bar", "baz"),
+                "lookup_index2",
+                List.of("first_name", "foo", "bar2", "baz2")
+            )
+        );
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP foo
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | KEEP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("bar2", "baz2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP baz*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar"), Set.of("foo", "bar2")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | EVAL foo = to_upper(foo)
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | EVAL foo = to_lower(foo)
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("bar", "baz"), Set.of("foo", "bar2", "baz2")));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
+    public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(
+            Map.of(
+                "lookup_index1",
+                List.of("first_name", "foo", "bar", "baz"),
+                "lookup_index2",
+                List.of("first_name", "foo", "bar2", "baz2")
+            )
+        );
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | RENAME foo AS foo1
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | DROP bar
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("foo"), Set.of("foo")));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index1 ON first_name
+            | KEEP first_name, b*
+            | LOOKUP JOIN lookup_index2 ON first_name
+            | DROP bar*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of("baz"), Set.of("foo", "baz2")));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
+    public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+
+        TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
+
+        String query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | DROP foo, b*
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of()));
+
+        query = """
+              FROM test
+            | LOOKUP JOIN lookup_index ON first_name
+            | LOOKUP JOIN lookup_index ON first_name
+            """;
+        assertLookupJoinFieldNames(query, data, List.of(Set.of(), Set.of("foo", "bar", "baz")));
+    }
+
+    private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {
+        assertLookupJoinFieldNames(query, data, expectedFieldNames, false);
+    }
+
+    private void assertLookupJoinFieldNames(
+        String query,
+        TestDataSource data,
+        List<Set<String>> expectedFieldNames,
+        boolean useDataNodePlan
+    ) {
+        // Do not assert serialization:
+        // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
+        var plan = physicalPlan(query, data, false);
+
+        var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
+
+        List<Set<String>> fields = findFieldNamesInLookupJoinDescription(physicalOperations);
+
+        assertEquals(expectedFieldNames.size(), fields.size());
+        for (int i = 0; i < expectedFieldNames.size(); i++) {
+            assertEquals(expectedFieldNames.get(i), fields.get(i));
+        }
+    }
+
+    private TestDataSource dataSetWithLookupIndices(Map<String, Collection<String>> indexNameToFieldNames) {
+        Map<String, IndexResolution> lookupIndices = new HashMap<>();
+
+        for (Map.Entry<String, Collection<String>> entry : indexNameToFieldNames.entrySet()) {
+            String lookupIndexName = entry.getKey();
+            Map<String, EsField> lookup_fields = fields(entry.getValue());
+
+            EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
+            lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
+        }
+
+        return makeTestDataSource(
+            "test",
+            "mapping-basic.json",
+            new EsqlFunctionRegistry(),
+            lookupIndices,
+            setupEnrichResolution(),
+            TEST_SEARCH_STATS
+        );
+    }
+
+    private Map<String, EsField> fields(Collection<String> fieldNames) {
+        Map<String, EsField> fields = new HashMap<>();
+
+        for (String fieldName : fieldNames) {
+            fields.put(fieldName, new EsField(fieldName, DataType.KEYWORD, Map.of(), false));
+        }
+
+        return fields;
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan physicalOperationsFromPhysicalPlan(PhysicalPlan plan, boolean useDataNodePlan) {
+        // The TopN needs an estimated row size for the planner to work
+        var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
+        plan = useDataNodePlan ? plans.v2() : plans.v1();
+        plan = PlannerUtils.localPlan(List.of(), config, plan);
+        LocalExecutionPlanner planner = new LocalExecutionPlanner(
+            "test",
+            "",
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            Settings.EMPTY,
+            config,
+            new ExchangeSourceHandler(10, null, null),
+            new ExchangeSinkHandler(null, 10, () -> 10),
+            null,
+            null,
+            new EsPhysicalOperationProviders(List.of(), null)
+        );
+
+        return planner.plan(plan);
+    }
+
+    private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
+
+        String[] descriptionLines = physicalOperations.describe().split("\\r?\\n|\\r");
+
+        // Capture the inside of "...load_fields=[field{f}#19, other_field{f}#20]".
+        String insidePattern = "[^\\]]*";
+        Pattern expected = Pattern.compile("\\\\_LookupOperator.*load_fields=\\[(" + insidePattern + ")].*");
+
+        List<Set<String>> results = new ArrayList<>();
+        for (String line : descriptionLines) {
+            var matcher = expected.matcher(line);
+            if (matcher.find()) {
+                String allFields = matcher.group(1);
+                Set<String> loadedFields = Arrays.stream(allFields.split(","))
+                    .map(name -> name.trim().split("\\{f}#")[0])
+                    .collect(Collectors.toSet());
+                results.add(loadedFields);
+            }
+        }
+
+        return results;
     }
 
     public void testScore() {

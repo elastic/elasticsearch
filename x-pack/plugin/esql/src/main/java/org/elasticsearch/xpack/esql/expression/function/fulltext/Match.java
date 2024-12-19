@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -70,6 +71,7 @@ public class Match extends FullTextFunction implements Validatable {
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,
         TEXT,
+        SEMANTIC_TEXT,
         BOOLEAN,
         DATETIME,
         DATE_NANOS,
@@ -96,8 +98,15 @@ public class Match extends FullTextFunction implements Validatable {
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Performs a <<query-dsl-match-query,match query>> on the specified field. "
-            + "Returns true if the provided query matches the row.",
+        description = """
+            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
+
+            Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
+
+            For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
+
+            `MATCH` returns true if the provided query matches the row.""",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
     public Match(

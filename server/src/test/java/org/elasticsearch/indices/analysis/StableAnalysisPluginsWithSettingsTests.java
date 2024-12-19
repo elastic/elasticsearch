@@ -72,7 +72,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
                 .put("index.analysis.analyzer.char_filter_with_defaults_test.tokenizer", "standard")
                 .put("index.analysis.analyzer.char_filter_with_defaults_test.char_filter", "stableCharFilterFactory")
 
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(analyzers.get("char_filter_test").tokenStream("", "t#st"), new String[] { "t3st" });
@@ -88,7 +88,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
                 .put("index.analysis.analyzer.token_filter_test.tokenizer", "standard")
                 .put("index.analysis.analyzer.token_filter_test.filter", "my_token_filter")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(
@@ -109,7 +109,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
                 .putList("index.analysis.tokenizer.my_tokenizer.tokenizer_list_of_chars", "_", " ")
 
                 .put("index.analysis.analyzer.tokenizer_test.tokenizer", "my_tokenizer")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(analyzers.get("tokenizer_test").tokenStream("", "x_y z"), new String[] { "x", "y", "z" });
@@ -124,7 +124,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
                 .put("index.analysis.analyzer.analyzer_provider_test.old_char", "#")
                 .put("index.analysis.analyzer.analyzer_provider_test.new_number", 3)
                 .put("index.analysis.analyzer.analyzer_provider_test.analyzerUseTokenListOfChars", true)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(analyzers.get("analyzer_provider_test").tokenStream("", "1x_y_#z"), new String[] { "y", "3z" });

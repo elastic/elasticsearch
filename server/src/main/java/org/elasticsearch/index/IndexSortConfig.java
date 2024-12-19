@@ -13,6 +13,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -51,6 +52,8 @@ import java.util.function.Supplier;
  *
 **/
 public final class IndexSortConfig {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
 
     /**
      * The list of field names
@@ -139,12 +142,16 @@ public final class IndexSortConfig {
     }
 
     // visible for tests
-    FieldSortSpec[] sortSpecs;
+    final FieldSortSpec[] sortSpecs;
+    private final IndexVersion indexCreatedVersion;
+    private final String indexName;
     private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
-        indexMode = indexSettings.getMode();
+        this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
+        this.indexName = indexSettings.getIndex().getName();
+        this.indexMode = indexSettings.getMode();
 
         if (indexMode == IndexMode.TIME_SERIES) {
             sortSpecs = TIME_SERIES_SORT;
@@ -238,7 +245,22 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
-                throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
+                if (this.indexCreatedVersion.onOrAfter(IndexVersions.V_7_13_0)) {
+                    throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
+                } else {
+                    DEPRECATION_LOGGER.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "index-sort-aliases",
+                        "Index sort for index ["
+                            + indexName
+                            + "] defined on field ["
+                            + sortSpec.field
+                            + "] which resolves to field ["
+                            + ft.name()
+                            + "]. "
+                            + "You will not be able to define an index sort over aliased fields in new indexes"
+                    );
+                }
             }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;

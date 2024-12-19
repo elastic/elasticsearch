@@ -119,7 +119,6 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         createFailedDocument(dataStreamName);
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
-        System.out.println(stats);
 
         assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());

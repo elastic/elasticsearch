@@ -1,0 +1,5 @@
+pr: 118757
+summary: Improve handling of nested fields in index reader wrappers
+area: Authorization
+type: enhancement
+issues: []

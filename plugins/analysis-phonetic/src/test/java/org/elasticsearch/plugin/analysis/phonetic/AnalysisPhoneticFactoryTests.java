@@ -44,7 +44,7 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .build();

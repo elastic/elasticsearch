@@ -70,4 +70,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Test knn search", "Scoring has changed in latest versions")
   task.skipTest("search.vectors/42_knn_search_bbq_flat/Test knn search", "Scoring has changed in latest versions")
   task.skipTest("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set", "Can't work until auto-expand replicas is 0-1 for synonyms index")
+  task.skipTest("search/90_search_after/_shard_doc sort", "restriction has been lifted in latest versions")
 })

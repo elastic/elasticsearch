@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -60,7 +61,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
             // close remote-cluster-1 so that it is unavailable
             cluster(REMOTE_CLUSTER_1).close();
 
-            Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
+            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
             boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -142,7 +143,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
             // close remote-cluster-1 so that it is unavailable
             cluster(REMOTE_CLUSTER_1).close();
 
-            Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
+            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
             boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -188,7 +189,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
     }
 
     public void testEnrichTwiceThenAggsWithUnavailableRemotes() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -292,7 +293,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
     }
 
     public void testEnrichCoordinatorThenAnyWithSingleUnavailableRemoteAndLocal() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -345,7 +346,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
     }
 
     public void testEnrichCoordinatorThenAnyWithSingleUnavailableRemoteAndNotLocal() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -394,7 +395,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
     }
 
     public void testEnrichRemoteWithVendor() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 

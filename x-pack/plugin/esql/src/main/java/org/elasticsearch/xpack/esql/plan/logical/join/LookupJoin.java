@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
@@ -50,9 +49,8 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
      */
     @Override
     public LogicalPlan surrogate() {
-        Join normalized = new Join(source(), left(), right(), config());
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Project(source(), normalized, output());
+        return new Join(source(), left(), right(), config());
     }
 
     @Override

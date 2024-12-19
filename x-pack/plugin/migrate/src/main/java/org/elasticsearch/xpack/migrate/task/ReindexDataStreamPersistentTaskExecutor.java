@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.getOldIndexVersionPredicate;
+import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
 
 public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExecutor<ReindexDataStreamTaskParams> {
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
@@ -76,7 +76,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, ReindexDataStreamTaskParams params, PersistentTaskState state) {
         String sourceDataStream = params.getSourceDataStream();
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         GetDataStreamAction.Request request = new GetDataStreamAction.Request(TimeValue.MAX_VALUE, new String[] { sourceDataStream });
+        request.setParentTask(taskId);
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
         ExecuteWithHeadersClient reindexClient = new ExecuteWithHeadersClient(client, params.headers());
@@ -84,17 +86,19 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
-                if (getOldIndexVersionPredicate(clusterService.state().metadata()).test(dataStream.getWriteIndex())) {
+                if (getReindexRequiredPredicate(clusterService.state().metadata()).test(dataStream.getWriteIndex())) {
+                    RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
+                    rolloverRequest.setParentTask(taskId);
                     reindexClient.execute(
                         RolloverAction.INSTANCE,
-                        new RolloverRequest(sourceDataStream, null),
+                        rolloverRequest,
                         ActionListener.wrap(
-                            rolloverResponse -> reindexIndices(dataStream, reindexDataStreamTask, reindexClient, sourceDataStream),
+                            rolloverResponse -> reindexIndices(dataStream, reindexDataStreamTask, reindexClient, sourceDataStream, taskId),
                             e -> completeFailedPersistentTask(reindexDataStreamTask, e)
                         )
                     );
                 } else {
-                    reindexIndices(dataStream, reindexDataStreamTask, reindexClient, sourceDataStream);
+                    reindexIndices(dataStream, reindexDataStreamTask, reindexClient, sourceDataStream, taskId);
                 }
             } else {
                 completeFailedPersistentTask(reindexDataStreamTask, new ElasticsearchException("data stream does not exist"));
@@ -106,10 +110,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         DataStream dataStream,
         ReindexDataStreamTask reindexDataStreamTask,
         ExecuteWithHeadersClient reindexClient,
-        String sourceDataStream
+        String sourceDataStream,
+        TaskId parentTaskId
     ) {
         List<Index> indices = dataStream.getIndices();
-        List<Index> indicesToBeReindexed = indices.stream().filter(getOldIndexVersionPredicate(clusterService.state().metadata())).toList();
+        List<Index> indicesToBeReindexed = indices.stream().filter(getReindexRequiredPredicate(clusterService.state().metadata())).toList();
         reindexDataStreamTask.setPendingIndicesCount(indicesToBeReindexed.size());
         // The CountDownActionListener is 1 more than the number of indices so that the count is not 0 if we have no indices
         CountDownActionListener listener = new CountDownActionListener(indicesToBeReindexed.size() + 1, ActionListener.wrap(response1 -> {
@@ -118,7 +123,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         List<Index> indicesRemaining = Collections.synchronizedList(new ArrayList<>(indicesToBeReindexed));
         final int maxConcurrentIndices = 1;
         for (int i = 0; i < maxConcurrentIndices; i++) {
-            maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener);
+            maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener, parentTaskId);
         }
         // This takes care of the additional latch count referenced above:
         listener.onResponse(null);
@@ -129,7 +134,8 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTask reindexDataStreamTask,
         ExecuteWithHeadersClient reindexClient,
         String sourceDataStream,
-        CountDownActionListener listener
+        CountDownActionListener listener,
+        TaskId parentTaskId
     ) {
         if (indicesRemaining.isEmpty()) {
             return;
@@ -141,23 +147,21 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             return;
         }
         reindexDataStreamTask.incrementInProgressIndicesCount(index.getName());
-        reindexClient.execute(
-            ReindexDataStreamIndexAction.INSTANCE,
-            new ReindexDataStreamIndexAction.Request(index.getName()),
-            ActionListener.wrap(response1 -> {
-                updateDataStream(sourceDataStream, index.getName(), response1.getDestIndex(), ActionListener.wrap(unused -> {
-                    reindexDataStreamTask.reindexSucceeded(index.getName());
-                    listener.onResponse(null);
-                    maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener);
-                }, exception -> {
-                    reindexDataStreamTask.reindexFailed(index.getName(), exception);
-                    listener.onResponse(null);
-                }), reindexClient);
+        ReindexDataStreamIndexAction.Request reindexDataStreamIndexRequest = new ReindexDataStreamIndexAction.Request(index.getName());
+        reindexDataStreamIndexRequest.setParentTask(parentTaskId);
+        reindexClient.execute(ReindexDataStreamIndexAction.INSTANCE, reindexDataStreamIndexRequest, ActionListener.wrap(response1 -> {
+            updateDataStream(sourceDataStream, index.getName(), response1.getDestIndex(), ActionListener.wrap(unused -> {
+                reindexDataStreamTask.reindexSucceeded(index.getName());
+                listener.onResponse(null);
+                maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener, parentTaskId);
             }, exception -> {
                 reindexDataStreamTask.reindexFailed(index.getName(), exception);
                 listener.onResponse(null);
-            })
-        );
+            }), reindexClient, parentTaskId);
+        }, exception -> {
+            reindexDataStreamTask.reindexFailed(index.getName(), exception);
+            listener.onResponse(null);
+        }));
     }
 
     private void updateDataStream(
@@ -165,27 +169,26 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         String oldIndex,
         String newIndex,
         ActionListener<Void> listener,
-        ExecuteWithHeadersClient reindexClient
+        ExecuteWithHeadersClient reindexClient,
+        TaskId parentTaskId
     ) {
-        reindexClient.execute(
-            ModifyDataStreamsAction.INSTANCE,
-            new ModifyDataStreamsAction.Request(
-                TimeValue.MAX_VALUE,
-                TimeValue.MAX_VALUE,
-                List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
-            ),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse response) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+        ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
+            TimeValue.MAX_VALUE,
+            TimeValue.MAX_VALUE,
+            List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
         );
+        modifyDataStreamRequest.setParentTask(parentTaskId);
+        reindexClient.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void completeSuccessfulPersistentTask(ReindexDataStreamTask persistentTask) {

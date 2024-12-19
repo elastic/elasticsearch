@@ -359,7 +359,7 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/" + dataset.dataFileName;
+        final String dataName = "/data/" + dataset.dataFileName;
         URL data = CsvTestsDataLoader.class.getResource(dataName);
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
@@ -604,7 +604,7 @@ public class CsvTestsDataLoader {
         boolean requiresInferenceEndpoint
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, "data/" + dataFileName, null, true, null, false);
+            this(indexName, mappingFileName, dataFileName, null, true, null, false);
         }
 
         public TestsDataset(String indexName) {

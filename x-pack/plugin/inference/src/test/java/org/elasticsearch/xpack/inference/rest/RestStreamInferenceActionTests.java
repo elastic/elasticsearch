@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.Before;
@@ -25,7 +26,7 @@ public class RestStreamInferenceActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestStreamInferenceAction());
+        controller().registerHandler(new RestStreamInferenceAction(new TestThreadPool(getTestName())));
     }
 
     public void testStreamIsTrue() {

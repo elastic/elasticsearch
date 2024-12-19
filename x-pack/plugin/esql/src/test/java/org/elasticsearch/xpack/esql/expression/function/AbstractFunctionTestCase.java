@@ -1080,12 +1080,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
-                String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
+                if (mapParamInfo != null) {
+                    String paramName = mapParamInfo.name();
+                    String[] valueType = mapParamInfo.type();
+                    String desc = mapParamInfo.description().replace('\n', ' ');
+                    boolean optional = mapParamInfo.optional();
+                    Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
+                    for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
+                        String hintVale = hint.value().length <= 1
+                            ? Arrays.toString(hint.value())
+                            : "[" + String.join(", ", hint.value()) + "]";
+                        hints.put(hint.key(), hintVale);
+                    }
+                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, valueType, desc, optional, hints));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
+                    String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                    boolean optional = paramInfo != null && paramInfo.optional();
+                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
+                }
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
@@ -1165,6 +1181,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     builder.startObject();
                     builder.field("name", arg.name());
                     builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                    if (arg.hint().isEmpty() == false) {
+                        builder.field(
+                            "mapParamHint",
+                            arg.hint()
+                                .entrySet()
+                                .stream()
+                                .map(e -> "{" + e.getKey() + " : " + e.getValue() + "}")
+                                .collect(Collectors.joining(", "))
+                        );
+                    }
                     builder.field("optional", arg.optional());
                     builder.field("description", arg.description());
                     builder.endObject();

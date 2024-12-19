@@ -52,7 +52,7 @@ public abstract class NodeInfo<T extends Node<?>> {
         List<?> children = node.children();
 
         Function<Object, Object> realRule = p -> {
-            if (p != children && false == children.contains(p) && (p == null || typeToken.isInstance(p))) {
+            if (false == children.equals(p) && false == children.contains(p) && (p == null || typeToken.isInstance(p))) {
                 return rule.apply(typeToken.cast(p));
             }
             return p;

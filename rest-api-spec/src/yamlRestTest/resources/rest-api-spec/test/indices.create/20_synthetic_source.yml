@@ -2036,14 +2036,12 @@ create index with use_synthetic_source:
   - is_true: test.settings.index.recovery.use_synthetic_source
 
   - do:
-      bulk:
+      index:
         index: test
+        id: 1
         refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "field": "aaaa" }'
-          - '{ "create": { } }'
-          - '{ "field": "bbbb" }'
+        body: { foo: bar }
+  - match: { _version: 1 }
 
   - do:
       indices.disk_usage:

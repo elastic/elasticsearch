@@ -90,9 +90,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
              * to the original _source if it has been requested.
              */
             private Source replaceInferenceMetadataFields(SearchHit hit, Source source) {
-                if (InferenceMetadataFieldsMapper.isEnabled(
-                    fetchContext.getSearchExecutionContext().getIndexSettings().getIndexVersionCreated()
-                ) == false) {
+                if (InferenceMetadataFieldsMapper.isEnabled(fetchContext.getSearchExecutionContext().getMappingLookup()) == false) {
                     return source;
                 }
 

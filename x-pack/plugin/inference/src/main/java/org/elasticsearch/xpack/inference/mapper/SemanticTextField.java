@@ -13,9 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
@@ -59,7 +57,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
  */
 public record SemanticTextField(
-    IndexVersion indexCreatedVersion,
+    boolean useLegacyFormat,
     String fieldName,
     @Nullable List<String> originalValues,
     InferenceResult inference,
@@ -208,7 +206,7 @@ public record SemanticTextField(
         return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
     }
 
-    record ParserContext(IndexVersion indexVersionCreated, String fieldName, XContentType xContentType) {}
+    record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
 
     static SemanticTextField parse(XContentParser parser, ParserContext context) throws IOException {
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
@@ -239,32 +237,30 @@ public record SemanticTextField(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final boolean useInferenceMetadataFieldsFormat = InferenceMetadataFieldsMapper.isEnabled(indexCreatedVersion);
-
         builder.startObject();
         List<String> originalValues = originalValues();
-        if (useInferenceMetadataFieldsFormat == false && originalValues.isEmpty() == false) {
+        if (useLegacyFormat && originalValues.isEmpty() == false) {
             builder.field(TEXT_FIELD, originalValues.size() == 1 ? originalValues.get(0) : originalValues);
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
-        if (useInferenceMetadataFieldsFormat) {
-            builder.startObject(CHUNKS_FIELD);
-        } else {
+        if (useLegacyFormat) {
             builder.startArray(CHUNKS_FIELD);
+        } else {
+            builder.startObject(CHUNKS_FIELD);
         }
         for (var entry : inference.chunks.entrySet()) {
-            if (useInferenceMetadataFieldsFormat) {
+            if (useLegacyFormat == false) {
                 builder.startArray(entry.getKey());
             }
             for (var chunk : entry.getValue()) {
                 builder.startObject();
-                if (useInferenceMetadataFieldsFormat) {
+                if (useLegacyFormat) {
+                    builder.field(TEXT_FIELD, chunk.text);
+                } else {
                     builder.field(CHUNKED_START_OFFSET_FIELD, chunk.startOffset);
                     builder.field(CHUNKED_END_OFFSET_FIELD, chunk.endOffset);
-                } else {
-                    builder.field(TEXT_FIELD, chunk.text);
                 }
                 XContentParser parser = XContentHelper.createParserNotCompressed(
                     XContentParserConfiguration.EMPTY,
@@ -274,14 +270,14 @@ public record SemanticTextField(
                 builder.field(CHUNKED_EMBEDDINGS_FIELD).copyCurrentStructure(parser);
                 builder.endObject();
             }
-            if (useInferenceMetadataFieldsFormat) {
+            if (useLegacyFormat == false) {
                 builder.endArray();
             }
         }
-        if (useInferenceMetadataFieldsFormat) {
-            builder.endObject();
-        } else {
+        if (useLegacyFormat) {
             builder.endArray();
+        } else {
+            builder.endObject();
         }
         builder.endObject();
         builder.endObject();
@@ -292,14 +288,14 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
-            if (InferenceMetadataFieldsMapper.isEnabled(context.indexVersionCreated)) {
+            if (context.useLegacyFormat() == false) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
                 }
                 originalValues = null;
             }
             return new SemanticTextField(
-                context.indexVersionCreated(),
+                context.useLegacyFormat(),
                 context.fieldName(),
                 originalValues,
                 (InferenceResult) args[1],
@@ -319,7 +315,7 @@ public record SemanticTextField(
         true,
         (args, context) -> {
             String text = (String) args[0];
-            if (InferenceMetadataFieldsMapper.isEnabled(context.indexVersionCreated) == false && text == null) {
+            if (context.useLegacyFormat() && text == null) {
                 throw new IllegalArgumentException("Missing chunk text");
             }
             return new Chunk(text, args[1] != null ? (int) args[1] : -1, args[2] != null ? (int) args[2] : -1, (BytesReference) args[3]);
@@ -355,11 +351,10 @@ public record SemanticTextField(
             new ParseField(MODEL_SETTINGS_FIELD)
         );
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
-            if (InferenceMetadataFieldsMapper.isEnabled(c.indexVersionCreated)) {
-                return parseChunksMap(p, c);
-            } else {
+            if (c.useLegacyFormat()) {
                 return Map.of(c.fieldName, parseChunksArrayLegacy(p, c));
             }
+            return parseChunksMap(p, c);
         }, new ParseField(CHUNKS_FIELD), ObjectParser.ValueType.OBJECT_ARRAY);
 
         CHUNKS_PARSER.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
@@ -409,12 +404,12 @@ public record SemanticTextField(
         int offsetAdjustment,
         ChunkedInference results,
         XContentType contentType,
-        boolean useInferenceMetadataFieldsFormat
+        boolean useLegacyFormat
     ) throws IOException {
         List<Chunk> chunks = new ArrayList<>();
         Iterator<ChunkedInference.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
         while (it.hasNext()) {
-            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useInferenceMetadataFieldsFormat));
+            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useLegacyFormat));
         }
         return chunks;
     }
@@ -423,16 +418,16 @@ public record SemanticTextField(
         String input,
         int offsetAdjustment,
         ChunkedInference.Chunk chunk,
-        boolean useInferenceMetadataFieldsFormat
+        boolean useLegacyFormat
     ) {
         String text = null;
         int startOffset = -1;
         int endOffset = -1;
-        if (useInferenceMetadataFieldsFormat) {
+        if (useLegacyFormat) {
+            text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
+        } else {
             startOffset = chunk.textOffset().start() + offsetAdjustment;
             endOffset = chunk.textOffset().end() + offsetAdjustment;
-        } else {
-            text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
         }
 
         return new Chunk(text, startOffset, endOffset, chunk.bytesReference());

@@ -1,2 +1,2 @@
-org.elasticsearch.exc:
+org.elasticsearch.script.expression:
   - create_class_loader

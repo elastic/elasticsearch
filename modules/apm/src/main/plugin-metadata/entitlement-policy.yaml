@@ -1,0 +1,2 @@
+org.elasticsearch.telemetry.apm:
+  - create_class_loader

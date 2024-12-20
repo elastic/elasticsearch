@@ -58,7 +58,7 @@ class BuildParameterExtensionSpec extends Specification {
 
         then:
 
-        futures.stream().anyMatch { it.isCancelled() || it.isDone() == false } == false
+        futures.any { it.isCancelled() || it.isDone() == false } == false
         where:
         getterName << [
             "getRuntimeJavaHome",

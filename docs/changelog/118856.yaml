@@ -1,0 +1,5 @@
+pr: 118856
+summary: Skip injecting `host.name` for incompatible mappings in logsdb mode
+area: Logs
+type: enhancement
+issues: []

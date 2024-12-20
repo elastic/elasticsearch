@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -178,7 +177,7 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -260,9 +259,7 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return indexSettings != null && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
-                ? DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME
-                : DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -392,7 +389,7 @@ public enum IndexMode {
         }
     };
 
-    private static final String HOST_NAME = "host.name";
+    static final String HOST_NAME = "host.name";
 
     private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -413,7 +410,7 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    private static CompressedXContent createDefaultMapping(boolean includeHostName) throws IOException {
+    private static CompressedXContent createDefaultMapping() throws IOException {
         return new CompressedXContent((builder, params) -> {
             builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject(DataStreamTimestampFieldMapper.NAME)
@@ -423,23 +420,15 @@ public enum IndexMode {
                 .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                 .field("type", DateFieldMapper.CONTENT_TYPE)
                 .endObject();
-
-            if (includeHostName) {
-                builder.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject();
-            }
-
             return builder.endObject().endObject();
         });
     }
 
-    private static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
-
-    private static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP;
 
     static {
         try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createDefaultMapping(false);
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createDefaultMapping(true);
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping();
         } catch (IOException e) {
             throw new AssertionError(e);
         }

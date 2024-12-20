@@ -1,6 +1,12 @@
 [[indices]]
 == Index APIs
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-document[document APIs].
+--
+
 Index APIs are used to manage individual indices,
 index settings, aliases, mappings, and index templates.
 

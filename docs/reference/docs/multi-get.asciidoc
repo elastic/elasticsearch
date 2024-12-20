@@ -4,6 +4,12 @@
 <titleabbrev>Multi get</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-document[document APIs].
+--
+
 Retrieves multiple JSON documents by ID. 
 
 [source,console]

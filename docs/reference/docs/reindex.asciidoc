@@ -4,6 +4,12 @@
 <titleabbrev>Reindex</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-document[document APIs].
+--
+
 Copies documents from a source to a destination.
 
 The source can be any existing index, alias, or data stream. The destination

@@ -57,6 +57,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.AsyncSearchContext.buildShardFailures;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -416,19 +417,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             onPhaseFailure(phase.getName(), "", e);
         }
-    }
-
-    static ShardSearchFailure[] buildShardFailures(SetOnce<AtomicArray<ShardSearchFailure>> shardFailuresRef) {
-        AtomicArray<ShardSearchFailure> shardFailures = shardFailuresRef.get();
-        if (shardFailures == null) {
-            return ShardSearchFailure.EMPTY_ARRAY;
-        }
-        List<ShardSearchFailure> entries = shardFailures.asList();
-        ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
-        for (int i = 0; i < failures.length; i++) {
-            failures[i] = entries.get(i);
-        }
-        return failures;
     }
 
     private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {

@@ -82,6 +82,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.DEFAULT_INDEX_BOOST;
+import static org.elasticsearch.action.search.AsyncSearchContext.buildShardFailures;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.core.Strings.format;
 
@@ -227,7 +228,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
      * @param queryResults           the results of the query phase
      */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        ShardSearchFailure[] failures = AbstractSearchAsyncAction.buildShardFailures(shardFailures);
+        ShardSearchFailure[] failures = buildShardFailures(shardFailures);
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0) {
@@ -812,7 +813,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
          * fail. Otherwise we continue to the next phase.
          */
         final String currentPhaseName = currentPhase.getName();
-        ShardOperationFailedException[] shardSearchFailures = AbstractSearchAsyncAction.buildShardFailures(shardFailures);
+        ShardOperationFailedException[] shardSearchFailures = buildShardFailures(shardFailures);
         if (shardSearchFailures.length == results.getNumShards()) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0
@@ -888,9 +889,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
      */
     @Override
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
-        raisePhaseFailure(
-            new SearchPhaseExecutionException(phase, msg, cause, AbstractSearchAsyncAction.buildShardFailures(shardFailures))
-        );
+        raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures(shardFailures)));
     }
 
     @Override

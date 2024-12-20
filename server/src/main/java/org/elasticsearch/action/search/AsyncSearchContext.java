@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -17,9 +18,23 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 public interface AsyncSearchContext {
+
+    static ShardSearchFailure[] buildShardFailures(SetOnce<AtomicArray<ShardSearchFailure>> shardFailuresRef) {
+        AtomicArray<ShardSearchFailure> shardFailures = shardFailuresRef.get();
+        if (shardFailures == null) {
+            return ShardSearchFailure.EMPTY_ARRAY;
+        }
+        List<ShardSearchFailure> entries = shardFailures.asList();
+        ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = entries.get(i);
+        }
+        return failures;
+    }
 
     SearchRequest getRequest();
 

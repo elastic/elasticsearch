@@ -111,6 +111,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
     private static final TestsDataset BOOKS = new TestsDataset("books").withSetting("books-settings.json");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestsDataset AGGREGATE_METRIC_DOUBLE = new TestsDataset("aggregate_metric_double");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -155,7 +156,8 @@ public class CsvTestsDataLoader {
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        Map.entry(AGGREGATE_METRIC_DOUBLE.indexName, AGGREGATE_METRIC_DOUBLE)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

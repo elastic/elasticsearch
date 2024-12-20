@@ -74,7 +74,7 @@ abstract class PositionToXContent {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case DOUBLE, COUNTER_DOUBLE -> new PositionToXContent(block) {
+            case DOUBLE, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

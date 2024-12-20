@@ -28,6 +28,7 @@ import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.MapProperty;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
@@ -42,6 +43,7 @@ import org.w3c.dom.Element;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
+
 import javax.inject.Inject;
 
 public class PublishPlugin implements Plugin<Project> {
@@ -81,7 +83,7 @@ public class PublishPlugin implements Plugin<Project> {
             }
         });
         @SuppressWarnings("unchecked")
-        var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
+        var projectLicenses = (MapProperty<String, Provider<String>>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             var node = xml.asNode();
             node.appendNode("inceptionYear", "2009");
@@ -89,7 +91,7 @@ public class PublishPlugin implements Plugin<Project> {
             projectLicenses.get().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 Node license = licensesNode.appendNode("license");
                 license.appendNode("name", entry.getKey());
-                license.appendNode("url", entry.getValue());
+                license.appendNode("url", entry.getValue().get());
                 license.appendNode("distribution", "repo");
             });
             var developer = node.appendNode("developers").appendNode("developer");
@@ -193,7 +195,6 @@ public class PublishPlugin implements Plugin<Project> {
             project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(sourcesJarTask));
         });
     }
-
 
     /**
      * Format the generated pom files to be in a sort of reproducible order.

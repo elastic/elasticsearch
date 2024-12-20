@@ -67,6 +67,7 @@ public class DotPrefixValidatorTests extends ESTestCase {
 
         // Test ignored patterns
         nonOpV.validateIndices(Set.of(".ml-state-21309"));
+        nonOpV.validateIndices(Set.of(".agentless-state-httpjson-okta.system-384301a9-f0e7-4f76-9656-f5a9330932e7"));
         nonOpV.validateIndices(Set.of(">.ml-state-21309>"));
         nonOpV.validateIndices(Set.of(".slo-observability.sli-v2"));
         nonOpV.validateIndices(Set.of(".slo-observability.sli-v2.3"));

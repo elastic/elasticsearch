@@ -57,6 +57,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * to use an internal origin for the client. These are shorter-term
      * workarounds until that work can be completed.
      *
+     * .agentless-* is used by stateful agentless integrations
      * .elastic-connectors-* is used by enterprise search
      * .ml-* is used by ML
      * .slo-observability-* is used by Observability
@@ -70,6 +71,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
+            "\\.agentless-.+",
             "\\.ml-state-\\d+",
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",

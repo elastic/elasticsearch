@@ -85,8 +85,11 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
                 case EvalExec evalExec -> foundAttributes.removeAll(evalExec.references());
                 case FilterExec filterExec -> foundAttributes.removeAll(filterExec.condition().references());
                 case FieldExtractExec fieldExtractExec -> {
-                    foundAttributes.retainAll(fieldExtractExec.attributesToExtract());
-                    exec = fieldExtractExec.withBoundsAttributes(foundAttributes);
+                    var boundsAttributes = new HashSet<>(foundAttributes);
+                    boundsAttributes.retainAll(fieldExtractExec.attributesToExtract());
+                    if (boundsAttributes.isEmpty() == false) {
+                        exec = fieldExtractExec.withBoundsAttributes(boundsAttributes);
+                    }
                 }
                 default -> { // Do nothing
                 }

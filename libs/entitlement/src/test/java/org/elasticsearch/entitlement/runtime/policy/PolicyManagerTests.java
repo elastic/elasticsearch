@@ -38,7 +38,15 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESTestCase.WithoutSecurityManager
 public class PolicyManagerTests extends ESTestCase {
 
-    private static final Module NO_ENTITLEMENTS_MODULE = null;
+    private static final Module NO_ENTITLEMENTS_MODULE;
+    static {
+        try {
+            // Any old module will do for tests using NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE = makeClassInItsOwnModule().getModule();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     public void testGetEntitlementsThrowsOnMissingPluginUnnamedModule() {
         var policyManager = new PolicyManager(

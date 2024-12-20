@@ -298,6 +298,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: bwc expanded distribution folder can be resolved as bwc project artifact
   issue: https://github.com/elastic/elasticsearch/issues/118962
+- class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
+  method: getBwcVersionsProvider is cached anc concurrently accessible
+  issue: https://github.com/elastic/elasticsearch/issues/119172
 
 # Examples:
 #

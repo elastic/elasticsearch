@@ -184,6 +184,16 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, Function.identity());
         }
+
+        @Override
+        protected boolean isBoundsExtractionSupported() {
+            return true;
+        }
+
+        @Override
+        protected CoordinateEncoder coordinateEncoder() {
+            return CoordinateEncoder.CARTESIAN;
+        }
     }
 
     private final Builder builder;

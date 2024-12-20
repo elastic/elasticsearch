@@ -86,7 +86,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             op = op.with(
-                new TestFieldExtractOperatorFactory(attr, PlannerUtils.extractPreference(fieldExtractExec.hasDocValuesAttribute(attr))),
+                new TestFieldExtractOperatorFactory(
+                    attr,
+                    PlannerUtils.extractPreference(fieldExtractExec.docValuesAttributes().contains(attr))
+                ),
                 layout.build()
             );
         }

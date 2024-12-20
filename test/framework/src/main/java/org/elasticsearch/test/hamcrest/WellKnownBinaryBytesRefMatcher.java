@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.esql.expression;
+package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
@@ -21,6 +23,10 @@ public class WellKnownBinaryBytesRefMatcher<G extends Geometry> extends TypeSafe
 
     public WellKnownBinaryBytesRefMatcher(Matcher<G> matcher) {
         this.matcher = matcher;
+    }
+
+    public static <G extends Geometry> Matcher<BytesRef> encodes(TypeSafeMatcher<G> matcher) {
+        return new WellKnownBinaryBytesRefMatcher<G>(matcher);
     }
 
     @Override

@@ -4,6 +4,12 @@
 <titleabbrev>Alias exists</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Checks if an <<aliases,alias>> exists.
 
 [source,console]

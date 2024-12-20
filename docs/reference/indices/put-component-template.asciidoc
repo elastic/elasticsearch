@@ -4,6 +4,12 @@
 <titleabbrev>Create or update component template</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Creates or updates a component template. Component templates are building blocks
 for constructing <<index-templates,index templates>> that specify index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and

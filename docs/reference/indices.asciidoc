@@ -4,7 +4,7 @@
 .New API Reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-document[document APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
 --
 
 Index APIs are used to manage individual indices,

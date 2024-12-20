@@ -4,6 +4,12 @@
 <titleabbrev>Delete dangling index</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Deletes a dangling index.
 
 [[dangling-index-delete-api-request]]

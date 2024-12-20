@@ -4,6 +4,12 @@
 <titleabbrev>Delete index template</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Deletes an <<index-templates,index template>>.
 
 ////

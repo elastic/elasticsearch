@@ -4,6 +4,12 @@
 <titleabbrev>Update mapping</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Adds new fields to an existing data stream or index. You can also use this
 API to change the search settings of existing fields.
 

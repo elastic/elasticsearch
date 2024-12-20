@@ -4,6 +4,12 @@
 <titleabbrev>Rollover</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Creates a new index for a <<data-streams,data stream>> or <<aliases,index alias>>.
 
 [source,console]

@@ -4,6 +4,12 @@
 <titleabbrev>Close index</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Closes an index.
 
 [source,console]

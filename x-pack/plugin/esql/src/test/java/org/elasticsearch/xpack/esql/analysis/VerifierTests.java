@@ -1984,6 +1984,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testInvalidMapOption() {
+        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+        assertEquals(
+            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})], "
+                + "expected base but got [\"invalidOption\"]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

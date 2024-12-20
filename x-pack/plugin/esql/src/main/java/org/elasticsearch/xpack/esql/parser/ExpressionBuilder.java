@@ -77,6 +77,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -624,13 +625,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<EntryExpression> namedArgs = new ArrayList<>(ctx.mapExpression().entryExpression().size());
         List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.mapExpression().entryExpression();
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
-            Literal key = visitString(entry.string());
+            String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
             Expression value = expression(entry.constant());
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", l);
                 }
-                EntryExpression ee = new EntryExpression(Source.EMPTY, key, l);
+                EntryExpression ee = new EntryExpression(Source.EMPTY, new Literal(source(entry.string()), key, KEYWORD), l);
                 namedArgs.add(ee);
             } else {
                 throw new ParsingException(source(ctx), "Invalid named function argument [{}], only constant value is supported", value);

@@ -53,7 +53,7 @@ c:long
 logWithBaseInMapEval
 required_capability: optional_named_argument_map_for_function
 ROW value = 8.0
-| EVAL l = log_with_base_in_map(value, {"base":2.0})
+| EVAL l = log_with_base_in_map(value, {"Base":2.0})
 ;
 
 value: double |l:double

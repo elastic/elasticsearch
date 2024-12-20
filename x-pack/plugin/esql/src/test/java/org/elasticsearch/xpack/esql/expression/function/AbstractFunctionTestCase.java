@@ -98,6 +98,9 @@ import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
+import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
+import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1091,25 +1094,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
                 if (mapParamInfo != null) {
-                    String paramName = mapParamInfo.name();
-                    String[] valueType = mapParamInfo.type();
-                    String desc = mapParamInfo.description().replace('\n', ' ');
-                    boolean optional = mapParamInfo.optional();
-                    Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
-                    for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
-                        String hintVale = hint.value().length <= 1
-                            ? Arrays.toString(hint.value())
-                            : "[" + String.join(", ", hint.value()) + "]";
-                        hints.put(hint.key(), hintVale);
-                    }
-                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, valueType, desc, optional, hints));
+                    args.add(mapParam(mapParamInfo));
                 } else {
                     Param paramInfo = params[i].getAnnotation(Param.class);
-                    String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
-                    String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                    boolean optional = paramInfo != null && paramInfo.optional();
-                    args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
+                    args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
                 }
             }
         }

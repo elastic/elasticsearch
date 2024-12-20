@@ -51,7 +51,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
 
     private final Expression map;
 
-    private static final String BASE = "base";
+    private static final String BASE = "BASE";
 
     @FunctionInfo(
         returnType = "double",
@@ -146,7 +146,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
         var valueEval = Cast.cast(source(), number.dataType(), DataType.DOUBLE, toEvaluator.apply(number));
         double base = Math.E;
         if (map instanceof MapExpression me) {
-            Expression b = me.getKey(BASE);
+            Expression b = me.get(BASE);
             if (b != null && b.foldable()) {
                 Object v = b.fold();
                 if (v instanceof BytesRef br) {
@@ -191,7 +191,9 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
             String number = v instanceof BytesRef br ? br.utf8ToString() : v.toString();
             // validate the key is in SUPPORTED_OPTIONS
             if (base.equalsIgnoreCase(BASE) == false) {
-                return new TypeResolution(format(null, "Invalid option key in [{}], expected base but got [{}]", sourceText(), key));
+                return new TypeResolution(
+                    format(null, "Invalid option key in [{}], expected base but got [{}]", sourceText(), key.sourceText())
+                );
             }
             // validate the value is valid for the key provided
             try {

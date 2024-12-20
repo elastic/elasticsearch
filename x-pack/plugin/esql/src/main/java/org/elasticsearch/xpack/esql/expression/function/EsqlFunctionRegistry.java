@@ -570,33 +570,38 @@ public class EsqlFunctionRegistry {
         boolean isAggregation = functionInfo != null && functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                variadic |= List.class.isAssignableFrom(params[i].getType());
                 MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
                 if (mapParamInfo != null) {
-                    String name = mapParamInfo.name();
-                    String[] valueType = removeUnderConstruction(mapParamInfo.type());
-                    String desc = mapParamInfo.description().replace('\n', ' ');
-                    boolean optional = mapParamInfo.optional();
-                    Map<String, String> hints = new HashMap<>(mapParamInfo.paramHint().length);
-                    for (MapParam.MapEntry hint : mapParamInfo.paramHint()) {
-                        String hintVale = hint.value().length <= 1
-                            ? Arrays.toString(hint.value())
-                            : "[" + String.join(", ", hint.value()) + "]";
-                        hints.put(hint.key(), hintVale);
-                    }
-                    args.add(new EsqlFunctionRegistry.ArgSignature(name, valueType, desc, optional, hints));
+                    args.add(mapParam(mapParamInfo));
                 } else {
                     Param paramInfo = params[i].getAnnotation(Param.class);
-                    String name = paramInfo == null ? params[i].getName() : paramInfo.name();
-                    variadic |= List.class.isAssignableFrom(params[i].getType());
-                    String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
-                    String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                    boolean optional = paramInfo != null && paramInfo.optional();
-                    DataType targetDataType = getTargetType(type);
-                    args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                    args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
                 }
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
+    }
+
+    public static ArgSignature param(Param param) {
+        String[] type = removeUnderConstruction(param.type());
+        String desc = param.description().replace('\n', ' ');
+        DataType targetDataType = getTargetType(type);
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), targetDataType);
+    }
+
+    public static ArgSignature mapParam(MapParam param) {
+        String desc = param.description().replace('\n', ' ');
+        Map<String, String> hints = new HashMap<>(param.paramHint().length);
+        for (MapParam.MapEntry hint : param.paramHint()) {
+            String hintVale = hint.value().length <= 1 ? Arrays.toString(hint.value()) : "[" + String.join(", ", hint.value()) + "]";
+            hints.put(hint.key(), hintVale);
+        }
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), removeUnderConstruction(param.type()), desc, param.optional(), hints);
+    }
+
+    public static ArgSignature paramWithoutAnnotation(String name) {
+        return new EsqlFunctionRegistry.ArgSignature(name, new String[] { "?" }, "", false, UNSUPPORTED);
     }
 
     /**

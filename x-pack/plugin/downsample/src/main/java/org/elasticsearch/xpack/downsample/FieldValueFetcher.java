@@ -91,6 +91,9 @@ class FieldValueFetcher {
                         fetchers.add(new AggregateMetricFieldValueFetcher(metricSubField, aggMetricFieldType, fieldData));
                     }
                 }
+            } if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType rootFlattenedFieldType) {
+                // Can't recreate the flattened field as the value is returned as a literal while the index expect a json object.
+                return Collections.unmodifiableList(fetchers);
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;

@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
@@ -29,8 +30,11 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
+import static java.util.Map.ofEntries;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +58,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
             "This index has version: " + createdWith.toReleaseVersion(),
             false,
-            singletonMap("reindex_required", true)
+            ofEntries(
+                entry("reindex_required", true),
+                entry("minimum_writable_version_after_upgrade", DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id())
+            )
         );
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
         assertEquals(singletonList(expected), issues);
@@ -106,6 +113,20 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexVersion createdWith = IndexVersion.fromId(7170099);
         Settings.Builder settings = settings(createdWith);
         settings.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+
+        assertThat(issues, empty());
+    }
+
+    public void testIgnoredIndex() {
+        IndexVersion createdWith = IndexVersion.fromId(7170099);
+        Settings.Builder settings = settings(createdWith);
+        settings.put(INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY, MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id());
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))

@@ -29,7 +29,7 @@ RUN chmod 0444 /opt/plugins/archive/*
 FROM ${base_image}
 USER root
 
-RUN <%= retry.loop("apk", "export DEBIAN_FRONTEND=noninteractive && apk update && apk update && apk add --no-cache wget") %>
+RUN <%= retry.loop("apt-get", "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends wget") %>
 
 # tweak entry point for ESS specific wolfi image
 ENTRYPOINT ["/sbin/tini", "--"]

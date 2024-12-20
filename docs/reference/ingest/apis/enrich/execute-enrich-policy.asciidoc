@@ -5,6 +5,12 @@
 <titleabbrev>Execute enrich policy</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-enrich[enrich APIs].
+--
+
 Executes an existing <<enrich-policy,enrich policy>>.
 
 ////

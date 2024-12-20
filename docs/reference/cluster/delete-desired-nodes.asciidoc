@@ -6,6 +6,12 @@
 
 NOTE: {cloud-only}
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[cluster APIs].
+--
+
 Delete desired nodes.
 
 [[delete-desired-nodes-request]]

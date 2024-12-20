@@ -4,6 +4,12 @@
 <titleabbrev>Get</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-document[document APIs].
+--
+
 Retrieves the specified JSON document from an index.
 
 [source,console]

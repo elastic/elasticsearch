@@ -6,6 +6,12 @@
 
 preview::[]
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+--
+
 Updates the `error` field of a connector.
 
 To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.

@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
-  issue: https://github.com/elastic/elasticsearch/issues/118806
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/indices/shard-stores/line_150}
   issue: https://github.com/elastic/elasticsearch/issues/118896
@@ -305,6 +302,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
   issue: https://github.com/elastic/elasticsearch/issues/119155
+- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
+  method: testFailureLoadingFields
+  issue: https://github.com/elastic/elasticsearch/issues/118000
 
 # Examples:
 #

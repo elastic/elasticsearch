@@ -76,7 +76,7 @@ public class RankFeaturePhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(RankFeaturePhase.this, "", e);
+                context.onPhaseFailure(RankFeaturePhase.this.getName(), "", e);
             }
         });
     }
@@ -131,7 +131,7 @@ public class RankFeaturePhase extends SearchPhase {
                     progressListener.notifyRankFeatureResult(shardIndex);
                     rankRequestCounter.onResult(response);
                 } catch (Exception e) {
-                    context.onPhaseFailure(RankFeaturePhase.this, "", e);
+                    context.onPhaseFailure(RankFeaturePhase.this.getName(), "", e);
                 }
             }
 
@@ -186,7 +186,7 @@ public class RankFeaturePhase extends SearchPhase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
+                    context.onPhaseFailure(RankFeaturePhase.this.getName(), "Computing updated ranks for results failed", e);
                 }
             }
         );

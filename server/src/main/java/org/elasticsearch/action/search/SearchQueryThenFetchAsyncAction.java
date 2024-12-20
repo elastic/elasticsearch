@@ -811,14 +811,15 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
+        final String currentPhaseName = currentPhase.getName();
         ShardOperationFailedException[] shardSearchFailures = AbstractSearchAsyncAction.buildShardFailures(shardFailures);
         if (shardSearchFailures.length == results.getNumShards()) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0
                 ? null
                 : ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            logger.debug(() -> "All shards failed for phase: [" + currentPhase.getName() + "]", cause);
-            onPhaseFailure(currentPhase, "all shards failed", cause);
+            logger.debug(() -> "All shards failed for phase: [" + currentPhaseName + "]", cause);
+            onPhaseFailure(currentPhaseName, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -830,9 +831,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         int numShardFailures = shardSearchFailures.length;
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase.getName()), cause);
+                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhaseName), cause);
                     }
-                    onPhaseFailure(currentPhase, "Partial shards failure", null);
+                    onPhaseFailure(currentPhaseName, "Partial shards failure", null);
                 } else {
                     int discrepancy = results.getNumShards() - successfulOps.get();
                     assert discrepancy > 0 : "discrepancy: " + discrepancy;
@@ -843,10 +844,10 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                             successfulOps.get(),
                             skippedOps.get(),
                             results.getNumShards(),
-                            currentPhase.getName()
+                            currentPhaseName
                         );
                     }
-                    onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
+                    onPhaseFailure(currentPhaseName, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
                 }
                 return;
             }
@@ -857,7 +858,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     .collect(Collectors.joining(","));
                 logger.trace(
                     "[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
-                    currentPhase.getName(),
+                    currentPhaseName,
                     nextPhase.getName(),
                     resultsFrom,
                     clusterStateVersion
@@ -874,7 +875,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
             }
-            onPhaseFailure(phase, "", e);
+            onPhaseFailure(phase.getName(), "", e);
         }
     }
 
@@ -885,9 +886,10 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
      * @param msg an optional message
      * @param cause the cause of the phase failure
      */
-    public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+    @Override
+    public void onPhaseFailure(String phase, String msg, Throwable cause) {
         raisePhaseFailure(
-            new SearchPhaseExecutionException(phase.getName(), msg, cause, AbstractSearchAsyncAction.buildShardFailures(shardFailures))
+            new SearchPhaseExecutionException(phase, msg, cause, AbstractSearchAsyncAction.buildShardFailures(shardFailures))
         );
     }
 

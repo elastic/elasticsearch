@@ -106,7 +106,7 @@ final class DfsQueryPhase extends SearchPhase {
                             response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
                             counter.onResult(response);
                         } catch (Exception e) {
-                            context.onPhaseFailure(DfsQueryPhase.this, "", e);
+                            context.onPhaseFailure(DfsQueryPhase.this.getName(), "", e);
                         }
                     }
 

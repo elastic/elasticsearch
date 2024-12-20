@@ -125,7 +125,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                     }
                 }
                 if (failure != null) {
-                    context.onPhaseFailure(FetchLookupFieldsPhase.this, "failed to fetch lookup fields", failure);
+                    context.onPhaseFailure(FetchLookupFieldsPhase.this.getName(), "failed to fetch lookup fields", failure);
                 } else {
                     context.sendSearchResponse(searchResponse, queryResults);
                 }
@@ -133,7 +133,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(FetchLookupFieldsPhase.this, "failed to fetch lookup fields", e);
+                context.onPhaseFailure(FetchLookupFieldsPhase.this.getName(), "failed to fetch lookup fields", e);
             }
         });
     }

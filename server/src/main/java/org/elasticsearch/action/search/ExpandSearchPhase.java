@@ -123,7 +123,7 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     private void phaseFailure(Exception ex) {
-        context.onPhaseFailure(this, "failed to expand hits", ex);
+        context.onPhaseFailure(this.getName(), "failed to expand hits", ex);
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {

@@ -113,7 +113,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+    public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
     }
 
@@ -140,7 +140,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         try {
             nextPhase.run();
         } catch (Exception e) {
-            onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase.getName(), "phase failed", e);
         }
     }
 

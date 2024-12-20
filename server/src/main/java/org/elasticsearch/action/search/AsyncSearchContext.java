@@ -29,7 +29,7 @@ public interface AsyncSearchContext {
 
     SearchTask getTask();
 
-    void onPhaseFailure(SearchPhase phase, String msg, Throwable cause);
+    void onPhaseFailure(String phase, String msg, Throwable cause);
 
     void addReleasable(Releasable releasable);
 

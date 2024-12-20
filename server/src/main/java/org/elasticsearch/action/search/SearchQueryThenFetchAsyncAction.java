@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.SetOnce;
@@ -85,7 +86,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearchContext {
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
@@ -129,7 +130,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     private final Client client;
 
     SearchQueryThenFetchAsyncAction(
-        Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -166,7 +166,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         // consistent between two requests that target the same shards.
         Arrays.sort(shardIterators);
         this.timeProvider = timeProvider;
-        this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
         this.request = request;
@@ -617,12 +616,8 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                 @Override
                                 public void handleException(TransportException e) {
                                     for (ShardToQuery shard : request.shards) {
-                                        onShardFailure(
-                                            shard.shardIndex,
-                                            new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
-                                            shardsIts.get(shard.shardIndex),
-                                            e
-                                        );
+                                        var shardIt = shardsIts.get(shard.shardIndex);
+                                        onShardFailure(shard.shardIndex, shardIt.current, shardIt, e);
                                     }
                                 }
                             }
@@ -923,6 +918,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         listener.onFailure(exception);
     }
 
+    @Override
     public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {

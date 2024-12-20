@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -26,7 +25,7 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
         project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
         project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);
         testClustersPlugin.setRuntimeJava(buildParams.getRuntimeJavaHome());

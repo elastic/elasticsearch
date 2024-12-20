@@ -22,6 +22,8 @@ import static org.hamcrest.core.StringContains.containsString;
 
 public abstract class SemanticMatchTestCase extends ESRestTestCase {
     public void testWithMultipleInferenceIds() throws IOException {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+
         String query = """
             from test-semantic1,test-semantic2
             | where match(semantic_text_field, "something")
@@ -34,6 +36,8 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
     }
 
     public void testWithInferenceNotConfigured() {
+        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
+
         String query = """
             from test-semantic3
             | where match(semantic_text_field, "something")
@@ -46,8 +50,6 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     @Before
     public void setUpIndices() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
-
         var settings = Settings.builder().build();
 
         String mapping1 = """
@@ -83,7 +85,6 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     @Before
     public void setUpTextEmbeddingInferenceEndpoint() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
         Request request = new Request("PUT", "_inference/text_embedding/test_dense_inference");
         request.setJsonEntity("""
                   {
@@ -101,7 +102,6 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     @After
     public void wipeData() throws IOException {
-        assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
         adminClient().performRequest(new Request("DELETE", "*"));
 
         try {

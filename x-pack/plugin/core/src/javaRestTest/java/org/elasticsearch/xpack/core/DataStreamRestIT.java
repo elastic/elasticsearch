@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -51,7 +52,8 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat(dataStreams.get("data_streams"), equalTo(0));
         assertThat(dataStreams, hasKey("failure_store"));
         Map<String, Integer> failureStoreStats = (Map<String, Integer>) dataStreams.get("failure_store");
-        assertThat(failureStoreStats.get("enabled_count"), equalTo(0));
+        assertThat(failureStoreStats.get("explicitly_enabled_count"), equalTo(0));
+        assertThat(failureStoreStats.get("effectively_enabled_count"), equalTo(0));
         assertThat(failureStoreStats.get("failure_indices_count"), equalTo(0));
         assertBusy(() -> {
             Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
@@ -85,8 +87,21 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat("got: " + dataStreams, dataStreams.get("data_streams"), equalTo(2));
         assertThat("got: " + dataStreams, dataStreams.get("indices_count"), equalTo(3));
         failureStoreStats = (Map<String, Integer>) dataStreams.get("failure_store");
-        assertThat(failureStoreStats.get("enabled_count"), equalTo(1));
+        assertThat(failureStoreStats.get("explicitly_enabled_count"), equalTo(1));
+        assertThat(failureStoreStats.get("effectively_enabled_count"), equalTo(1));
         assertThat(failureStoreStats.get("failure_indices_count"), equalTo(1));
+
+        // Enable the failure store for logs-mysql-default using the cluster setting...
+        updateClusterSettings(
+            Settings.builder()
+                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "logs-mysql-default")
+                .build()
+        );
+        // ...and assert that it counts towards effectively_enabled_count but not explicitly_enabled_count:
+        dataStreams = (Map<?, ?>) getLocation("/_xpack/usage").get("data_streams");
+        failureStoreStats = (Map<String, Integer>) dataStreams.get("failure_store");
+        assertThat(failureStoreStats.get("explicitly_enabled_count"), equalTo(1));
+        assertThat(failureStoreStats.get("effectively_enabled_count"), equalTo(2));
     }
 
     Map<String, Object> getLocation(String path) {

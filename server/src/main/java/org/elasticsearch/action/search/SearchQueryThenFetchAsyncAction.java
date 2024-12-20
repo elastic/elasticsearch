@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -617,7 +618,12 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                 public void handleException(TransportException e) {
                                     for (ShardToQuery shard : request.shards) {
                                         var shardIt = shardsIts.get(shard.shardIndex);
-                                        onShardFailure(shard.shardIndex, shardIt.current, shardIt, e);
+                                        onShardFailure(
+                                            shard.shardIndex,
+                                            new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
+                                            shardIt,
+                                            e
+                                        );
                                     }
                                 }
                             }
@@ -970,7 +976,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                     request.searchRequest,
                     executor,
-                    searchService.circuitBreaker(),
+                    new NoopCircuitBreaker("request"),
                     new SearchPhaseController(searchService::aggReduceContextBuilder),
                     ((CancellableTask) task)::isCancelled,
                     SearchProgressListener.NOOP,
@@ -983,16 +989,28 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         try {
                             var failure = queryPhaseResultConsumer.failure.get();
                             if (failure != null) {
+                                try {
+                                    queryPhaseResultConsumer.getSuccessfulResults().forEach(searchPhaseResult -> {
+                                        SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
+                                            ? searchPhaseResult.queryResult()
+                                            : searchPhaseResult.rankFeatureResult();
+                                        maybeRelease(searchService, request, phaseResult);
+                                    });
+                                } catch (Throwable e) {
+                                    throw new RuntimeException(e);
+                                }
                                 channelListener.onFailure(failure);
                                 return;
                             }
                             final Object[] results = new Object[request.shards.size()];
                             for (int i = 0; i < results.length; i++) {
                                 var e = failures.get(i);
+                                var res = queryPhaseResultConsumer.results.get(i);
                                 if (e != null) {
                                     results[i] = e;
+                                    assert res == null;
                                 } else {
-                                    results[i] = queryPhaseResultConsumer.results.get(i);
+                                    results[i] = res;
                                     assert results[i] != null;
                                 }
                             }
@@ -1039,6 +1057,15 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             }
         );
 
+    }
+
+    private static void maybeRelease(SearchService searchService, NodeQueryRequest request, SearchPhaseResult phaseResult) {
+        if (phaseResult != null
+            && phaseResult.hasSearchContext()
+            && request.searchRequest.scroll() == null
+            && (AbstractSearchAsyncAction.isPartOfPIT(null, request.searchRequest, phaseResult.getContextId()) == false)) {
+            searchService.freeReaderContext(phaseResult.getContextId());
+        }
     }
 
     private static AbstractRunnable shardTask(

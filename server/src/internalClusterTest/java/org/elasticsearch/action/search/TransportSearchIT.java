@@ -73,10 +73,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -449,33 +451,16 @@ public class TransportSearchIT extends ESIntegTestCase {
         indexSomeDocs("test", numShards, numShards * 3);
 
         {
-            final AtomicArray<Boolean> responses = new AtomicArray<>(10);
-            final CountDownLatch latch = new CountDownLatch(10);
-            for (int i = 0; i < 10; i++) {
-                int batchReduceSize = randomIntBetween(2, Math.max(numShards + 1, 3));
-                SearchRequest request = prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
-                    .setBatchedReduceSize(batchReduceSize)
-                    .request();
-                final int index = i;
-                client().search(request, new ActionListener<>() {
-                    @Override
-                    public void onResponse(SearchResponse response) {
-                        responses.set(index, true);
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        responses.set(index, false);
-                        latch.countDown();
-                    }
-                });
-            }
-            latch.await();
-            assertThat(responses.asList().size(), equalTo(10));
-            for (boolean resp : responses.asList()) {
-                assertTrue(resp);
-            }
+            assertResponses(
+                r -> {},
+                IntStream.range(0, 10)
+                    .map(i -> randomIntBetween(2, Math.max(numShards + 1, 3)))
+                    .mapToObj(
+                        batchReduceSize -> prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
+                            .setBatchedReduceSize(batchReduceSize)
+                    )
+                    .toArray(SearchRequestBuilder[]::new)
+            );
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         }
 
@@ -520,6 +505,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         } finally {
             updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
+        logger.info("--> done");
     }
 
     public void testCircuitBreakerFetchFail() throws Exception {

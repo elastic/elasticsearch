@@ -73,6 +73,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -756,6 +757,7 @@ public class Security extends Plugin
                 services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
+                services.indicesService(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
             );
         } catch (final Exception e) {
@@ -776,6 +778,7 @@ public class Security extends Plugin
         NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
+        IndicesService indicesService,
         PersistentTasksService persistentTasksService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
@@ -923,7 +926,7 @@ public class Security extends Plugin
 
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
-        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings, indicesService.getMetadataFields());
 
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
         // Need to set to default if it wasn't set by an extension
@@ -1030,6 +1033,7 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
+
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             roleProviders,

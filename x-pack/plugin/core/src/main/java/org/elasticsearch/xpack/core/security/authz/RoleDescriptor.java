@@ -84,7 +84,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * within {@link #checkIfExceptFieldsIsSubsetOfGrantedFields(String, String[], String[])} which is static.
      * Eventually we want to move parsing away from this class to its own object that can have an internal cache field
      */
-    private static FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+    private static FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY, Collections.emptySet());
 
     public static synchronized void setFieldPermissionsCache(FieldPermissionsCache cache) {
         RoleDescriptor.fieldPermissionsCache = Objects.requireNonNull(cache);

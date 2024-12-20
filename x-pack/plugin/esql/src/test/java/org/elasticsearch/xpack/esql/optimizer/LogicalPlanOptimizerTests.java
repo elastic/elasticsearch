@@ -5730,7 +5730,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
         var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
         var limit = as(plan, Limit.class);
-        as(limit.child(), EsRelation.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), is("first_name"));
+        as(filter.child(), EsRelation.class);
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
@@ -5742,7 +5745,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
         var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
         var limit = as(plan, Limit.class);
-        as(limit.child(), EsRelation.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(IsNotNull.class));
+        as(filter.child(), EsRelation.class);
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsEquals() {

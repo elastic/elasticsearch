@@ -578,13 +578,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-    * Returns a logger for this context to prevent each individual phase to create their own logger.
-    */
-    public final Logger getLogger() {
-        return logger;
-    }
-
-    /**
       * Returns the currently executing search task
     */
     public final SearchTask getTask() {

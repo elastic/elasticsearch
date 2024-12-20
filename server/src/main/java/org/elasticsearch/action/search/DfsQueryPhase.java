@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.lucene.Lucene;
@@ -39,6 +41,9 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
+
+    private static final Logger logger = LogManager.getLogger(DfsQueryPhase.class);
+
     private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
@@ -135,7 +140,7 @@ final class DfsQueryPhase extends SearchPhase {
         SearchShardTarget shardTarget,
         CountedCollector<SearchPhaseResult> counter
     ) {
-        context.getLogger().debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
+        logger.debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
         counter.onFailure(shardIndex, shardTarget, exception);
     }

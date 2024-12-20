@@ -101,7 +101,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     protected final SearchPhaseResults<SearchPhaseResult> results;
-    private final long clusterStateVersion;
     private final TransportVersion minTransportVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -175,7 +174,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
-        this.clusterStateVersion = clusterState.version();
         this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
@@ -858,11 +856,10 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     .map(r -> r.getSearchShardTarget().toString())
                     .collect(Collectors.joining(","));
                 logger.trace(
-                    "[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
+                    "[{}] Moving to next phase: [{}], based on results from: {}",
                     currentPhaseName,
                     nextPhase.getName(),
-                    resultsFrom,
-                    clusterStateVersion
+                    resultsFrom
                 );
             }
             executePhase(nextPhase);

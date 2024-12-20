@@ -95,9 +95,13 @@ final class FetchSearchPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(FetchSearchPhase.this.getName(), "", e);
+                failPhase(e);
             }
         });
+    }
+
+    private void failPhase(Exception e) {
+        context.onPhaseFailure(FetchSearchPhase.this.getName(), "", e);
     }
 
     private void innerRun() throws Exception {
@@ -216,7 +220,7 @@ final class FetchSearchPhase extends SearchPhase {
                     progressListener.notifyFetchResult(shardIndex);
                     counter.onResult(result);
                 } catch (Exception e) {
-                    context.onPhaseFailure(FetchSearchPhase.this.getName(), "", e);
+                    failPhase(e);
                 }
             }
 

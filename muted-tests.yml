@@ -301,6 +301,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
   method: getBwcVersionsProvider is cached anc concurrently accessible
   issue: https://github.com/elastic/elasticsearch/issues/119172
+- class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
+  method: getJavaToolChainSpec is cached anc concurrently accessible
+  issue: https://github.com/elastic/elasticsearch/issues/119173
 
 # Examples:
 #

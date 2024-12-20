@@ -402,7 +402,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(DocumentParserContext context) throws IOException {
+    public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
         final BytesReference adaptedSource = applyFilters(context, originalSource, contentType);
@@ -445,6 +445,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (context != null
             && InferenceMetadataFieldsMapper.isEnabled(context.mappingLookup())
             && context.mappingLookup().inferenceFields().isEmpty() == false) {
+            /**
+             * Removes {@link InferenceMetadataFieldsMapper} content from _source.
+             * This content is re-generated at query time (if requested) using stored fields and doc values.
+             */
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {
                 System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);

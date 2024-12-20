@@ -517,7 +517,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.metaFields.putAll(metaFields);
     }
 
-    public DocumentField removeMetadataFields(String field) {
+    public DocumentField removeDocumentField(String field) {
         return documentFields.remove(field);
     }
 

@@ -94,7 +94,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                     return source;
                 }
 
-                var field = hit.removeMetadataFields(InferenceMetadataFieldsMapper.NAME);
+                var field = hit.removeDocumentField(InferenceMetadataFieldsMapper.NAME);
                 if (field == null || field.getValues().isEmpty()) {
                     return source;
                 }

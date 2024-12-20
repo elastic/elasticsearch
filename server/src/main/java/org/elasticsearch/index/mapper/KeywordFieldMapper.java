@@ -104,7 +104,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
-        public static TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
+        public static final TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
             FIELD_TYPE,
             null,
             Lucene.KEYWORD_ANALYZER,

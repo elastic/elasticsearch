@@ -99,7 +99,7 @@ public final class TransformField {
     public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
-    public static String DOCUMENT_ID_FIELD = "_id";
+    public static final String DOCUMENT_ID_FIELD = "_id";
 
     private TransformField() {}
 }

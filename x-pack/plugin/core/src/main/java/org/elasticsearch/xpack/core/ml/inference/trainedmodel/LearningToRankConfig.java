@@ -45,7 +45,7 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
     public static final ParseField FEATURE_EXTRACTORS = new ParseField("feature_extractors");
     public static final ParseField DEFAULT_PARAMS = new ParseField("default_params");
 
-    public static LearningToRankConfig EMPTY_PARAMS = new LearningToRankConfig(null, null, null);
+    public static final LearningToRankConfig EMPTY_PARAMS = new LearningToRankConfig(null, null, null);
 
     private static final ObjectParser<LearningToRankConfig.Builder, Boolean> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<LearningToRankConfig.Builder, Boolean> STRICT_PARSER = createParser(false);

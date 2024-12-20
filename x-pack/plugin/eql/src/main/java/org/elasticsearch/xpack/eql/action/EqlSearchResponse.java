@@ -238,7 +238,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
-        public static Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
+        public static final Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
 
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;

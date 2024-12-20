@@ -228,7 +228,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     }
 
-    public static TypeParser PARSER = createTypeParserWithLegacySupport(
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
         (n, c) -> new Builder(
             n,
             c.scriptCompiler(),

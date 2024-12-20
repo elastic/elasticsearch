@@ -955,7 +955,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return preRestoreChecks;
     }
 
-    public static String COUNT_USAGE_STATS_NAME = "count";
+    public static final String COUNT_USAGE_STATS_NAME = "count";
 
     public RepositoryUsageStats getUsageStats() {
         if (repositories.isEmpty()) {

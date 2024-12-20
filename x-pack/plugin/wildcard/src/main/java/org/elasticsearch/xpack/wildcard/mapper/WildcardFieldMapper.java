@@ -94,7 +94,7 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
-    public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
+    public static final short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
     public static final int NGRAM_SIZE = 3;
 
     static final NamedAnalyzer WILDCARD_ANALYZER_7_10 = new NamedAnalyzer("_wildcard_7_10", AnalyzerScope.GLOBAL, new Analyzer() {
@@ -252,7 +252,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 

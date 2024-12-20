@@ -359,7 +359,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Deprecated
-    public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
+    public static final Mapper.TypeParser PARSER = (name, node, parserContext) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         FieldMapper.Builder builder = new LegacyGeoShapeFieldMapper.Builder(

@@ -72,6 +72,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set", "Can't work until auto-expand replicas is 0-1 for synonyms index")
   task.skipTest("search/90_search_after/_shard_doc sort", "restriction has been lifted in latest versions")
   task.skipTest("range/20_synthetic_source/Double range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Float range", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("range/20_synthetic_source/Integer range", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("range/20_synthetic_source/IP range", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("range/20_synthetic_source/Long range", "_source.mode mapping attribute is no-op since 9.0.0")

@@ -119,10 +119,10 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"));
-        assertAcked(prepareCreate("field-collapsing").setMapping("group", "type=keyword"));
-        createIndex("empty");
         assertAcked(
+            prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"),
+            prepareCreate("field-collapsing").setMapping("group", "type=keyword"),
+            prepareCreate("empty"),
             prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")

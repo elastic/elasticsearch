@@ -349,10 +349,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
-        logger.info("--> creating index [test1]");
-        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
-        logger.info("--> creating index [test2]");
-        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
+        logger.info("--> creating indices [test1, test2]");
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"), prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -559,8 +557,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2");
-        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
-        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"), prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -614,8 +611,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
-        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
-        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"), prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -653,8 +649,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
 
         logger.info("--> creating index [foo_foo] and [bar_bar]");
-        assertAcked(prepareCreate("foo_foo"));
-        assertAcked(prepareCreate("bar_bar"));
+        assertAcked(prepareCreate("foo_foo"), prepareCreate("bar_bar"));
         ensureGreen();
 
         logger.info("--> adding [foo] alias to [foo_foo] and [bar_bar]");
@@ -1197,13 +1192,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    public void testAliasActionRemoveIndex() throws InterruptedException, ExecutionException {
-        assertAcked(prepareCreate("foo_foo"));
-        assertAcked(prepareCreate("bar_bar"));
-        assertAliasesVersionIncreases(new String[] { "foo_foo", "bar_bar" }, () -> {
-            assertAcked(indicesAdmin().prepareAliases().addAlias("foo_foo", "foo"));
-            assertAcked(indicesAdmin().prepareAliases().addAlias("bar_bar", "foo"));
-        });
+    public void testAliasActionRemoveIndex() {
+        assertAcked(prepareCreate("foo_foo"), prepareCreate("bar_bar"));
+        assertAliasesVersionIncreases(
+            new String[] { "foo_foo", "bar_bar" },
+            () -> assertAcked(
+                indicesAdmin().prepareAliases().addAlias("bar_bar", "foo"),
+                indicesAdmin().prepareAliases().addAlias("foo_foo", "foo")
+            )
+        );
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().removeIndex("foo"));
         assertEquals(

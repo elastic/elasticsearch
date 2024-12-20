@@ -478,8 +478,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(thirdSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
 
         logger.info("--> verify both deletes have completed");
-        assertAcked(deleteSnapshotsResponse.get());
-        assertAcked(allDeletedResponse.get());
+        assertAcked(deleteSnapshotsResponse, allDeletedResponse);
 
         logger.info("--> verify that all snapshots are gone");
         assertThat(clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots(), empty());
@@ -715,8 +714,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        assertAcked(firstDeleteFuture.get());
-        assertAcked(secondDeleteFuture.get());
+        assertAcked(firstDeleteFuture, secondDeleteFuture);
         expectThrows(SnapshotException.class, createSnapshot);
         awaitNoMoreRunningOperations();
     }
@@ -1014,8 +1012,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNDeletionsInProgress(2);
 
         unblockNode(repoName, masterName);
-        assertAcked(deleteSnapshotOne.get());
-        assertAcked(deleteSnapshotTwo.get());
+        assertAcked(deleteSnapshotOne, deleteSnapshotTwo);
 
         final RepositoryData repositoryData = getRepositoryData(repoName);
         assertThat(repositoryData.getSnapshotIds(), empty());
@@ -1893,8 +1890,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(snapshot3);
         unblockNode(repository, master);
 
-        assertAcked(cloneSnapshot.get());
-        assertAcked(cloneSnapshot2.get());
+        assertAcked(cloneSnapshot, cloneSnapshot2);
         assertAcked(startDeleteSnapshot(repository, cloneTarget).get());
 
         assertThat(
@@ -2034,8 +2030,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(2);
 
         unblockNode(repository, master);
-        assertAcked(deleteFuture.get());
-        assertAcked(cloneFuture.get());
+        assertAcked(deleteFuture, cloneFuture);
         awaitNoMoreRunningOperations();
         assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
@@ -2112,8 +2107,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(3);
 
         unblockNode(repository, master);
-        assertAcked(deleteFuture.get());
-        assertAcked(cloneFuture.get());
+        assertAcked(deleteFuture, cloneFuture);
         awaitNoMoreRunningOperations();
         assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
         assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));

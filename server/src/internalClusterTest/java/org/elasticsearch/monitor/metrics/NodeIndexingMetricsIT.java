@@ -336,8 +336,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.resetMeter();
 
         final int numberOfShards = randomIntBetween(1, 5);
-        assertAcked(prepareCreate("test-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)).get());
-        assertAcked(prepareCreate("test-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
+        assertAcked(
+            prepareCreate("test-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)),
+            prepareCreate("test-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+        );
 
         final BulkRequest bulkRequestOne = new BulkRequest();
         final int batchCountOne = randomIntBetween(50, 100);
@@ -397,8 +399,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         // for simplicity do not mix small and big documents in single index/shard
-        assertAcked(prepareCreate("test-index-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
-        assertAcked(prepareCreate("test-index-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
+        assertAcked(
+            prepareCreate("test-index-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)),
+            prepareCreate("test-index-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+        );
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
             .filterPlugins(TestTelemetryPlugin.class)

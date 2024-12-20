@@ -3100,12 +3100,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var optimized = optimizedPlan(plan, testData.stats);
             limit = as(optimized, LimitExec.class);
             agg = as(limit.child(), AggregateExec.class);
+            // For cartesian_shape extraction, we extract bounds from doc-values directly into a BBOX encoded as BytesRef,
+            // so the aggregation does not need to know about it.
             assertAggregation(agg, "extent", SpatialExtent.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
             var exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
-            assertAggregation(agg, "extent", "hasDocValues:" + hasDocValues, SpatialExtent.class, CARTESIAN_SHAPE, fieldExtractPreference);
+            assertAggregation(
+                agg,
+                "extent",
+                "hasDocValues:" + hasDocValues,
+                SpatialExtent.class,
+                CARTESIAN_SHAPE,
+                FieldExtractPreference.NONE
+            );
             var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
-            assertChildIsExtractedAs(exec, FieldExtractPreference.NONE, CARTESIAN_SHAPE);
+            // For cartesian_shape, the bounds extraction is done in the FieldExtractExec, so it does need to know about this
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
         }
     }
 

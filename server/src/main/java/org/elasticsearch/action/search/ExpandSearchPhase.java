@@ -31,11 +31,11 @@ import java.util.function.Supplier;
  * forwards to the next phase immediately.
  */
 final class ExpandSearchPhase extends SearchPhase {
-    private final AbstractSearchAsyncAction<?> context;
+    private final AsyncSearchContext context;
     private final SearchHits searchHits;
     private final Supplier<SearchPhase> nextPhase;
 
-    ExpandSearchPhase(AbstractSearchAsyncAction<?> context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
+    ExpandSearchPhase(AsyncSearchContext context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
         super("expand");
         this.context = context;
         this.searchHits = searchHits;

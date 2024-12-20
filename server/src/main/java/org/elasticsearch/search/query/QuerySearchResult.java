@@ -381,7 +381,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        setTopDocs(readTopDocs(in));
+        if (in.readBoolean()) {
+            setTopDocs(readTopDocs(in));
+        }
         hasAggs = in.readBoolean();
         boolean success = false;
         try {
@@ -439,7 +441,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        writeTopDocs(out, topDocsAndMaxScore);
+        if (topDocsAndMaxScore == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            writeTopDocs(out, topDocsAndMaxScore);
+        }
         out.writeOptionalWriteable(aggregations);
         if (suggest == null) {
             out.writeBoolean(false);

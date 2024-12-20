@@ -302,6 +302,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
   issue: https://github.com/elastic/elasticsearch/issues/119155
+- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
+  method: testFailureLoadingFields
+  issue: https://github.com/elastic/elasticsearch/issues/118000
 
 # Examples:
 #

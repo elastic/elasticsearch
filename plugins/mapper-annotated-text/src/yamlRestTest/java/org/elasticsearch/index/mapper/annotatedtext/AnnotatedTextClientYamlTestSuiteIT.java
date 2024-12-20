@@ -12,8 +12,10 @@ package org.elasticsearch.index.mapper.annotatedtext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class AnnotatedTextClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -24,5 +26,13 @@ public class AnnotatedTextClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().plugin("mapper-annotated-text").build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

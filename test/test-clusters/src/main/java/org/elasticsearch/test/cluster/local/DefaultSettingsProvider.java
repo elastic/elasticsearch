@@ -15,9 +15,14 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class DefaultSettingsProvider implements SettingsProvider {
+
+    private static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
+    private static final String DISCOVERY_TYPE_SETTING = "discovery.type";
+
     @Override
     public Map<String, String> get(LocalNodeSpec nodeSpec) {
         Map<String, String> settings = new HashMap<>();
@@ -70,18 +75,26 @@ public class DefaultSettingsProvider implements SettingsProvider {
             .stream()
             .filter(LocalNodeSpec::isMasterEligible)
             .map(LocalNodeSpec::getName)
+            .filter(Objects::nonNull)
             .collect(Collectors.joining(","));
 
-        if (masterEligibleNodes.isEmpty()) {
-            throw new IllegalStateException(
-                "Cannot start cluster '" + nodeSpec.getCluster().getName() + "' as it configured with no master-eligible nodes."
-            );
+        if (isMultiNodeCluster(nodeSpec.getCluster())) {
+            if (masterEligibleNodes.isEmpty()) {
+                throw new IllegalStateException(
+                    "Cannot start multi-node cluster '" + nodeSpec.getCluster().getName() + "' as configured with no master-eligible nodes."
+                );
+            }
+
+            settings.put("cluster.initial_master_nodes", "[" + masterEligibleNodes + "]");
+            settings.put("discovery.seed_providers", "file");
+            settings.put("discovery.seed_hosts", "[]");
         }
 
-        settings.put("cluster.initial_master_nodes", "[" + masterEligibleNodes + "]");
-        settings.put("discovery.seed_providers", "file");
-        settings.put("discovery.seed_hosts", "[]");
-
         return settings;
+    }
+
+    private boolean isMultiNodeCluster(LocalClusterSpec cluster) {
+        return cluster.getNodes().size() > 1
+            || cluster.getNodes().get(0).getSetting(DISCOVERY_TYPE_SETTING, MULTI_NODE_DISCOVERY_TYPE).equals(MULTI_NODE_DISCOVERY_TYPE);
     }
 }

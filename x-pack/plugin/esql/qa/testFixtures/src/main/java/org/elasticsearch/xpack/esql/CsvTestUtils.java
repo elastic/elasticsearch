@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -62,7 +63,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 public final class CsvTestUtils {
-    private static final int MAX_WIDTH = 20;
+    private static final int MAX_WIDTH = 80;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
     private static final char ESCAPE_CHAR = '\\';
@@ -471,7 +472,7 @@ public final class CsvTestUtils {
                 return null;
             }
             Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
-            return parsed.getEpochSecond() * 1_000_000_000 + parsed.getNano();
+            return DateUtils.toLong(parsed);
         }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),

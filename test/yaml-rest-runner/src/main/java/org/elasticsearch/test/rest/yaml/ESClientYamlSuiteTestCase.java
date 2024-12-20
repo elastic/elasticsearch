@@ -23,7 +23,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.UpdateForV9;
@@ -515,17 +514,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
             logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
-    }
-
-    @Deprecated
-    protected Settings getGlobalTemplateSettings(List<String> features) {
-        // This method will be deleted once its uses in serverless are deleted
-        return Settings.EMPTY;
-    }
-
-    protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {
-        // This method will be deleted once its uses in serverless are deleted
-        return Settings.EMPTY;
     }
 
     protected boolean skipSetupSections() {

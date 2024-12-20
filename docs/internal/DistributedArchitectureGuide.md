@@ -386,6 +386,9 @@ The tasks infrastructure is used to track currently executing operations in the 
 
 Each individual task is local to a node, but can be related to other tasks, on the same node or other nodes, via a parent-child relationship.
 
+> [!NOTE]
+> The Task management API is experimental/beta, its status and outstanding issues can be tracked [here](https://github.com/elastic/elasticsearch/issues/51628).
+
 ### Task tracking and registration
 
 Tasks are tracked in-memory on each node in the node's [TaskManager], new tasks are registered via one of the [TaskManager#register] methods.

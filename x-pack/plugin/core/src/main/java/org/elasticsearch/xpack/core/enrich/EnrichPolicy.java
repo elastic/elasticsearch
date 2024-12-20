@@ -36,7 +36,7 @@ import java.util.Objects;
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     private static final String ELASTICEARCH_VERSION_DEPRECATION_MESSAGE =
-        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in Elasticsearch 9.0";
+        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in a future version of Elasticsearch";
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EnrichPolicy.class);
 

@@ -470,13 +470,7 @@ create an index with time_series index mode and synthetic source:
       indices.get_settings:
         index: "test_time_series_index_mode_synthetic"
   - match: { test_time_series_index_mode_synthetic.settings.index.mode: time_series }
-
-
-  - do:
-      indices.get_mapping:
-        index: test_time_series_index_mode_synthetic
-
-  - match: { test_time_series_index_mode_synthetic.mappings._source.mode: synthetic }
+  - match: { test_time_series_index_mode_synthetic.settings.index.mapping.source.mode: synthetic }
 
 ---
 create an index with logsdb index mode and synthetic source:
@@ -493,12 +487,7 @@ create an index with logsdb index mode and synthetic source:
       indices.get_settings:
         index: "test_logsdb_index_mode_synthetic"
   - match: { test_logsdb_index_mode_synthetic.settings.index.mode: logsdb }
-
-  - do:
-      indices.get_mapping:
-        index: test_logsdb_index_mode_synthetic
-
-  - match: { test_logsdb_index_mode_synthetic.mappings._source.mode: synthetic }
+  - match: { test_logsdb_index_mode_synthetic.settings.index.mapping.source.mode: synthetic }
 
 ---
 create an index with time_series index mode and stored source:
@@ -524,12 +513,7 @@ create an index with time_series index mode and stored source:
       indices.get_settings:
         index: "test_time_series_index_mode_undefined"
   - match: { test_time_series_index_mode_undefined.settings.index.mode: time_series }
-
-  - do:
-      indices.get_mapping:
-        index: test_time_series_index_mode_undefined
-
-  - match: { test_time_series_index_mode_undefined.mappings._source.mode: stored }
+  - match: { test_time_series_index_mode_undefined.settings.index.mapping.source.mode: stored }
 
 ---
 create an index with logsdb index mode and stored source:
@@ -546,12 +530,7 @@ create an index with logsdb index mode and stored source:
       indices.get_settings:
         index: "test_logsdb_index_mode_undefined"
   - match: { test_logsdb_index_mode_undefined.settings.index.mode: logsdb }
-
-  - do:
-      indices.get_mapping:
-        index: test_logsdb_index_mode_undefined
-
-  - match: { test_logsdb_index_mode_undefined.mappings._source.mode: stored }
+  - match: { test_logsdb_index_mode_undefined.settings.index.mapping.source.mode: stored }
 
 ---
 create an index with time_series index mode and disabled source:

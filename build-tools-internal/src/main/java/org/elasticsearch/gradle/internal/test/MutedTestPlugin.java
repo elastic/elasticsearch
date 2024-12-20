@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
@@ -18,6 +18,8 @@ import org.gradle.api.tasks.testing.Test;
 
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class MutedTestPlugin implements Plugin<Project> {
     private static final String ADDITIONAL_FILES_PROPERTY = "org.elasticsearch.additional.muted.tests";
@@ -31,6 +33,9 @@ public class MutedTestPlugin implements Plugin<Project> {
             .filter(p -> p.isEmpty() == false)
             .map(p -> project.getRootProject().getLayout().getProjectDirectory().file(p))
             .toList();
+
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
@@ -46,7 +51,7 @@ public class MutedTestPlugin implements Plugin<Project> {
                 }
 
                 // Don't fail when all tests are ignored when running in CI
-                filter.setFailOnNoMatchingTests(BuildParams.isCi() == false);
+                filter.setFailOnNoMatchingTests(buildParams.isCi() == false);
             });
         });
     }

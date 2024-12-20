@@ -385,9 +385,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(Builder::new, MINIMUM_COMPATIBILITY_VERSION);
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
     public static final class KeywordFieldType extends StringFieldType {
 
@@ -944,7 +942,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), binaryValue).validate(context.indexSettings());
+            context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to

@@ -599,6 +599,15 @@ public abstract class AbstractScopedSettings {
                     );
                 }
             }
+
+            if (setting instanceof SecureSetting && settings.hasValue(key)) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + key
+                        + "] is a secure setting"
+                        + " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+                );
+            }
         }
         if (validateValue) {
             setting.get(settings);

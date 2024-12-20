@@ -229,7 +229,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             assertNotNull(mockSearchPhaseContext.phaseFailure.get());
             assertNull(mockSearchPhaseContext.searchResponse.get());
         } finally {
-            mockSearchPhaseContext.execute(() -> {});
+            mockSearchPhaseContext.results.close();
             hits.decRef();
             collapsedHits.decRef();
         }
@@ -269,7 +269,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 hits.decRef();
             }
         } finally {
-            mockSearchPhaseContext.execute(() -> {});
+            mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();
@@ -356,6 +356,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 hits.decRef();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();
@@ -407,6 +408,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 hits.decRef();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();

@@ -6,12 +6,11 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 tasks.named('yamlRestTest').configure {
-  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
 }
 
 esplugin {

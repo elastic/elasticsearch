@@ -490,7 +490,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction),
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {

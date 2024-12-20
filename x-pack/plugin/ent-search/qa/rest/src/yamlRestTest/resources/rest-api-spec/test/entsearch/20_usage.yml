@@ -27,6 +27,7 @@ teardown:
 
 ---
 "xpack usage includes Enterprise Search":
+
   - do:
       xpack.usage: { }
 
@@ -144,7 +145,7 @@ teardown:
                   - 'id1'
                   - 'id2'
             - rule_id: query-rule-id2
-              type: pinned
+              type: exclude
               criteria:
                 - type: exact
                   metadata: query_string
@@ -193,15 +194,15 @@ teardown:
   - do:
       xpack.usage: { }
 
-  - match: {
-    enterprise_search: {
-      enabled: true,
-      available: true,
-      search_applications: { count: 1 },
-      analytics_collections: { count: 0 },
-      query_rulesets: { total_count: 2, total_rule_count: 5, min_rule_count: 2, max_rule_count: 3, rule_criteria_total_counts: { exact: 5 } }
-    }
-  }
+  - match: { "enterprise_search.enabled": true }
+  - match: { "enterprise_search.available": true }
+  - match: { "enterprise_search.search_applications.count": 1 }
+  - match: { "enterprise_search.analytics_collections.count": 0 }
+  - match: { "enterprise_search.query_rulesets.total_count": 2 }
+  - match: { "enterprise_search.query_rulesets.total_rule_count": 5 }
+  - match: { "enterprise_search.query_rulesets.min_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.max_rule_count": 3 }
+  - match: { "enterprise_search.query_rulesets.rule_criteria_total_counts.exact": 5 }
 
   - do:
       query_rules.delete_ruleset:
@@ -210,14 +211,12 @@ teardown:
   - do:
       xpack.usage: { }
 
-  - match: {
-    enterprise_search: {
-      enabled: true,
-      available: true,
-      search_applications: { count: 1 },
-      analytics_collections: { count: 0 },
-      query_rulesets: { total_count: 1, total_rule_count: 2, min_rule_count: 2, max_rule_count: 2, rule_criteria_total_counts: { exact: 2 } }
-    }
-  }
-
-
+  - match: { "enterprise_search.enabled": true }
+  - match: { "enterprise_search.available": true }
+  - match: { "enterprise_search.search_applications.count": 1 }
+  - match: { "enterprise_search.analytics_collections.count": 0 }
+  - match: { "enterprise_search.query_rulesets.total_count": 1 }
+  - match: { "enterprise_search.query_rulesets.total_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.min_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.max_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.rule_criteria_total_counts.exact": 2 }

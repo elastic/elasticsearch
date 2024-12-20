@@ -1,5 +1,0 @@
-pr: 110399
-summary: "[Inference API] alibabacloud ai search service support chunk infer to support semantic_text field"
-area: Machine Learning
-type: enhancement
-issues: []

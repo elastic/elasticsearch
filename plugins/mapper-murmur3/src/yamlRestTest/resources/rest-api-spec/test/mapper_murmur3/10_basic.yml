@@ -129,14 +129,18 @@ setup:
 
 ---
 "Murmur3 docvalue_fields api with synthetic source":
+  - requires:
+      cluster_features: ["mapper.source.mode_from_index_setting"]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_synthetic_source
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               foo:
                 type: keyword

@@ -1,6 +1,0 @@
-pr: 111284
-summary: Update `semantic_text` field to support indexing numeric and boolean data
-  types
-area: Mapping
-type: enhancement
-issues: []

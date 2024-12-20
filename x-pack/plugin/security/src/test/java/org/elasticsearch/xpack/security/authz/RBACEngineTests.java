@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -1312,10 +1313,7 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
-                    new RemoteClusterPermissionGroup(
-                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                        new String[] { "remote-1" }
-                    )
+                    new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "remote-1" })
                 )
                     .addGroup(
                         new RemoteClusterPermissionGroup(
@@ -1383,26 +1381,33 @@ public class RBACEngineTests extends ESTestCase {
 
         RemoteClusterPermissions remoteClusterPermissions = response.getRemoteClusterPermissions();
         String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
-        assert allRemoteClusterPermissions.length == 1
-            : "if more remote cluster permissions are added this test needs to be updated to ensure the correct remotes receive the "
-                + "correct permissions. ";
-        // 2 groups with 3 aliases
+
         assertThat(response.getRemoteClusterPermissions().groups(), iterableWithSize(2));
-        assertEquals(
-            3,
-            response.getRemoteClusterPermissions()
-                .groups()
-                .stream()
-                .map(RemoteClusterPermissionGroup::remoteClusterAliases)
-                .flatMap(Arrays::stream)
-                .distinct()
-                .count()
+        // remote-1 has monitor_enrich permission
+        // remote-2 and remote-3 have all permissions
+        assertThat(
+            response.getRemoteClusterPermissions().groups(),
+            containsInAnyOrder(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "remote-1" }),
+                new RemoteClusterPermissionGroup(allRemoteClusterPermissions, new String[] { "remote-2", "remote-3" })
+            )
+        );
+
+        // ensure that all permissions are valid for the current transport version
+        assertThat(
+            Arrays.asList(remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges("remote-1", TransportVersion.current())),
+            hasItem("monitor_enrich")
         );
 
         for (String permission : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
-            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1", TransportVersion.current())), hasItem(permission));
-            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2", TransportVersion.current())), hasItem(permission));
-            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3", TransportVersion.current())), hasItem(permission));
+            assertThat(
+                Arrays.asList(remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges("remote-2", TransportVersion.current())),
+                hasItem(permission)
+            );
+            assertThat(
+                Arrays.asList(remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges("remote-3", TransportVersion.current())),
+                hasItem(permission)
+            );
         }
     }
 
@@ -1782,7 +1787,10 @@ public class RBACEngineTests extends ESTestCase {
                     new RoleDescriptorsIntersection(
                         new RoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
-                            null,
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
+                                .stream()
+                                .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
+                                .toArray(String[]::new),
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),

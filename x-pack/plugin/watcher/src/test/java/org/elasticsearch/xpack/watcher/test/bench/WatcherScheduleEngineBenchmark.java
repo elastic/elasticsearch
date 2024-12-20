@@ -16,11 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -96,17 +98,20 @@ public class WatcherScheduleEngineBenchmark {
         );
         System.out.println("and heap_max=" + JvmInfo.jvmInfo().getMem().getHeapMax());
 
+        Environment internalNodeEnv = InternalSettingsPreparer.prepareEnvironment(
+            Settings.builder().put(SETTINGS).put("node.data", false).build(),
+            emptyMap(),
+            null,
+            () -> {
+                throw new IllegalArgumentException("settings must have [node.name]");
+            }
+        );
+
         // First clean everything and index the watcher (but not via put alert api!)
         try (
             Node node = new Node(
-                InternalSettingsPreparer.prepareEnvironment(
-                    Settings.builder().put(SETTINGS).put("node.data", false).build(),
-                    emptyMap(),
-                    null,
-                    () -> {
-                        throw new IllegalArgumentException("settings must have [node.name]");
-                    }
-                )
+                internalNodeEnv,
+                PluginsLoader.createPluginsLoader(internalNodeEnv.modulesFile(), internalNodeEnv.pluginsFile())
             ).start()
         ) {
             final Client client = node.client();

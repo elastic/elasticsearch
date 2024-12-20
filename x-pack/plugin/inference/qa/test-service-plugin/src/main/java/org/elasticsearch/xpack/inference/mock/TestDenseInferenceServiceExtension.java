@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -25,17 +27,24 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +71,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "text_embedding_test_service";
 
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING);
+
         public TestInferenceService(InferenceServiceFactoryContext context) {}
 
         @Override
@@ -85,6 +96,16 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
             parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+        }
+
+        @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return Configuration.get();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return supportedTaskTypes;
         }
 
         @Override
@@ -113,15 +134,24 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         }
 
         @Override
+        public void unifiedCompletionInfer(
+            Model model,
+            UnifiedCompletionRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(new UnsupportedOperationException("unifiedCompletionInfer not supported"));
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
@@ -146,9 +176,24 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new InferenceTextEmbeddingFloatResults(embeddings);
         }
 
-        private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input, int dimensions) {
+        private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions) {
             InferenceTextEmbeddingFloatResults nonChunkedResults = makeResults(input, dimensions);
-            return InferenceChunkedTextEmbeddingFloatResults.listOf(input, nonChunkedResults);
+
+            var results = new ArrayList<ChunkedInference>();
+            for (int i = 0; i < input.size(); i++) {
+                results.add(
+                    new ChunkedInferenceEmbeddingFloat(
+                        List.of(
+                            new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
+                                nonChunkedResults.embeddings().get(i).values(),
+                                input.get(i),
+                                new ChunkedInference.TextOffset(0, input.get(i).length())
+                            )
+                        )
+                    )
+                );
+            }
+            return results;
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
@@ -202,6 +247,38 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
 
             return embedding;
+        }
+
+        public static class Configuration {
+            public static InferenceServiceConfiguration get() {
+                return configuration.getOrCompute();
+            }
+
+            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+                () -> {
+                    var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                    configurationMap.put(
+                        "model",
+                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                            .setLabel("Model")
+                            .setOrder(1)
+                            .setRequired(true)
+                            .setSensitive(true)
+                            .setTooltip("")
+                            .setType(SettingsConfigurationFieldType.STRING)
+                            .build()
+                    );
+
+                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList()).setConfiguration(configurationMap).build();
+                }
+            );
         }
     }
 

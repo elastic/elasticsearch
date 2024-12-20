@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
@@ -33,13 +34,14 @@ public class Jdk implements Buildable, Iterable<File> {
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
 
     private final String name;
-    private final Configuration configuration;
+    private final FileCollection configuration;
 
     private final Property<String> vendor;
     private final Property<String> version;
     private final Property<String> platform;
     private final Property<String> architecture;
     private final Property<String> distributionVersion;
+    private final String configurationName;
     private String baseVersion;
     private String major;
     private String build;
@@ -47,6 +49,7 @@ public class Jdk implements Buildable, Iterable<File> {
 
     Jdk(String name, Configuration configuration, ObjectFactory objectFactory) {
         this.name = name;
+        this.configurationName = configuration.getName();
         this.configuration = configuration;
         this.vendor = objectFactory.property(String.class);
         this.version = objectFactory.property(String.class);
@@ -137,7 +140,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public String getConfigurationName() {
-        return configuration.getName();
+        return configurationName;
     }
 
     @Override

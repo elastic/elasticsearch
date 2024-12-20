@@ -127,10 +127,11 @@ And the following may be the response:
 
 ==== Percentiles_bucket implementation
 
-The Percentile Bucket returns the nearest input data point that is not greater than the requested percentile; it does not
-interpolate between data points.
-
 The percentiles are calculated exactly and is not an approximation (unlike the Percentiles Metric). This means
 the implementation maintains an in-memory, sorted list of your data to compute the percentiles, before discarding the
 data. You may run into memory pressure issues if you attempt to calculate percentiles over many millions of
 data-points in a single `percentiles_bucket`.
+
+The Percentile Bucket returns the nearest input data point to the requested percentile, rounding indices toward
+positive infinity; it does not interpolate between data points. For example, if there are eight data points and
+you request the `50%th` percentile, it will return the `4th` item because `ROUND_UP(.50 * (8-1))` is `4`.

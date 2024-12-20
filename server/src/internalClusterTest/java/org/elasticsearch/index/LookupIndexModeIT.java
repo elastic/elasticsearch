@@ -198,7 +198,7 @@ public class LookupIndexModeIT extends ESIntegTestCase {
             IllegalArgumentException.class,
             () -> client().admin().indices().execute(ResizeAction.INSTANCE, shrink).actionGet()
         );
-        assertThat(error.getMessage(), equalTo("can't change index.mode of index [regular-1] from [standard] to [lookup]"));
+        assertThat(error.getMessage(), equalTo("can't change setting [index.mode] during resize"));
     }
 
     public void testDoNotOverrideAutoExpandReplicas() {

@@ -8,18 +8,19 @@
  */
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 
 import static org.hamcrest.Matchers.matchesRegex;
@@ -34,53 +35,44 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
     // [2020-03-20T14:51:59,989][INFO ][o.e.g.GatewayService ] [integTest-0] recovered [0] indices into cluster_state
     private static final String NODE_STARTED = ".*recovered.*cluster_state.*";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .setting("xpack.security.enabled", "false")
+        .configFile("log4j2.properties", Resource.fromClasspath("es-v7-log4j2.properties"))
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {
-            List<String> lines = readAllLines(getPlaintextLogFile());
+            List<String> lines = getPlaintextLog();
             assertThat(lines, Matchers.hasItem(matchesRegex(NODE_STARTED)));
         });
     }
 
     public void testParseAllV7JsonLines() throws Exception {
         assertBusy(() -> {
-            List<String> lines = readAllLines(getJSONLogFile());
+            List<String> lines = getJSONLog();
             assertThat(lines, Matchers.hasItem(matchesRegex(NODE_STARTED)));
         });
     }
 
-    private List<String> readAllLines(Path logFile) {
-        return AccessController.doPrivileged((PrivilegedAction<List<String>>) () -> {
-            try {
-                return Files.readAllLines(logFile, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+    private List<String> getJSONLog() {
+        try (InputStream nodeLog = cluster.getNodeLog(0, LogType.SERVER_JSON)) {
+            return new BufferedReader(new InputStreamReader(nodeLog, StandardCharsets.UTF_8)).lines().toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
-    private Path getJSONLogFile() {
-        String logFileString = System.getProperty("tests.logfile");
-        if (logFileString == null) {
-            fail(
-                "tests.logfile must be set to run this test. It is automatically "
-                    + "set by gradle. If you must set it yourself then it should be the absolute path to the "
-                    + "log file."
-            );
+    private List<String> getPlaintextLog() {
+        try (InputStream nodeLog = cluster.getNodeLog(0, LogType.SERVER)) {
+            return new BufferedReader(new InputStreamReader(nodeLog, StandardCharsets.UTF_8)).lines().toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return Paths.get(logFileString);
-    }
-
-    @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
-    private Path getPlaintextLogFile() {
-        String logFileString = System.getProperty("tests.logfile");
-        if (logFileString == null) {
-            fail(
-                "tests.logfile must be set to run this test. It is automatically "
-                    + "set by gradle. If you must set it yourself then it should be the absolute path to the "
-                    + "log file."
-            );
-        }
-        return Paths.get(logFileString);
     }
 }

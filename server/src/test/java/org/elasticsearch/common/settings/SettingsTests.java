@@ -473,13 +473,6 @@ public class SettingsTests extends ESTestCase {
         }
     }
 
-    public void testSecureSettingConflict() {
-        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
-        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
-    }
-
     public void testSecureSettingIllegalName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureString("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
@@ -626,7 +619,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_7_0_0));
+        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_8_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

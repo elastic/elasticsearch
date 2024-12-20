@@ -8,17 +8,22 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
+import java.util.Objects;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -28,16 +33,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(QueryString.ENTRY, Match.ENTRY);
-    }
+public abstract class FullTextFunction extends Function implements TranslationAware {
 
     private final Expression query;
+    private final QueryBuilder queryBuilder;
 
-    protected FullTextFunction(Source source, Expression query, List<Expression> children) {
+    protected FullTextFunction(Source source, Expression query, List<Expression> children, QueryBuilder queryBuilder) {
         super(source, children);
         this.query = query;
+        this.queryBuilder = queryBuilder;
     }
 
     @Override
@@ -51,7 +55,16 @@ public abstract class FullTextFunction extends Function {
             return new TypeResolution("Unresolved children");
         }
 
-        return resolveNonQueryParamTypes().and(resolveQueryParamType());
+        return resolveNonQueryParamTypes().and(resolveQueryParamType().and(checkParamCompatibility()));
+    }
+
+    /**
+     * Checks parameter specific compatibility, to be overriden by subclasses
+     *
+     * @return TypeResolution for param compatibility
+     */
+    protected TypeResolution checkParamCompatibility() {
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     /**
@@ -59,7 +72,7 @@ public abstract class FullTextFunction extends Function {
      *
      * @return type resolution for query parameter
      */
-    private TypeResolution resolveQueryParamType() {
+    protected TypeResolution resolveQueryParamType() {
         return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
     }
 
@@ -77,19 +90,17 @@ public abstract class FullTextFunction extends Function {
     }
 
     /**
-     * Returns the resulting query as a String
+     * Returns the resulting query as an object
      *
-     * @return query expression as a string
+     * @return query expression as an object
      */
-    public final String queryAsText() {
+    public Object queryAsObject() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }
 
-        throw new IllegalArgumentException(
-            format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
-        );
+        return queryAsObject;
     }
 
     /**
@@ -105,4 +116,46 @@ public abstract class FullTextFunction extends Function {
     public Nullability nullable() {
         return Nullability.FALSE;
     }
+
+    /**
+     * Used to differentiate error messages between functions and operators
+     *
+     * @return function type for error messages
+     */
+    public String functionType() {
+        return "function";
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), queryBuilder);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler translatorHandler) {
+        if (queryBuilder != null) {
+            return new TranslationAwareExpressionQuery(source(), queryBuilder);
+        }
+
+        ExpressionTranslator<? extends FullTextFunction> translator = translator();
+        return translator.translate(this, translatorHandler);
+    }
+
+    public QueryBuilder queryBuilder() {
+        return queryBuilder;
+    }
+
+    @SuppressWarnings("rawtypes")
+    protected abstract ExpressionTranslator<? extends FullTextFunction> translator();
+
+    public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 }

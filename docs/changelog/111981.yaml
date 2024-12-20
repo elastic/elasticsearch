@@ -1,6 +1,0 @@
-pr: 111981
-summary: Allow fields with dots in sparse vector field mapper
-area: Mapping
-type: enhancement
-issues:
- - 109118

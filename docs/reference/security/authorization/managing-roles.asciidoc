@@ -249,12 +249,10 @@ The following describes the structure of a remote cluster permissions entry:
 <<api-multi-index,wildcards>> and <<regexp-syntax,regular expressions>>.
 This field is required.
 <2> The cluster level privileges for the remote cluster. The allowed values here are a subset of the
-<<privileges-list-cluster,cluster privileges>>. This field is required.
+<<privileges-list-cluster,cluster privileges>>.
+The <<security-api-get-builtin-privileges-request, builtin privileges API>> can be used to determine
+which privileges are allowed here. This field is required.
 
-The `monitor_enrich` privilege for remote clusters was introduced in version
-8.15.0. Currently, this is the only privilege available for remote clusters and
-is required to enable users to use the `ENRICH` keyword in ES|QL queries across
-clusters.
 
 ==== Example
 

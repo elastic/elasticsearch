@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -8,7 +6,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -16,13 +14,9 @@ esplugin {
   classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
-versions << [
-  'aws': '1.12.270'
-]
-
 dependencies {
-  api "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-ec2:${versions.awsv1sdk}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.awsv1sdk}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -33,12 +27,11 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:2.10.10"
-}
 
-restResources {
-  restApi {
-    include '_common', 'cluster', 'nodes'
-  }
+  javaRestTestImplementation project(':plugins:discovery-ec2')
+  javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+
+  internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -57,7 +50,7 @@ tasks.register("writeTestJavaPolicy") {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
     final File javaPolicy = file("${tmp}/java.policy")
-    if (BuildParams.inFipsJvm) {
+    if (buildParams.inFipsJvm) {
       javaPolicy.write(
         [
           "grant {",
@@ -77,6 +70,7 @@ tasks.register("writeTestJavaPolicy") {
           "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
+          "permission java.security.SecurityPermission \"getProperty.org.bouncycastle.ec.max_f2m_field_size\";",
           "};"
         ].join("\n")
       )
@@ -91,14 +85,14 @@ tasks.register("writeTestJavaPolicy") {
   }
 }
 
-tasks.named("test").configure {
+tasks.withType(Test).configureEach {
   dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 
   // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  if (BuildParams.inFipsJvm){
+  if (buildParams.inFipsJvm){
     nonInputProperties.systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
   } else {
     nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"

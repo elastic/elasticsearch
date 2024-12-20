@@ -7,10 +7,21 @@
 
 package org.elasticsearch.xpack.kql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
+
+import java.util.List;
 
 public class KqlPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin {
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        if (Build.current().isSnapshot()) {
+            return List.of(new SearchPlugin.QuerySpec<>(KqlQueryBuilder.NAME, KqlQueryBuilder::new, KqlQueryBuilder::fromXContent));
+        }
 
+        return List.of();
+    }
 }

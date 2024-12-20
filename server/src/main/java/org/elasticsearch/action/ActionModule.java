@@ -243,6 +243,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.injection.guice.TypeLiteral;
 import org.elasticsearch.injection.guice.multibindings.MapBinder;
+import org.elasticsearch.monitor.metrics.IndexModeStatsActionType;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
@@ -628,6 +629,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportNodesFeaturesAction.TYPE, TransportNodesFeaturesAction.class);
         actions.register(RemoteClusterNodesAction.TYPE, RemoteClusterNodesAction.TransportAction.class);
         actions.register(TransportNodesStatsAction.TYPE, TransportNodesStatsAction.class);
+        actions.register(IndexModeStatsActionType.TYPE, IndexModeStatsActionType.TransportAction.class);
         actions.register(TransportNodesUsageAction.TYPE, TransportNodesUsageAction.class);
         actions.register(TransportNodesHotThreadsAction.TYPE, TransportNodesHotThreadsAction.class);
         actions.register(TransportListTasksAction.TYPE, TransportListTasksAction.class);
@@ -851,7 +853,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
-        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter, clusterSupportsFeature));
+        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());

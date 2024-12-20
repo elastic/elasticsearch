@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
@@ -34,6 +35,8 @@ public class VectorSystemPropertyTests extends ESTestCase {
 
     @BeforeClass
     public static void setup() throws Exception {
+        assumeTrue("native scorers are not on Windows", Constants.WINDOWS == false);
+
         var classBytes = InMemoryJavaCompiler.compile("p.Test", TEST_SOURCE);
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("p/Test.class", classBytes);
@@ -47,7 +50,8 @@ public class VectorSystemPropertyTests extends ESTestCase {
         var process = new ProcessBuilder(
             getJavaExecutable(),
             "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false",
-            "-Xms4m",
+            "-Xms16m",
+            "-Xmx16m",
             "-cp",
             jarPath + File.pathSeparator + System.getProperty("java.class.path"),
             "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),

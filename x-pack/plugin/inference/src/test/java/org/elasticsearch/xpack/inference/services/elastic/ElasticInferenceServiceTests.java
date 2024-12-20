@@ -11,12 +11,15 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -25,10 +28,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -48,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
@@ -447,35 +453,33 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
                 List.of("input text"),
                 new HashMap<>(),
                 InputType.INGEST,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var results = listener.actionGet(TIMEOUT);
-            MatcherAssert.assertThat(
-                results.get(0).asMap(),
-                Matchers.is(
-                    Map.of(
-                        InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
-                        List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "input text",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                Map.of("hello", 2.1259406f, "greet", 1.7073475f)
-                            )
+            assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
+            var sparseResult = (ChunkedInferenceEmbeddingSparse) results.get(0);
+            assertThat(
+                sparseResult.chunks(),
+                is(
+                    List.of(
+                        new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
+                            List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                            "input text",
+                            new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )
                 )
             );
+
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
@@ -485,6 +489,78 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, is(Map.of("input", List.of("input text"))));
+        }
+    }
+
+    public void testGetConfiguration() throws Exception {
+        try (var service = createServiceWithMockSender()) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                       "provider": "elastic",
+                       "task_types": [
+                            {
+                                "task_type": "sparse_embedding",
+                                "configuration": {}
+                            }
+                       ],
+                       "configuration": {
+                           "rate_limit.requests_per_minute": {
+                               "default_value": null,
+                               "depends_on": [],
+                               "display": "numeric",
+                               "label": "Rate Limit",
+                               "order": 6,
+                               "required": false,
+                               "sensitive": false,
+                               "tooltip": "Minimize the number of rate limit errors.",
+                               "type": "int",
+                               "ui_restrictions": [],
+                               "validations": [],
+                               "value": null
+                           },
+                           "model_id": {
+                               "default_value": null,
+                               "depends_on": [],
+                               "display": "textbox",
+                               "label": "Model ID",
+                               "order": 2,
+                               "required": true,
+                               "sensitive": false,
+                               "tooltip": "The name of the model to use for the inference task.",
+                               "type": "str",
+                               "ui_restrictions": [],
+                               "validations": [],
+                               "value": null
+                           },
+                           "max_input_tokens": {
+                               "default_value": null,
+                               "depends_on": [],
+                               "display": "numeric",
+                               "label": "Maximum Input Tokens",
+                               "order": 3,
+                               "required": false,
+                               "sensitive": false,
+                               "tooltip": "Allows you to specify the maximum number of tokens per input.",
+                               "type": "int",
+                               "ui_restrictions": [],
+                               "validations": [],
+                               "value": null
+                           }
+                       }
+                   }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
         }
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -144,10 +146,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings");
+        static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings", "data_streams");
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
         private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
+        private final Map<String, List<DeprecationIssue>> dataStreamIssues;
         private final Map<String, List<DeprecationIssue>> pluginSettingsIssues;
 
         public Response(StreamInput in) throws IOException {
@@ -155,6 +158,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             clusterSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             nodeSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK)) {
+                dataStreamIssues = in.readMapOfLists(DeprecationIssue::new);
+            } else {
+                dataStreamIssues = Map.of();
+            }
             if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
@@ -168,11 +176,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             List<DeprecationIssue> clusterSettingsIssues,
             List<DeprecationIssue> nodeSettingsIssues,
             Map<String, List<DeprecationIssue>> indexSettingsIssues,
+            Map<String, List<DeprecationIssue>> dataStreamIssues,
             Map<String, List<DeprecationIssue>> pluginSettingsIssues
         ) {
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
             this.indexSettingsIssues = indexSettingsIssues;
+            this.dataStreamIssues = dataStreamIssues;
             Set<String> intersection = Sets.intersection(RESERVED_NAMES, pluginSettingsIssues.keySet());
             if (intersection.isEmpty() == false) {
                 throw new ElasticsearchStatusException(
@@ -205,6 +215,9 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             out.writeCollection(clusterSettingsIssues);
             out.writeCollection(nodeSettingsIssues);
             out.writeMap(indexSettingsIssues, StreamOutput::writeCollection);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK)) {
+                out.writeMap(dataStreamIssues, StreamOutput::writeCollection);
+            }
             if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
             } else {
@@ -219,6 +232,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
                 .map(indexSettingsIssues)
+                .field("data_streams")
+                .map(dataStreamIssues)
                 .mapContents(pluginSettingsIssues)
                 .endObject();
         }
@@ -259,7 +274,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
             NodesDeprecationCheckResponse nodeDeprecationResponse,
-            List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
+            List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks,
+            List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks,
             List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
             List<String> skipTheseDeprecatedSettings
@@ -277,9 +293,25 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
-                List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks, c -> c.apply(indexMetadata));
+                List<DeprecationIssue> singleIndexIssues = filterChecks(
+                    indexSettingsChecks,
+                    c -> c.apply(indexMetadata, stateWithSkippedSettingsRemoved)
+                );
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
+                }
+            }
+
+            List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
+                state,
+                IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+            );
+            Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
+            for (String dataStreamName : dataStreamNames) {
+                DataStream dataStream = stateWithSkippedSettingsRemoved.metadata().dataStreams().get(dataStreamName);
+                List<DeprecationIssue> issuesForSingleDataStream = filterChecks(dataStreamChecks, c -> c.apply(dataStream, state));
+                if (issuesForSingleDataStream.isEmpty() == false) {
+                    dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
                 }
             }
 
@@ -291,7 +323,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 clusterSettingsIssues.addAll(transformDeprecations);
             }
 
-            return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, pluginSettingIssues);
+            return new DeprecationInfoAction.Response(
+                clusterSettingsIssues,
+                nodeSettingsIssues,
+                indexSettingsIssues,
+                dataStreamIssues,
+                pluginSettingIssues
+            );
         }
     }
 
@@ -328,7 +366,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
-        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
+        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true, true);
         private String[] indices;
 
         public Request(TimeValue masterNodeTimeout, String... indices) {

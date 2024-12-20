@@ -14,25 +14,36 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Flow;
@@ -48,6 +59,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
         private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION);
+
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION);
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -80,6 +93,16 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return Configuration.get();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return supportedTaskTypes;
+        }
+
+        @Override
         public void infer(
             Model model,
             String query,
@@ -101,8 +124,26 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             }
         }
 
+        @Override
+        public void unifiedCompletionInfer(
+            Model model,
+            UnifiedCompletionRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            switch (model.getConfigurations().getTaskType()) {
+                case COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                default -> listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        }
+
         private StreamingChatCompletionResults makeResults(List<String> input) {
-            var responseIter = input.stream().map(String::toUpperCase).iterator();
+            var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -132,6 +173,59 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             );
         }
 
+        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
+            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
+            return new StreamingUnifiedChatCompletionResults(subscriber -> {
+                subscriber.onSubscribe(new Flow.Subscription() {
+                    @Override
+                    public void request(long n) {
+                        if (responseIter.hasNext()) {
+                            subscriber.onNext(unifiedCompletionChunk(responseIter.next()));
+                        } else {
+                            subscriber.onComplete();
+                        }
+                    }
+
+                    @Override
+                    public void cancel() {}
+                });
+            });
+        }
+
+        /*
+        The response format looks like this
+        {
+          "id": "chatcmpl-AarrzyuRflye7yzDF4lmVnenGmQCF",
+          "choices": [
+            {
+              "delta": {
+                "content": " information"
+              },
+              "index": 0
+            }
+          ],
+          "model": "gpt-4o-2024-08-06",
+          "object": "chat.completion.chunk"
+        }
+         */
+        private ChunkedToXContent unifiedCompletionChunk(String delta) {
+            return params -> Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.field("id", "id"),
+                ChunkedToXContentHelper.startArray("choices"),
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startObject("delta"),
+                ChunkedToXContentHelper.field("content", delta),
+                ChunkedToXContentHelper.endObject(),
+                ChunkedToXContentHelper.field("index", 0),
+                ChunkedToXContentHelper.endObject(),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
+                ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
         @Override
         public void chunkedInfer(
             Model model,
@@ -139,9 +233,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -154,6 +247,38 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public Set<TaskType> supportedStreamingTasks() {
             return supportedStreamingTasks;
+        }
+
+        public static class Configuration {
+            public static InferenceServiceConfiguration get() {
+                return configuration.getOrCompute();
+            }
+
+            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+                () -> {
+                    var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                    configurationMap.put(
+                        "model_id",
+                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                            .setLabel("Model ID")
+                            .setOrder(1)
+                            .setRequired(true)
+                            .setSensitive(true)
+                            .setTooltip("")
+                            .setType(SettingsConfigurationFieldType.STRING)
+                            .build()
+                    );
+
+                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList()).setConfiguration(configurationMap).build();
+                }
+            );
         }
     }
 

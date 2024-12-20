@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -40,13 +42,16 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
  * It holds a map of {@link ExchangeSinkHandler} instances for each node in the cluster to serve {@link ExchangeRequest}s
- * To connect exchange sources to exchange sinks, use the {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, int)} method.
+ * To connect exchange sources to exchange sinks, use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
@@ -291,6 +296,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Executor responseExecutor;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
+        final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
 
         TransportRemoteSink(
             TransportService transportService,
@@ -310,7 +316,26 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
-            final long reservedBytes = estimatedPageSizeInBytes.get();
+            if (allSourcesFinished) {
+                close(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                return;
+            }
+            // already finished
+            SubscribableListener<Void> completionListener = completionListenerRef.get();
+            if (completionListener != null) {
+                completionListener.addListener(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                return;
+            }
+            doFetchPageAsync(false, ActionListener.wrap(r -> {
+                if (r.finished()) {
+                    completionListenerRef.compareAndSet(null, SubscribableListener.newSucceeded(null));
+                }
+                listener.onResponse(r);
+            }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
+        }
+
+        private void doFetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
+            final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
                 blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
@@ -332,11 +357,33 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }, responseExecutor)
             );
         }
+
+        @Override
+        public void close(ActionListener<Void> listener) {
+            final SubscribableListener<Void> candidate = new SubscribableListener<>();
+            final SubscribableListener<Void> actual = completionListenerRef.updateAndGet(
+                curr -> Objects.requireNonNullElse(curr, candidate)
+            );
+            actual.addListener(listener);
+            if (candidate == actual) {
+                doFetchPageAsync(true, ActionListener.wrap(r -> {
+                    final Page page = r.takePage();
+                    if (page != null) {
+                        page.releaseBlocks();
+                    }
+                    candidate.onResponse(null);
+                }, e -> candidate.onResponse(null)));
+            }
+        }
     }
 
     // For testing
     public boolean isEmpty() {
         return sinks.isEmpty();
+    }
+
+    public Set<String> sinkKeys() {
+        return sinks.keySet();
     }
 
     @Override

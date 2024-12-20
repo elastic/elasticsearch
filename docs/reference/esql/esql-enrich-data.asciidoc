@@ -138,8 +138,33 @@ include::{es-ref-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=upda
 
 include::../ingest/enrich.asciidoc[tag=update-enrich-policy]
 
-==== Limitations
+==== Enrich Policy Types and Limitations
+The {esql} `ENRICH` command supports all three enrich policy types:
+
+`geo_match`::
+Matches enrich data to incoming documents based on a <<query-dsl-geo-shape-query,`geo_shape` query>>.
+For an example, see <<geo-match-enrich-policy-type>>.
+
+`match`::
+Matches enrich data to incoming documents based on a <<query-dsl-term-query,`term` query>>.
+For an example, see <<match-enrich-policy-type>>.
+
+`range`::
+Matches a number, date, or IP address in incoming documents to a range in the
+enrich index based on a <<query-dsl-term-query,`term` query>>. For an example,
+see <<range-enrich-policy-type>>.
+
 // tag::limitations[]
-The {esql} `ENRICH` command only supports enrich policies of type `match`.
-Furthermore, `ENRICH` only supports enriching on a column of type `keyword`.
+While all three enrich policy types are supported, there are some limitations to be aware of:
+
+* The `geo_match` enrich policy type only supports the `intersects` spatial relation.
+* It is required that the `match_field` in the `ENRICH` command is of the correct type.
+For example, if the enrich policy is of type `geo_match`, the `match_field` in the `ENRICH`
+command must be of type `geo_point` or `geo_shape`.
+Likewise, a `range` enrich policy requires a `match_field` of type `integer`, `long`, `date`, or `ip`,
+depending on the type of the range field in the original enrich index.
+* However, this constraint is relaxed for `range` policies when the `match_field` is of type `KEYWORD`.
+In this case the field values will be parsed during query execution, row by row.
+If any value fails to parse, the output values for that row will be set to `null`,
+an appropriate warning will be produced and the query will continue to execute.
 // end::limitations[]

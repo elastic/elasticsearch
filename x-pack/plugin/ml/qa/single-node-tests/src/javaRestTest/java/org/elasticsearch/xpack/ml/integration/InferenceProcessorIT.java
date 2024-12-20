@@ -40,13 +40,13 @@ public class InferenceProcessorIT extends InferenceTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107777")
     public void testCreateAndDeletePipelineWithInferenceProcessor() throws Exception {
         putRegressionModel(MODEL_ID);
         String pipelineId = "regression-model-pipeline";
         createdPipelines.add(pipelineId);
         putPipeline(MODEL_ID, pipelineId);
 
+        waitForStats();
         Map<String, Object> statsAsMap = getStats(MODEL_ID);
         List<Integer> pipelineCount = (List<Integer>) XContentMapValues.extractValue("trained_model_stats.pipeline_count", statsAsMap);
         assertThat(pipelineCount.get(0), equalTo(1));
@@ -107,6 +107,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
         createdPipelines.add("second_pipeline");
         putPipeline("regression_second", "second_pipeline");
 
+        waitForStats();
         Map<String, Object> statsAsMap = getStats(MODEL_ID);
         List<Integer> pipelineCount = (List<Integer>) XContentMapValues.extractValue("trained_model_stats.pipeline_count", statsAsMap);
         assertThat(pipelineCount.get(0), equalTo(2));

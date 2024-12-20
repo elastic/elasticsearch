@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -13,12 +12,11 @@ apply plugin: 'elasticsearch.bwc-test'
 
 
 dependencies {
-  testImplementation project(path: xpackModule('ent-search'))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

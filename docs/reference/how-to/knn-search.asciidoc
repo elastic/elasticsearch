@@ -72,15 +72,13 @@ least enough RAM to hold the vector data and index structures. To check the
 size of the vector data, you can use the <<indices-disk-usage>> API.
 
 Here are estimates for different element types and quantization levels:
-+
---
-`element_type: float`: `num_vectors * num_dimensions * 4`
-`element_type: float` with `quantization: int8`: `num_vectors * (num_dimensions + 4)`
-`element_type: float` with `quantization: int4`: `num_vectors * (num_dimensions/2 + 4)`
-`element_type: float` with `quantization: bbq`: `num_vectors * (num_dimensions/8 + 12)`
-`element_type: byte`: `num_vectors * num_dimensions`
-`element_type: bit`: `num_vectors * (num_dimensions/8)`
---
+
+* `element_type: float`: `num_vectors * num_dimensions * 4`
+* `element_type: float` with `quantization: int8`: `num_vectors * (num_dimensions + 4)`
+* `element_type: float` with `quantization: int4`: `num_vectors * (num_dimensions/2 + 4)`
+* `element_type: float` with `quantization: bbq`: `num_vectors * (num_dimensions/8 + 12)`
+* `element_type: byte`: `num_vectors * num_dimensions`
+* `element_type: bit`: `num_vectors * (num_dimensions/8)`
 
 If utilizing HNSW, the graph must also be in memory, to estimate the required bytes use `num_vectors * 4 * HNSW.m`. The
 default value for `HNSW.m` is 16, so by default `num_vectors * 4 * 16`.
@@ -97,13 +95,20 @@ and https://elasticsearch-benchmarks.elastic.co/#tracks/dense_vector[here] some 
 of datasets and configurations that we use for our nightly benchmarks.
 
 [discrete]
+[[dense-vector-preloading]]
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
 The following file extensions are used for the approximate kNN search:
+Each extension is broken down by the quantization types.
 
-* `vec` and `veq` for vector values
-* `vex` for HNSW graph
-* `vem`, `vemf`, and `vemq` for metadata
+* `vex` for the HNSW graph
+* `vec` for all non-quantized vector values. This includes all element types: `float`, `byte`, and `bit`.
+* `veq` for quantized vectors indexed with <<dense-vector-quantization,`quantization`>>: `int4` or `int8`
+* `veb` for binary vectors indexed with <<dense-vector-quantization,`quantization`>>: `bbq`
+* `vem`, `vemf`, `vemq`, and `vemb` for metadata, usually small and not a concern for preloading
+
+Generally, if you are using a quantized index, you should only preload the relevant quantized values and the HNSW graph.
+Preloading the raw vectors is not necessary and might be counterproductive.
 
 [discrete]
 === Reduce the number of index segments

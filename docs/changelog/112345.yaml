@@ -1,8 +1,0 @@
-pr: 112345
-summary: Allow dimension fields to have multiple values in standard and logsdb index
-  mode
-area: Mapping
-type: enhancement
-issues:
- - 112232
- - 112239

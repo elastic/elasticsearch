@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -39,10 +42,17 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
-        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats()));
+        AttributeSet lookupFields = new AttributeSet();
+        plan.forEachUp(EsRelation.class, esRelation -> {
+            if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                lookupFields.addAll(esRelation.output());
+            }
+        });
+
+        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats(), lookupFields));
     }
 
-    private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats) {
+    private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats, AttributeSet lookupFields) {
         if (plan instanceof EsRelation || plan instanceof LocalRelation) {
             return plan;
         }
@@ -56,10 +66,13 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             var projections = project.projections();
             List<NamedExpression> newProjections = new ArrayList<>(projections.size());
             Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
+            AttributeSet joinAttributes = joinAttributes(project);
 
             for (NamedExpression projection : projections) {
                 // Do not use the attribute name, this can deviate from the field name for union types.
-                if (projection instanceof FieldAttribute f && stats.exists(f.fieldName()) == false) {
+                if (projection instanceof FieldAttribute f && stats.exists(f.fieldName()) == false && joinAttributes.contains(f) == false) {
+                    // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
+                    // See TransportSearchShardsAction
                     DataType dt = f.dataType();
                     Alias nullAlias = nullLiteral.get(f.dataType());
                     // save the first field as null (per datatype)
@@ -90,10 +103,18 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                 plan = plan.transformExpressionsOnlyUp(
                     FieldAttribute.class,
                     // Do not use the attribute name, this can deviate from the field name for union types.
-                    f -> stats.exists(f.fieldName()) ? f : Literal.of(f, null)
+                    // Also skip fields from lookup indices because we do not have stats for these.
+                    // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
+                    f -> stats.exists(f.fieldName()) || lookupFields.contains(f) ? f : Literal.of(f, null)
                 );
             }
 
         return plan;
+    }
+
+    private AttributeSet joinAttributes(Project project) {
+        var attributes = new AttributeSet();
+        project.forEachDown(Join.class, j -> j.right().forEachDown(EsRelation.class, p -> attributes.addAll(p.output())));
+        return attributes;
     }
 }

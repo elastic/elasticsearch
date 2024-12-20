@@ -586,7 +586,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Resolves a concrete index name or alias to a {@link IndexMetadata} instance.  Requires
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
-    private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
+    public static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexOrAliasName);
         if (indexAbstraction != null) {
             final List<Index> indices = indexAbstraction.getIndices();
@@ -652,7 +652,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("create index");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "create index",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
@@ -703,7 +706,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("updating mapping");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "updating mapping",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(

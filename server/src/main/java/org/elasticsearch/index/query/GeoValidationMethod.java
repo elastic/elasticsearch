@@ -62,15 +62,4 @@ public enum GeoValidationMethod implements Writeable {
         return method == GeoValidationMethod.COERCE;
     }
 
-    /** Returns validation method corresponding to given coerce and ignoreMalformed values. */
-    public static GeoValidationMethod infer(boolean coerce, boolean ignoreMalformed) {
-        if (coerce) {
-            return GeoValidationMethod.COERCE;
-        } else if (ignoreMalformed) {
-            return GeoValidationMethod.IGNORE_MALFORMED;
-        } else {
-            return GeoValidationMethod.STRICT;
-        }
-    }
-
 }

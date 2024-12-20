@@ -12,9 +12,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -49,7 +47,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -131,7 +128,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected TextSimilarityRankRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+    protected TextSimilarityRankRetrieverBuilder clone(
+        List<RetrieverSource> newChildRetrievers,
+        List<QueryBuilder> newPreFilterQueryBuilders
+    ) {
         return new TextSimilarityRankRetrieverBuilder(
             newChildRetrievers,
             inferenceId,
@@ -140,7 +140,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             rankWindowSize,
             minScore,
             retrieverName,
-            preFilterQueryBuilders
+            newPreFilterQueryBuilders
         );
     }
 
@@ -157,17 +157,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
-        var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
-            .trackTotalHits(false)
-            .storedFields(new StoredFieldsContext(false))
-            .size(rankWindowSize);
-        // apply the pre-filters downstream once
-        if (preFilterQueryBuilders.isEmpty() == false) {
-            retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
-        }
-        retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
-
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
         );

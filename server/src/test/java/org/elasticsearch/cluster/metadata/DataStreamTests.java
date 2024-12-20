@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -66,6 +68,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStream> {
 
@@ -2282,6 +2286,157 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         var dotPrefixedDataStream = nonInternalDataStream.copy().setSystem(false).setName("." + randomAlphaOfLength(10)).build();
         assertThat(dotPrefixedDataStream.isInternal(), is(true));
+    }
+
+    public void testIsFailureStoreExplicitlyEnabled() {
+        DataStream dataStreamNoFailureStoreOptions = createTestInstance().copy().setDataStreamOptions(DataStreamOptions.EMPTY).build();
+        DataStream dataStreamFailureStoreDisabled = createTestInstance().copy()
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED)
+            .build();
+        DataStream dataStreamFailureStoreEnabled = createTestInstance().copy()
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .build();
+        assertThat(dataStreamNoFailureStoreOptions.isFailureStoreExplicitlyEnabled(), is(false));
+        assertThat(dataStreamFailureStoreDisabled.isFailureStoreExplicitlyEnabled(), is(false));
+        assertThat(dataStreamFailureStoreEnabled.isFailureStoreExplicitlyEnabled(), is(true));
+    }
+
+    public void testIsFailureStoreEffectivelyEnabled_instanceMethod() {
+        DataStream dataStreamNoFailureStoreOptions = createTestInstance().copy()
+            .setName("my-data-stream-no-failure-store-options")
+            .setDataStreamOptions(DataStreamOptions.EMPTY)
+            .build();
+        DataStream dataStreamFailureStoreExplicitlyDisabled = createTestInstance().copy()
+            .setName("my-data-stream-failure-store-explicitly-disabled")
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED)
+            .build();
+        DataStream dataStreamFailureStoreExplicitlyEnabled = createTestInstance().copy()
+            .setName("my-data-stream-failure-store-explicitly-enabled")
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .build();
+        DataStream dotPrefixDataStreamNoFailureStoreOptions = createTestInstance().copy()
+            .setName(".my-data-stream-no-failure-store-options")
+            .setDataStreamOptions(DataStreamOptions.EMPTY)
+            .build();
+        DataStream systemDataStreamNoFailureStoreOptions = createTestInstance().copy()
+            .setName("my-data-stream-system-no-failure-store-options")
+            .setDataStreamOptions(DataStreamOptions.EMPTY)
+            .setSystem(true)
+            .setHidden(true) // system indices must be hidden
+            .build();
+        DataStreamFailureStoreSettings matchingSettings = DataStreamFailureStoreSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(
+                        DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(),
+                        String.join(",", "my-data-stream-*", ".my-data-stream-*")
+                    )
+                    .build()
+            )
+        );
+        DataStreamFailureStoreSettings nonMatchingSettings = DataStreamFailureStoreSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "not-my-data-stream-*")
+                    .build()
+            )
+        );
+        assertThat(dataStreamNoFailureStoreOptions.isFailureStoreEffectivelyEnabled(matchingSettings), is(true));
+        assertThat(dataStreamNoFailureStoreOptions.isFailureStoreEffectivelyEnabled(nonMatchingSettings), is(false));
+        assertThat(dataStreamFailureStoreExplicitlyDisabled.isFailureStoreEffectivelyEnabled(matchingSettings), is(false));
+        assertThat(dataStreamFailureStoreExplicitlyDisabled.isFailureStoreEffectivelyEnabled(nonMatchingSettings), is(false));
+        assertThat(dataStreamFailureStoreExplicitlyEnabled.isFailureStoreEffectivelyEnabled(matchingSettings), is(true));
+        assertThat(dataStreamFailureStoreExplicitlyEnabled.isFailureStoreEffectivelyEnabled(nonMatchingSettings), is(true));
+        assertThat(dotPrefixDataStreamNoFailureStoreOptions.isFailureStoreEffectivelyEnabled(matchingSettings), is(false));
+        assertThat(dotPrefixDataStreamNoFailureStoreOptions.isFailureStoreEffectivelyEnabled(nonMatchingSettings), is(false));
+        assertThat(systemDataStreamNoFailureStoreOptions.isFailureStoreEffectivelyEnabled(matchingSettings), is(false));
+        assertThat(systemDataStreamNoFailureStoreOptions.isFailureStoreEffectivelyEnabled(nonMatchingSettings), is(false));
+    }
+
+    public void testIsFailureStoreEffectivelyEnabled_staticHelperMethod() {
+        String regularDataStreamName = "my-data-stream";
+        String dotPrefixedDataStreamName = ".my-dot-prefixed-data-stream";
+        String systemDataStreamName = "my-system-data-stream-name";
+        DataStreamFailureStoreSettings matchingSettings = DataStreamFailureStoreSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(
+                        DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(),
+                        String.join(",", regularDataStreamName, dotPrefixedDataStreamName, systemDataStreamName)
+                    )
+                    .build()
+            )
+        );
+        DataStreamFailureStoreSettings nonMatchingSettings = DataStreamFailureStoreSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "not-my-data-stream")
+                    .build()
+            )
+        );
+        // At time of writing, SystemDataStreamDescriptor does not allow us to declare system data streams which aren't also dot-prefixed.
+        // But we code defensively to do the system data stream and dot-prefix tests independently, as implied in the requirements.
+        // We use a mock SystemIndices instance for testing, so that we can make it treat a non-dot-prefixed name as a system data stream.
+        SystemIndices systemIndices = mock(SystemIndices.class);
+        when(systemIndices.isSystemDataStream(systemDataStreamName)).thenReturn(true);
+
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(DataStreamOptions.EMPTY, matchingSettings, regularDataStreamName, systemIndices),
+            is(true)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(DataStreamOptions.EMPTY, nonMatchingSettings, regularDataStreamName, systemIndices),
+            is(false)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(
+                DataStreamOptions.EMPTY,
+                matchingSettings,
+                dotPrefixedDataStreamName,
+                systemIndices
+            ),
+            is(false)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(DataStreamOptions.EMPTY, matchingSettings, systemDataStreamName, systemIndices),
+            is(false)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(
+                DataStreamOptions.FAILURE_STORE_DISABLED,
+                matchingSettings,
+                regularDataStreamName,
+                systemIndices
+            ),
+            is(false)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(
+                DataStreamOptions.FAILURE_STORE_DISABLED,
+                nonMatchingSettings,
+                regularDataStreamName,
+                systemIndices
+            ),
+            is(false)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(
+                DataStreamOptions.FAILURE_STORE_ENABLED,
+                matchingSettings,
+                regularDataStreamName,
+                systemIndices
+            ),
+            is(true)
+        );
+        assertThat(
+            DataStream.isFailureStoreEffectivelyEnabled(
+                DataStreamOptions.FAILURE_STORE_ENABLED,
+                nonMatchingSettings,
+                regularDataStreamName,
+                systemIndices
+            ),
+            is(true)
+        );
     }
 
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {

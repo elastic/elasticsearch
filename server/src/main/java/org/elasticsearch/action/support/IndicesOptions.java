@@ -428,8 +428,8 @@ public record IndicesOptions(
         ERROR_WHEN_CLOSED_INDICES,
         IGNORE_THROTTLED,
 
-        ALLOW_FAILURE_INDICES, // Added in 8.14, Removed in 8.16
-        ALLOW_SELECTORS // Added in 8.16
+        ALLOW_FAILURE_INDICES, // Added in 8.14, Removed in 8.18
+        ALLOW_SELECTORS // Added in 8.18
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);

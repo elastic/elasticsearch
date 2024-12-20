@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -37,8 +39,14 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
+
+    private static final Consumer<Response> VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER = (r) -> assertThat(
+        r.getHeader("X-elastic-product"),
+        is("Elasticsearch")
+    );
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws IOException {
@@ -442,7 +450,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()));
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()), null);
             assertThat(events.size(), equalTo(2));
             events.forEach(event -> {
                 switch (event.name()) {
@@ -469,7 +477,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
         try {
-            var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
+            var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input, VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER);
 
             var expectedResponses = Stream.concat(
                 input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
@@ -496,7 +504,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
         try {
-            var events = unifiedCompletionInferOnMockService(modelId, TaskType.COMPLETION, input);
+            var events = unifiedCompletionInferOnMockService(modelId, TaskType.COMPLETION, input, VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER);
             var expectedResponses = expectedResultsIterator(input);
             assertThat(events.size(), equalTo((input.size() + 1) * 2));
             events.forEach(event -> {

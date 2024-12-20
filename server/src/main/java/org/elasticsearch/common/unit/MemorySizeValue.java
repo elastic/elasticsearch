@@ -59,10 +59,10 @@ public enum MemorySizeValue {
                 throw new ElasticsearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
             } else if (percent < minHeapPercent) {
                 DeprecationLogger.getLogger(MemorySizeValue.class)
-                    .warn(
+                    .critical(
                         DeprecationCategory.SETTINGS,
                         "memory_size_below_minimum",
-                        "[{}] setting of [{}] is below the recommended minimum of {}% of the heap",
+                        "[{}] setting of [{}] is below the minimum of {}% of the heap",
                         settingName,
                         sValue,
                         minHeapPercent

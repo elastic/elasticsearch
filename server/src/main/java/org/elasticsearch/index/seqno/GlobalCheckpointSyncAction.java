@@ -39,8 +39,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     GlobalCheckpointSyncAction.Request,
     ReplicationResponse> {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
-    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME);
+    public static final String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     @Inject
     public GlobalCheckpointSyncAction(

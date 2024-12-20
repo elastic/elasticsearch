@@ -26,5 +26,5 @@ public class CreateIndexCapabilities {
      */
     private static final String LOOKUP_INDEX_MODE_CAPABILITY = "lookup_index_mode";
 
-    public static Set<String> CAPABILITIES = Set.of(LOGSDB_INDEX_MODE_CAPABILITY, LOOKUP_INDEX_MODE_CAPABILITY);
+    public static final Set<String> CAPABILITIES = Set.of(LOGSDB_INDEX_MODE_CAPABILITY, LOOKUP_INDEX_MODE_CAPABILITY);
 }

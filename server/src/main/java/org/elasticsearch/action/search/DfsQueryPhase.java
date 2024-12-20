@@ -79,7 +79,7 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, () -> nextPhaseFactory.apply(queryResult)),
+            () -> context.executeNextPhase(this.getName(), () -> nextPhaseFactory.apply(queryResult)),
             context
         );
 

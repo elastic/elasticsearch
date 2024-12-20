@@ -168,6 +168,6 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     private void onPhaseDone() {
-        context.executeNextPhase(this, nextPhase);
+        context.executeNextPhase(getName(), nextPhase);
     }
 }

@@ -135,7 +135,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+    public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
         var nextPhase = nextPhaseSupplier.get();
         try {
             nextPhase.run();

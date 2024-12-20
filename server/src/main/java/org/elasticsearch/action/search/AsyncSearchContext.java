@@ -58,5 +58,5 @@ public interface AsyncSearchContext {
 
     void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection);
 
-    void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
+    void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
 }

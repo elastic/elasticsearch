@@ -743,7 +743,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         boolean removed = outstandingShards.remove(shardId);
         assert removed : "unknown shardId " + shardId;
         if (outstandingShards.isEmpty()) {
-            executeNextPhase(this, this::getNextPhase);
+            executeNextPhase(this.getName(), this::getNextPhase);
         }
     }
 
@@ -805,24 +805,24 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+    public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
         /* This is the main search phase transition where we move to the next phase. If all shards
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
-        final String currentPhaseName = currentPhase.getName();
         ShardOperationFailedException[] shardSearchFailures = buildShardFailures(shardFailures);
-        if (shardSearchFailures.length == results.getNumShards()) {
+        final int numShards = results.getNumShards();
+        if (shardSearchFailures.length == numShards) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0
                 ? null
                 : ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            logger.debug(() -> "All shards failed for phase: [" + currentPhaseName + "]", cause);
-            onPhaseFailure(currentPhaseName, "all shards failed", cause);
+            logger.debug(() -> "All shards failed for phase: [" + currentPhase + "]", cause);
+            onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (allowPartialResults == false && successfulOps.get() != results.getNumShards()) {
+            if (allowPartialResults == false && successfulOps.get() != numShards) {
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
                 if (shardSearchFailures.length > 0) {
@@ -830,11 +830,11 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         int numShardFailures = shardSearchFailures.length;
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhaseName), cause);
+                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase), cause);
                     }
-                    onPhaseFailure(currentPhaseName, "Partial shards failure", null);
+                    onPhaseFailure(currentPhase, "Partial shards failure", null);
                 } else {
-                    int discrepancy = results.getNumShards() - successfulOps.get();
+                    int discrepancy = numShards - successfulOps.get();
                     assert discrepancy > 0 : "discrepancy: " + discrepancy;
                     if (logger.isDebugEnabled()) {
                         logger.debug(
@@ -842,24 +842,21 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                             discrepancy,
                             successfulOps.get(),
                             skippedOps.get(),
-                            results.getNumShards(),
-                            currentPhaseName
+                            numShards,
+                            currentPhase
                         );
                     }
-                    onPhaseFailure(currentPhaseName, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
+                    onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
                 }
                 return;
             }
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
-                final String resultsFrom = results.getSuccessfulResults()
-                    .map(r -> r.getSearchShardTarget().toString())
-                    .collect(Collectors.joining(","));
                 logger.trace(
                     "[{}] Moving to next phase: [{}], based on results from: {}",
-                    currentPhaseName,
+                    currentPhase,
                     nextPhase.getName(),
-                    resultsFrom
+                    results.getSuccessfulResults().map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","))
                 );
             }
             executePhase(nextPhase);

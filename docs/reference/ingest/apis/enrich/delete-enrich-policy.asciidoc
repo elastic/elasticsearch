@@ -5,6 +5,12 @@
 <titleabbrev>Delete enrich policy</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-enrich[enrich APIs].
+--
+
 Deletes an existing <<enrich-policy,enrich policy>> and its
 <<enrich-index,enrich index>>.
 

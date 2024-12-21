@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -42,11 +41,8 @@ public class LogWithBaseInMapTests extends AbstractScalarFunctionTestCase {
         ints(suppliers);
         longs(suppliers);
         doubles(suppliers);
-        // Add null cases before the rest of the error cases, so messages are correct.
-        // suppliers = anyNullIsNull(true, suppliers);
-        // Negative cases
+        suppliers = anyNullIsNull(true, suppliers);
 
-        // return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -54,14 +50,18 @@ public class LogWithBaseInMapTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier supplier = new TestCaseSupplier(List.of(INTEGER), () -> {
             int number = randomIntBetween(2, 100);
             int base = randomIntBetween(2, 100);
-            EntryExpression entry = new EntryExpression(
-                Source.EMPTY,
-                new Literal(Source.EMPTY, "base", KEYWORD),
-                new Literal(Source.EMPTY, base, INTEGER)
-            );
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
             values.add(new TestCaseSupplier.TypedData(number, INTEGER, "number"));
-            values.add(new TestCaseSupplier.TypedData(new MapExpression(Source.EMPTY, List.of(entry)), UNSUPPORTED, "base").forceLiteral());
+            values.add(
+                new TestCaseSupplier.TypedData(
+                    new MapExpression(
+                        Source.EMPTY,
+                        List.of(new Literal(Source.EMPTY, "base", KEYWORD), new Literal(Source.EMPTY, base, INTEGER))
+                    ),
+                    UNSUPPORTED,
+                    "base"
+                ).forceLiteral()
+            );
             return new TestCaseSupplier.TestCase(
                 values,
                 "LogWithBaseInMapEvaluator[value=CastIntToDoubleEvaluator[v=Attribute[channel=0]], base=" + (double) base + "]",
@@ -76,14 +76,18 @@ public class LogWithBaseInMapTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier supplier = new TestCaseSupplier(List.of(LONG), () -> {
             long number = randomLongBetween(2L, 100L);
             long base = randomLongBetween(2L, 100L);
-            EntryExpression entry = new EntryExpression(
-                Source.EMPTY,
-                new Literal(Source.EMPTY, "base", KEYWORD),
-                new Literal(Source.EMPTY, base, LONG)
-            );
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
             values.add(new TestCaseSupplier.TypedData(number, LONG, "number"));
-            values.add(new TestCaseSupplier.TypedData(new MapExpression(Source.EMPTY, List.of(entry)), UNSUPPORTED, "base").forceLiteral());
+            values.add(
+                new TestCaseSupplier.TypedData(
+                    new MapExpression(
+                        Source.EMPTY,
+                        List.of(new Literal(Source.EMPTY, "base", KEYWORD), new Literal(Source.EMPTY, base, LONG))
+                    ),
+                    UNSUPPORTED,
+                    "base"
+                ).forceLiteral()
+            );
             return new TestCaseSupplier.TestCase(
                 values,
                 "LogWithBaseInMapEvaluator[value=CastLongToDoubleEvaluator[v=Attribute[channel=0]], base=" + (double) base + "]",
@@ -98,14 +102,18 @@ public class LogWithBaseInMapTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier supplier = new TestCaseSupplier(List.of(DOUBLE), () -> {
             double number = Maths.round(randomDoubleBetween(2d, 100d, true), 2).doubleValue();
             double base = Maths.round(randomDoubleBetween(2d, 100d, true), 2).doubleValue();
-            EntryExpression entry = new EntryExpression(
-                Source.EMPTY,
-                new Literal(Source.EMPTY, "base", KEYWORD),
-                new Literal(Source.EMPTY, base, DOUBLE)
-            );
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
             values.add(new TestCaseSupplier.TypedData(number, DOUBLE, "number"));
-            values.add(new TestCaseSupplier.TypedData(new MapExpression(Source.EMPTY, List.of(entry)), UNSUPPORTED, "base").forceLiteral());
+            values.add(
+                new TestCaseSupplier.TypedData(
+                    new MapExpression(
+                        Source.EMPTY,
+                        List.of(new Literal(Source.EMPTY, "base", KEYWORD), new Literal(Source.EMPTY, base, DOUBLE))
+                    ),
+                    UNSUPPORTED,
+                    "base"
+                ).forceLiteral()
+            );
             return new TestCaseSupplier.TestCase(
                 values,
                 "LogWithBaseInMapEvaluator[value=Attribute[channel=0], base=" + base + "]",
@@ -118,17 +126,6 @@ public class LogWithBaseInMapTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        // return new LogWithBaseInMap(source, args.get(0), randomBoolean() ? randomMapExpression() : null);
         return new LogWithBaseInMap(source, args.get(0), args.size() > 1 ? args.get(1) : null);
-    }
-
-    private static MapExpression randomMapExpression() {
-        double base = randomDoubleBetween(2d, Double.MAX_VALUE, true);
-        EntryExpression entry = new EntryExpression(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, "base", KEYWORD),
-            new Literal(Source.EMPTY, base, DOUBLE)
-        );
-        return new MapExpression(Source.EMPTY, List.of(entry));
     }
 }

@@ -6756,8 +6756,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Alias a = as(eval.fields().get(0), Alias.class);
         LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
         MapExpression me = as(l.base(), MapExpression.class);
-        assertEquals(1, me.entries().size());
-        EntryExpression ee = as(me.entries().get(0), EntryExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
         BytesRef key = as(ee.key().fold(), BytesRef.class);
         assertEquals("base", key.utf8ToString());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());

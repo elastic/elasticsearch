@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,19 +38,24 @@ public class MapExpression extends Expression implements Map<Expression, Express
         MapExpression::readFrom
     );
 
-    private final List<EntryExpression> entries;
+    private final List<EntryExpression> entryExpressions;
 
     private final Map<Expression, Expression> map;
 
-    private final Map<Object, Expression> foldedMap;
+    private final Map<Object, Expression> keyFoldedMap;
 
-    public MapExpression(Source source, List<EntryExpression> entries) {
-        super(source, entries.stream().map(Expression.class::cast).toList());
-        this.entries = entries;
-        this.map = entries.stream()
+    public MapExpression(Source source, List<Expression> entries) {
+        super(source, entries);
+        int entryCount = entries.size() / 2;
+        this.entryExpressions = new ArrayList<>(entryCount);
+        for (int i = 0; i < entryCount; i++) {
+            Expression key = entries.get(i * 2);
+            entryExpressions.add(new EntryExpression(key.source(), key, entries.get(i * 2 + 1)));
+        }
+        this.map = this.entryExpressions.stream()
             .collect(Collectors.toMap(EntryExpression::key, EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
-        // create a foldedMap by removing source, it makes the retrieval of value easier
-        this.foldedMap = entries.stream()
+        // create a map with key folded and source removed to make the retrieval of value easier
+        this.keyFoldedMap = this.entryExpressions.stream()
             .filter(e -> e.key().foldable() && e.key().fold() != null)
             .collect(Collectors.toMap(e -> e.key().fold(), EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
     }
@@ -57,14 +63,14 @@ public class MapExpression extends Expression implements Map<Expression, Express
     private static MapExpression readFrom(StreamInput in) throws IOException {
         return new MapExpression(
             Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readNamedWriteableCollectionAsList(EntryExpression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteableCollection(entries);
+        out.writeNamedWriteableCollection(children());
     }
 
     @Override
@@ -74,24 +80,20 @@ public class MapExpression extends Expression implements Map<Expression, Express
 
     @Override
     public MapExpression replaceChildren(List<Expression> newChildren) {
-        return new MapExpression(source(), newChildren.stream().map(EntryExpression.class::cast).toList());
+        return new MapExpression(source(), newChildren);
     }
 
     @Override
     protected NodeInfo<MapExpression> info() {
-        return NodeInfo.create(this, MapExpression::new, entries());
+        return NodeInfo.create(this, MapExpression::new, children());
     }
 
-    public List<EntryExpression> entries() {
-        return entries;
+    public List<EntryExpression> entryExpressions() {
+        return entryExpressions;
     }
 
     public Map<Expression, Expression> map() {
         return map;
-    }
-
-    public Map<Object, Expression> foldedMap() {
-        return foldedMap;
     }
 
     @Override
@@ -106,7 +108,7 @@ public class MapExpression extends Expression implements Map<Expression, Express
 
     @Override
     public int hashCode() {
-        return Objects.hash(entries);
+        return Objects.hash(entryExpressions);
     }
 
     @Override
@@ -128,8 +130,8 @@ public class MapExpression extends Expression implements Map<Expression, Express
             return map.get(key);
         } else {
             key = key instanceof String s ? s.toLowerCase(Locale.ROOT) : key;
-            // the literal key could be converted to BytesRef by ConvertStringToByteRef
-            return foldedMap.containsKey(key) ? foldedMap.get(key) : foldedMap.get(new BytesRef(key.toString()));
+            // the key(literal) could be converted to BytesRef by ConvertStringToByteRef
+            return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(new BytesRef(key.toString()));
         }
     }
 
@@ -188,12 +190,12 @@ public class MapExpression extends Expression implements Map<Expression, Express
         }
 
         MapExpression other = (MapExpression) obj;
-        return Objects.equals(entries, other.entries);
+        return Objects.equals(entryExpressions, other.entryExpressions);
     }
 
     @Override
     public String toString() {
-        String str = entries.stream().map(String::valueOf).collect(Collectors.joining(", "));
+        String str = entryExpressions.stream().map(String::valueOf).collect(Collectors.joining(", "));
         return "{ " + str + " }";
     }
 }

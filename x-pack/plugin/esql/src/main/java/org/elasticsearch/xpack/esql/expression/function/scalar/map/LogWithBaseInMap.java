@@ -178,7 +178,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
     }
 
     private TypeResolution validateOptions() {
-        for (EntryExpression entry : ((MapExpression) map).entries()) {
+        for (EntryExpression entry : ((MapExpression) map).entryExpressions()) {
             Expression key = entry.key();
             Expression value = entry.value();
             TypeResolution resolution = isFoldable(key, sourceText(), SECOND).and(isFoldable(value, sourceText(), SECOND));

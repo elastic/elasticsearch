@@ -20,7 +20,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -622,7 +621,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public MapExpression visitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) {
-        List<EntryExpression> namedArgs = new ArrayList<>(ctx.mapExpression().entryExpression().size());
+        List<Expression> namedArgs = new ArrayList<>(ctx.mapExpression().entryExpression().size());
         List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.mapExpression().entryExpression();
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
             String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
@@ -631,8 +630,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", l);
                 }
-                EntryExpression ee = new EntryExpression(Source.EMPTY, new Literal(source(entry.string()), key, KEYWORD), l);
-                namedArgs.add(ee);
+                namedArgs.add(new Literal(source(entry.string()), key, KEYWORD));
+                namedArgs.add(l);
             } else {
                 throw new ParsingException(source(ctx), "Invalid named function argument [{}], only constant value is supported", value);
             }

@@ -11,7 +11,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -129,13 +128,13 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static MapExpression mapExpression(Map<String, Object> keyValuePairs) {
-        List<EntryExpression> ees = new ArrayList<>(keyValuePairs.size());
+        List<Expression> ees = new ArrayList<>(keyValuePairs.size());
         for (Map.Entry<String, Object> entry : keyValuePairs.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
             DataType type = (value instanceof List<?> l) ? DataType.fromJava(l.get(0)) : DataType.fromJava(value);
-            EntryExpression ee = new EntryExpression(EMPTY, new Literal(EMPTY, key, DataType.KEYWORD), new Literal(EMPTY, value, type));
-            ees.add(ee);
+            ees.add(new Literal(EMPTY, key, DataType.KEYWORD));
+            ees.add(new Literal(EMPTY, value, type));
         }
         return new MapExpression(EMPTY, ees);
     }

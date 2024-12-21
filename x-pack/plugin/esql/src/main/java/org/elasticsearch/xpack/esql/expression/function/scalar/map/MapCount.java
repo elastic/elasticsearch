@@ -84,7 +84,7 @@ public class MapCount extends ScalarFunction {
     @Override
     public Object fold() {
         if (map instanceof MapExpression me) {
-            return (long) me.entries().size();
+            return (long) me.entryExpressions().size();
         } else {
             throw new IllegalArgumentException(
                 LoggerMessageFormat.format(

@@ -28,12 +28,6 @@ public class EntryExpression extends Expression {
         EntryExpression::readFrom
     );
 
-    static final NamedWriteableRegistry.Entry ENTRY_EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
-        EntryExpression.class,
-        "EntryExpression",
-        EntryExpression::readFrom
-    );
-
     private final Expression key;
 
     private final Expression value;
@@ -112,6 +106,6 @@ public class EntryExpression extends Expression {
 
     @Override
     public String toString() {
-        return key.fold() + ":" + value.fold();
+        return key.toString() + ":" + value.toString();
     }
 }

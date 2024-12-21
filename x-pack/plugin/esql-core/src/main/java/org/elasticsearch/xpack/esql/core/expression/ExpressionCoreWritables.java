@@ -48,6 +48,6 @@ public class ExpressionCoreWritables {
     }
 
     public static List<NamedWriteableRegistry.Entry> mapExpressions() {
-        return List.of(EntryExpression.ENTRY_EXPRESSION_ENTRY, EntryExpression.ENTRY, MapExpression.ENTRY);
+        return List.of(EntryExpression.ENTRY, MapExpression.ENTRY);
     }
 }

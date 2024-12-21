@@ -2628,8 +2628,8 @@ public class AnalyzerTests extends ESTestCase {
         a = as(eval.fields().get(0), Alias.class);
         LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
         me = as(l.base(), MapExpression.class);
-        assertEquals(1, me.entries().size());
-        EntryExpression ee = as(me.entries().get(0), EntryExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
         assertEquals(new Literal(EMPTY, "base", DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
@@ -2655,13 +2655,13 @@ public class AnalyzerTests extends ESTestCase {
         Literal option2 = new Literal(EMPTY, "option2", DataType.KEYWORD);
         Literal value2 = new Literal(EMPTY, List.of(1, 2, 3), DataType.INTEGER);
 
-        assertEquals(2, me.entries().size());
-        EntryExpression ee = as(me.entries().get(0), EntryExpression.class);
+        assertEquals(2, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
         assertEquals(option1, ee.key());
         assertEquals(value1, ee.value());
         assertEquals(value1.dataType(), ee.dataType());
 
-        ee = as(me.entries().get(1), EntryExpression.class);
+        ee = as(me.entryExpressions().get(1), EntryExpression.class);
         assertEquals(option2, ee.key());
         assertEquals(value2, ee.value());
         assertEquals(value2.dataType(), ee.dataType());

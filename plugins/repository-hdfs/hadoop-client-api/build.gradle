@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
 sourceSets {
   patcher
@@ -23,7 +23,8 @@ def outputDir = layout.buildDirectory.dir("patched-classes")
 
 def patchTask = tasks.register("patchClasses", JavaExec)
 patchTask.configure {
-  dependsOn configurations.thejar
+  dependsOn configurations.thejar, sourceSets.patcher.getCompileJavaTaskName()
+  outputs.dir(outputDir)
   classpath = sourceSets.patcher.runtimeClasspath
   mainClass = 'org.elasticsearch.hdfs.patch.HdfsClassPatcher'
   doFirst {
@@ -38,10 +39,4 @@ tasks.named('jar').configure {
 
   from(outputDir) // patch directory first so any files patched are excluded as duplicates
   from(project.zipTree(configurations.thejar.singleFile))
-}
-
-['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {
-  tasks.named(it).configure {
-    enabled = false
-  }
 }

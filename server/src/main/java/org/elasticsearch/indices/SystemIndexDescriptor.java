@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -145,6 +146,13 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
 
+    /**
+     * Script to modify the documents in index created
+     * before {@link TransportGetFeatureUpgradeStatusAction#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
+     * Can be null.
+     */
+    private final String migrationScript;
+
     /** Mapping version from the descriptor */
     private final MappingsVersion mappingsVersion;
 
@@ -197,6 +205,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param origin the client origin to use when creating this index. Internal system indices must not provide an origin, while external
      *               system indices must do so.
      * @param type The {@link Type} of system index
+     * @param migrationScript The script to apply when migrating this system index, or null
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
      *                                     indices
      * @param priorSystemIndexDescriptors A list of system index descriptors that describe the same index in a way that is compatible with
@@ -212,6 +221,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         String aliasName,
         int indexFormat,
         String origin,
+        String migrationScript,
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
@@ -346,6 +356,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
         this.description = description;
         this.mappings = mappings;
+        this.migrationScript = migrationScript;
 
         settings = Objects.isNull(settings) ? Settings.EMPTY : settings;
 
@@ -557,6 +568,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.executorNames;
     }
 
+    public String getMigrationScript() {
+        return migrationScript;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -659,6 +674,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private String aliasName = null;
         private int indexFormat = 0;
         private String origin = null;
+        private String migrationScript;
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
@@ -721,6 +737,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        public Builder setMigrationScript(String migrationScript) {
+            this.migrationScript = migrationScript;
+            return this;
+        }
+
         public Builder setType(Type type) {
             this.type = type;
             return this;
@@ -765,6 +786,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 aliasName,
                 indexFormat,
                 origin,
+                migrationScript,
                 type,
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,

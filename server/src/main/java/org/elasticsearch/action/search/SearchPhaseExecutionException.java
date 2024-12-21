@@ -73,15 +73,21 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
             return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }
-        RestStatus status = shardFailures[0].status();
-        if (shardFailures.length > 1) {
-            for (int i = 1; i < shardFailures.length; i++) {
-                if (shardFailures[i].status().getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
-                    status = shardFailures[i].status();
-                }
+        RestStatus status = null;
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            RestStatus shardStatus = shardFailure.status();
+            int statusCode = shardStatus.getStatus();
+
+            // Return if it's an error that can be retried.
+            // These currently take precedence over other status code(s).
+            if (statusCode >= 502 && statusCode <= 504) {
+                return shardStatus;
+            } else if (statusCode >= 500) {
+                status = shardStatus;
             }
         }
-        return status;
+
+        return status == null ? shardFailures[0].status() : status;
     }
 
     public ShardSearchFailure[] shardFailures() {

@@ -605,7 +605,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be used in disjunctions
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

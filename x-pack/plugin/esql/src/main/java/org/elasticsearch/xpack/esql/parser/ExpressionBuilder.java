@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -75,6 +76,8 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
@@ -595,7 +598,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Expression> args = expressions(ctx.functionArgument());
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
                 source(ctx),
@@ -614,6 +617,26 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
+    }
+
+    @Override
+    public MapExpression visitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) {
+        List<Expression> namedArgs = new ArrayList<>(ctx.mapExpression().entryExpression().size());
+        List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.mapExpression().entryExpression();
+        for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
+            String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
+            Expression value = expression(entry.constant());
+            if (value instanceof Literal l) {
+                if (l.dataType() == NULL) {
+                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", l);
+                }
+                namedArgs.add(new Literal(source(entry.string()), key, KEYWORD));
+                namedArgs.add(l);
+            } else {
+                throw new ParsingException(source(ctx), "Invalid named function argument [{}], only constant value is supported", value);
+            }
+        }
+        return new MapExpression(Source.EMPTY, namedArgs);
     }
 
     @Override

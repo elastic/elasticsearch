@@ -1,0 +1,201 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.core.expression;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+
+/**
+ * Represent a collect of key-value pairs.
+ */
+public class MapExpression extends Expression implements Map<Expression, Expression> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MapExpression",
+        MapExpression::readFrom
+    );
+
+    private final List<EntryExpression> entryExpressions;
+
+    private final Map<Expression, Expression> map;
+
+    private final Map<Object, Expression> keyFoldedMap;
+
+    public MapExpression(Source source, List<Expression> entries) {
+        super(source, entries);
+        int entryCount = entries.size() / 2;
+        this.entryExpressions = new ArrayList<>(entryCount);
+        for (int i = 0; i < entryCount; i++) {
+            Expression key = entries.get(i * 2);
+            entryExpressions.add(new EntryExpression(key.source(), key, entries.get(i * 2 + 1)));
+        }
+        this.map = this.entryExpressions.stream()
+            .collect(Collectors.toMap(EntryExpression::key, EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
+        // create a map with key folded and source removed to make the retrieval of value easier
+        this.keyFoldedMap = this.entryExpressions.stream()
+            .filter(e -> e.key().foldable() && e.key().fold() != null)
+            .collect(Collectors.toMap(e -> e.key().fold(), EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
+    }
+
+    private static MapExpression readFrom(StreamInput in) throws IOException {
+        return new MapExpression(
+            Source.readFrom((StreamInput & PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteableCollection(children());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public MapExpression replaceChildren(List<Expression> newChildren) {
+        return new MapExpression(source(), newChildren);
+    }
+
+    @Override
+    protected NodeInfo<MapExpression> info() {
+        return NodeInfo.create(this, MapExpression::new, children());
+    }
+
+    public List<EntryExpression> entryExpressions() {
+        return entryExpressions;
+    }
+
+    public Map<Expression, Expression> map() {
+        return map;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
+    @Override
+    public DataType dataType() {
+        return UNSUPPORTED;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(entryExpressions);
+    }
+
+    @Override
+    public int size() {
+        return map.size();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return map.isEmpty();
+    }
+
+    @Override
+    public Expression get(Object key) {
+        if (key == null) {
+            return null;
+        }
+        if (key instanceof Expression) {
+            return map.get(key);
+        } else {
+            key = key instanceof String s ? s.toLowerCase(Locale.ROOT) : key;
+            // the key(literal) could be converted to BytesRef by ConvertStringToByteRef
+            return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(new BytesRef(key.toString()));
+        }
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return map.containsKey(key);
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+        return map.containsValue(value);
+    }
+
+    @Override
+    public Expression put(Expression key, Expression value) {
+        throw new UnsupportedOperationException("MapExpression cannot be modified");
+    }
+
+    @Override
+    public Expression remove(Object key) {
+        throw new UnsupportedOperationException("MapExpression cannot be modified");
+    }
+
+    @Override
+    public void putAll(Map<? extends Expression, ? extends Expression> m) {
+        throw new UnsupportedOperationException("MapExpression cannot be modified");
+    }
+
+    @Override
+    public void clear() {
+        throw new UnsupportedOperationException("MapExpression cannot be modified");
+    }
+
+    @Override
+    public Set<Expression> keySet() {
+        return map.keySet();
+    }
+
+    @Override
+    public Collection<Expression> values() {
+        return map.values();
+    }
+
+    @Override
+    public Set<Entry<Expression, Expression>> entrySet() {
+        return map.entrySet();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        MapExpression other = (MapExpression) obj;
+        return Objects.equals(entryExpressions, other.entryExpressions);
+    }
+
+    @Override
+    public String toString() {
+        String str = entryExpressions.stream().map(String::valueOf).collect(Collectors.joining(", "));
+        return "{ " + str + " }";
+    }
+}

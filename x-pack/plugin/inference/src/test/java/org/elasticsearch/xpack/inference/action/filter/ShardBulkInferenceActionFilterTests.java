@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -16,10 +18,18 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
@@ -71,7 +81,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ShardBulkInferenceActionFilterTests extends ESTestCase {
+    private final boolean useLegacyFormat;
     private ThreadPool threadPool;
+
+    public ShardBulkInferenceActionFilterTests(boolean useLegacyFormat) {
+        this.useLegacyFormat = useLegacyFormat;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @Before
     public void setupThreadPool() {
@@ -85,7 +105,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE);
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -114,7 +134,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
-            randomIntBetween(1, 10)
+            randomIntBetween(1, 10),
+            useLegacyFormat
         );
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
@@ -144,7 +165,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         BulkItemRequest[] items = new BulkItemRequest[10];
         for (int i = 0; i < items.length; i++) {
-            items[i] = randomBulkItemRequest(Map.of(), inferenceFieldMap)[0];
+            items[i] = randomBulkItemRequest(useLegacyFormat, Map.of(), inferenceFieldMap)[0];
         }
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);
@@ -155,10 +176,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testItemFailures() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
+
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
-            randomIntBetween(1, 10)
+            randomIntBetween(1, 10),
+            useLegacyFormat
         );
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
         model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
@@ -178,7 +201,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
                 IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertThat(XContentMapValues.extractValue("field1.text", actualRequest.sourceAsMap()), equalTo("I am a success"));
+                assertThat(
+                    XContentMapValues.extractValue(useLegacyFormat ? "field1.text" : "field1", actualRequest.sourceAsMap()),
+                    equalTo("I am a success")
+                );
 
                 // item 2 is a failure
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
@@ -227,12 +253,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         BulkItemRequest[] originalRequests = new BulkItemRequest[numRequests];
         BulkItemRequest[] modifiedRequests = new BulkItemRequest[numRequests];
         for (int id = 0; id < numRequests; id++) {
-            BulkItemRequest[] res = randomBulkItemRequest(inferenceModelMap, inferenceFieldMap);
+            BulkItemRequest[] res = randomBulkItemRequest(useLegacyFormat, inferenceModelMap, inferenceFieldMap);
             originalRequests[id] = res[0];
             modifiedRequests[id] = res[1];
         }
 
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, inferenceModelMap, randomIntBetween(10, 30));
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, inferenceModelMap, randomIntBetween(10, 30), useLegacyFormat);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -263,7 +289,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static ShardBulkInferenceActionFilter createFilter(ThreadPool threadPool, Map<String, StaticModel> modelMap, int batchSize) {
+    private static ShardBulkInferenceActionFilter createFilter(
+        ThreadPool threadPool,
+        Map<String, StaticModel> modelMap,
+        int batchSize,
+        boolean useLegacyFormat
+    ) {
         ModelRegistry modelRegistry = mock(ModelRegistry.class);
         Answer<?> unparsedModelAnswer = invocationOnMock -> {
             String id = (String) invocationOnMock.getArguments()[0];
@@ -319,24 +350,50 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
-        ShardBulkInferenceActionFilter filter = new ShardBulkInferenceActionFilter(inferenceServiceRegistry, modelRegistry, batchSize);
-        return filter;
+
+        return new ShardBulkInferenceActionFilter(
+            createClusterService(useLegacyFormat),
+            inferenceServiceRegistry,
+            modelRegistry,
+            batchSize
+        );
+    }
+
+    private static ClusterService createClusterService(boolean useLegacyFormat) {
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
+        when(indexMetadata.getSettings()).thenReturn(settings);
+
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.index(any(String.class))).thenReturn(indexMetadata);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        return clusterService;
     }
 
     private static BulkItemRequest[] randomBulkItemRequest(
+        boolean useLegacyFormat,
         Map<String, StaticModel> modelMap,
         Map<String, InferenceFieldMetadata> fieldInferenceMap
     ) throws IOException {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
         XContentType requestContentType = randomFrom(XContentType.values());
+
+        Map<String, Object> inferenceMetadataFields = new HashMap<>();
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
             Object inputObject = randomSemanticTextInput();
             String inputText = inputObject.toString();
             docMap.put(field, inputObject);
-            expectedDocMap.put(field, inputText);
+            expectedDocMap.put(field, useLegacyFormat ? inputText : inputObject);
             if (model == null) {
                 // ignore results, the doc should fail with a resource not found exception
                 continue;
@@ -349,6 +406,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             if (model.hasResult(inputText)) {
                 var results = model.getResults(inputText);
                 semanticTextField = semanticTextFieldFromChunkedInferenceResults(
+                    useLegacyFormat,
                     field,
                     model,
                     List.of(inputText),
@@ -356,11 +414,19 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     requestContentType
                 );
             } else {
-                semanticTextField = randomSemanticText(field, model, List.of(inputText), requestContentType);
-                model.putResult(inputText, toChunkedResult(semanticTextField));
+                Map<String, List<String>> inputTextMap = Map.of(field, List.of(inputText));
+                semanticTextField = randomSemanticText(useLegacyFormat, field, model, List.of(inputText), requestContentType);
+                model.putResult(inputText, toChunkedResult(useLegacyFormat, inputTextMap, semanticTextField));
             }
 
-            expectedDocMap.put(field, semanticTextField);
+            if (useLegacyFormat) {
+                expectedDocMap.put(field, semanticTextField);
+            } else {
+                inferenceMetadataFields.put(field, semanticTextField);
+            }
+        }
+        if (useLegacyFormat == false) {
+            expectedDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
         }
 
         int requestId = randomIntBetween(0, Integer.MAX_VALUE);

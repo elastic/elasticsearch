@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -24,9 +23,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -67,6 +64,7 @@ public class GoogleVertexAiService extends SenderService {
 
     public static final String NAME = "googlevertexai";
 
+    private static final String SERVICE_NAME = "Google Vertex AI";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -331,42 +329,39 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
-                        .setOrder(2)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("ID of the LLM you're using.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 
                 configurationMap.put(
                     LOCATION,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription(
+                        "Please provide the GCP region where the Vertex AI API(s) is enabled. "
+                            + "For more information, refer to the {geminiVertexAIDocs}."
+                    )
                         .setLabel("GCP Region")
-                        .setOrder(3)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip(
-                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                                + "For more information, refer to the {geminiVertexAIDocs}."
-                        )
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription(
+                        "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
+                            + "on the URL, refer to the {geminiVertexAIDocs}."
+                    )
                         .setLabel("GCP Project")
-                        .setOrder(4)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip(
-                            "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
-                                + "on the URL, refer to the {geminiVertexAIDocs}."
-                        )
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
@@ -374,15 +369,11 @@ public class GoogleVertexAiService extends SenderService {
                 configurationMap.putAll(GoogleVertexAiSecretSettings.Configuration.get());
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = GoogleVertexAiEmbeddingsModel.Configuration.get();
-                        case RERANK -> taskSettingsConfig = GoogleVertexAiRerankModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

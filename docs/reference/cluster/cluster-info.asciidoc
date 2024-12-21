@@ -7,6 +7,12 @@ experimental::[]
 <titleabbrev>Cluster Info</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[cluster APIs].
+--
+
 Returns cluster information.
 
 [[cluster-info-api-request]]

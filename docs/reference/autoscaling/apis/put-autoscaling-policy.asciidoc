@@ -7,6 +7,12 @@
 
 NOTE: {cloud-only}
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-autoscaling[autoscaling APIs].
+--
+
 Creates or updates an {cloud}/ec-autoscaling.html[autoscaling] policy.
 
 [[autoscaling-put-autoscaling-policy-request]]

@@ -6,12 +6,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.Arrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -24,14 +26,14 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
 
   private final EvalOperator.ExpressionEvaluator field1;
 
-  private final EvalOperator.ExpressionEvaluator field2;
+  private final EvalOperator.ExpressionEvaluator[] field2;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public MvAppendBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
-      EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator[] field2, DriverContext driverContext) {
     this.source = source;
     this.field1 = field1;
     this.field2 = field2;
@@ -41,27 +43,35 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
   @Override
   public Block eval(Page page) {
     try (BooleanBlock field1Block = (BooleanBlock) field1.eval(page)) {
-      try (BooleanBlock field2Block = (BooleanBlock) field2.eval(page)) {
-        return eval(page.getPositionCount(), field1Block, field2Block);
+      BooleanBlock[] field2Blocks = new BooleanBlock[field2.length];
+      try (Releasable field2Release = Releasables.wrap(field2Blocks)) {
+        for (int i = 0; i < field2Blocks.length; i++) {
+          field2Blocks[i] = (BooleanBlock)field2[i].eval(page);
+        }
+        return eval(page.getPositionCount(), field1Block, field2Blocks);
       }
     }
   }
 
-  public BooleanBlock eval(int positionCount, BooleanBlock field1Block, BooleanBlock field2Block) {
+  public BooleanBlock eval(int positionCount, BooleanBlock field1Block,
+      BooleanBlock[] field2Blocks) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BooleanBlock[] field2Values = new BooleanBlock[field2.length];
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
-          allBlocksAreNulls = false;
-        }
-        if (!field2Block.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        MvAppend.process(result, p, field1Block, field2Block);
+        // unpack field2Blocks into field2Values
+        for (int i = 0; i < field2Blocks.length; i++) {
+          int o = field2Blocks[i].getFirstValueIndex(p);
+          field2Values[i] = field2Blocks[i];
+        }
+        MvAppend.process(result, p, field1Block, field2Values);
       }
       return result.build();
     }
@@ -69,12 +79,12 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
 
   @Override
   public String toString() {
-    return "MvAppendBooleanEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+    return "MvAppendBooleanEvaluator[" + "field1=" + field1 + ", field2=" + Arrays.toString(field2) + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field1, field2);
+    Releasables.closeExpectNoException(field1, () -> Releasables.close(field2));
   }
 
   private Warnings warnings() {
@@ -94,10 +104,10 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
 
     private final EvalOperator.ExpressionEvaluator.Factory field1;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field2;
+    private final EvalOperator.ExpressionEvaluator.Factory[] field2;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-        EvalOperator.ExpressionEvaluator.Factory field2) {
+        EvalOperator.ExpressionEvaluator.Factory[] field2) {
       this.source = source;
       this.field1 = field1;
       this.field2 = field2;
@@ -105,12 +115,13 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public MvAppendBooleanEvaluator get(DriverContext context) {
-      return new MvAppendBooleanEvaluator(source, field1.get(context), field2.get(context), context);
+      EvalOperator.ExpressionEvaluator[] field2 = Arrays.stream(this.field2).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new MvAppendBooleanEvaluator(source, field1.get(context), field2, context);
     }
 
     @Override
     public String toString() {
-      return "MvAppendBooleanEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+      return "MvAppendBooleanEvaluator[" + "field1=" + field1 + ", field2=" + Arrays.toString(field2) + "]";
     }
   }
 }

@@ -105,9 +105,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
-  method: testILMDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/114233
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694

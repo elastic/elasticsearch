@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -51,7 +52,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> response.toXContentChunked(params).next().toXContent(JsonXContent.contentBuilder(), params)
+            () -> ChunkedToXContent.wrapAsToXContent(response).toXContent(JsonXContent.contentBuilder(), params)
         );
         assertThat(
             e,

@@ -42,13 +42,22 @@ class ShutdownHookManagerPatcher extends ClassVisitor {
             });
         } else if (name.equals("<clinit>")) {
             return new MethodReplacement(mv, () -> {
-                // just initialize the two statics, don't actually get runtime to add shutdown hook
+                // just initialize the statics, don't actually get runtime to add shutdown hook
+
+                var classType = Type.getObjectType(CLASSNAME);
+                mv.visitTypeInsn(Opcodes.NEW, CLASSNAME);
+                mv.visitInsn(Opcodes.DUP);
+                mv.visitMethodInsn(Opcodes.INVOKESPECIAL, CLASSNAME, "<init>", "()V", false);
+                mv.visitFieldInsn(Opcodes.PUTSTATIC, CLASSNAME, "MGR", classType.getDescriptor());
+
                 var timeUnitType = Type.getType(TimeUnit.class);
-                var executorServiceType = Type.getType(ExecutorService.class);
                 mv.visitFieldInsn(Opcodes.GETSTATIC, timeUnitType.getInternalName(), "SECONDS", timeUnitType.getDescriptor());
                 mv.visitFieldInsn(Opcodes.PUTSTATIC, CLASSNAME, "TIME_UNIT_DEFAULT", timeUnitType.getDescriptor());
+
+                var executorServiceType = Type.getType(ExecutorService.class);
                 mv.visitInsn(Opcodes.ACONST_NULL);
                 mv.visitFieldInsn(Opcodes.PUTSTATIC, CLASSNAME, "EXECUTOR", executorServiceType.getDescriptor());
+
                 mv.visitInsn(Opcodes.RETURN);
             });
         }

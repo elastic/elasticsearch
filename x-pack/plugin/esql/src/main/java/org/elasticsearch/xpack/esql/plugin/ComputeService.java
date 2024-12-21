@@ -215,8 +215,10 @@ public class ComputeService {
             var exchangeSource = new ExchangeSourceHandler(
                 queryPragmas.exchangeBufferSize(),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                computeListener.acquireAvoid()
+                ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.removeExchangeSourceHandler(sessionId))
             );
+            exchangeSource.onFinishEarly(execInfo::markAsPartial);
+            exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 runCompute(
@@ -755,6 +757,7 @@ public class ComputeService {
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, 1, ActionListener.noop());
+            externalSink.setSource(exchangeSource);
             ActionListener<ComputeResponse> reductionListener = computeListener.acquireCompute();
             runCompute(
                 task,
@@ -893,6 +896,8 @@ public class ComputeService {
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
             computeListener.acquireAvoid()
         );
+        exchangeSink.setSource(exchangeSource);
+        exchangeSource.onFinishEarly(() -> executionInfo.markClusterAsPartial(clusterAlias));
         try (Releasable ignored = exchangeSource.addEmptySink()) {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
             runCompute(

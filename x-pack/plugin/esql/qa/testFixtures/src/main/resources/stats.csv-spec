@@ -931,6 +931,15 @@ null           | 1950
 null           | 1960
 ;
 
+countAllOnly
+from employees | stats c = count()
+;
+
+c:l
+100
+;
+
+
 countFieldNoGrouping
 from employees | where emp_no < 10050 | stats c = count(salary);
 

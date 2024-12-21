@@ -55,7 +55,7 @@ public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.Opt
             ? new InsensitiveEquals(bc.source(), field, bc.right())
             : Literal.of(bc, Boolean.FALSE);
         if (negated) {
-            e = e.foldable() == false ? new Not(e.source(), e) : new IsNotNull(e.source(), field);
+            e = e instanceof Literal ? new IsNotNull(e.source(), field) : new Not(e.source(), e);
         }
         return e;
     }

@@ -1253,6 +1253,7 @@ emp_no:integer  | first_name:keyword
 
 negatedEqualsToUpperPushedDown[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
+| sort emp_no
 | where not(to_upper(first_name) == "GEORGI")
 | keep emp_no, first_name
 | limit 1

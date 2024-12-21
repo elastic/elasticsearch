@@ -1,0 +1,6 @@
+pr: 119134
+summary: Handle `index.mapping.ignore_malformed` in downsampling
+area: Downsampling
+type: bug
+issues:
+ - 119075

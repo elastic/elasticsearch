@@ -13,12 +13,16 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 class ShutdownHookManagerPatcher extends ClassVisitor {
-    private static final Set<String> voidMethods = Set.of("addShutdownHook", "clearShutdownHooks");
-    private static final Set<String> booleanMethods = Set.of("removeShutdownHook", "hasShutdownHook", "isShutdownInProgress");
+    private static final String CLASSNAME = "org/apache/hadoop/util/ShutdownHookManager";
+    private static final Set<String> VOID_METHODS = Set.of("addShutdownHook", "clearShutdownHooks");
+    private static final Set<String> BOOLEAN_METHODS = Set.of("removeShutdownHook", "hasShutdownHook", "isShutdownInProgress");
 
     ShutdownHookManagerPatcher(ClassWriter classWriter) {
         super(Opcodes.ASM9, classWriter);
@@ -27,29 +31,21 @@ class ShutdownHookManagerPatcher extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-        if (voidMethods.contains(name)) {
+        if (VOID_METHODS.contains(name)) {
             return new MethodReplacement(mv, () -> { mv.visitInsn(Opcodes.RETURN); });
-        } else if (booleanMethods.contains(name)) {
+        } else if (BOOLEAN_METHODS.contains(name)) {
             return new MethodReplacement(mv, () -> {
                 mv.visitInsn(Opcodes.ICONST_0);
                 mv.visitInsn(Opcodes.IRETURN);
             });
         } else if (name.equals("<clinit>")) {
             return new MethodReplacement(mv, () -> {
-                mv.visitFieldInsn(Opcodes.GETSTATIC, "java/util/concurrent/TimeUnit", "SECONDS", "Ljava/util/concurrent/TimeUnit;");
-                mv.visitFieldInsn(
-                    Opcodes.PUTSTATIC,
-                    "org/apache/hadoop/util/ShutdownHookManager",
-                    "TIME_UNIT_DEFAULT",
-                    "Ljava/util/concurrent/TimeUnit;"
-                );
+                var timeUnitType = Type.getType(TimeUnit.class);
+                var executorServiceType = Type.getType(ExecutorService.class);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, timeUnitType.getInternalName(), "SECONDS", timeUnitType.getDescriptor());
+                mv.visitFieldInsn(Opcodes.PUTSTATIC, CLASSNAME, "TIME_UNIT_DEFAULT", timeUnitType.getDescriptor());
                 mv.visitInsn(Opcodes.ACONST_NULL);
-                mv.visitFieldInsn(
-                    Opcodes.PUTSTATIC,
-                    "org/apache/hadoop/util/ShutdownHookManager",
-                    "EXECUTOR",
-                    "Ljava/util/concurrent/ExecutorService;"
-                );
+                mv.visitFieldInsn(Opcodes.PUTSTATIC, CLASSNAME, "EXECUTOR", executorServiceType.getDescriptor());
                 mv.visitInsn(Opcodes.RETURN);
             });
         }

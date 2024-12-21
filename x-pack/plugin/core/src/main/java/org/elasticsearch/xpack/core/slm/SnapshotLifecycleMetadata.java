@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,6 +35,9 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObjectFields;
 
 /**
  * Custom cluster state metadata that stores all the snapshot lifecycle
@@ -143,10 +146,11 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFields(POLICIES_FIELD.getPreferredName(), snapshotConfigurations)
-            .field(OPERATION_MODE_FIELD.getPreferredName(), operationMode)
-            .field(STATS_FIELD.getPreferredName(), slmStats);
+        return NewChunkedXContentBuilder.of(
+            xContentObjectFields(POLICIES_FIELD.getPreferredName(), snapshotConfigurations),
+            field(OPERATION_MODE_FIELD.getPreferredName(), operationMode),
+            field(STATS_FIELD.getPreferredName(), slmStats)
+        );
     }
 
     @Override

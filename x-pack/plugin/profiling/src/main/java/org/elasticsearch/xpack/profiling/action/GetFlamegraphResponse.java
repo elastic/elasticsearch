@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -21,6 +21,11 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.collect.Iterators.flatMap;
+import static org.elasticsearch.common.collect.Iterators.map;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
 
 public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXContentObject {
     private final int size;
@@ -177,29 +182,29 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.array("Edges", edges.iterator(), (eb, e) -> eb.array(intValues(e.values())));
-            ob.array("FileID", fileIds.toArray(String[]::new));
-            ob.array("FrameType", intValues(frameTypes));
-            ob.array("Inline", inlineFrames.iterator(), e -> (b, p) -> b.value(e));
-            ob.array("ExeFilename", fileNames.toArray(String[]::new));
-            ob.array("AddressOrLine", intValues(addressOrLines));
-            ob.array("FunctionName", functionNames.toArray(String[]::new));
-            ob.array("FunctionOffset", intValues(functionOffsets));
-            ob.array("SourceFilename", sourceFileNames.toArray(String[]::new));
-            ob.array("SourceLine", intValues(sourceLines));
-            ob.array("CountInclusive", longValues(countInclusive));
-            ob.array("CountExclusive", longValues(countExclusive));
-            ob.array("AnnualCO2TonsInclusive", doubleValues(annualCO2TonsInclusive));
-            ob.array("AnnualCO2TonsExclusive", doubleValues(annualCO2TonsExclusive));
-            ob.array("AnnualCostsUSDInclusive", doubleValues(annualCostsUSDInclusive));
-            ob.array("AnnualCostsUSDExclusive", doubleValues(annualCostsUSDExclusive));
-            ob.field("Size", size);
-            ob.field("SamplingRate", samplingRate);
-            ob.field("SelfCPU", selfCPU);
-            ob.field("TotalCPU", totalCPU);
-            ob.field("TotalSamples", totalSamples);
-        });
+        return NewChunkedXContentBuilder.object(
+            array("Edges", flatMap(edges.iterator(), e -> array(intValues(e.values())))),
+            array("FileID", fileIds.toArray(String[]::new)),
+            array("FrameType", intValues(frameTypes)),
+            array("Inline", map(inlineFrames.iterator(), e -> (b, p) -> b.value(e))),
+            array("ExeFilename", fileNames.toArray(String[]::new)),
+            array("AddressOrLine", intValues(addressOrLines)),
+            array("FunctionName", functionNames.toArray(String[]::new)),
+            array("FunctionOffset", intValues(functionOffsets)),
+            array("SourceFilename", sourceFileNames.toArray(String[]::new)),
+            array("SourceLine", intValues(sourceLines)),
+            array("CountInclusive", longValues(countInclusive)),
+            array("CountExclusive", longValues(countExclusive)),
+            array("AnnualCO2TonsInclusive", doubleValues(annualCO2TonsInclusive)),
+            array("AnnualCO2TonsExclusive", doubleValues(annualCO2TonsExclusive)),
+            array("AnnualCostsUSDInclusive", doubleValues(annualCostsUSDInclusive)),
+            array("AnnualCostsUSDExclusive", doubleValues(annualCostsUSDExclusive)),
+            field("Size", size),
+            field("SamplingRate", samplingRate),
+            field("SelfCPU", selfCPU),
+            field("TotalCPU", totalCPU),
+            field("TotalSamples", totalSamples)
+        );
     }
 
     private static Iterator<ToXContent> intValues(Collection<Integer> values) {

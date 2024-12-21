@@ -25,6 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.empty;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
 import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;
 import static org.elasticsearch.script.ScriptStats.Fields.COMPILATIONS;
@@ -191,18 +195,19 @@ public record ScriptStats(
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(SCRIPT_STATS, ob -> {
-            ob.field(COMPILATIONS, compilations);
-            ob.field(CACHE_EVICTIONS, cacheEvictions);
-            ob.field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
-            if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
-                ob.xContentObject(COMPILATIONS_HISTORY, compilationsHistory);
-            }
-            if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-                ob.xContentObject(COMPILATIONS_HISTORY, cacheEvictionsHistory);
-            }
-            ob.array(CONTEXTS, contextStats.iterator());
-        });
+        return object(
+            SCRIPT_STATS,
+            field(COMPILATIONS, compilations),
+            field(CACHE_EVICTIONS, cacheEvictions),
+            field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered),
+            compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false
+                ? object(COMPILATIONS_HISTORY, compilationsHistory)
+                : empty(),
+            cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false
+                ? object(COMPILATIONS_HISTORY, cacheEvictionsHistory)
+                : empty(),
+            array(CONTEXTS, contextStats.iterator())
+        );
     }
 
     static final class Fields {

@@ -78,6 +78,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                             }
                             builder.endArray();
                         }
+                        case null -> {
+                            // do nothing
+                        }
                     }
 
                     builder.field(ROLE_FIELD, message.role());

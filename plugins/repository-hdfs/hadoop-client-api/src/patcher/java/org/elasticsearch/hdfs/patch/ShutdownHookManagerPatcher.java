@@ -32,14 +32,17 @@ class ShutdownHookManagerPatcher extends ClassVisitor {
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
         if (VOID_METHODS.contains(name)) {
+            // make void methods noops
             return new MethodReplacement(mv, () -> { mv.visitInsn(Opcodes.RETURN); });
         } else if (BOOLEAN_METHODS.contains(name)) {
+            // make boolean methods always return false
             return new MethodReplacement(mv, () -> {
                 mv.visitInsn(Opcodes.ICONST_0);
                 mv.visitInsn(Opcodes.IRETURN);
             });
         } else if (name.equals("<clinit>")) {
             return new MethodReplacement(mv, () -> {
+                // just initialize the two statics, don't actually get runtime to add shutdown hook
                 var timeUnitType = Type.getType(TimeUnit.class);
                 var executorServiceType = Type.getType(ExecutorService.class);
                 mv.visitFieldInsn(Opcodes.GETSTATIC, timeUnitType.getInternalName(), "SECONDS", timeUnitType.getDescriptor());

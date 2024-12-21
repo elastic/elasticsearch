@@ -60,23 +60,29 @@ include::geospatial-analysis.asciidoc[]
 
 include::watcher/index.asciidoc[]
 
-// cluster management
-
-include::monitoring/index.asciidoc[]
-
-include::security/index.asciidoc[]
-
 // production tasks
 
-include::high-availability.asciidoc[]
+include::production.asciidoc[]
 
 include::how-to.asciidoc[]
 
-include::autoscaling/index.asciidoc[]
+include::high-availability.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
 
+include::ccr/index.asciidoc[leveloffset=-1]
+
+include::autoscaling/index.asciidoc[]
+
+// cluster management
+
+include::security/index.asciidoc[]
+
+include::monitoring/index.asciidoc[]
+
 // reference
+
+include::data-store-architecture.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

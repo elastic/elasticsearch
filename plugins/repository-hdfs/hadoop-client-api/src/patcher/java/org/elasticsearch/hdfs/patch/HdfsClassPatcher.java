@@ -24,8 +24,10 @@ import java.util.jar.JarFile;
 
 public class HdfsClassPatcher {
     static final Map<String, Function<ClassWriter, ClassVisitor>> patchers = Map.of(
-        "org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new,
-        "org/apache/hadoop/util/Shell.class", ShellPatcher::new
+        "org/apache/hadoop/util/ShutdownHookManager.class",
+        ShutdownHookManagerPatcher::new,
+        "org/apache/hadoop/util/Shell.class",
+        ShellPatcher::new
     );
 
     public static void main(String[] args) throws Exception {

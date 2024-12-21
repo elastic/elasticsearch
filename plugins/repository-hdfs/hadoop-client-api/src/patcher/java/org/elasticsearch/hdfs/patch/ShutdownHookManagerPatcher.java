@@ -17,15 +17,8 @@ import org.objectweb.asm.Opcodes;
 import java.util.Set;
 
 class ShutdownHookManagerPatcher extends ClassVisitor {
-    private static final Set<String> voidMethods = Set.of(
-        "addShutdownHook",
-        "clearShutdownHooks"
-    );
-    private static final Set<String> booleanMethods = Set.of(
-        "removeShutdownHook",
-        "hasShutdownHook",
-        "isShutdownInProgress"
-    );
+    private static final Set<String> voidMethods = Set.of("addShutdownHook", "clearShutdownHooks");
+    private static final Set<String> booleanMethods = Set.of("removeShutdownHook", "hasShutdownHook", "isShutdownInProgress");
 
     ShutdownHookManagerPatcher(ClassWriter classWriter) {
         super(Opcodes.ASM9, classWriter);
@@ -35,9 +28,7 @@ class ShutdownHookManagerPatcher extends ClassVisitor {
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
         if (voidMethods.contains(name)) {
-            return new MethodReplacement(mv, () -> {
-                mv.visitInsn(Opcodes.RETURN);
-            });
+            return new MethodReplacement(mv, () -> { mv.visitInsn(Opcodes.RETURN); });
         } else if (booleanMethods.contains(name)) {
             return new MethodReplacement(mv, () -> {
                 mv.visitInsn(Opcodes.ICONST_0);

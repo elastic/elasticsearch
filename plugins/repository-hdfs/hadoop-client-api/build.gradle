@@ -1,12 +1,43 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.gradleup.shadow'
 
-dependencies {
-  implementation "org.apache.hadoop:hadoop-client-api:${project.parent.versions.hadoop}"
+sourceSets {
+  patcher
 }
 
-tasks.named('shadowJar').configure {
-  exclude 'org/apache/hadoop/util/ShutdownHookManager$*.class'
+configurations {
+  thejar {
+    canBeResolved = true
+  }
+}
+
+dependencies {
+  thejar("org.apache.hadoop:hadoop-client-api:${project.parent.versions.hadoop}") {
+    transitive = false
+  }
+
+  patcherImplementation 'org.ow2.asm:asm:9.7.1'
+  patcherImplementation 'org.ow2.asm:asm-tree:9.7.1'
+}
+
+def outputDir = layout.buildDirectory.dir("patched-classes")
+
+def patchTask = tasks.register("patchClasses", JavaExec)
+patchTask.configure {
+  dependsOn configurations.thejar
+  classpath = sourceSets.patcher.runtimeClasspath
+  mainClass = 'org.elasticsearch.hdfs.patch.HdfsClassPatcher'
+  doFirst {
+    args configurations.thejar.singleFile, outputDir.get().getAsFile().toString()
+  }
+}
+
+tasks.named('jar').configure {
+  dependsOn(patchTask)
+  dependsOn(configurations.thejar)
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+  from(outputDir) // patch directory first so any files patched are excluded as duplicates
+  from(project.zipTree(configurations.thejar.singleFile))
 }
 
 ['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {

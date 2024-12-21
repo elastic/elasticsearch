@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 import java.nio.ByteOrder;
 
@@ -46,10 +47,10 @@ final class SpatialExtentState implements AggregatorState {
         pointType.computeEnvelope(geo)
             .ifPresent(
                 r -> add(
-                    pointType.encodeX(r.getMinX()),
-                    pointType.encodeX(r.getMaxX()),
-                    pointType.encodeY(r.getMaxY()),
-                    pointType.encodeY(r.getMinY())
+                    pointType.encoder().encodeX(r.getMinX()),
+                    pointType.encoder().encodeX(r.getMaxX()),
+                    pointType.encoder().encodeY(r.getMaxY()),
+                    pointType.encoder().encodeY(r.getMinY())
                 )
             );
     }
@@ -74,8 +75,9 @@ final class SpatialExtentState implements AggregatorState {
     }
 
     private byte[] toWKB() {
+        CoordinateEncoder encoder = pointType.encoder();
         return WellKnownBinary.toWKB(
-            new Rectangle(pointType.decodeX(minX), pointType.decodeX(maxX), pointType.decodeY(maxY), pointType.decodeY(minY)),
+            new Rectangle(encoder.decodeX(minX), encoder.decodeX(maxX), encoder.decodeY(maxY), encoder.decodeY(minY)),
             ByteOrder.LITTLE_ENDIAN
         );
     }

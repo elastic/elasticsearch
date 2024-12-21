@@ -24,9 +24,9 @@ public class MethodReplacement extends MethodVisitor {
 
     @Override
     public void visitCode() {
-        delegate.visitCode();
+        //delegate.visitCode();
         bodyWriter.run();
-        delegate.visitEnd();
+        //delegate.visitEnd();
     }
 
     @Override

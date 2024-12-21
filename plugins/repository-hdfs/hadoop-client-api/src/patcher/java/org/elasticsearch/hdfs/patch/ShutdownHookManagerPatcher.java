@@ -34,6 +34,14 @@ class ShutdownHookManagerPatcher extends ClassVisitor {
                 mv.visitInsn(Opcodes.ICONST_0);
                 mv.visitInsn(Opcodes.IRETURN);
             });
+        } else if (name.equals("<clinit>")) {
+            return new MethodReplacement(mv, () -> {
+                mv.visitFieldInsn(Opcodes.GETSTATIC, "java/util/concurrent/TimeUnit", "SECONDS", "Ljava/util/concurrent/TimeUnit;");
+                mv.visitFieldInsn(Opcodes.PUTSTATIC, "org/apache/hadoop/util/ShutdownHookManager", "TIME_UNIT_DEFAULT", "Ljava/util/concurrent/TimeUnit;");
+                mv.visitInsn(Opcodes.ACONST_NULL);
+                mv.visitFieldInsn(Opcodes.PUTSTATIC, "org/apache/hadoop/util/ShutdownHookManager", "EXECUTOR", "Ljava/util/concurrent/ExecutorService;");
+                mv.visitInsn(Opcodes.RETURN);
+            });
         }
         return mv;
     }

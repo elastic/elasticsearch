@@ -130,8 +130,20 @@ class ValuesBytesRefAggregator {
         private final BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
-            values = new LongLongHash(1, bigArrays);
-            bytes = new BytesRefHash(1, bigArrays);
+            LongLongHash _values = null;
+            BytesRefHash _bytes = null;
+            try {
+                _values = new LongLongHash(1, bigArrays);
+                _bytes = new BytesRefHash(1, bigArrays);
+
+                values = _values;
+                bytes = _bytes;
+
+                _values = null;
+                _bytes = null;
+            } finally {
+                Releasables.closeExpectNoException(_values, _bytes);
+            }
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {

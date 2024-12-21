@@ -1346,6 +1346,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.InternalIndex
     );
 
+    public static final String INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY = "index.ignore_deprecation_warning_for_version";
+    public static final Setting<IndexVersion> IGNORE_INDEX_DEPRECATION_WARNING_FOR_VERSION_SETTING = Setting.versionIdSetting(
+        INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY,
+        IndexVersions.ZERO,
+        IndexVersion::fromId,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
     // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";

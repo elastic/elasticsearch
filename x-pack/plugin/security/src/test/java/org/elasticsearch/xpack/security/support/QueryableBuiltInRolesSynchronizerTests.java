@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -16,18 +17,25 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -46,6 +54,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -389,7 +398,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         return ClusterState.builder(cs)
             .routingTable(
                 SecurityTestUtils.buildIndexRoutingTable(
-                    cs.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
+                    cs.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
                 )
             );
     }
@@ -509,7 +518,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterStateWithOpenSecurityIndex() {
-        return SecurityIndexManagerTests.createClusterState(
+        return createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             IndexMetadata.State.OPEN
@@ -517,10 +526,42 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterStateWithClosedSecurityIndex() {
-        return SecurityIndexManagerTests.createClusterState(
+        return createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             IndexMetadata.State.CLOSE
         );
+    }
+
+    private static ClusterState.Builder createClusterState(String indexName, String aliasName, IndexMetadata.State state) {
+        @FixForMultiProject(description = "randomize project-id")
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        final Metadata metadata = Metadata.builder()
+            .put(
+                SecurityIndexManagerTests.createProjectMetadata(
+                    projectId,
+                    indexName,
+                    aliasName,
+                    SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
+                    state,
+                    SecurityIndexManagerTests.getMappings()
+                )
+            )
+            .build();
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew);
+
+        return ClusterState.builder(SecurityIndexManagerTests.state(projectId))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .putCompatibilityVersions(
+                "test",
+                new CompatibilityVersions(
+                    TransportVersion.current(),
+                    Map.of(
+                        indexName,
+                        new SystemIndexDescriptor.MappingsVersion(SecuritySystemIndices.SecurityMainIndexMappingVersion.latest().id(), 0)
+                    )
+                )
+            );
     }
 }

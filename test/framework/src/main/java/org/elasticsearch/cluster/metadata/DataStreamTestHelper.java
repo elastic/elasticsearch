@@ -148,12 +148,34 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
+        return newInstance(
+            name,
+            indices,
+            generation,
+            metadata,
+            replicated,
+            lifecycle,
+            failureStores,
+            failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED
+        );
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        DataStreamLifecycle lifecycle,
+        List<Index> failureStores,
+        DataStreamOptions dataStreamOptions
+    ) {
         return DataStream.builder(name, indices)
             .setGeneration(generation)
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setDataStreamOptions(failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setDataStreamOptions(dataStreamOptions)
             .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
             .build();
     }
@@ -460,7 +482,7 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas,
         boolean replicated,
-        boolean storeFailures
+        Boolean storeFailures
     ) {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put(
@@ -470,7 +492,7 @@ public final class DataStreamTestHelper {
                 .template(
                     Template.builder()
                         .dataStreamOptions(
-                            DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures ? createDataStreamOptionsTemplate(true) : null
+                            DataStream.isFailureStoreFeatureFlagEnabled() ? createDataStreamOptionsTemplate(storeFailures) : null
                         )
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -488,7 +510,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE.equals(storeFailures)) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(

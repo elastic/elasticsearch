@@ -106,12 +106,11 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             boolean needsReroute = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
+                String nodeEphemeralId = null;
                 DiscoveryNode discoveryNode = initialState.nodes().getNodes().get(request.getNodeId());
-                if (discoveryNode == null) {
-                    // the node doesn't exist, so we can't do anything
-                    continue;
+                if (discoveryNode != null) {
+                    nodeEphemeralId = discoveryNode.getEphemeralId();
                 }
-                var nodeEphemeralId = discoveryNode.getEphemeralId();
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request, nodeEphemeralId);
                 } catch (Exception e) {

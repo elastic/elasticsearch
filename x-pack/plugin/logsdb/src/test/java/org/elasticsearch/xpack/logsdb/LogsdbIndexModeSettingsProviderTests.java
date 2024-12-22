@@ -812,7 +812,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
             IndexMode.LOGSDB,
-            metadata,
+            metadata.getProject(),
             Instant.now(),
             settings,
             List.of()

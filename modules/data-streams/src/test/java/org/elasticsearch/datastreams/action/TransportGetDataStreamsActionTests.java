@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -372,9 +373,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_disabled() {
-        var metadata = new Metadata.Builder();
-        DataStreamTestHelper.getClusterStateWithDataStreams(
-            metadata,
+        var projectId = randomProjectIdOrDefault();
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
             List.of(Tuple.tuple("data-stream-1", 2)),
             List.of(),
             System.currentTimeMillis(),
@@ -383,11 +384,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             false,
             false
         );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -401,9 +401,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledExplicitly() {
+        var projectId = randomProjectIdOrDefault();
         var metadata = new Metadata.Builder();
-        DataStreamTestHelper.getClusterStateWithDataStreams(
-            metadata,
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
             List.of(Tuple.tuple("data-stream-1", 2)),
             List.of(),
             System.currentTimeMillis(),
@@ -412,11 +413,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             false,
             true
         );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,
@@ -430,9 +430,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledByClusterSetting() {
-        var metadata = new Metadata.Builder();
-        DataStreamTestHelper.getClusterStateWithDataStreams(
-            metadata,
+        var projectId = randomProjectIdOrDefault();
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
             List.of(Tuple.tuple("data-stream-1", 2)),
             List.of(),
             System.currentTimeMillis(),
@@ -441,11 +441,10 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             false,
             false
         );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
         var response = TransportGetDataStreamsAction.innerOperation(
-            state,
+            state.projectState(projectId),
             req,
             resolver,
             systemIndices,

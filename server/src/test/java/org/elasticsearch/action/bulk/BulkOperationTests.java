@@ -475,11 +475,11 @@ public class BulkOperationTests extends ESTestCase {
         // With a cluster setting to enable the failure store for this data stream, the same request should be redirected:
         BulkResponse bulkItemResponsesUsingClusterSetting = safeAwait(
             l -> newBulkOperation(
-                DEFAULT_STATE,
+                clusterState,
                 client,
                 bulkRequest,
                 new AtomicArray<>(bulkRequest.numberOfActions()),
-                mockObserver(DEFAULT_STATE),
+                mockObserver(clusterState),
                 l,
                 new FailureStoreDocumentConverter(),
                 dataStreamFailureStoreSettings

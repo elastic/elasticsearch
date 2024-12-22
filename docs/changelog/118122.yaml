@@ -1,5 +1,5 @@
 pr: 118122
-summary: "WIP: Partial result on demand"
+summary: "ES|QL: Partial result on demand for async queries"
 area: ES|QL
 type: enhancement
 issues: []

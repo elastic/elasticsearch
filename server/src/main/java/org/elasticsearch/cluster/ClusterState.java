@@ -253,8 +253,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
         if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0)
             && metadata != null
-            && metadata.getProject().indices() != null) {
-            for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
+            && metadata.getTotalNumberOfIndices() > 0) {
+            for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
                 assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
                     : "event.ingested range should be UNKNOWN but is "
                         + indexMetadata.getEventIngestedRange()

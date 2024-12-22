@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -156,6 +157,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
     /**
      * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
      * This is because comparing two doc-values fields is not supported in the current implementation.
+     * This also rejects fields that do not have doc-values in the field mapping, as well as rejecting geo_shape and cartesian_shape
+     * because we do not yet support full doc-values extraction for non-point geometries. We do have aggregations that support
+     * shapes, and to prevent them triggering this rule on non-point geometries we have to explicitly disallow them here.
      */
     private boolean allowedForDocValues(
         FieldAttribute fieldAttribute,
@@ -164,6 +168,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         Set<FieldAttribute> foundAttributes
     ) {
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
+            return false;
+        }
+        if (fieldAttribute.dataType() == DataType.GEO_SHAPE || fieldAttribute.dataType() == DataType.CARTESIAN_SHAPE) {
             return false;
         }
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);

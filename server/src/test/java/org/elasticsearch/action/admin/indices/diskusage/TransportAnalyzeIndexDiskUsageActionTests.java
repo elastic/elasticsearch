@@ -134,7 +134,6 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             assertBusy(() -> assertThat(transportService.getRequestsSentPerNode(), equalTo(expectedRequestCounts)));
             pendingRequests.addAll(transportService.getCapturedRequests(true));
         }
-        assertBusy(future::isDone);
         AnalyzeIndexDiskUsageResponse response = future.actionGet();
         assertThat(response.getTotalShards(), equalTo(numberOfShards));
         assertThat(response.getFailedShards(), equalTo(0));

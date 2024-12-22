@@ -1804,7 +1804,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.isFailureStoreEnabled()
                     && parent.getFailureIndices()
                         .getIndices()
                         .stream()
@@ -1830,7 +1829,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     for (Index i : dataStream.getFailureIndices().getIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }

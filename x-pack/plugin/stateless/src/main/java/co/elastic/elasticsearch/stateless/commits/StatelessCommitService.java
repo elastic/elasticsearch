@@ -354,6 +354,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.markBccRecovered(recoveredBcc, otherBlobs);
     }
 
+    public void setTrackedSearchNodesPerCommitOnRelocationTarget(
+        ShardId shardId,
+        @Nullable Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit
+    ) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.setTrackedSearchNodesPerCommitOnRelocationTarget(searchNodesPerCommit);
+    }
+
     /**
      * This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads) and wait
      * for that generation to be uploaded after which it will trigger the provided listener. Additionally, this method will then block
@@ -1018,6 +1026,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // Map commits to BCCs
         private final Map<PrimaryTermAndGeneration, CommitReferencesInfo> commitReferencesInfos = new ConcurrentHashMap<>();
 
+        // This map is supposed be passed via `markBccRecovered`, but it's not possible to do, so it's set here directly
+        // by `TransportStatelessPrimaryRelocationAction#handlePrimaryContextHandoff` before we start recovering a shard
+        // on the target node
+        @Nullable
+        private Map<PrimaryTermAndGeneration, Set<String>> trackedSearchNodesPerCommitOnRelocationTarget = null;
+
         // Visible for testing
         ShardCommitState(
             ShardId shardId,
@@ -1173,6 +1187,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             primaryTermAndGenToBlobReference.values()
                 .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
 
+            // Have to make sure to add old search nodes that were executing searches on the relocating shard
+            // to make sure that related blobs won't get deleted after the relocation.
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                Set<String> searchNodes = trackedSearchNodesPerCommitOnRelocationTarget != null
+                    ? trackedSearchNodesPerCommitOnRelocationTarget.get(blobReference.getPrimaryTermAndGeneration())
+                    : null;
+                if (searchNodes != null && searchNodes.isEmpty() == false) {
+                    trackOutstandingUnpromotableShardCommitRef(searchNodes, blobReference);
+                }
+            }
+
             // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 if (blobReference.getPrimaryTermAndGeneration().equals(recoveryBCCBlob.getPrimaryTermAndGeneration()) == false) {
@@ -1188,6 +1213,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             recoveredGeneration = recoveredCommit.generation();
             assert assertRecoveredCommitFilesHaveBlobLocations(Map.copyOf(recoveredCommit.commitFiles()), Map.copyOf(blobLocations));
             handleUploadedBcc(recoveredBcc, false);
+        }
+
+        public void setTrackedSearchNodesPerCommitOnRelocationTarget(
+            @Nullable Map<PrimaryTermAndGeneration, Set<String>> trackedSearchNodesPerCommitOnRelocationTarget
+        ) {
+            this.trackedSearchNodesPerCommitOnRelocationTarget = trackedSearchNodesPerCommitOnRelocationTarget != null
+                ? Collections.unmodifiableMap(trackedSearchNodesPerCommitOnRelocationTarget)
+                : null;
         }
 
         public void ensureMaxGenerationToUploadForFlush(long generation) {
@@ -2459,8 +2492,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             /**
              * Set of search node-ids using the commit. The lifecycle of entries is like this:
              * 1. Initially created at instantiation on recovery or commit created - with an empty set.
-             * 2. Add to set of nodes before sending commit notification or when search shard registers during its initialization.
-             *    Only these two actions add to the set of node ids.
+             * 2. Add to set of nodes before sending commit notification, when search shard registers during its initialization,
+             *    and when an indexing shard relocates. Only these actions add to the set of node ids.
              * 3. Remove from set of nodes when receiving commit notification response.
              * 4. Remove from set of nodes when a new cluster state indicates a search shard is no longer allocated.
              * 5. When nodes is empty, using getAndUpdate to atomically set the reference to null.
@@ -2954,5 +2987,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + "] in recovered commit";
         }
         return true;
+    }
+
+    /**
+     * Returns the map of tracked search nodes per commit on the current indexing node.
+     *
+     * When the indexing shard gets relocated, the map get passed along to the target node via
+     * the stateless primary relocation action to the target node which uses
+     * {@link StatelessCommitService#setTrackedSearchNodesPerCommitOnRelocationTarget(ShardId, Map)} to make sure that we boostrap
+     * the shard on the target node we don't delete blobs that are used for actively executing searches.
+     */
+    public Map<PrimaryTermAndGeneration, Set<String>> getSearchNodesPerCommit(ShardId shardId) {
+        var commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.primaryTermAndGenToBlobReference.entrySet()
+            .stream()
+            .map(e -> Tuple.tuple(e.getKey(), e.getValue().searchNodesRef.get()))
+            .filter(e -> e.v2() != null && e.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
     }
 }

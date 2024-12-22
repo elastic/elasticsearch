@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -66,6 +67,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final Client client;
 
     @Inject
@@ -78,6 +80,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         Client client
     ) {
         super(
@@ -95,6 +98,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         this.systemIndices = systemIndices;
         this.globalRetentionSettings = globalRetentionSettings;
         clusterSettings = clusterService.getClusterSettings();
+        this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.client = new OriginSettingClient(client, "stack");
     }
 
@@ -126,6 +130,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
                             systemIndices,
                             clusterSettings,
                             globalRetentionSettings,
+                            dataStreamFailureStoreSettings,
                             maxTimestamps
                         )
                     );
@@ -138,7 +143,16 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
             });
         } else {
             listener.onResponse(
-                innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, globalRetentionSettings, null)
+                innerOperation(
+                    state,
+                    request,
+                    indexNameExpressionResolver,
+                    systemIndices,
+                    clusterSettings,
+                    globalRetentionSettings,
+                    dataStreamFailureStoreSettings,
+                    null
+                )
             );
         }
     }
@@ -150,11 +164,16 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         SystemIndices systemIndices,
         ClusterSettings clusterSettings,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         @Nullable Map<String, Long> maxTimestamps
     ) {
         List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
+            // For this action, we are returning whether the failure store is effectively enabled, either in metadata or by cluster setting.
+            // Users can use the get data stream options API to find out whether it is explicitly enabled in metadata.
+            boolean failureStoreEffectivelyEnabled = DataStream.isFailureStoreFeatureFlagEnabled()
+                && dataStream.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
             final String indexTemplate;
             boolean indexTemplatePreferIlmValue = true;
             String ilmPolicyName = null;
@@ -259,6 +278,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
             dataStreamInfos.add(
                 new GetDataStreamAction.Response.DataStreamInfo(
                     dataStream,
+                    failureStoreEffectivelyEnabled,
                     streamHealth.getStatus(),
                     indexTemplate,
                     ilmPolicyName,

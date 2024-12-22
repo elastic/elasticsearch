@@ -324,7 +324,6 @@ public class ClusterStateTests extends ESTestCase {
                       ],
                       "version": "%s",
                       "min_index_version": %s,
-                      "min_read_only_index_version":%s,
                       "max_index_version": %s
                     },
                     "node_02": {
@@ -351,7 +350,6 @@ public class ClusterStateTests extends ESTestCase {
                       ],
                       "version": "%s",
                       "min_index_version": %s,
-                      "min_read_only_index_version":%s,
                       "max_index_version": %s
                     },
                     "node_03": {
@@ -378,7 +376,6 @@ public class ClusterStateTests extends ESTestCase {
                       ],
                       "version": "%s",
                       "min_index_version": %s,
-                      "min_read_only_index_version":%s,
                       "max_index_version": %s
                     },
                     "node_04": {
@@ -405,7 +402,6 @@ public class ClusterStateTests extends ESTestCase {
                       ],
                       "version": "%s",
                       "min_index_version": %s,
-                      "min_read_only_index_version":%s,
                       "max_index_version": %s
                     },
                     "node_05": {
@@ -432,7 +428,6 @@ public class ClusterStateTests extends ESTestCase {
                       ],
                       "version": "%s",
                       "min_index_version": %s,
-                      "min_read_only_index_version":%s,
                       "max_index_version": %s
                     }
                   },
@@ -777,31 +772,26 @@ public class ClusterStateTests extends ESTestCase {
             clusterState.getNodes().get("node_01").getEphemeralId(),
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             // Node 2
             clusterState.getNodes().get("node_02").getEphemeralId(),
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             // Node 3
             clusterState.getNodes().get("node_03").getEphemeralId(),
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             // Node 4
             clusterState.getNodes().get("node_04").getEphemeralId(),
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             // Node 5
             clusterState.getNodes().get("node_05").getEphemeralId(),
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             // project:tb5W0bx765nDVIwqJPw92G index:common-index
             IndexVersion.current(),
@@ -968,7 +958,6 @@ public class ClusterStateTests extends ESTestCase {
                               ],
                               "version": "%s",
                               "min_index_version":%s,
-                              "min_read_only_index_version":%s,
                               "max_index_version":%s
                             }
                           },
@@ -1145,7 +1134,6 @@ public class ClusterStateTests extends ESTestCase {
                     ephemeralId,
                     Version.CURRENT,
                     IndexVersions.MINIMUM_COMPATIBLE,
-                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
                     IndexVersion.current(),
@@ -1245,7 +1233,6 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "version" : "%s",
                           "min_index_version" : %s,
-                          "min_read_only_index_version" : %s,
                           "max_index_version" : %s
                         }
                       },
@@ -1421,7 +1408,6 @@ public class ClusterStateTests extends ESTestCase {
                 ephemeralId,
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -1521,7 +1507,6 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "version" : "%s",
                           "min_index_version" : %s,
-                          "min_read_only_index_version" : %s,
                           "max_index_version" : %s
                         }
                       },
@@ -1703,7 +1688,6 @@ public class ClusterStateTests extends ESTestCase {
                 ephemeralId,
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),

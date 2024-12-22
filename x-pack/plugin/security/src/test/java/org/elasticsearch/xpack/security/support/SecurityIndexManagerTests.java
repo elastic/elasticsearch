@@ -1101,7 +1101,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .putCompatibilityVersions("test", new CompatibilityVersions(TransportVersion.current(), compatibilityVersions));
     }
 
-    private static ProjectMetadata.Builder createProjectMetadata(
+    public static ProjectMetadata.Builder createProjectMetadata(
         ProjectId projectId,
         String indexName,
         String aliasName,
@@ -1132,6 +1132,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     private ClusterState state() {
+        return state(projectId);
+    }
+
+    public static ClusterState state(ProjectId projectId) {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
             .masterNodeId("1")
@@ -1159,7 +1163,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         return indexMetadata;
     }
 
-    private static String getMappings() {
+    public static String getMappings() {
         return getMappings(SecurityMainIndexMappingVersion.latest().id());
     }
 

@@ -52,46 +52,43 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
         var foundAttributes = new HashSet<Attribute>();
 
         return aggregate.transformDown(UnaryExec.class, exec -> {
-            switch (exec) {
-                case AggregateExec agg -> {
-                    List<AggregateFunction> aggregateFunctions = agg.aggregates()
-                        .stream()
-                        .flatMap(e -> SpatialShapeBoundsExtraction.extractAggregateFunction(e).stream())
-                        .toList();
-                    List<SpatialExtent> spatialExtents = aggregateFunctions.stream()
-                        .filter(SpatialExtent.class::isInstance)
-                        .map(SpatialExtent.class::cast)
-                        .toList();
-                    List<AggregateFunction> nonSpatialExtents = aggregateFunctions.stream()
-                        .filter(a -> a instanceof SpatialExtent == false)
-                        .toList();
-                    // While we currently do not have any non-extent aggregations which apply to shapes, we might have them in the future.
-                    Set<EsField> fieldsAppearingInNonSpatialExtents = nonSpatialExtents.stream()
-                        .flatMap(af -> af.references().stream())
-                        .filter(FieldAttribute.class::isInstance)
-                        .map(f -> ((FieldAttribute) f).field())
-                        .collect(Collectors.toSet());
-                    spatialExtents.stream()
-                        .map(SpatialExtent::field)
-                        .filter(FieldAttribute.class::isInstance)
-                        .map(FieldAttribute.class::cast)
-                        .filter(
-                            f -> isShape(f.field().getDataType())
-                                && fieldsAppearingInNonSpatialExtents.contains(f.field()) == false
-                                && ctx.searchStats().hasDocValues(f.fieldName())
-                        )
-                        .forEach(foundAttributes::add);
-                }
-                case EvalExec evalExec -> foundAttributes.removeAll(evalExec.references());
-                case FilterExec filterExec -> foundAttributes.removeAll(filterExec.condition().references());
-                case FieldExtractExec fieldExtractExec -> {
-                    var boundsAttributes = new HashSet<>(foundAttributes);
-                    boundsAttributes.retainAll(fieldExtractExec.attributesToExtract());
-                    if (boundsAttributes.isEmpty() == false) {
-                        exec = fieldExtractExec.withBoundsAttributes(boundsAttributes);
-                    }
-                }
-                default -> { // Do nothing
+            if (exec instanceof AggregateExec agg) {
+                List<AggregateFunction> aggregateFunctions = agg.aggregates()
+                    .stream()
+                    .flatMap(e -> SpatialShapeBoundsExtraction.extractAggregateFunction(e).stream())
+                    .toList();
+                List<SpatialExtent> spatialExtents = aggregateFunctions.stream()
+                    .filter(SpatialExtent.class::isInstance)
+                    .map(SpatialExtent.class::cast)
+                    .toList();
+                List<AggregateFunction> nonSpatialExtents = aggregateFunctions.stream()
+                    .filter(a -> a instanceof SpatialExtent == false)
+                    .toList();
+                // While we currently do not have any non-extent aggregations which apply to shapes, we might have them in the future.
+                Set<EsField> fieldsAppearingInNonSpatialExtents = nonSpatialExtents.stream()
+                    .flatMap(af -> af.references().stream())
+                    .filter(FieldAttribute.class::isInstance)
+                    .map(f -> ((FieldAttribute) f).field())
+                    .collect(Collectors.toSet());
+                spatialExtents.stream()
+                    .map(SpatialExtent::field)
+                    .filter(FieldAttribute.class::isInstance)
+                    .map(FieldAttribute.class::cast)
+                    .filter(
+                        f -> isShape(f.field().getDataType())
+                            && fieldsAppearingInNonSpatialExtents.contains(f.field()) == false
+                            && ctx.searchStats().hasDocValues(f.fieldName())
+                    )
+                    .forEach(foundAttributes::add);
+            } else if (exec instanceof EvalExec evalExec) {
+                foundAttributes.removeAll(evalExec.references());
+            } else if (exec instanceof FilterExec filterExec) {
+                foundAttributes.removeAll(filterExec.condition().references());
+            } else if (exec instanceof FieldExtractExec fieldExtractExec) {
+                var boundsAttributes = new HashSet<>(foundAttributes);
+                boundsAttributes.retainAll(fieldExtractExec.attributesToExtract());
+                if (boundsAttributes.isEmpty() == false) {
+                    exec = fieldExtractExec.withBoundsAttributes(boundsAttributes);
                 }
             }
             return exec;

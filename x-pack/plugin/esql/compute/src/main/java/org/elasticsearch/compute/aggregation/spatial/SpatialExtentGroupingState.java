@@ -72,10 +72,10 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
             .ifPresent(
                 r -> add(
                     groupId,
-                    pointType.encodeX(r.getMinX()),
-                    pointType.encodeX(r.getMaxX()),
-                    pointType.encodeY(r.getMaxY()),
-                    pointType.encodeY(r.getMinY())
+                    pointType.encoder().encodeX(r.getMinX()),
+                    pointType.encoder().encodeX(r.getMaxX()),
+                    pointType.encoder().encodeY(r.getMaxY()),
+                    pointType.encoder().encodeY(r.getMinY())
                 )
             );
     }
@@ -122,10 +122,10 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
                         new BytesRef(
                             WellKnownBinary.toWKB(
                                 new Rectangle(
-                                    pointType.decodeX(minXs.get(si)),
-                                    pointType.decodeX(maxXs.get(si)),
-                                    pointType.decodeY(maxYs.get(si)),
-                                    pointType.decodeY(minYs.get(si))
+                                    pointType.encoder().decodeX(minXs.get(si)),
+                                    pointType.encoder().decodeX(maxXs.get(si)),
+                                    pointType.encoder().decodeY(maxYs.get(si)),
+                                    pointType.encoder().decodeY(minYs.get(si))
                                 ),
                                 ByteOrder.LITTLE_ENDIAN
                             )

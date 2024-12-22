@@ -728,13 +728,11 @@ public class IndexNameExpressionResolver {
         IndicesOptions options = context.getOptions();
         if (DataStream.isFailureStoreFeatureFlagEnabled() && context.options.allowFailureIndices() == false) {
             DataStream parentDataStream = context.getProject().getIndicesLookup().get(index.getName()).getParentDataStream();
-            if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
-                if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                    if (options.ignoreUnavailable()) {
-                        return false;
-                    } else {
-                        throw new FailureIndexNotSupportedException(index);
-                    }
+            if (parentDataStream != null && parentDataStream.isFailureStoreIndex(index.getName())) {
+                if (options.ignoreUnavailable()) {
+                    return false;
+                } else {
+                    throw new FailureIndexNotSupportedException(index);
                 }
             }
         }

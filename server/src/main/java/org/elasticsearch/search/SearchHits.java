@@ -154,7 +154,28 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(SerializationContext result) throws IOException {
+        var out = result.out;
+        writeStart(out);
+        out.writeVInt(hits.length);
+        for (SearchHit hit : hits) {
+            hit.serialize(result);
+        }
+        writeEnd(out);
+    }
+
+    private void writeEnd(StreamOutput out) throws IOException {
+        out.writeOptionalArray(Lucene::writeSortField, sortFields);
+        out.writeOptionalString(collapseField);
+        out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+    }
+
+    private void writeStart(StreamOutput out) throws IOException {
         assert hasReferences();
         final boolean hasTotalHits = totalHits != null;
         out.writeBoolean(hasTotalHits);
@@ -162,10 +183,13 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             Lucene.writeTotalHits(out, totalHits);
         }
         out.writeFloat(maxScore);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeStart(out);
         out.writeArray(hits);
-        out.writeOptionalArray(Lucene::writeSortField, sortFields);
-        out.writeOptionalString(collapseField);
-        out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+        writeEnd(out);
     }
 
     /**

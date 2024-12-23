@@ -195,6 +195,7 @@ public abstract class TransportBroadcastByNodeAction<
      * @param concreteIndices the concrete indices on which to execute the operation
      * @return the shards on which to execute the operation
      */
+    @FixForMultiProject(description = "consider taking project scoped state as parameter")
     protected abstract ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     /**

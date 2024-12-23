@@ -38,7 +38,6 @@ tasks.named("yamlRestTest").configure {
     '^cat.recovery/*/*',
     '^cat.segments/*/*',
     '^cat.snapshots/*/*',
-    '^cluster.allocation_explain/10_basic/Cluster shard allocation explanation test with a closed index', // closed index
     '^cluster.desired_balance/10_basic/*',
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
@@ -62,9 +61,7 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/220_failure_store_cluster_setting/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
-    '^indices.clear_cache/*/*',
     '^indices.clone/*/*',
-    '^indices.get/*/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
     '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',
@@ -74,11 +71,7 @@ tasks.named("yamlRestTest").configure {
     '^indices.shrink/*/*',
     '^indices.simulate_index_template/*/*',
     '^indices.simulate_template/*/*',
-    '^indices.sort/10_basic/*',
     '^indices.split/*/*',
-    '^indices.stats/20_translog/*',
-    '^indices.stats/30_segments/*',
-    '^indices.stats/60_field_usage/*',
     '^test/ingest/15_info_ingest/*', // uses cluster info API
     '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
     '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
@@ -86,16 +79,11 @@ tasks.named("yamlRestTest").configure {
     '^test/ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template', // uses lazy rollover
     '^test/ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover', // uses lazy rollover
     '^migration/*/*',
-    '^search/80_indices_options/Closed index',
-    '^search.highlight/10_unified/*',
-    '^search.vectors/41_knn_search_bbq_hnsw/*',
-    '^search.vectors/41_knn_search_byte_quantized/*',
-    '^search.vectors/41_knn_search_half_byte_quantized/*',
-    '^search.vectors/42_knn_search_bbq_flat/*',
-    '^search.vectors/50_dense_vector_field_usage/*',
-    '^search.vectors/60_dense_vector_dynamic_mapping/*',
-    '^search.vectors/70_dense_vector_telemetry/*',
-    '^search.vectors/180_update_dense_vector_type/*',
+    // The following vector search tests do not work due to usage of cluster stats API
+    '^search.vectors/60_dense_vector_dynamic_mapping/Fields mapped as dense_vector have correct cluster stats min max values',
+    '^search.vectors/60_dense_vector_dynamic_mapping/Fields mapped as dense_vector without dims or docs have correct cluster stats values',
+    '^search.vectors/70_dense_vector_telemetry/Field mapping stats',
+    '^search.vectors/70_dense_vector_telemetry/Field mapping stats with field details',
     '^simulate.ingest/*/*',
     '^snapshot.clone/*/*',
     '^snapshot.create/*/*',

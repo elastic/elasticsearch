@@ -39,6 +39,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +69,8 @@ import java.util.stream.Collectors;
  */
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     protected static final int DEFAULT_BATCH_SIZE = 512;
+    private static final Object EXPLICIT_NULL = new Object();
+    private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
     private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
@@ -393,11 +397,22 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
-                var model = responses.get(0).model();
+                Model model = null;
+
+                InferenceFieldMetadata inferenceFieldMetadata = fieldInferenceMap.get(fieldName);
+                if (inferenceFieldMetadata == null) {
+                    throw new IllegalStateException("No inference field metadata for field [" + fieldName + "]");
+                }
+
                 // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
                 for (var resp : responses) {
+                    // Get the first non-null model from the response list
+                    if (model == null) {
+                        model = resp.model;
+                    }
+
                     var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
                     lst.addAll(
                         SemanticTextField.toSemanticTextFieldChunks(
@@ -409,21 +424,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         )
                     );
                 }
+
                 List<String> inputs = responses.stream()
                     .filter(r -> r.sourceField().equals(fieldName))
                     .map(r -> r.input)
                     .collect(Collectors.toList());
+
+                // The model can be null if we are only processing update requests that clear inference results. This is ok because we will
+                // merge in the field's existing model settings on the data node.
                 var result = new SemanticTextField(
                     useLegacyFormat,
                     fieldName,
                     useLegacyFormat ? inputs : null,
                     new SemanticTextField.InferenceResult(
-                        model.getInferenceEntityId(),
-                        new SemanticTextField.ModelSettings(model),
+                        inferenceFieldMetadata.getInferenceId(),
+                        model != null ? new SemanticTextField.ModelSettings(model) : null,
                         chunkMap
                     ),
                     indexRequest.getContentType()
                 );
+
                 if (useLegacyFormat) {
                     SemanticTextUtils.insertValue(fieldName, newDocMap, result);
                 } else {
@@ -490,7 +510,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     } else {
                         var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
                             InferenceMetadataFieldsMapper.NAME + "." + field,
-                            docMap
+                            docMap,
+                            EXPLICIT_NULL
                         );
                         if (inferenceMetadataFieldsValue != null) {
                             // Inference has already been computed
@@ -500,9 +521,22 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
-                        // TODO: Detect when the field is provided with an explicit null value
-                        var valueObj = XContentMapValues.extractValue(sourceField, docMap);
-                        if (valueObj == null) {
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
+                        if (useLegacyFormat == false && isUpdateRequest && valueObj == EXPLICIT_NULL) {
+                            /**
+                             * It's an update request, and the source field is explicitly set to null,
+                             * so we need to propagate this information to the inference fields metadata
+                             * to overwrite any inference previously computed on the field.
+                             * This ensures that the field is treated as intentionally cleared,
+                             * preventing any unintended carryover of prior inference results.
+                             */
+                            var slot = ensureResponseAccumulatorSlot(itemIndex);
+                            slot.addOrUpdateResponse(
+                                new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                            );
+                            continue;
+                        }
+                        if (valueObj == null || valueObj == EXPLICIT_NULL) {
                             if (isUpdateRequest && useLegacyFormat) {
                                 addInferenceResponseFailure(
                                     item.id(),
@@ -550,6 +584,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             return updateRequest.doc();
         } else {
             return null;
+        }
+    }
+
+    private static class EmptyChunkedInference implements ChunkedInference {
+        @Override
+        public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+            return Collections.emptyIterator();
         }
     }
 }

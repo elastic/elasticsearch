@@ -895,7 +895,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (Objects.equals(previous, current)) {
             return true;
         }
-        if (previous == null) {
+        if (previous == null ^ current == null) {
             return true;
         }
         conflicts.addConflict("model_settings", "");

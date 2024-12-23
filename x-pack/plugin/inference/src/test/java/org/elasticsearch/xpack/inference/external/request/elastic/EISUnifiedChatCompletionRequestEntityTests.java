@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.openai;
+package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
 import java.io.IOException;
@@ -22,11 +23,12 @@ import java.util.ArrayList;
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 
-public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
+public class EISUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String ROLE = "user";
     private static final String USER = "a_user";
 
+    // TODO remove if EIS doesn't use the model and user fields
     public void testModelUserFieldsSerialization() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
@@ -68,4 +70,5 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
             """;
         assertJsonEquals(jsonString, expectedJson);
     }
+
 }

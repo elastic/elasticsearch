@@ -12,6 +12,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
+/**
+ * Encapsulates settings using {@link Setting}. This does not represent service settings that are persisted
+ * via {@link org.elasticsearch.inference.ServiceSettings}.
+ */
 public class ElasticInferenceServiceSettings {
 
     @Deprecated
@@ -30,8 +34,9 @@ public class ElasticInferenceServiceSettings {
 
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
-        elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
-
+        // TODO fix this
+        // elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
+        elasticInferenceServiceUrl = "abc";
     }
 
     public static List<Setting<?>> getSettingsDefinitions() {

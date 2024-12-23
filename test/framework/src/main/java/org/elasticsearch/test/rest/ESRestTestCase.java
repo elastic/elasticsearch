@@ -872,8 +872,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
-        logger.info("Waiting for all cluster updates up to this moment to be processed");
-        assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+        waitForClusterUpdates();
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
@@ -1037,6 +1036,38 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         deleteAllNodeShutdownMetadata();
+    }
+
+    private void waitForClusterUpdates() throws Exception {
+        logger.info("Waiting for all cluster updates up to this moment to be processed");
+        try {
+            assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                final var pendingTasks = getPendingClusterStateTasks();
+                if (pendingTasks != null) {
+                    logger.error("Timed out waiting for cluster updates to be processed, {}", pendingTasks);
+                }
+            }
+            throw e;
+        }
+    }
+
+    private static String getPendingClusterStateTasks() {
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
+            List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+            if (false == tasks.isEmpty()) {
+                StringBuilder message = new StringBuilder("there are still running tasks:");
+                for (Object task : tasks) {
+                    message.append('\n').append(task.toString());
+                }
+                return message.toString();
+            }
+        } catch (IOException e) {
+            fail(e, "Failed to retrieve pending tasks in the cluster during cleanup");
+        }
+        return null;
     }
 
     /**
@@ -1488,18 +1519,9 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static void waitForClusterStateUpdatesToFinish() throws Exception {
         assertBusy(() -> {
-            try {
-                Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
-                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
-                if (false == tasks.isEmpty()) {
-                    StringBuilder message = new StringBuilder("there are still running tasks:");
-                    for (Object task : tasks) {
-                        message.append('\n').append(task.toString());
-                    }
-                    fail(message.toString());
-                }
-            } catch (IOException e) {
-                fail("cannot get cluster's pending tasks: " + e.getMessage());
+            final var pendingTasks = getPendingClusterStateTasks();
+            if (pendingTasks != null) {
+                fail(pendingTasks);
             }
         }, 30, TimeUnit.SECONDS);
     }

@@ -204,4 +204,28 @@ public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTel
         }
         assertPerClusterCount(perCluster.get(LOCAL_CLUSTER), 2L);
     }
+
+    public void testNoSuchCluster() throws Exception {
+        setupClusters();
+        // This is not recognized as a cross-cluster search
+        var telemetry = getTelemetryFromFailedQuery("from c*:logs*, nocluster:nomatch | stats sum (v)");
+
+        assertThat(telemetry.getTotalCount(), equalTo(0L));
+        assertThat(telemetry.getSuccessCount(), equalTo(0L));
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
+    }
+
+    @SkipUnavailableRule.NotSkipped(aliases = REMOTE1)
+    public void testDisconnect() throws Exception {
+        setupClusters();
+        // Disconnect remote1
+        cluster(REMOTE1).close();
+        var telemetry = getTelemetryFromFailedQuery("from logs-*,cluster-a:logs-* | stats sum (v)");
+
+        assertThat(telemetry.getTotalCount(), equalTo(1L));
+        assertThat(telemetry.getSuccessCount(), equalTo(0L));
+        Map<String, Long> expectedFailure = Map.of(CCSUsageTelemetry.Result.REMOTES_UNAVAILABLE.getName(), 1L);
+        assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
+    }
+
 }

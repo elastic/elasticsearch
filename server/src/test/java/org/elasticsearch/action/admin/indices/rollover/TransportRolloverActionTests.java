@@ -445,13 +445,13 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
-            assert args.length == 6;
+            assert args.length == 7;
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[5];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[6];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(mockMetadataDataStreamService)
-            .setRolloverOnWrite(eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
+            .setRolloverOnWrite(eq(projectId), eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),

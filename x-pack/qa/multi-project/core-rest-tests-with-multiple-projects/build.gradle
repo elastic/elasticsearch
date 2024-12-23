@@ -56,9 +56,6 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/150_tsdb/*',
     '^data_stream/170_modify_data_stream/*',
     '^data_stream/180_simulate_existing_data_stream/*',
-    '^data_stream/190_failure_store_redirection/*',
-    '^data_stream/210_rollover_failure_store/*',
-    '^data_stream/220_failure_store_cluster_setting/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.clone/*/*',
@@ -76,8 +73,6 @@ tasks.named("yamlRestTest").configure {
     '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
     '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
     '^test/ingest/230_change_target_index/*', // uses cat indices API
-    '^test/ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template', // uses lazy rollover
-    '^test/ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover', // uses lazy rollover
     '^migration/*/*',
     // The following vector search tests do not work due to usage of cluster stats API
     '^search.vectors/60_dense_vector_dynamic_mapping/Fields mapped as dense_vector have correct cluster stats min max values',

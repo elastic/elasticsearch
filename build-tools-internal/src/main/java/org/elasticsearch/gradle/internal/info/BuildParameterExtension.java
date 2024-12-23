@@ -67,4 +67,6 @@ public interface BuildParameterExtension {
     Random getRandom();
 
     Boolean isGraalVmRuntime();
+
+    void withMinimumJavaRuntimeVersion(JavaVersion version, Runnable runnable);
 }

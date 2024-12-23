@@ -242,4 +242,10 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     public void setGitOrigin(String gitOrigin) {
         this.gitOrigin = gitOrigin;
     }
+
+    public void withMinimumJavaRuntimeVersion(JavaVersion version, Runnable runnable) {
+        if (runtimeJavaVersion.get().isCompatibleWith(version)) {
+            runnable.run();
+        }
+    }
 }

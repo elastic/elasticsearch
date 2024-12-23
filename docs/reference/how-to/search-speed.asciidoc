@@ -571,5 +571,4 @@ exchange of very little overhead.
 [discrete]
 === Default search timeout
 
-By default, search requests do not time out. To set a best-effort duration
-limit, see setting <<search-timeout,`search.default_search_timeout`>>.
+By default, search requests don't time out. You can set a timeout using the <<search-timeout,`search.default_search_timeout`>> setting.

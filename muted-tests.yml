@@ -361,6 +361,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
   method: getJavaToolChainSpec is cached anc concurrently accessible
   issue: https://github.com/elastic/elasticsearch/issues/119173
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116777
 
 # Examples:
 #

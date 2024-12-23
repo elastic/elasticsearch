@@ -116,7 +116,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     /** Constructor that does not enable field-level security: all fields are accepted. */
     private FieldPermissions() {
-        this(new FieldPermissionsDefinition(null, null), new AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false));
+        this(new FieldPermissionsDefinition(null, null), new AutomatonWithLegacyExceptionFieldsFlag(Automatons.MATCH_ALL, false));
     }
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
@@ -129,7 +129,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
      *  have precedence over include rules. */
     FieldPermissions(
         FieldPermissionsDefinition fieldPermissionsDefinition,
-        AutomatonWithLegacyExceptFieldsFlag permittedFieldsAutomatonWithFlag
+        AutomatonWithLegacyExceptionFieldsFlag permittedFieldsAutomatonWithFlag
     ) {
         this(
             List.of(Objects.requireNonNull(fieldPermissionsDefinition, "field permission definition cannot be null")),
@@ -141,7 +141,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
      *  have precedence over include rules. */
     private FieldPermissions(
         List<FieldPermissionsDefinition> fieldPermissionsDefinitions,
-        AutomatonWithLegacyExceptFieldsFlag permittedFieldsAutomatonWithFlag
+        AutomatonWithLegacyExceptionFieldsFlag permittedFieldsAutomatonWithFlag
     ) {
         var permittedFieldsAutomaton = permittedFieldsAutomatonWithFlag.automaton();
         if (permittedFieldsAutomaton.isDeterministic() == false && permittedFieldsAutomaton.getNumStates() > 1) {
@@ -199,23 +199,25 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
      * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
      */
-    static AutomatonWithLegacyExceptFieldsFlag initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
+    static AutomatonWithLegacyExceptionFieldsFlag initializePermittedFieldsAutomaton(
+        FieldPermissionsDefinition fieldPermissionsDefinition
+    ) {
         Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
         assert false == groups.isEmpty() : "there must always be a single group for field inclusion/exclusion";
         boolean hasLegacyExceptionFields = false;
         List<Automaton> automatonList = new ArrayList<>();
         for (FieldGrantExcludeGroup g : groups) {
-            AutomatonWithLegacyExceptFieldsFlag automatonWithFlag = FieldPermissions.buildPermittedFieldsAutomaton(
+            AutomatonWithLegacyExceptionFieldsFlag automatonWithFlag = FieldPermissions.buildPermittedFieldsAutomaton(
                 g.getGrantedFields(),
                 g.getExcludedFields()
             );
             automatonList.add(automatonWithFlag.automaton());
             hasLegacyExceptionFields = hasLegacyExceptionFields || automatonWithFlag.hasLegacyExceptFields();
         }
-        return new AutomatonWithLegacyExceptFieldsFlag(Automatons.unionAndDeterminize(automatonList), hasLegacyExceptionFields);
+        return new AutomatonWithLegacyExceptionFieldsFlag(Automatons.unionAndDeterminize(automatonList), hasLegacyExceptionFields);
     }
 
-    private static AutomatonWithLegacyExceptFieldsFlag buildPermittedFieldsAutomaton(
+    private static AutomatonWithLegacyExceptionFieldsFlag buildPermittedFieldsAutomaton(
         final String[] grantedFields,
         final String[] deniedFields
     ) {
@@ -235,7 +237,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
         // short-circuit if all fields are allowed
         if (grantedFieldsAutomaton == Automatons.MATCH_ALL && deniedFieldsAutomaton == Automatons.EMPTY) {
-            return new AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false);
+            return new AutomatonWithLegacyExceptionFieldsFlag(Automatons.MATCH_ALL, false);
         }
 
         grantedFieldsAutomaton = Operations.removeDeadStates(
@@ -260,7 +262,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             hasLegacyExceptionFields = true;
         }
 
-        return new AutomatonWithLegacyExceptFieldsFlag(
+        return new AutomatonWithLegacyExceptionFieldsFlag(
             Automatons.unionAndDeterminize(
                 Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton),
                 // include allowlisted metadata fields _after_ removing denied fields since we always allow access for them
@@ -282,7 +284,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsWithLegacyMetadataFieldsAutomaton);
     }
 
-    record AutomatonWithLegacyExceptFieldsFlag(Automaton automaton, boolean hasLegacyExceptFields) {}
+    record AutomatonWithLegacyExceptionFieldsFlag(Automaton automaton, boolean hasLegacyExceptFields) {}
 
     /**
      * Returns a field permissions instance where it is limited by the given field permissions.<br>
@@ -303,7 +305,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             );
             return new FieldPermissions(
                 CollectionUtils.concatLists(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions),
-                new AutomatonWithLegacyExceptFieldsFlag(
+                new AutomatonWithLegacyExceptionFieldsFlag(
                     _permittedFieldsAutomaton,
                     limitedBy.hasLegacyExceptionFields || hasLegacyExceptionFields
                 )
@@ -311,12 +313,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
         } else if (limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
             return new FieldPermissions(
                 limitedBy.fieldPermissionsDefinitions,
-                new AutomatonWithLegacyExceptFieldsFlag(limitedBy.getIncludeAutomaton(), limitedBy.hasLegacyExceptionFields)
+                new AutomatonWithLegacyExceptionFieldsFlag(limitedBy.getIncludeAutomaton(), limitedBy.hasLegacyExceptionFields)
             );
         } else if (hasFieldLevelSecurity()) {
             return new FieldPermissions(
                 fieldPermissionsDefinitions,
-                new AutomatonWithLegacyExceptFieldsFlag(getIncludeAutomaton(), hasLegacyExceptionFields)
+                new AutomatonWithLegacyExceptionFieldsFlag(getIncludeAutomaton(), hasLegacyExceptionFields)
             );
         }
         return FieldPermissions.DEFAULT;

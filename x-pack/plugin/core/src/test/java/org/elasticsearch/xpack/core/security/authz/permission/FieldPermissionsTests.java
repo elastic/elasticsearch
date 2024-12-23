@@ -142,7 +142,7 @@ public class FieldPermissionsTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
         expectThrows(
             NullPointerException.class,
-            () -> new FieldPermissions(null, new FieldPermissions.AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false))
+            () -> new FieldPermissions(null, new FieldPermissions.AutomatonWithLegacyExceptionFieldsFlag(Automatons.MATCH_ALL, false))
         );
 
         final FieldPermissions fieldPermissions03 = randomFrom(

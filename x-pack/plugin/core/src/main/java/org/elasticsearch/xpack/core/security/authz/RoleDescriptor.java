@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -1147,20 +1145,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
         try {
-            var fieldPermissions = fieldPermissionsCache.getFieldPermissions(new FieldPermissionsDefinition(grantedFields, deniedFields));
-            if (fieldPermissions.hasLegacyExceptionFields()) {
-                logger.warn(
-                    "Role [{}] has exceptions for field permissions that cover fields prefixed with [_] "
-                        + "but are not a subset of the granted fields. "
-                        + "This is supported for backwards compatibility only. "
-                        + "To avoid counter-intuitive field-level security behavior, ensure that the [except] field is a subset of the "
-                        + "[grant] field by either adding the missing _-prefixed fields to the [grant] field, "
-                        + "or by removing them from the [except] field. "
-                        + "You cannot exclude any of [{}] since these are minimally required metadata fields.",
-                    roleName,
-                    Strings.collectionToCommaDelimitedString(new TreeSet<>(FieldPermissions.METADATA_FIELDS_ALLOWLIST))
-                );
-            }
+            fieldPermissionsCache.validateFieldPermissionsWithCache(roleName, new FieldPermissionsDefinition(grantedFields, deniedFields));
         } catch (ElasticsearchSecurityException e) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
         }

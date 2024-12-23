@@ -1621,6 +1621,7 @@ FROM sample_data, sample_data_ts_long
 @timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
            null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
            null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 shortIntegerWidening

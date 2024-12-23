@@ -319,7 +319,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
-                    ".agentless-*"
+                    "agentless-*"
                   ],
                   "privileges": [
                     "read",
@@ -330,7 +330,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "maintenance",
                     "view_index_metadata"
                   ],
-                  "allow_restricted_indices": true
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {

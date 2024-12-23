@@ -169,9 +169,9 @@ final class ElasticServiceAccounts {
                     .build(),
                 // Custom permissions required for stateful agentless integrations
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".agentless-*")
+                    .indices("agentless-*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
-                    .allowRestrictedIndices(true)
+                    .allowRestrictedIndices(false)
                     .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

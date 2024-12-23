@@ -55,20 +55,20 @@ public final class MvAppendLongEvaluator implements EvalOperator.ExpressionEvalu
 
   public LongBlock eval(int positionCount, LongBlock field1Block, LongBlock[] field2Blocks) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      LongBlock[] field2Values = new LongBlock[field2.length];
+      LongBlock[] field2Values = field2Blocks;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        for (int i = 0; i < field2Blocks.length; i++) {
+          if (!field2Blocks[i].isNull(p)) {
+            allBlocksAreNulls = false;
+          }
+        }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
-        }
-        // unpack field2Blocks into field2Values
-        for (int i = 0; i < field2Blocks.length; i++) {
-          int o = field2Blocks[i].getFirstValueIndex(p);
-          field2Values[i] = field2Blocks[i];
         }
         MvAppend.process(result, p, field1Block, field2Values);
       }

@@ -56,20 +56,20 @@ public final class MvAppendBytesRefEvaluator implements EvalOperator.ExpressionE
   public BytesRefBlock eval(int positionCount, BytesRefBlock field1Block,
       BytesRefBlock[] field2Blocks) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRefBlock[] field2Values = new BytesRefBlock[field2.length];
+      BytesRefBlock[] field2Values = field2Blocks;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        for (int i = 0; i < field2Blocks.length; i++) {
+          if (!field2Blocks[i].isNull(p)) {
+            allBlocksAreNulls = false;
+          }
+        }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
-        }
-        // unpack field2Blocks into field2Values
-        for (int i = 0; i < field2Blocks.length; i++) {
-          int o = field2Blocks[i].getFirstValueIndex(p);
-          field2Values[i] = field2Blocks[i];
         }
         MvAppend.process(result, p, field1Block, field2Values);
       }

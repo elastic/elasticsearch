@@ -56,20 +56,20 @@ public final class MvAppendBooleanEvaluator implements EvalOperator.ExpressionEv
   public BooleanBlock eval(int positionCount, BooleanBlock field1Block,
       BooleanBlock[] field2Blocks) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BooleanBlock[] field2Values = new BooleanBlock[field2.length];
+      BooleanBlock[] field2Values = field2Blocks;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        for (int i = 0; i < field2Blocks.length; i++) {
+          if (!field2Blocks[i].isNull(p)) {
+            allBlocksAreNulls = false;
+          }
+        }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
-        }
-        // unpack field2Blocks into field2Values
-        for (int i = 0; i < field2Blocks.length; i++) {
-          int o = field2Blocks[i].getFirstValueIndex(p);
-          field2Values[i] = field2Blocks[i];
         }
         MvAppend.process(result, p, field1Block, field2Values);
       }

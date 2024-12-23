@@ -210,6 +210,17 @@ public class EvaluatorImplementer {
                                     builder.addStatement("allBlocksAreNulls = false");
                                 }
                                 builder.endControlFlow();
+                            } else if (a instanceof ArrayProcessFunctionArg aa) {
+                                builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", aa.paramName(true));
+                                {
+                                    builder.beginControlFlow("if (!$L[i].isNull(p))", aa.paramName(true));
+                                    {
+                                        builder.addStatement("allBlocksAreNulls = false");
+                                    }
+                                    builder.endControlFlow();
+                                }
+                                builder.endControlFlow();
+
                             }
                         });
 
@@ -671,6 +682,12 @@ public class EvaluatorImplementer {
 
         @Override
         public void createScratch(MethodSpec.Builder builder) {
+            if (componentType.equals(INT_BLOCK) || componentType.equals(LONG_BLOCK) || componentType.equals(DOUBLE_BLOCK)
+                || componentType.equals(BOOLEAN_BLOCK) || componentType.equals(BYTES_REF_BLOCK)) {
+                // if componentType is a block, it is a multi-value field, we just assign the block
+                builder.addStatement("$T[] $LValues = $L", componentType, name, paramName(true));
+                return;
+            }
             builder.addStatement("$T[] $LValues = new $T[$L.length]", componentType, name, componentType, name);
             if (componentType.equals(BYTES_REF)) {
                 builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
@@ -689,6 +706,12 @@ public class EvaluatorImplementer {
 
         @Override
         public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
+            if (componentType.equals(INT_BLOCK) || componentType.equals(LONG_BLOCK) || componentType.equals(DOUBLE_BLOCK)
+                || componentType.equals(BOOLEAN_BLOCK) || componentType.equals(BYTES_REF_BLOCK)) {
+                // if componentType is a block, we don't need to unpack it, it is a multi-value field
+                // nothing to do
+                return;
+            }
             builder.addComment("unpack $L into $LValues", paramName(blockStyle), name);
             builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(blockStyle));
             String lookupVar;
@@ -700,9 +723,6 @@ public class EvaluatorImplementer {
             }
             if (componentType.equals(BYTES_REF)) {
                 builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
-            } else if (componentType.equals(INT_BLOCK) || componentType.equals(LONG_BLOCK) || componentType.equals(DOUBLE_BLOCK)
-                || componentType.equals(BOOLEAN_BLOCK) || componentType.equals(BYTES_REF_BLOCK)) {
-                builder.addStatement("$LValues[i] = $L[i]", name, paramName(blockStyle));
             } else {
                 builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(componentType), lookupVar);
             }

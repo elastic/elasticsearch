@@ -55,6 +55,10 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
             PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
             is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_COMPATIBLE))
         );
+        assertThat(
+            PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_READONLY_COMPATIBLE))
+        );
     }
 
     public void testThatInstancesAreCachedAndReused() {

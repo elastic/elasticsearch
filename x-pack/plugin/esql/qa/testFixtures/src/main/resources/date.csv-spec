@@ -498,6 +498,7 @@ null
 evalDateParseWithTimezone
 required_capability: date_parse_tz
 row s = "12/Jul/2022:10:24:10 +0900" | eval d = date_parse("dd/MMM/yyyy:HH:mm:ss Z", s);
+warningRegex:Date format \[dd/MMM/yyyy:HH:mm:ss Z\] contains textual field specifiers that could change in JDK 23.*
 
 s:keyword                  | d:datetime
 12/Jul/2022:10:24:10 +0900 | 2022-07-12T01:24:10.000Z
@@ -506,6 +507,7 @@ s:keyword                  | d:datetime
 evalDateParseWithTimezoneCrossingDayBoundary
 required_capability: date_parse_tz
 row s = "12/Jul/2022:08:24:10 +0900" | eval d = date_parse("dd/MMM/yyyy:HH:mm:ss Z", s);
+warningRegex:Date format \[dd/MMM/yyyy:HH:mm:ss Z\] contains textual field specifiers that could change in JDK 23.*
 
 s:keyword                  | d:datetime
 12/Jul/2022:08:24:10 +0900 | 2022-07-11T23:24:10.000Z
@@ -518,6 +520,8 @@ row s1 = "12/Jul/2022:10:24:10 +0900", s2 = "2022/12/07 09:24:10 +0800"
 | eval eq = d1 == d2
 | keep d1, eq
 ;
+warningRegex:Date format \[dd/MMM/yyyy:HH:mm:ss Z\] contains textual field specifiers that could change in JDK 23.*
+warningRegex:Date format \[yyyy/dd/MM HH:mm:ss Z\] contains textual field specifiers that could change in JDK 23.*
 
 d1:datetime              | eq:boolean
 2022-07-12T01:24:10.000Z | true
@@ -530,6 +534,7 @@ row s = "2022/12/07 09:24:10", format="yyyy/dd/MM HH:mm:ss"
 | eval with_tz = date_parse(concat(format, " Z"), concat(s, " +0900"))
 | keep s, no_tz, with_tz
 ;
+warningRegex:Date format \[yyyy/dd/MM HH:mm:ss Z\] contains textual field specifiers that could change in JDK 23.*
 
 s:keyword           | no_tz:datetime           | with_tz:datetime
 2022/12/07 09:24:10 | 2022-07-12T09:24:10.000Z | 2022-07-12T00:24:10.000Z
@@ -544,6 +549,7 @@ row s = "2022/12/07 09:24:10", format="yyyy/dd/MM HH:mm:ss"
 | eval with_tz4 = date_parse(concat(format, " O"), concat(s, " GMT+9"))
 | keep s, with_tz*
 ;
+warningRegex:Date format \[yyyy/dd/MM HH:mm:ss .\] contains textual field specifiers that could change in JDK 23.*
 
 s:keyword           | with_tz1:datetime        | with_tz2:datetime        | with_tz3:datetime        | with_tz4:datetime        
 2022/12/07 09:24:10 | 2022-07-12T00:24:10.000Z | 2022-07-12T00:24:10.000Z | 2022-07-12T00:24:10.000Z | 2022-07-12T00:24:10.000Z

@@ -183,12 +183,12 @@ public class ClusterStateTests extends ESTestCase {
             blocks:\s
                _global_:
                   6,cluster read-only (api), blocks WRITE,METADATA_WRITE
-               tb5W0bx765nDVIwqJPw92G:
-                  common-index:
-                     9,index metadata (api), blocks METADATA_READ,METADATA_WRITE
                3LftaL7hgfXAsF60Gm6jcD:
                   another-index:
                      5,index read-only (api), blocks WRITE,METADATA_WRITE
+               tb5W0bx765nDVIwqJPw92G:
+                  common-index:
+                     9,index metadata (api), blocks METADATA_READ,METADATA_WRITE
             """));
 
         // project indices

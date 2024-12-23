@@ -40,7 +40,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomNodeEphemeralId;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomShardId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +51,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
     @Override
     protected StatelessCompoundCommit createTestInstance() {
-        return StatelessCompoundCommitTestUtils.randomCompoundCommit();
+        return randomCompoundCommit();
     }
 
     @Override
@@ -79,28 +82,76 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 instance.headerSizeInBytes(),
                 instance.internalFilesReplicatedRanges()
             );
-            case 2 -> new StatelessCompoundCommit(
-                instance.shardId(),
-                instance.primaryTermAndGeneration(),
-                randomValueOtherThan(instance.translogRecoveryStartFile(), StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong),
-                instance.nodeEphemeralId(),
-                instance.commitFiles(),
-                instance.sizeInBytes(),
-                instance.internalFiles(),
-                instance.headerSizeInBytes(),
-                instance.internalFilesReplicatedRanges()
-            );
-            case 3 -> new StatelessCompoundCommit(
-                instance.shardId(),
-                instance.primaryTermAndGeneration(),
-                instance.translogRecoveryStartFile(),
-                randomValueOtherThan(instance.nodeEphemeralId(), StatelessCompoundCommitTestUtils::randomNodeEphemeralId),
-                instance.commitFiles(),
-                instance.sizeInBytes(),
-                instance.internalFiles(),
-                instance.headerSizeInBytes(),
-                instance.internalFilesReplicatedRanges()
-            );
+            case 2 -> instance.hollow() ?
+                // unhollowed commit
+                new StatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    randomNonZeroPositiveLong(),
+                    randomNodeEphemeralId(),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges()
+                ) : randomBoolean() ?
+                // hollowed commit
+                    StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                        instance.shardId(),
+                        instance.primaryTermAndGeneration(),
+                        instance.commitFiles(),
+                        instance.sizeInBytes(),
+                        instance.internalFiles(),
+                        instance.headerSizeInBytes(),
+                        instance.internalFilesReplicatedRanges()
+                    ) :
+                // different unhollowed commit
+                new StatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    randomValueOtherThan(instance.translogRecoveryStartFile(), StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong),
+                    instance.nodeEphemeralId(),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges()
+                );
+            case 3 -> instance.hollow() ?
+                // unhollowed commit
+                new StatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    randomNonZeroPositiveLong(),
+                    randomNodeEphemeralId(),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges()
+                ) : randomBoolean() ?
+                // hollowed commit
+                    StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                        instance.shardId(),
+                        instance.primaryTermAndGeneration(),
+                        instance.commitFiles(),
+                        instance.sizeInBytes(),
+                        instance.internalFiles(),
+                        instance.headerSizeInBytes(),
+                        instance.internalFilesReplicatedRanges()
+                    ) :
+                // different unhollowed commit
+                new StatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    instance.translogRecoveryStartFile(),
+                    randomValueOtherThan(instance.nodeEphemeralId(), StatelessCompoundCommitTestUtils::randomNodeEphemeralId),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges()
+                );
             case 4 -> {
                 var commitFiles = randomValueOtherThan(instance.commitFiles(), StatelessCompoundCommitTestUtils::randomCommitFiles);
                 yield new StatelessCompoundCommit(
@@ -177,7 +228,12 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
     }
 
     public void testStoreVersionCompatibility() throws Exception {
-        StatelessCompoundCommit testInstance = createTestInstance();
+        StatelessCompoundCommit testInstance = randomCompoundCommit(
+            randomShardId(),
+            new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), randomNonZeroPositiveLong()),
+            // hollow shards were not supported at the time
+            false
+        );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);

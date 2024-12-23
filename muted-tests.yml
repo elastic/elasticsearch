@@ -317,9 +317,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
-  issue: https://github.com/elastic/elasticsearch/issues/118806
 
 # Examples:
 #
@@ -413,9 +410,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/118514
-- class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
-  method: testPruneSome
-  issue: https://github.com/elastic/elasticsearch/issues/118728
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/20_metrics_ingest/Test metrics-apm.app-* setting event.ingested via ingest pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/118875
@@ -425,5 +419,16 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
   method: testCancellationDuringTimeSeriesAggregation
   issue: https://github.com/elastic/elasticsearch/issues/118992
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/119159
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/118955
+  issue: https://github.com/elastic/elasticsearch/issues/119191
+- class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
+  method: testCartesianBoundsBlockLoader
+  issue: https://github.com/elastic/elasticsearch/issues/119201

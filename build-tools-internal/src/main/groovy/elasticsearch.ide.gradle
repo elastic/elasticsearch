@@ -25,12 +25,17 @@ allprojects {
   }
 }
 
+interface Injected {
+  @Inject FileSystemOperations getFs()
+}
+
 // Applying this stuff, particularly the idea-ext plugin, has a cost so avoid it unless we're running in the IDE
 if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   project.apply(plugin: org.jetbrains.gradle.ext.IdeaExtPlugin)
 
   def elasticsearchProject = locateElasticsearchWorkspace(gradle)
 
+  def rootFolder = project.rootDir
   tasks.register('configureIdeCheckstyle') {
     group = 'ide'
     description = 'Generated a suitable checkstyle config for IDEs'
@@ -40,10 +45,10 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     String checkstyleConfig = "${resources}/checkstyle.xml"
     String checkstyleSuppressions = "${resources}/checkstyle_suppressions.xml"
     String checkstyleIdeFragment = "${resources}/checkstyle_ide_fragment.xml"
-    String checkstyleIdeConfig = "${rootDir}/checkstyle_ide.xml"
+    String checkstyleIdeConfig = "${rootFolder}/checkstyle_ide.xml"
 
     String checkstylePluginConfigTemplate = "${resources}/checkstyle-idea.xml"
-    String checkstylePluginConfig = "${rootDir}/.idea/checkstyle-idea.xml"
+    String checkstylePluginConfig = "${rootFolder}/.idea/checkstyle-idea.xml"
 
     inputs.files(
       file(checkstyleConfig),
@@ -54,31 +59,33 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       file(checkstyleIdeConfig),
       file(checkstylePluginConfig)
     )
+    def injected = project.objects.newInstance(Injected)
 
+    def projectFolder = project.layout.projectDirectory.asFile
     doLast {
       // Configure the IntelliJ Checkstyle plugin by copying a standard file. We don't simply commit
       // the result to version control, because the plugin has a habit of modifying the file and
       // replacing the `$PROJECT_DIR$` placeholders, which developers must then revert.
-      project.copy {
+      injected.fs.copy {
         from(checkstylePluginConfigTemplate)
-        into("${rootDir}/.idea")
+        into("${rootFolder}/.idea")
         expand(jarLocation: buildConventionsJar, configLocation: checkstyleIdeConfig)
       }
 
       // Create an IDE-specific checkstyle config by first copying the standard config
       Files.copy(
-        Paths.get(file(checkstyleConfig).getPath()),
-        Paths.get(file(checkstyleIdeConfig).getPath()),
+        Paths.get(new File(checkstyleConfig).getPath()),
+        Paths.get(new File(checkstyleIdeConfig).getPath()),
         StandardCopyOption.REPLACE_EXISTING
       )
 
       // There are some rules that we only want to enable in an IDE. These
       // are extracted to a separate file, and merged into the IDE-specific
       // Checkstyle config.
-      Node xmlFragment = parseXml(checkstyleIdeFragment)
+      Node xmlFragment = IdeaXmlUtil.parseXml(checkstyleIdeFragment)
 
       // Edit the copy so that IntelliJ can copy with it
-      modifyXml(checkstyleIdeConfig, { xml ->
+      IdeaXmlUtil.modifyXml(checkstyleIdeConfig, { xml ->
         // Add all the nodes from the fragment file
         Node treeWalker = xml.module.find { it.'@name' == 'TreeWalker' }
         xmlFragment.module.each { treeWalker.append(it) }
@@ -104,7 +111,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Configures the appropriate JVM for Gradle'
 
     doLast {
-      modifyXml('.idea/gradle.xml') { xml ->
+      IdeaXmlUtil.modifyXml('.idea/gradle.xml') { xml ->
         def gradleSettings = xml.component.find { it.'@name' == 'GradleSettings' }.option[0].GradleProjectSettings
         // Remove configured JVM option to force IntelliJ to use the project JDK for Gradle
         gradleSettings.option.findAll { it.'@name' == 'gradleJvm' }.each { it.parent().remove(it) }
@@ -241,33 +248,37 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
  * @param preface optional front matter to add after the XML declaration
  * but before the XML document, e.g. a doctype or comment
  */
-void modifyXml(Object path, Action<? super Node> action, String preface = null) {
-  if (project.file(path).exists()) {
-    Node xml = parseXml(path)
-    action.execute(xml)
 
-    File xmlFile = project.file(path)
-    xmlFile.withPrintWriter { writer ->
-      def printer = new XmlNodePrinter(writer)
-      printer.namespaceAware = true
-      printer.preserveWhitespace = true
-      writer.write("<?xml version=\"1.0\"?>\n")
+class IdeaXmlUtil {
+  static Node parseXml(Object xmlPath) {
+    File xmlFile = new File(xmlPath)
+    XmlParser xmlParser = new XmlParser(false, true, true)
+    xmlParser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+    Node xml = xmlParser.parse(xmlFile)
+    return xml
+  }
 
-      if (preface != null) {
-        writer.write(preface)
+  static void modifyXml(Object xmlPath, Action<? super Node> action, String preface = null) {
+    File xmlFile = new File(xmlPath)
+    if (xmlFile.exists()) {
+      Node xml = parseXml(xmlPath)
+      action.execute(xml)
+
+      xmlFile.withPrintWriter { writer ->
+        def printer = new XmlNodePrinter(writer)
+        printer.namespaceAware = true
+        printer.preserveWhitespace = true
+        writer.write("<?xml version=\"1.0\"?>\n")
+
+        if (preface != null) {
+          writer.write(preface)
+        }
+        printer.print(xml)
       }
-      printer.print(xml)
     }
   }
 }
 
-Node parseXml(Object path) {
-  File xmlFile = project.file(path)
-  XmlParser xmlParser = new XmlParser(false, true, true)
-  xmlParser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-  Node xml = xmlParser.parse(xmlFile)
-  return xml
-}
 
 Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle gradle) {
   if (gradle.parent == null) {

@@ -21,12 +21,15 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -79,6 +82,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final List<CompressedXContent> combinedTemplateMappings
     ) {
         Settings.Builder settingsBuilder = null;
+        boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
+
+        // Inject logsdb index mode, based on the logs pattern.
         if (isLogsdbEnabled
             && dataStreamName != null
             && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
@@ -87,8 +93,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (supportFallbackToStoredSource()) {
                 settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).put(settings).build();
             }
+            isLogsDB = true;
         }
 
+        // Inject stored source mode if synthetic source if not available per licence.
         if (supportFallbackToStoredSource()) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
@@ -110,14 +118,57 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 settingsBuilder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
             }
         }
+
+        if (isLogsDB) {
+            // Inject routing path matching sort fields.
+            if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+                List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
+                sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
+                if (sortFields.size() < 2) {
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
+                                + "(excluding timestamp), needs at least 2",
+                            dataStreamName,
+                            IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                            sortFields.size()
+                        )
+                    );
+                }
+                if (settings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
+                    List<String> routingPaths = settings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                    if (routingPaths.equals(sortFields) == false) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
+                                    + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                dataStreamName,
+                                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                routingPaths,
+                                sortFields
+                            )
+                        );
+                    }
+                } else {
+                    if (settingsBuilder == null) {
+                        settingsBuilder = Settings.builder();
+                    }
+                    settingsBuilder.putList(INDEX_ROUTING_PATH.getKey(), sortFields).build();
+                }
+            }
+        }
+
         return settingsBuilder == null ? Settings.EMPTY : settingsBuilder.build();
+
     }
 
     private static boolean matchesLogsPattern(final String name) {
         return Regex.simpleMatch(LOGS_PATTERN, name);
     }
 
-    private IndexMode resolveIndexMode(final String mode) {
+    private static IndexMode resolveIndexMode(final String mode) {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
     }
 

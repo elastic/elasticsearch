@@ -48,16 +48,18 @@ public class MapExpression extends Expression implements Map<Expression, Express
         super(source, entries);
         int entryCount = entries.size() / 2;
         this.entryExpressions = new ArrayList<>(entryCount);
+        this.map = new LinkedHashMap<>(entryCount);
+        // create a map with key folded and source removed to make the retrieval of value easier
+        this.keyFoldedMap = new LinkedHashMap<>(entryCount);
         for (int i = 0; i < entryCount; i++) {
             Expression key = entries.get(i * 2);
+            Expression value = entries.get(i * 2 + 1);
             entryExpressions.add(new EntryExpression(key.source(), key, entries.get(i * 2 + 1)));
+            map.put(key, value);
+            if (key.foldable()) {
+                this.keyFoldedMap.put(key.fold(), value);
+            }
         }
-        this.map = this.entryExpressions.stream()
-            .collect(Collectors.toMap(EntryExpression::key, EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
-        // create a map with key folded and source removed to make the retrieval of value easier
-        this.keyFoldedMap = this.entryExpressions.stream()
-            .filter(e -> e.key().foldable() && e.key().fold() != null)
-            .collect(Collectors.toMap(e -> e.key().fold(), EntryExpression::value, (x, y) -> y, LinkedHashMap::new));
     }
 
     private static MapExpression readFrom(StreamInput in) throws IOException {
@@ -123,9 +125,6 @@ public class MapExpression extends Expression implements Map<Expression, Express
 
     @Override
     public Expression get(Object key) {
-        if (key == null) {
-            return null;
-        }
         if (key instanceof Expression) {
             return map.get(key);
         } else {

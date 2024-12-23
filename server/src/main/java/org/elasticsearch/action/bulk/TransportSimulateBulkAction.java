@@ -379,7 +379,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             List<LuceneDocument> luceneDocuments = result.parsedDoc().docs();
             assert luceneDocuments == null || luceneDocuments.size() == 1 : "Expected a single lucene document from index attempt";
             if (luceneDocuments != null && luceneDocuments.size() == 1) {
-                ignoredFields = luceneDocuments.getFirst()
+                ignoredFields = luceneDocuments.get(0)
                     .getFields()
                     .stream()
                     .filter(field -> field.name().equals(IgnoredFieldMapper.NAME) && field instanceof StringField)

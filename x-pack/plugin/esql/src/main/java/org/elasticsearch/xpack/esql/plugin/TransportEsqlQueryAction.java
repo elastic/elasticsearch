@@ -35,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -93,7 +94,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         BlockFactory blockFactory,
         Client client,
         NamedWriteableRegistry registry,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -133,6 +134,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.queryBuilderResolver = new QueryBuilderResolver(searchService, clusterService, transportService, indexNameExpressionResolver);
+        this.usageService = usageService;
     }
 
     @Override
@@ -204,7 +206,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             remoteClusterService,
             planRunner,
             queryBuilderResolver,
-            listener.map(result -> toResponse(task, request, configuration, result))
+            ActionListener.wrap(result -> {
+                recordCCSTelemetry(task, executionInfo, request, null);
+                listener.onResponse(toResponse(task, request, configuration, result));
+            }, ex -> {
+                recordCCSTelemetry(task, executionInfo, request, ex);
+                listener.onFailure(ex);
+            })
         );
 
     }
@@ -214,10 +222,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return;
         }
 
-        var usageBuilder = new CCSUsage.Builder();
+        CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
         usageBuilder.setClientFromTask(task);
         if (exception != null) {
-            usageBuilder.setFailure(exception);
+            if (exception instanceof VerificationException) {
+                CCSUsageTelemetry.Result failureType = classifyVerificationException((VerificationException) exception);
+                if (failureType != CCSUsageTelemetry.Result.UNKNOWN) {
+                    usageBuilder.setFailure(failureType);
+                } else {
+                    usageBuilder.setFailure(exception);
+                }
+            } else {
+                usageBuilder.setFailure(exception);
+            }
         }
         var took = executionInfo.overallTook();
         if (took != null) {
@@ -241,6 +258,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         assert count.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
         usageBuilder.setRemotesCount(count.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
+    }
+
+    private CCSUsageTelemetry.Result classifyVerificationException(VerificationException exception) {
+        if (exception.getDetailedMessage().contains("Unknown index")) {
+            return CCSUsageTelemetry.Result.NOT_FOUND;
+        }
+        return CCSUsageTelemetry.Result.UNKNOWN;
     }
 
     private EsqlExecutionInfo getOrCreateExecutionInfo(Task task, EsqlQueryRequest request) {

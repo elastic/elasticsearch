@@ -12,27 +12,43 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.SkipUnavailableRule;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class AbstractCrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase {
     private static final Logger LOGGER = LogManager.getLogger(AbstractCrossClustersUsageTelemetryIT.class);
-    private static final String REMOTE1 = "cluster-a";
-    private static final String REMOTE2 = "cluster-b";
-    private static final String LOCAL_INDEX = "logs-1";
-    private static final String REMOTE_INDEX = "logs-2";
+    protected static final String REMOTE1 = "cluster-a";
+    protected static final String REMOTE2 = "cluster-b";
+    protected static final String LOCAL_INDEX = "logs-1";
+    protected static final String REMOTE_INDEX = "logs-2";
+    // We want to send search to a specific node (we don't care which one) so that we could
+    // collect the CCS telemetry from it later
+    protected String queryNode;
+
+    @Before
+    public void setupQueryNode() {
+        // The tests are set up in a way that all queries within a single test are sent to the same node,
+        // thus enabling incremental collection of telemetry data, but the node is random for each test.
+        queryNode = cluster(LOCAL_CLUSTER).getRandomNodeName();
+    }
 
     protected CCSTelemetrySnapshot getTelemetryFromQuery(String query, String client) throws ExecutionException, InterruptedException {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
@@ -45,29 +61,57 @@ public class AbstractCrossClustersUsageTelemetryIT extends AbstractMultiClusters
 
     protected CCSTelemetrySnapshot getTelemetryFromQuery(EsqlQueryRequest request, String client) throws ExecutionException,
         InterruptedException {
-        // We want to send search to a specific node (we don't care which one) so that we could
-        // collect the CCS telemetry from it later
-        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
         // We don't care here too much about the response, we just want to trigger the telemetry collection.
         // So we check it's not null and leave the rest to other tests.
         if (client != null) {
             assertResponse(
-                cluster(LOCAL_CLUSTER).client(nodeName)
+                cluster(LOCAL_CLUSTER).client(queryNode)
                     .filterWithHeader(Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, client))
                     .execute(EsqlQueryAction.INSTANCE, request),
                 Assert::assertNotNull
             );
 
         } else {
-            assertResponse(cluster(LOCAL_CLUSTER).client(nodeName).execute(EsqlQueryAction.INSTANCE, request), Assert::assertNotNull);
+            assertResponse(cluster(LOCAL_CLUSTER).client(queryNode).execute(EsqlQueryAction.INSTANCE, request), Assert::assertNotNull);
         }
-        return getTelemetrySnapshot(nodeName);
+        return getTelemetrySnapshot(queryNode);
+    }
+
+    protected CCSTelemetrySnapshot getTelemetryFromAsyncQuery(String query) throws Exception {
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
+        request.query(query);
+        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        request.columnar(randomBoolean());
+        request.includeCCSMetadata(randomBoolean());
+        request.waitForCompletionTimeout(TimeValue.timeValueMillis(100));
+        request.keepOnCompletion(false);
+        return getTelemetryFromAsyncQuery(request);
+    }
+
+    protected CCSTelemetrySnapshot getTelemetryFromAsyncQuery(EsqlQueryRequest request) throws Exception {
+        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
+        assertResponse(cluster(LOCAL_CLUSTER).client(queryNode).execute(EsqlQueryAction.INSTANCE, request), resp -> {
+            if (resp.isRunning()) {
+                assertNotNull("async execution id is null", resp.asyncExecutionId());
+                asyncExecutionId.set(resp.asyncExecutionId().get());
+            }
+        });
+        if (asyncExecutionId.get() != null) {
+            assertBusy(() -> {
+                var getResultsRequest = new GetAsyncResultRequest(asyncExecutionId.get()).setWaitForCompletionTimeout(timeValueMillis(1));
+                try (
+                    var resp = cluster(LOCAL_CLUSTER).client(queryNode)
+                        .execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest)
+                        .actionGet(30, TimeUnit.SECONDS)
+                ) {
+                    assertFalse(resp.isRunning());
+                }
+            });
+        }
+        return getTelemetrySnapshot(queryNode);
     }
 
     protected CCSTelemetrySnapshot getTelemetryFromFailedQuery(String query) throws Exception {
-        // We want to send search to a specific node (we don't care which one) so that we could
-        // collect the CCS telemetry from it later
-        String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
@@ -76,11 +120,11 @@ public class AbstractCrossClustersUsageTelemetryIT extends AbstractMultiClusters
 
         ExecutionException ee = expectThrows(
             ExecutionException.class,
-            cluster(LOCAL_CLUSTER).client(nodeName).execute(EsqlQueryAction.INSTANCE, request)::get
+            cluster(LOCAL_CLUSTER).client(queryNode).execute(EsqlQueryAction.INSTANCE, request)::get
         );
         assertNotNull(ee.getCause());
 
-        return getTelemetrySnapshot(nodeName);
+        return getTelemetrySnapshot(queryNode);
     }
 
     private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {

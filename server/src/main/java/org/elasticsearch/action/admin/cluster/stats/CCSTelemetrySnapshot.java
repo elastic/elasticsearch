@@ -275,6 +275,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         public int hashCode() {
             return Objects.hash(count, skippedCount, took);
         }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
     }
 
     /**

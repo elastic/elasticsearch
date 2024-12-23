@@ -30,6 +30,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -555,30 +556,25 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
-        /* TODO: Aliases don't work yet for LOOKUP JOIN
         // Alias, should find the index and the row
-        resp = runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
         assertOK(resp);
         respMap = entityAsMap(resp);
-        assertThat(respMap.get("columns"), equalTo(List.of(
-            Map.of("name", "x", "type", "double"),
-            Map.of("name", "org", "type", "keyword")
-        )));
-        assertThat(respMap.get("values"), equalTo(List.of(List.of(
-            10.0, "sales"
-        ))));
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
 
         // Alias, for a row that's filtered out
-        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        resp = runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
         assertOK(resp);
         respMap = entityAsMap(resp);
-        assertThat(respMap.get("columns"), equalTo(List.of(
-            Map.of("name", "x", "type", "double"),
-            Map.of("name", "org", "type", "keyword")
-        )));
-        assertThat(respMap.get("values"), equalTo(List.of(List.of(
-            12.0
-        ))));*/
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(123.0, null))));
     }
 
     public void testLookupJoinIndexForbidden() {

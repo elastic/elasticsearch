@@ -514,6 +514,48 @@ routing path not allowed in logs mode:
   - match: { error.reason: "[index.routing_path] requires [index.mode=time_series]" }
 
 ---
+routing path allowed in logs mode with routing on sort fields:
+  - requires:
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: introduction of route on index sorting fields
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logsdb
+              number_of_replicas: 0
+              number_of_shards: 2
+              routing_path: [ host.name, agent_id ]
+              logsdb:
+                route_on_sort_fields: true
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test
+
+  - is_true: test
+  - match: { test.settings.index.mode: logsdb }
+  - match: { test.settings.index.logsdb.route_on_sort_fields: "true" }
+  - match: { test.settings.index.routing_path: [ host.name, agent_id ] }
+
+---
 start time not allowed in logs mode:
   - requires:
       test_runner_features: [ capabilities ]

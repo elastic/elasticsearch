@@ -15,6 +15,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,11 +34,26 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
     }
 
     public static class Request extends ActionRequest implements IndicesRequest {
-
         private final String sourceIndex;
         private final String destIndex;
-        private final Settings settingsOverride;
-        private final Map<String, Object> mappingsOverride;
+        private Settings settingsOverride = Settings.EMPTY;
+        private Map<String, Object> mappingsOverride = Map.of();
+
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("create_index_from_source_request");
+
+        static {
+            PARSER.declareField(
+                (parser, request, context) -> request.settingsOverride(Settings.fromXContent(parser)),
+                new ParseField("settings_override"),
+                ObjectParser.ValueType.OBJECT
+            );
+
+            PARSER.declareField(
+                (parser, request, context) -> request.mappingsOverride(parser.map()),
+                new ParseField("mappings_override"),
+                ObjectParser.ValueType.OBJECT
+            );
+        }
 
         public Request(String sourceIndex, String destIndex) {
             this(sourceIndex, destIndex, Settings.EMPTY, Map.of());
@@ -86,6 +104,18 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
 
         public Map<String, Object> getMappingsOverride() {
             return mappingsOverride;
+        }
+
+        public void settingsOverride(Settings settingsOverride) {
+            this.settingsOverride = settingsOverride;
+        }
+
+        public void mappingsOverride(Map<String, Object> mappingsOverride) {
+            this.mappingsOverride = mappingsOverride;
+        }
+
+        public void fromXContent(XContentParser parser) throws IOException {
+            PARSER.parse(parser, this, null);
         }
 
         @Override

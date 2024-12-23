@@ -79,6 +79,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
     void assertExpectedClustersForMissingIndicesTests(Map<String, Object> responseMap, List<ExpectedCluster> expected) {
         Map<String, ?> clusters = (Map<String, ?>) responseMap.get("_clusters");
         assertThat((int) responseMap.get("took"), greaterThan(0));
+        assertThat((boolean) clusters.get("is_partial"), is(false));
 
         Map<String, ?> detailsMap = (Map<String, ?>) clusters.get("details");
         assertThat(detailsMap.size(), is(expected.size()));

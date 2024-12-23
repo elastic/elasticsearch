@@ -33,10 +33,9 @@ def patchTask = tasks.register("patchClasses", JavaExec) {
 }
 
 tasks.named('jar').configure {
-  dependsOn(patchTask)
   dependsOn(configurations.thejar)
 
-  from(outputDir)
+  from(patchTask)
   from({ project.zipTree(configurations.thejar.singleFile) }) {
     eachFile {
       if (outputDir.get().file(it.relativePath.pathString).asFile.exists()) {

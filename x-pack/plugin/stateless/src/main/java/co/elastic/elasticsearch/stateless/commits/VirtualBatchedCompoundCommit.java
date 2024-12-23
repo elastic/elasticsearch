@@ -335,17 +335,27 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var pendingCompoundCommit = new PendingCompoundCommit(
             header.length,
             reference,
-            new StatelessCompoundCommit(
-                shardId,
-                ccTermAndGen,
-                reference.getTranslogRecoveryStartFile(),
-                nodeEphemeralId,
-                Collections.unmodifiableMap(commitFiles),
-                header.length + replicatedContentHeader.dataSizeInBytes() + internalFilesSize,
-                internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
-                header.length,
-                replicatedContent.header()
-            ),
+            reference.isHollow()
+                ? StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                    shardId,
+                    ccTermAndGen,
+                    Collections.unmodifiableMap(commitFiles),
+                    header.length + replicatedContentHeader.dataSizeInBytes() + internalFilesSize,
+                    internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
+                    header.length,
+                    replicatedContent.header()
+                )
+                : new StatelessCompoundCommit(
+                    shardId,
+                    ccTermAndGen,
+                    reference.getTranslogRecoveryStartFile(),
+                    nodeEphemeralId,
+                    Collections.unmodifiableMap(commitFiles),
+                    header.length + replicatedContentHeader.dataSizeInBytes() + internalFilesSize,
+                    internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
+                    header.length,
+                    replicatedContent.header()
+                ),
             Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO))
         );
         pendingCompoundCommits.add(pendingCompoundCommit);
@@ -737,6 +747,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             this.reference = reference;
             this.statelessCompoundCommit = statelessCompoundCommit;
             this.maxSeqNo = maxSeqNo;
+            assert statelessCompoundCommit.hollow() == reference.isHollow()
+                : "stateless compound commit hollow flag ["
+                    + statelessCompoundCommit.hollow()
+                    + "] does not match a hollow reference ["
+                    + reference.isHollow()
+                    + "]";
         }
 
         void setPadding(int padding) {

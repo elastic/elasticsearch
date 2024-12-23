@@ -81,6 +81,9 @@ import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.index.engine.Engine.FlushResult.NO_FLUSH;
+
 /**
  * {@link Engine} implementation for index shards
  */
@@ -103,6 +106,7 @@ public class IndexEngine extends InternalEngine {
     private final MergeMetrics mergeMetrics;
     private final SharedBlobCacheWarmingService cacheWarmingService;
     private final Predicate<ShardId> shouldSkipMerges;
+    private volatile long hollowMaxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -188,6 +192,7 @@ public class IndexEngine extends InternalEngine {
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
         this.mergeMetrics = metrics.mergeMetrics();
+        assert isLastCommitHollow() == false : "should not use IndexEngine for a hollow commit";
     }
 
     @Override
@@ -336,7 +341,7 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-
+        checkNoNewOperationsAfterHollow();
         ParsedDocument parsedDocument = index.parsedDoc();
 
         documentParsingReporter.onParsingCompleted(parsedDocument);
@@ -349,9 +354,68 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public DeleteResult delete(Delete delete) throws IOException {
+        checkNoNewOperationsAfterHollow();
+        return super.delete(delete);
+    }
+
+    /**
+     * Marks the engine as hollow by making sure a last commit is flushed that has a {@link #TRANSLOG_RECOVERY_START_FILE} user data equal
+     * to {@link co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit#HOLLOW_TRANSLOG_RECOVERY_START_FILE}.
+     * This function should be called only when there is no concurrent ingestion, e.g., when holding/blocking all shard's primary permits.
+     *
+     * Note that even if concurrent flush(es) are ongoing, this function will force a hollow commit.
+     * The function is ineffective if the last commit is already hollow.
+     *
+     * Since no translog will be associated with the hollow commit, any new operations attempted to be ingested by the engine will throw
+     * an exception. This is done by pinpointing the max sequence number when hollowing (while holding the primary permits), and any
+     * future attempt to generate a next sequence number will throw. To ingest new data, the shard will need to be unhollowed (i.e.,
+     * producing a non-hollow blob) with a new engine.
+     */
+    public void flushHollow(ActionListener<FlushResult> listener) {
+        if (isLastCommitHollow()) {
+            listener.onResponse(NO_FLUSH);
+        } else {
+            long maxSeqNo = getMaxSeqNo();
+            assert hollowMaxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || hollowMaxSeqNo == maxSeqNo
+                : "engine hollowed with max seq no [" + hollowMaxSeqNo + "] cannot be hollowed again with max seq no [" + maxSeqNo + "]";
+            this.hollowMaxSeqNo = maxSeqNo;
+            flush(true, true, listener);
+        }
+    }
+
+    protected void checkNoNewOperationsAfterHollow() {
+        // If flushHollow() has been called (which assumes holding the primary permits), we expect no new operations to be ingested.
+        // Any new operation attempted to be ingested after hollowing will throw an exception (that signifies a bug since we expect
+        // the shard to be unhollowed with a new engine to process ingestion).
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalStateException("cannot ingest new operation when engine is hollow");
+        }
+    }
+
+    public boolean isLastCommitHollow() {
+        String translogRecoveryStartFile = getLastCommittedSegmentInfos().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
+        if (translogRecoveryStartFile != null) {
+            return Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+        }
+        return false;
+    }
+
+    @Override
     protected Map<String, String> getCommitExtraUserData() {
         var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(getLastCommittedSegmentInfos());
-        return Maps.copyMapWithAddedEntry(accumulatorUserData, TRANSLOG_RECOVERY_START_FILE, Long.toString(translogStartFileForNextCommit));
+        long translogRecoveryStartFile = translogStartFileForNextCommit;
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert hollowMaxSeqNo == getMaxSeqNo()
+                : "engine has ingested after being hollowed with max seq no ["
+                    + hollowMaxSeqNo
+                    + "] and current max seq no ["
+                    + getMaxSeqNo()
+                    + "]";
+            logger.info("flushing hollow commit with max seq no {}", hollowMaxSeqNo);
+            translogRecoveryStartFile = HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+        }
+        return Maps.copyMapWithAddedEntry(accumulatorUserData, TRANSLOG_RECOVERY_START_FILE, Long.toString(translogRecoveryStartFile));
     }
 
     @Override

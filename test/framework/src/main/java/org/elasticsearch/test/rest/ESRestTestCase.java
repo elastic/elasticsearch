@@ -70,7 +70,6 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -1836,10 +1835,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        } else if (isSyntheticSourceConfiguredInMapping(mapping)
-            && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
-                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
-            }
+        }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
@@ -1881,49 +1877,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             v.compatible(expectedWarning);
         }));
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static boolean isSyntheticSourceConfiguredInMapping(String mapping) {
-        if (mapping == null) {
-            return false;
-        }
-        var mappings = XContentHelper.convertToMap(
-            JsonXContent.jsonXContent,
-            mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}',
-            false
-        );
-        if (mappings.containsKey("_doc")) {
-            mappings = (Map<String, Object>) mappings.get("_doc");
-        }
-        Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
-        if (sourceMapper == null) {
-            return false;
-        }
-        return sourceMapper.get("mode") != null;
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
-        if (template == null) {
-            return false;
-        }
-        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
-        for (Object value : values.values()) {
-            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
-            if (mappings == null) {
-                continue;
-            }
-            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
-            if (sourceMapper == null) {
-                continue;
-            }
-            Object mode = sourceMapper.get("mode");
-            if (mode != null) {
-                return true;
-            }
-        }
-        return false;
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {

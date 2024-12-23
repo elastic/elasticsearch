@@ -29,7 +29,7 @@ configurations {
 }
 
 dependencies {
-  api project(path: 'hadoop-client-api', configuration: 'shadow')
+  api project(path: 'hadoop-client-api', configuration: 'default')
   if (isEclipse) {
     /*
      * Eclipse can't pick up the shadow dependency so we point it at *something*

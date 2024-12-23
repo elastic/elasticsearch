@@ -13,7 +13,7 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
 licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 configurations {
@@ -59,6 +59,15 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
   task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
+  task.skipTest("tsdb/20_mapping/exact match object type", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/25_id_generation/delete over _bulk", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/80_index_resize/split", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/90_unsupported_operations/noop update", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/90_unsupported_operations/regular update", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/90_unsupported_operations/search with routing", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/90_unsupported_operations/index with routing over _bulk", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/90_unsupported_operations/update over _bulk", "skip until pr/116687 gets backported")
+  task.skipTest("tsdb/90_unsupported_operations/index with routing", "skip until pr/116687 gets backported")
   task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
   task.skipTest("tsdb/20_mapping/stored source is supported", "no longer serialize source_mode")
   task.skipTest("tsdb/20_mapping/Synthetic source", "no longer serialize source_mode")
@@ -66,4 +75,9 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
   task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
   task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
+  task.skipTest("search/520_fetch_fields/fetch _seq_no via fields", "error code is changed from 5xx to 400 in 9.0")
+  task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Test knn search", "Scoring has changed in latest versions")
+  task.skipTest("search.vectors/42_knn_search_bbq_flat/Test knn search", "Scoring has changed in latest versions")
+  task.skipTest("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set", "Can't work until auto-expand replicas is 0-1 for synonyms index")
+  task.skipTest("search/90_search_after/_shard_doc sort", "restriction has been lifted in latest versions")
 })

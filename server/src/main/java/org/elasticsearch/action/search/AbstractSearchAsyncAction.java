@@ -711,7 +711,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 try {
                     SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
                     Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection, getOriginalIndices(entry.getShardIndex()));
+                    sendReleaseSearchContext(entry.getContextId(), connection);
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.trace("failed to release context", inner);
@@ -727,10 +727,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
       *
       */
-    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
-            searchTransportService.sendFreeContext(connection, contextId, originalIndices);
+            searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
         }
     }
 
@@ -739,7 +739,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardFailure(int, SearchShardTarget, Exception)
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
-    final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+    private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         executeNextPhase(this, this::getNextPhase);
     }
 
@@ -760,13 +760,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     public final void execute(Runnable command) {
         executor.execute(command);
-    }
-
-    /**
-      * Notifies the top-level listener of the provided exception
-    */
-    public void onFailure(Exception e) {
-        listener.onFailure(e);
     }
 
     /**

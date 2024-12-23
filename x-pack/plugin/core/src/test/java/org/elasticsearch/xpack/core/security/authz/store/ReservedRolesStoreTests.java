@@ -1587,10 +1587,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
+            // Ensure privileges necessary for ILM policies in Cloud Security Posture Package
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
@@ -1614,10 +1612,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
+            // Ensure privileges necessary for ILM policies in Cloud Security Posture Package
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
@@ -1711,6 +1708,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
                 is(true)
             );
+
         });
 
         // cloud_defend
@@ -2649,12 +2647,57 @@ public class ReservedRolesStoreTests extends ESTestCase {
         RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
+
+        final String applicationName = "kibana-.kibana";
+
+        final Set<String> applicationPrivilegeNames = Set.of(
+            "feature_discover.minimal_read",
+            "feature_discover.generate_report",
+            "feature_dashboard.minimal_read",
+            "feature_dashboard.generate_report",
+            "feature_dashboard.download_csv_report",
+            "feature_canvas.minimal_read",
+            "feature_canvas.generate_report",
+            "feature_visualize.minimal_read",
+            "feature_visualize.generate_report"
+        );
+
+        final Set<String> allowedApplicationActionPatterns = Set.of(
+            "login:",
+            "app:discover",
+            "app:canvas",
+            "app:kibana",
+            "ui:catalogue/canvas",
+            "ui:navLinks/canvas",
+            "ui:catalogue/discover",
+            "ui:navLinks/discover",
+            "ui:navLinks/kibana",
+            "saved_object:index-pattern/*",
+            "saved_object:search/*",
+            "saved_object:query/*",
+            "saved_object:config/*",
+            "saved_object:config/get",
+            "saved_object:config/find",
+            "saved_object:config-global/*",
+            "saved_object:telemetry/*",
+            "saved_object:canvas-workpad/*",
+            "saved_object:canvas-element/*",
+            "saved_object:url/*",
+            "ui:discover/show"
+        );
+
+        final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = new ArrayList<>();
+        for (String appPrivilegeName : applicationPrivilegeNames) {
+            applicationPrivilegeDescriptors.add(
+                new ApplicationPrivilegeDescriptor(applicationName, appPrivilegeName, allowedApplicationActionPatterns, Map.of())
+            );
+        }
 
         Role reportingUserRole = Role.buildFromRoleDescriptor(
             roleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            applicationPrivilegeDescriptors
         );
         assertThat(reportingUserRole.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(reportingUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
@@ -2726,6 +2769,33 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(reportingUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(reportingUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+
+        applicationPrivilegeNames.forEach(appPrivilege -> {
+            assertThat(
+                reportingUserRole.application()
+                    .grants(
+                        ApplicationPrivilegeTests.createPrivilege(
+                            applicationName,
+                            appPrivilege,
+                            allowedApplicationActionPatterns.toArray(new String[0])
+                        ),
+                        "*"
+                    ),
+                is(true)
+            );
+        });
+        assertThat(
+            reportingUserRole.application()
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(
+                        "kibana-.*",
+                        "feature_random.minimal_read",
+                        allowedApplicationActionPatterns.toArray(new String[0])
+                    ),
+                    "*"
+                ),
+            is(false)
+        );
     }
 
     public void testSuperuserRole() {
@@ -4178,6 +4248,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/unified", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/ml/trained_models/deployment/infer", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));

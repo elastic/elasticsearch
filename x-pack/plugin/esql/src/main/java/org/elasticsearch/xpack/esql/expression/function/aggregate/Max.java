@@ -48,6 +48,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.DATE_NANOS, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.INTEGER, MaxIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.DOUBLE, MaxDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, MaxDoubleAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),

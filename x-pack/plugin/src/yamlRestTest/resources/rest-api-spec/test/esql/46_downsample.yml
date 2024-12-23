@@ -1,0 +1,145 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      created_at:
+                        type: date_nanos
+                      running:
+                        type: boolean
+                      number_of_containers:
+                        type: integer
+                      ip:
+                        type: ip
+                      tags:
+                        type: keyword
+                      values:
+                        type: integer
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001810, "rx": 802133}, "created_at": "2021-04-28T19:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.26", "network": {"tx": 2005177, "rx": 801479}, "created_at": "2021-04-28T19:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.41", "network": {"tx": 2006223, "rx": 802337}, "created_at": "2021-04-28T19:36:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west2"], "values": [4, 1, 2]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.22", "network": {"tx": 2012916, "rx": 803685}, "created_at": "2021-04-28T19:37:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.33", "network": {"tx": 1434521, "rx": 530575}, "created_at": "2021-04-28T19:42:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test"], "values": [2, 3, 4]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.56", "network": {"tx": 1434577, "rx": 530600}, "created_at": "2021-04-28T19:43:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test", "us-west2"], "values": [2, 1, 1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.37", "network": {"tx": 1434587, "rx": 530604}, "created_at": "2021-04-28T19:44:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [4, 5, 2]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "network": {"tx": 1434595, "rx": 530605}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+---
+"Query downsampled index":
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test-downsample | sort k8s.pod.name, @timestamp | LIMIT 100'
+          columnar: true
+
+  - length: { columns: 12 }
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - match: { columns.1.name: "k8s.pod.created_at" }
+  - match: { columns.1.type: "date_nanos" }
+  - match: { columns.2.name: "k8s.pod.ip" }
+  - match: { columns.2.type: "ip" }
+  - match: { columns.3.name: "k8s.pod.name" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "k8s.pod.network.rx" }
+  - match: { columns.4.type: "aggregate_metric_double" }
+  - match: { columns.5.name: "k8s.pod.network.tx" }
+  - match: { columns.5.type: "aggregate_metric_double" }
+  - match: { columns.6.name: "k8s.pod.number_of_containers" }
+  - match: { columns.6.type: "integer" }
+  - match: { columns.7.name: "k8s.pod.running" }
+  - match: { columns.7.type: "boolean" }
+  - match: { columns.8.name: "k8s.pod.tags" }
+  - match: { columns.8.type: "keyword" }
+  - match: { columns.9.name: "k8s.pod.uid" }
+  - match: { columns.9.type: "keyword" }
+  - match: { columns.10.name: "k8s.pod.values" }
+  - match: { columns.10.type: "integer" }
+  - match: { columns.11.name: "metricset" }
+  - match: { columns.11.type: "keyword" }
+  - match: { values.0: [ "2021-04-28T18:00:00.000Z","2021-04-28T20:00:00.000Z", "2021-04-28T18:00:00.000Z", "2021-04-28T19:00:00.000Z" ] }
+  - match: { values.1: [ "2021-04-28T19:35:00.000Z", "2021-04-28T19:37:00.000Z", "2021-04-28T19:43:00.000Z", "2021-04-28T19:45:00.000Z" ] }
+  - match: { values.2: [ "10.10.55.26", "10.10.55.22", "10.10.55.56", "10.10.55.120" ] }
+  - match: { values.3: [ "cat", "cat", "dog", "dog" ] }
+  # TODO: reconsider what values to return for aggregate_metric_double type:
+  # (Currently returns what is configured as default metric, which in case of downsampled indices is the max metric sub field)
+  - match: { values.4: [ 802133.0, 803685.0, 530600.0, 530605.0 ] }
+  - match: { values.5: [ 2005177.0, 2012916.0, 1434577.0, 1434595.0 ] }
+  - match: { values.6: [ 2, 2, 1, 1 ] }
+  - match: { values.7: [ true, true, false, true ] }
+  - match: { values.8: [ [ "backend", "prod", "us-west1" ], [ "backend", "prod" ], [ "backend", "test", "us-west2" ], [ "backend", "test", "us-west1" ] ] }
+  - match: { values.9: [ "947e4ced-1786-4e53-9e0c-5c447e959507", "947e4ced-1786-4e53-9e0c-5c447e959507", "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "df3145b3-0563-4d3b-a0f7-897eb2876ea9" ] }
+  - match: { values.10: [ [ 1, 1, 3 ], [ 1, 2, 3 ], [ 1, 1, 2 ],[ 1, 2, 3 ] ] }
+  - match: { values.11: [ "pod", "pod", "pod", "pod" ] }
+
+  # TODO: Support other aggregate functions:
+  # (aggregate_metric_double now defaults to max in downsampled indices, and therefor max can work with minimal work)
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test-downsample | STATS max(k8s.pod.network.tx), max(k8s.pod.network.rx) | LIMIT 1'
+          columnar: true
+  - length: { columns: 2 }
+  - match: { values.0: [ 2012916.0 ] }
+  - match: { values.1: [ 803685.0 ] }

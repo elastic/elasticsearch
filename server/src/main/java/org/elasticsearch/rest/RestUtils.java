@@ -333,10 +333,12 @@ public class RestUtils {
     // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public static void consumeDeprecatedLocalParameter(RestRequest request) {
-        if (request.getRestApiVersion() == RestApiVersion.V_8) {
+        if (request.hasParam("local") == false) {
             return;
         }
-        if (request.paramAsBoolean("local", false)) {
+        // Consume this param just for validation when in BWC mode.
+        final var local = request.paramAsBoolean("local", false);
+        if (request.getRestApiVersion() != RestApiVersion.V_8) {
             DeprecationLogger.getLogger(TransportLocalClusterStateAction.class)
                 .critical(
                     DeprecationCategory.API,

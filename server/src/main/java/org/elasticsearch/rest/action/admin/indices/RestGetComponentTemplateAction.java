@@ -32,6 +32,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetComponentTemplateAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("local_param_deprecated");
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -72,4 +74,8 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return Settings.FORMAT_PARAMS;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
+    }
 }

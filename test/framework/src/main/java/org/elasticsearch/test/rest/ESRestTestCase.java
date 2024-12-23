@@ -1017,7 +1017,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 return message.toString();
             }
         } catch (IOException e) {
-            fail("cannot get cluster's pending tasks: " + e.getMessage());
+            fail(e, "Failed to retrieve pending tasks in the cluster during cleanup");
         }
         return null;
     }

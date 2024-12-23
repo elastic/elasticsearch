@@ -27,7 +27,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EntitlementAllowedNonModularPlugin extends Plugin implements ActionPlugin {
-
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,

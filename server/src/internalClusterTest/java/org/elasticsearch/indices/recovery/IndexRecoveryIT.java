@@ -2050,7 +2050,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndexMetadata.SETTING_VERSION_CREATED,
                     IndexVersionUtils.randomVersionBetween(
                         random(),
-                        IndexVersionUtils.getFirstVersion(),
+                        IndexVersionUtils.getLowestWriteCompatibleVersion(),
                         IndexVersionUtils.getPreviousVersion(IndexVersions.MERGE_ON_RECOVERY_VERSION)
                     )
                 )

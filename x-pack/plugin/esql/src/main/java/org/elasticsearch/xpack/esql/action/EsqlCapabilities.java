@@ -560,12 +560,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V8(Build.current().isSnapshot()),
-
-        /**
-         * LOOKUP JOIN with the same index as the FROM
-         */
-        JOIN_LOOKUP_REPEATED_INDEX_FROM(JOIN_LOOKUP_V8.isEnabled()),
+        JOIN_LOOKUP_V9(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

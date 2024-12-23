@@ -75,7 +75,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MapperExtrasPlugin.class, XPackClientPlugin.class);
+        return List.of(XPackClientPlugin.class, MapperExtrasPlugin.class);
     }
 
     @Override

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -336,20 +337,34 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferInternal(endpoint, input, Map.of());
     }
 
-    protected Deque<ServerSentEvent> streamInferOnMockService(String modelId, TaskType taskType, List<String> input) throws Exception {
+    protected Deque<ServerSentEvent> streamInferOnMockService(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
         var endpoint = Strings.format("_inference/%s/%s/_stream", taskType, modelId);
-        return callAsync(endpoint, input);
+        return callAsync(endpoint, input, responseConsumerCallback);
     }
 
-    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input) throws Exception {
-        var responseConsumer = new AsyncInferenceResponseConsumer();
+    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input, @Nullable Consumer<Response> responseConsumerCallback)
+        throws Exception {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input));
+
+        return execAsyncCall(request, responseConsumerCallback);
+    }
+
+    private Deque<ServerSentEvent> execAsyncCall(Request request, @Nullable Consumer<Response> responseConsumerCallback) throws Exception {
+        var responseConsumer = new AsyncInferenceResponseConsumer();
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
         var latch = new CountDownLatch(1);
         client().performRequestAsync(request, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
+                if (responseConsumerCallback != null) {
+                    responseConsumerCallback.accept(response);
+                }
                 latch.countDown();
             }
 

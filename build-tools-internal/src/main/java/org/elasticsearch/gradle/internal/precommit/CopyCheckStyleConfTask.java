@@ -10,20 +10,12 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.BuildLayout;
 import org.gradle.api.file.FileSystemOperations;
-import org.gradle.api.file.ProjectLayout;
 
 import javax.inject.Inject;
 
 public abstract class CopyCheckStyleConfTask extends DefaultTask {
 
     @Inject
-    public abstract FileSystemOperations getFileSystemOperations();
-
-    @Inject
-    public abstract BuildLayout getBuildLayout();
-
-    @Inject
-    public abstract ProjectLayout getProjectLayout();
+    public abstract FileSystemOperations getFs();
 }

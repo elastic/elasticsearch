@@ -132,6 +132,9 @@ import java.util.stream.IntStream;
  */
 abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
+    /**
+     * The privilege required to perform the lookup. If null, no privilege will be checked.
+     */
     @Nullable
     private final String privilegeName;
     private final ClusterService clusterService;

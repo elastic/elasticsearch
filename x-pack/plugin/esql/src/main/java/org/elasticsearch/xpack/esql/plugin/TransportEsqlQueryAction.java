@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
+import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -74,6 +76,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
+    private final QueryBuilderResolver queryBuilderResolver;
     private final UsageService usageService;
 
     @Inject
@@ -90,6 +93,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         BlockFactory blockFactory,
         Client client,
         NamedWriteableRegistry registry,
+        IndexNameExpressionResolver indexNameExpressionResolver
         UsageService usageService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -128,7 +132,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
-        this.usageService = usageService;
+        this.queryBuilderResolver = new QueryBuilderResolver(searchService, clusterService, transportService, indexNameExpressionResolver);
     }
 
     @Override
@@ -199,13 +203,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             remoteClusterService,
             planRunner,
-            ActionListener.wrap(result -> {
-                recordCCSTelemetry(task, executionInfo, request, null);
-                listener.onResponse(toResponse(task, request, configuration, result));
-            }, ex -> {
-                recordCCSTelemetry(task, executionInfo, request, ex);
-                listener.onFailure(ex);
-            })
+            queryBuilderResolver,
+            listener.map(result -> toResponse(task, request, configuration, result))
         );
 
     }

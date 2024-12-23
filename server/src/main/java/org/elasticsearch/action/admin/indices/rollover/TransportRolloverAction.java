@@ -211,6 +211,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
             if (rolloverRequest.isDryRun() == false) {
                 metadataDataStreamsService.setRolloverOnWrite(
+                    projectState.projectId(),
                     rolloverRequest.getRolloverTarget(),
                     true,
                     targetFailureStore,
@@ -607,5 +608,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 return currentState;
             }
         }
+    }
+
+    ProjectResolver projectResolver() {
+        return projectResolver;
     }
 }

@@ -81,7 +81,7 @@ public class MetadataDataStreamsService {
             ) {
                 return new Tuple<>(
                     setRolloverOnWrite(
-                        clusterState.projectState(),
+                        clusterState.projectState(setRolloverOnWriteTask.projectId()),
                         setRolloverOnWriteTask.getDataStreamName(),
                         setRolloverOnWriteTask.rolloverOnWrite(),
                         setRolloverOnWriteTask.targetFailureStore()
@@ -205,6 +205,7 @@ public class MetadataDataStreamsService {
      * Submits the task to signal that the next time this data stream receives a document, it will be rolled over.
      */
     public void setRolloverOnWrite(
+        ProjectId projectId,
         String dataStreamName,
         boolean rolloverOnWrite,
         boolean targetFailureStore,
@@ -214,7 +215,7 @@ public class MetadataDataStreamsService {
     ) {
         setRolloverOnWriteTaskQueue.submitTask(
             "set-rollover-on-write",
-            new SetRolloverOnWriteTask(dataStreamName, rolloverOnWrite, targetFailureStore, ackTimeout, listener),
+            new SetRolloverOnWriteTask(projectId, dataStreamName, rolloverOnWrite, targetFailureStore, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -474,11 +475,13 @@ public class MetadataDataStreamsService {
      */
     static class SetRolloverOnWriteTask extends AckedBatchedClusterStateUpdateTask {
 
+        private final ProjectId projectId;
         private final String dataStreamName;
         private final boolean rolloverOnWrite;
         private final boolean targetFailureStore;
 
         SetRolloverOnWriteTask(
+            ProjectId projectId,
             String dataStreamName,
             boolean rolloverOnWrite,
             boolean targetFailureStore,
@@ -486,9 +489,14 @@ public class MetadataDataStreamsService {
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.rolloverOnWrite = rolloverOnWrite;
             this.targetFailureStore = targetFailureStore;
+        }
+
+        public ProjectId projectId() {
+            return projectId;
         }
 
         public String getDataStreamName() {

@@ -64,6 +64,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Represents a Lucene commit point with additional information required to manage this commit in the object store as well as locally. Such
  * objects are uploaded to the object store as binary blobs.
+ *
+ * A hollow commit is one that does not have translog and will be recovered with a hollow engine (i.e., not fully ready for ingestion, but
+ * will be loaded when ingestion first comes). For a hollow commit, the translog recovery start file is set to
+ * {@link #HOLLOW_TRANSLOG_RECOVERY_START_FILE} and the node ephemeral id is empty.
  */
 public record StatelessCompoundCommit(
     ShardId shardId,
@@ -75,11 +79,80 @@ public record StatelessCompoundCommit(
     long sizeInBytes,
     Set<String> internalFiles,
     long headerSizeInBytes,
-    InternalFilesReplicatedRanges internalFilesReplicatedRanges
+    InternalFilesReplicatedRanges internalFilesReplicatedRanges,
+    boolean hollow
 ) implements Writeable {
+
+    public static long HOLLOW_TRANSLOG_RECOVERY_START_FILE = Long.MAX_VALUE;
 
     public StatelessCompoundCommit {
         assert commitFiles.keySet().containsAll(internalFiles);
+        assert hollow
+            ? (nodeEphemeralId.isEmpty() == (translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE))
+            : (nodeEphemeralId.isEmpty() == false && translogRecoveryStartFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE)
+            : "a hollow (currently "
+                + hollow
+                + ") commit must have an empty node ephemeral id (currently "
+                + nodeEphemeralId
+                + ") and a translog recovery start file with value "
+                + HOLLOW_TRANSLOG_RECOVERY_START_FILE
+                + " (currently "
+                + translogRecoveryStartFile
+                + ")";
+    }
+
+    /**
+     * Constructor that sets the hollow flag based on the translog field.
+     */
+    public StatelessCompoundCommit(
+        ShardId shardId,
+        PrimaryTermAndGeneration primaryTermAndGeneration,
+        long translogRecoveryStartFile,
+        String nodeEphemeralId,
+        Map<String, BlobLocation> commitFiles,
+        long sizeInBytes,
+        Set<String> internalFiles,
+        long headerSizeInBytes,
+        InternalFilesReplicatedRanges internalFilesReplicatedRanges
+    ) {
+        this(
+            shardId,
+            primaryTermAndGeneration,
+            translogRecoveryStartFile,
+            nodeEphemeralId,
+            commitFiles,
+            sizeInBytes,
+            internalFiles,
+            headerSizeInBytes,
+            internalFilesReplicatedRanges,
+            translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE
+        );
+    }
+
+    /**
+     * Instantiates a hollow commit.
+     */
+    public static StatelessCompoundCommit newHollowStatelessCompoundCommit(
+        ShardId shardId,
+        PrimaryTermAndGeneration primaryTermAndGeneration,
+        Map<String, BlobLocation> commitFiles,
+        long sizeInBytes,
+        Set<String> internalFiles,
+        long headerSizeInBytes,
+        InternalFilesReplicatedRanges internalFilesReplicatedRanges
+    ) {
+        return new StatelessCompoundCommit(
+            shardId,
+            primaryTermAndGeneration,
+            HOLLOW_TRANSLOG_RECOVERY_START_FILE,
+            "",
+            commitFiles,
+            sizeInBytes,
+            internalFiles,
+            headerSizeInBytes,
+            internalFilesReplicatedRanges,
+            true
+        );
     }
 
     public static final String PREFIX = "stateless_commit_";

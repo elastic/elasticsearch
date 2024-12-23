@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.info
 
-import spock.lang.Ignore
+
 import spock.lang.Specification
 
 import org.gradle.api.JavaVersion
@@ -21,7 +21,6 @@ import org.junit.Assert
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -31,7 +30,6 @@ class BuildParameterExtensionSpec extends Specification {
 
     ProjectBuilder projectBuilder = new ProjectBuilder()
 
-    @Ignore
     def "#getterName is cached anc concurrently accessible"() {
         given:
         def project = projectBuilder.build()
@@ -59,7 +57,7 @@ class BuildParameterExtensionSpec extends Specification {
 
         then:
 
-        futures.any { it.isCancelled() || it.isDone() == false } == false
+        futures.every { it.isDone() && it.isCancelled() == false }
         where:
         getterName << [
             "getRuntimeJavaHome",

@@ -250,9 +250,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test011SecurityEnabledStatus
-  issue: https://github.com/elastic/elasticsearch/issues/118517
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/116521

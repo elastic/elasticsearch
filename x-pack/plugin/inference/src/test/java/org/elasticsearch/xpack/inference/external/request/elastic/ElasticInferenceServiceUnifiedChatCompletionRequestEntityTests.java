@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.openai;
+package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
 import java.io.IOException;
@@ -22,10 +23,9 @@ import java.util.ArrayList;
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 
-public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
+public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String ROLE = "user";
-    private static final String USER = "a_user";
 
     public void testModelUserFieldsSerialization() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
@@ -41,7 +41,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", USER);
+        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -62,10 +62,10 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
                 "stream": true,
                 "stream_options": {
                     "include_usage": true
-                },
-                "user": "a_user"
+                }
             }
             """;
         assertJsonEquals(jsonString, expectedJson);
     }
+
 }

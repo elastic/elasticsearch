@@ -13,10 +13,10 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
@@ -24,31 +24,28 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Request {
 
-    private final URI uri;
-    private final ElasticInferenceServiceSparseEmbeddingsModel model;
-    private final Truncator.TruncationResult truncationResult;
-    private final Truncator truncator;
+    private final ElasticInferenceServiceCompletionModel model;
+    private final UnifiedChatInput unifiedChatInput;
     private final TraceContextHandler traceContextHandler;
 
-    public ElasticInferenceServiceSparseEmbeddingsRequest(
-        Truncator truncator,
-        Truncator.TruncationResult truncationResult,
-        ElasticInferenceServiceSparseEmbeddingsModel model,
+    public ElasticInferenceServiceUnifiedChatCompletionRequest(
+        UnifiedChatInput unifiedChatInput,
+        ElasticInferenceServiceCompletionModel model,
         TraceContext traceContext
     ) {
-        this.truncator = truncator;
-        this.truncationResult = truncationResult;
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
-        this.uri = model.uri();
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        var httpPost = new HttpPost(uri);
-        var requestEntity = Strings.toString(new ElasticInferenceServiceSparseEmbeddingsRequestEntity(truncationResult.input()));
+        var httpPost = new HttpPost(model.uri());
+        var requestEntity = Strings.toString(
+            new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
+        );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -59,8 +56,21 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
-    public TraceContext getTraceContext() {
-        return traceContextHandler.traceContext();
+    @Override
+    public URI getURI() {
+        return model.uri();
+    }
+
+    @Override
+    public Request truncate() {
+        // No truncation
+        return this;
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        // No truncation
+        return null;
     }
 
     @Override
@@ -69,19 +79,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
     }
 
     @Override
-    public URI getURI() {
-        return this.uri;
+    public boolean isStreaming() {
+        return true;
     }
-
-    @Override
-    public Request truncate() {
-        var truncatedInput = truncator.truncate(truncationResult.input());
-        return new ElasticInferenceServiceSparseEmbeddingsRequest(truncator, truncatedInput, model, traceContextHandler.traceContext());
-    }
-
-    @Override
-    public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
-    }
-
 }

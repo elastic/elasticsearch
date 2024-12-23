@@ -20,25 +20,28 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToLower}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ChangeCase}.
  * This class is generated. Do not edit it.
  */
-public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
 
   private final Locale locale;
 
+  private final ChangeCase.Case caseType;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ToLowerEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
-      DriverContext driverContext) {
+  public ChangeCaseEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
+      ChangeCase.Case caseType, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.locale = locale;
+    this.caseType = caseType;
     this.driverContext = driverContext;
   }
 
@@ -68,7 +71,7 @@ public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(ToLower.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale));
+        result.appendBytesRef(ChangeCase.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale, this.caseType));
       }
       return result.build();
     }
@@ -78,7 +81,7 @@ public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator 
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(ToLower.process(valVector.getBytesRef(p, valScratch), this.locale));
+        result.appendBytesRef(ChangeCase.process(valVector.getBytesRef(p, valScratch), this.locale, this.caseType));
       }
       return result.build();
     }
@@ -86,7 +89,7 @@ public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "ToLowerEvaluator[" + "val=" + val + ", locale=" + locale + "]";
+    return "ChangeCaseEvaluator[" + "val=" + val + ", locale=" + locale + ", caseType=" + caseType + "]";
   }
 
   @Override
@@ -113,20 +116,24 @@ public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator 
 
     private final Locale locale;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, Locale locale) {
+    private final ChangeCase.Case caseType;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, Locale locale,
+        ChangeCase.Case caseType) {
       this.source = source;
       this.val = val;
       this.locale = locale;
+      this.caseType = caseType;
     }
 
     @Override
-    public ToLowerEvaluator get(DriverContext context) {
-      return new ToLowerEvaluator(source, val.get(context), locale, context);
+    public ChangeCaseEvaluator get(DriverContext context) {
+      return new ChangeCaseEvaluator(source, val.get(context), locale, caseType, context);
     }
 
     @Override
     public String toString() {
-      return "ToLowerEvaluator[" + "val=" + val + ", locale=" + locale + "]";
+      return "ChangeCaseEvaluator[" + "val=" + val + ", locale=" + locale + ", caseType=" + caseType + "]";
     }
   }
 }

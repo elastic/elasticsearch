@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -16,6 +17,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
@@ -68,12 +70,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         ElasticInferenceServiceCompletionServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
+        this.uri = createUri();
 
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     ElasticInferenceServiceCompletionModel(
@@ -92,11 +90,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             elasticInferenceServiceComponents
         );
 
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
+
     }
 
     @Override
@@ -108,9 +103,18 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         return uri;
     }
 
-    private URI createUri() throws URISyntaxException {
-        return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat/completions");
+    private URI createUri() throws ElasticsearchStatusException {
+        try {
+            // TODO, consider transforming the base URL into a URI for better error handling.
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat/completions");
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchStatusException(
+                "Failed to create URI for completion service: " + e.getMessage(),
+                RestStatus.BAD_REQUEST,
+                e
+            );
+        }
     }
 
-    // TODO create the Configuration class?
+    // TODO create/refactor the Configuration class to be extensible for different task types (i.e completion, sparse embeddings).
 }

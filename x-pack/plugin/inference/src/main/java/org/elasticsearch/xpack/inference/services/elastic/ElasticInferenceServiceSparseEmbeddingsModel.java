@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -57,12 +59,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
-
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
     }
 
     ElasticInferenceServiceSparseEmbeddingsModel(
@@ -80,12 +77,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             serviceSettings,
             elasticInferenceServiceComponents
         );
-
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
     }
 
     @Override
@@ -102,19 +94,29 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         return uri;
     }
 
-    private URI createUri() throws URISyntaxException {
+    private URI createUri() throws ElasticsearchStatusException {
         String modelId = getServiceSettings().modelId();
         String modelIdUriPath;
 
         switch (modelId) {
             case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
+            default -> throw new ElasticsearchStatusException(
+                String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId),
+                RestStatus.BAD_REQUEST
             );
         }
 
-        return new URI(
-            elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embeddings/" + modelIdUriPath
-        );
+        try {
+            // TODO, consider transforming the base URL into a URI for better error handling.
+            return new URI(
+                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embeddings/" + modelIdUriPath
+            );
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchStatusException(
+                "Failed to create URI for sparse embeddings service: " + e.getMessage(),
+                RestStatus.BAD_REQUEST,
+                e
+            );
+        }
     }
 }

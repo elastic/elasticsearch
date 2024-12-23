@@ -18,18 +18,17 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
-import org.elasticsearch.xpack.inference.telemetry.TraceContextAware;
+import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequest implements TraceContextAware, Request {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Request {
 
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
-    private final URI uri;
-    private final TraceContext traceContext;
+    private final TraceContextHandler traceContextHandler;
 
     public ElasticInferenceServiceUnifiedChatCompletionRequest(
         UnifiedChatInput unifiedChatInput,
@@ -38,14 +37,12 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Trac
     ) {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
-        this.uri = model.uri();
-        this.traceContext = traceContext;
-
+        this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        var httpPost = new HttpPost(uri);
+        var httpPost = new HttpPost(model.uri());
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
         );
@@ -53,10 +50,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Trac
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
-        if (traceContext != null) {
-            propagateTraceContext(httpPost);
-        }
-
+        traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
@@ -64,7 +58,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Trac
 
     @Override
     public URI getURI() {
-        return uri;
+        return model.uri();
     }
 
     @Override
@@ -87,10 +81,5 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Trac
     @Override
     public boolean isStreaming() {
         return true;
-    }
-
-    @Override
-    public TraceContext getTraceContext() {
-        return traceContext;
     }
 }

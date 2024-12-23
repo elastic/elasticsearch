@@ -111,7 +111,7 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
             builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
         }
 
-        // Underlying providers except OpenAI only return 1 possible choice.
+        // Underlying providers expect OpenAI to only return 1 possible choice.
         builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);
 
         if (unifiedRequest.stop() != null && unifiedRequest.stop().isEmpty() == false) {

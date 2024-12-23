@@ -52,7 +52,7 @@ public class EISCompletionServiceSettingsTests extends AbstractWireSerializingTe
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId, new RateLimitSettings(1000))));
+        assertThat(serviceSettings, is(new ElasticInferenceServiceCompletionServiceSettings(modelId, new RateLimitSettings(240L))));
     }
 
     public void testFromMap_MissingModelId_ThrowsException() {

@@ -210,7 +210,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
-        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").field("ignore_malformed", false).endObject();
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date");
+        if (settings.get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey()).equals("true")) {
+            mapping.field("ignore_malformed", false);
+        }
+        mapping.endObject();
 
         // Dimensions
         mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();

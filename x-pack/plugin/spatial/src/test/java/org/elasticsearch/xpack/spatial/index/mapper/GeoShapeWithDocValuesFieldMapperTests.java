@@ -91,6 +91,16 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         assertTrue(fieldType.hasDocValues());
     }
 
+    public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
+        DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
+
+        GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
+        assertFalse(geoShapeFieldMapper.fieldType().hasDocValues());
+    }
+
     /**
      * Test that orientation parameter correctly parses
      */

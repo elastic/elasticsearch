@@ -49,7 +49,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             );
 
             PARSER.declareField(
-                (parser, request, context) -> request.mappingsOverride(parser.map()),
+                (parser, request, context) -> request.mappingsOverride(Map.of("_doc", parser.map())),
                 new ParseField("mappings_override"),
                 ObjectParser.ValueType.OBJECT
             );
@@ -90,19 +90,19 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             return null;
         }
 
-        public String getSourceIndex() {
+        public String sourceIndex() {
             return sourceIndex;
         }
 
-        public String getDestIndex() {
+        public String destIndex() {
             return destIndex;
         }
 
-        public Settings getSettingsOverride() {
+        public Settings settingsOverride() {
             return settingsOverride;
         }
 
-        public Map<String, Object> getMappingsOverride() {
+        public Map<String, Object> mappingsOverride() {
             return mappingsOverride;
         }
 

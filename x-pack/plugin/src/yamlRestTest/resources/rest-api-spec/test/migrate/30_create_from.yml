@@ -100,13 +100,12 @@ teardown:
               number_of_shards: 1
               default_pipeline: "pipeline-1"
           mappings_override:
-            _doc:
-              dynamic: strict
-              properties:
-                bar:
-                  type: keyword
-                baz:
-                  type: integer
+            dynamic: strict
+            properties:
+              bar:
+                type: keyword
+              baz:
+                type: integer
   - do:
       indices.get_settings:
         index: dest-index-1

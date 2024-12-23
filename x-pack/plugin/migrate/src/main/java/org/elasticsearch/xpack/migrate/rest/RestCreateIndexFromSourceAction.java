@@ -33,10 +33,7 @@ public class RestCreateIndexFromSourceAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        var createRequest = new CreateIndexFromSourceAction.Request(
-            request.param("source"),
-            request.param("dest")
-        );
+        var createRequest = new CreateIndexFromSourceAction.Request(request.param("source"), request.param("dest"));
         request.applyContentParser(createRequest::fromXContent);
         return channel -> client.execute(CreateIndexFromSourceAction.INSTANCE, createRequest, new RestToXContentListener<>(channel));
     }

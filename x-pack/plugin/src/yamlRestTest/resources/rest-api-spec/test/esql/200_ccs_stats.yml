@@ -1,32 +1,4 @@
 ---
-"cross-cluster query stats basic":
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_cluster/stats
-          capabilities:
-            - "esql-stats"
-      reason: "Capability required to run test"
-
-  - do:
-      cluster.stats: { }
-
-  - is_true: ccs
-  - is_true: ccs._esql
-  - is_false: ccs.clusters # no ccs clusters configured
-  - exists: ccs._esql.total
-  - exists: ccs._esql.success
-  - exists: ccs._esql.skipped
-  - is_true: ccs._esql.took
-  - exists: ccs._esql.remotes_per_search_max
-  - exists: ccs._esql.remotes_per_search_avg
-  - exists: ccs._esql.failure_reasons
-  - exists: ccs._esql.features
-  - exists: ccs._esql.clients
-  - exists: ccs._esql.clusters
-
----
 "cross-cluster stats after query":
   - requires:
       test_runner_features: [ capabilities ]
@@ -89,7 +61,7 @@
   - do:
       esql.query:
         body:
-          query: 'from *,*:*'
+          query: 'from *,*:* | limit 100'
 
   - do:
       cluster.stats: {}

@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -34,13 +34,17 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        var used = new AttributeSet();
-        // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
-        var seenProjection = new Holder<>(Boolean.FALSE);
-
-        // start top-to-bottom
-        // and track used references
+        // track used references
+        var used = plan.outputSet();
+        // while going top-to-bottom (upstream)
         var pl = plan.transformDown(p -> {
+            // Note: It is NOT required to do anything special for binary plans like JOINs. It is perfectly fine that transformDown descends
+            // first into the left side, adding all kinds of attributes to the `used` set, and then descends into the right side - even
+            // though the `used` set will contain stuff only used in the left hand side. That's because any attribute that is used in the
+            // left hand side must have been created in the left side as well. Even field attributes belonging to the same index fields will
+            // have different name ids in the left and right hand sides - as in the extreme example
+            // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
+
             // skip nodes that simply pass the input through
             if (p instanceof Limit) {
                 return p;
@@ -53,7 +57,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck = false;
                 if (p instanceof Aggregate aggregate) {
-                    var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
+                    var remaining = removeUnused(aggregate.aggregates(), used);
 
                     if (remaining != null) {
                         if (remaining.isEmpty()) {
@@ -87,10 +91,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             );
                         }
                     }
-
-                    seenProjection.set(Boolean.TRUE);
                 } else if (p instanceof Eval eval) {
-                    var remaining = seenProjection.get() ? removeUnused(eval.fields(), used) : null;
+                    var remaining = removeUnused(eval.fields(), used);
                     // no fields, no eval
                     if (remaining != null) {
                         if (remaining.isEmpty()) {
@@ -100,8 +102,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             p = new Eval(eval.source(), eval.child(), remaining);
                         }
                     }
-                } else if (p instanceof Project) {
-                    seenProjection.set(Boolean.TRUE);
+                } else if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                    // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
+                    // The field extraction for LOOKUP JOIN works differently, however - we extract all fields (other than the join key)
+                    // that the EsRelation has.
+                    var remaining = removeUnused(esRelation.output(), used);
+                    // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet. That means 1 field in total (key field + lookup).
+                    // https://github.com/elastic/elasticsearch/issues/118778
+                    if (remaining != null && remaining.size() > 1) {
+                        p = new EsRelation(esRelation.source(), esRelation.index(), remaining, esRelation.indexMode(), esRelation.frozen());
+                    }
                 }
             } while (recheck);
 

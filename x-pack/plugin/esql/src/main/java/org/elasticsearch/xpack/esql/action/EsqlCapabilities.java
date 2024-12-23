@@ -189,6 +189,9 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
+        /** Support for function {@code ST_EXTENT}. */
+        ST_EXTENT_AGG,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */
@@ -349,7 +352,10 @@ public class EsqlCapabilities {
          * Support for mixed comparisons between nanosecond and millisecond dates
          */
         DATE_NANOS_COMPARE_TO_MILLIS(),
-
+        /**
+         * Support implicit casting of strings to date nanos
+         */
+        DATE_NANOS_IMPLICIT_CASTING(),
         /**
          * Support Least and Greatest functions on Date Nanos type
          */
@@ -365,9 +371,19 @@ public class EsqlCapabilities {
         DATE_TRUNC_DATE_NANOS(),
 
         /**
+         * Support date nanos values as the field argument to bucket
+         */
+        DATE_NANOS_BUCKET(),
+
+        /**
          * support aggregations on date nanos
          */
         DATE_NANOS_AGGREGATIONS(),
+
+        /**
+         * DATE_PARSE supports reading timezones
+         */
+        DATE_PARSE_TZ(),
 
         /**
          * Support for datetime in least and greatest functions
@@ -420,6 +436,10 @@ public class EsqlCapabilities {
         CATEGORIZE_V5,
 
         /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
+        /**
          * QSTR function
          */
         QSTR_FUNCTION,
@@ -433,6 +453,11 @@ public class EsqlCapabilities {
          * KQL function
          */
         KQL_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Hash function
+         */
+        HASH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -535,7 +560,12 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V4(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V8(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN with the same index as the FROM
+         */
+        JOIN_LOOKUP_REPEATED_INDEX_FROM(JOIN_LOOKUP_V8.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -565,7 +595,17 @@ public class EsqlCapabilities {
         /**
          * Additional types for match function and operator
          */
-        MATCH_ADDITIONAL_TYPES;
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD,
+
+        /**
+         * Full text functions can be used in disjunctions
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
 
         private final boolean enabled;
 

@@ -55,15 +55,15 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         realmsUsage = in.readGenericMap();
         rolesStoreUsage = in.readGenericMap();
         sslUsage = in.readGenericMap();
-        tokenServiceUsage = in.readGenericMap();
-        apiKeyServiceUsage = in.readGenericMap();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
+            tokenServiceUsage = in.readGenericMap();
+            apiKeyServiceUsage = in.readGenericMap();
+        }
         auditUsage = in.readGenericMap();
         ipFilterUsage = in.readGenericMap();
         anonymousUsage = in.readGenericMap();
         roleMappingStoreUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            fips140Usage = in.readGenericMap();
-        }
+        fips140Usage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             operatorPrivilegesUsage = in.readGenericMap();
         }
@@ -123,15 +123,15 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(realmsUsage);
         out.writeGenericMap(rolesStoreUsage);
         out.writeGenericMap(sslUsage);
-        out.writeGenericMap(tokenServiceUsage);
-        out.writeGenericMap(apiKeyServiceUsage);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
+            out.writeGenericMap(tokenServiceUsage);
+            out.writeGenericMap(apiKeyServiceUsage);
+        }
         out.writeGenericMap(auditUsage);
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            out.writeGenericMap(fips140Usage);
-        }
+        out.writeGenericMap(fips140Usage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             out.writeGenericMap(operatorPrivilegesUsage);
         }

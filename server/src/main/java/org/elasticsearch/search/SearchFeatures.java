@@ -23,4 +23,11 @@ public final class SearchFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
         return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED, LUCENE_10_0_0_UPGRADE);
     }
+
+    public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RETRIEVER_RESCORER_ENABLED);
+    }
 }

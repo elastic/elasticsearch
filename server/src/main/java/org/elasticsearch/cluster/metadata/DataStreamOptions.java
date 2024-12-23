@@ -70,16 +70,6 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         return failureStore == null;
     }
 
-    /**
-     * Determines if this data stream has its failure store enabled or not. Currently, the failure store
-     * is enabled only when a user has explicitly requested it.
-     *
-     * @return true, if the user has explicitly enabled the failure store.
-     */
-    public boolean isFailureStoreEnabled() {
-        return failureStore != null && Boolean.TRUE.equals(failureStore.enabled());
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(failureStore);

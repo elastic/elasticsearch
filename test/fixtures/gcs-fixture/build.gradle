@@ -9,7 +9,6 @@
 apply plugin: 'elasticsearch.java'
 
 description = 'Fixture for Google Cloud Storage service'
-tasks.named("test").configure { enabled = false }
 
 dependencies {
   api project(':server')

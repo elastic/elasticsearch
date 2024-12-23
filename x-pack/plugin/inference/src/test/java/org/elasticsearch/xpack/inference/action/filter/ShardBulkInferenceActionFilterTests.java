@@ -206,7 +206,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     XContentMapValues.extractValue(useLegacyFormat ? "field1.text" : "field1", actualRequest.sourceAsMap()),
                     equalTo("I am a success")
                 );
-                if (useInferenceMetadataFieldsFormat) {
+                if (useLegacyFormat == false) {
                     assertNotNull(
                         XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME + ".field1", actualRequest.sourceAsMap())
                     );
@@ -246,7 +246,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            IndexVersion.current()
+            useLegacyFormat
         );
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
         model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));

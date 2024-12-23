@@ -191,7 +191,7 @@
 ---
 "Deprecated local parameter works in v8 compat mode":
   - requires:
-      test_runner_features: ["capabilities", "warnings", "headers"]
+      test_runner_features: ["headers"]
 
   - do:
       headers:

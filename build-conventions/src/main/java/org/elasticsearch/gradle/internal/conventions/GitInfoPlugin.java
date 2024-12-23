@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.conventions.info.GitInfoValueSource;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -18,38 +19,28 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 
-import javax.inject.Inject;
 import java.io.File;
 
-class GitInfoPlugin implements Plugin<Project> {
+import javax.inject.Inject;
+
+public abstract class GitInfoPlugin implements Plugin<Project> {
 
     private ProviderFactory factory;
-    private ObjectFactory objectFactory;
-
     private Provider<String> revision;
-    private Property<GitInfo> gitInfo;
 
     @Inject
-    GitInfoPlugin(ProviderFactory factory, ObjectFactory objectFactory) {
+    public GitInfoPlugin(ProviderFactory factory) {
         this.factory = factory;
-        this.objectFactory = objectFactory;
     }
 
     @Override
     public void apply(Project project) {
         File rootDir = Util.locateElasticsearchWorkspace(project.getGradle());
-        gitInfo = objectFactory.property(GitInfo.class).value(factory.provider(() ->
-            GitInfo.gitInfo(rootDir)
-        ));
-        gitInfo.disallowChanges();
-        gitInfo.finalizeValueOnRead();
-
-        revision = gitInfo.map(info -> info.getRevision() == null ? info.getRevision() : "main");
+        getGitInfo().convention(factory.of(GitInfoValueSource.class, spec -> { spec.getParameters().getPath().set(rootDir); }));
+        revision = getGitInfo().map(info -> info.getRevision() == null ? info.getRevision() : "main");
     }
 
-    public Property<GitInfo> getGitInfo() {
-        return gitInfo;
-    }
+    public abstract Property<GitInfo> getGitInfo();
 
     public Provider<String> getRevision() {
         return revision;

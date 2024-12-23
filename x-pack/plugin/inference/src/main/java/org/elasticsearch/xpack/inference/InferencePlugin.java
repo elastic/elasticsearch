@@ -201,8 +201,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        assert serviceComponents.get() != null : "serviceComponents must be set before retrieving the rest handlers";
-
         var availableRestActions = List.of(
             new RestInferenceAction(),
             new RestStreamInferenceAction(threadPoolSetOnce),

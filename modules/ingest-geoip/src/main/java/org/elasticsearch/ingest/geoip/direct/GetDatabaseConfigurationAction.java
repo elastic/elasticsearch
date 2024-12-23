@@ -186,6 +186,7 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeCollection(databases);
         }
 

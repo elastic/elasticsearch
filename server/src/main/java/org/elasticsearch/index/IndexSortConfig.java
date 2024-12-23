@@ -106,18 +106,19 @@ public final class IndexSortConfig {
     static {
         FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         timeStampSpec.order = SortOrder.DESC;
+        TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
         TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
 
-        // No descending ordering for host name and timestamp.
         FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
-        HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] { hostnameSpec, new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
-
         hostnameSpec.order = SortOrder.DESC;
-        hostnameSpec.missingValue = "_first";
+        hostnameSpec.missingValue = "_last";
         hostnameSpec.mode = MultiValueMode.MIN;
         HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };
 
-        TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+        // Older indexes use ascending ordering for host name and timestamp.
+        HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] {
+            new FieldSortSpec(IndexMode.HOST_NAME),
+            new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
     }
 
     private static String validateMissingValue(String missing) {

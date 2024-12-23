@@ -12,6 +12,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,6 +32,19 @@ public class LogsIndexModeTests extends ESTestCase {
             Settings.builder().put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), sortOnHostName).build()
         );
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(sortOnHostName));
+    }
+
+    public void testDefaultHostNameSortFieldBwc() {
+        final IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(
+                indexSettings(IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME), 1, 1).put(
+                    buildSettings()
+                )
+            )
+            .build();
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
     }
 
     public void testCustomSortField() {

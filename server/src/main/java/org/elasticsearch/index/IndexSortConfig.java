@@ -102,13 +102,16 @@ public final class IndexSortConfig {
         Setting.Property.ServerlessPublic
     );
 
-    public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT;
+    public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
     static {
         FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         timeStampSpec.order = SortOrder.DESC;
         TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
 
+        // No descending ordering for host name and timestamp.
         FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
+        HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] { hostnameSpec, new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
+
         hostnameSpec.order = SortOrder.DESC;
         hostnameSpec.missingValue = "_first";
         hostnameSpec.mode = MultiValueMode.MIN;
@@ -173,10 +176,11 @@ public final class IndexSortConfig {
                 var missing = INDEX_SORT_MISSING_SETTING.get(settings);
                 throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch");
             }
-            sortSpecs = (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)
-                || indexSettings.getIndexVersionCreated().before(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME))
-                    ? HOSTNAME_TIMESTAMP_SORT
-                    : TIMESTAMP_SORT;
+            if (indexSettings.getIndexVersionCreated().before(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)) {
+                sortSpecs = HOSTNAME_TIMESTAMP_BWC_SORT;
+            } else {
+                sortSpecs = (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+            }
             return;
         }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);

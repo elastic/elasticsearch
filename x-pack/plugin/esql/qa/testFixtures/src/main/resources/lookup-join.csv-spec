@@ -201,7 +201,7 @@ dropAllLookedUpFieldsOnTheDataNode-Ignore
 // Depends on
 // https://github.com/elastic/elasticsearch/issues/118778
 // https://github.com/elastic/elasticsearch/issues/118781
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | EVAL language_code = emp_no % 10
@@ -222,7 +222,7 @@ dropAllLookedUpFieldsOnTheCoordinator-Ignore
 // Depends on
 // https://github.com/elastic/elasticsearch/issues/118778
 // https://github.com/elastic/elasticsearch/issues/118781
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | SORT emp_no
@@ -465,7 +465,7 @@ language_code:integer | language_name:keyword       | country:keyword
 ###########################################################################
 
 joinOnNestedField
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM employees
 | WHERE 10000 < emp_no AND emp_no < 10006
@@ -485,7 +485,7 @@ emp_no:integer | language.id:integer | language.name:text
 
 
 joinOnNestedFieldRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW language.code = "EN"
 | LOOKUP JOIN languages_nested_fields ON language.code
@@ -498,7 +498,7 @@ language.id:integer | language.code:keyword | language.name.keyword:keyword
 
 
 joinOnNestedNestedFieldRow
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 ROW language.name.keyword = "English"
 | LOOKUP JOIN languages_nested_fields ON language.name.keyword
@@ -905,7 +905,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexTwiceFullyShadowing
-required_capability: join_lookup_v8
+required_capability: join_lookup_v9
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message

@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiRequest;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextAware;
@@ -25,11 +24,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequest implements OpenAiRequest, TraceContextAware {
-
-    // Implementing OpenAiRequest to ensure compatibility with the OpenAI API interface
-    // This allows the ElasticInferenceService to handle requests in a standardized manner
-    // and leverage existing infrastructure for processing OpenAI-like requests.
+public class ElasticInferenceServiceUnifiedChatCompletionRequest implements TraceContextAware, Request {
 
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;

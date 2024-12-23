@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.inference.rest.Paths.UNIFIED_INFERENCE_ID_PATH;
@@ -23,6 +26,13 @@ import static org.elasticsearch.xpack.inference.rest.Paths.UNIFIED_TASK_TYPE_INF
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUnifiedCompletionInferenceAction extends BaseRestHandler {
+    private final SetOnce<ThreadPool> threadPool;
+
+    public RestUnifiedCompletionInferenceAction(SetOnce<ThreadPool> threadPool) {
+        super();
+        this.threadPool = Objects.requireNonNull(threadPool);
+    }
+
     @Override
     public String getName() {
         return "unified_inference_action";
@@ -44,6 +54,10 @@ public class RestUnifiedCompletionInferenceAction extends BaseRestHandler {
             request = UnifiedCompletionAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), inferTimeout, parser);
         }
 
-        return channel -> client.execute(UnifiedCompletionAction.INSTANCE, request, new ServerSentEventsRestActionListener(channel));
+        return channel -> client.execute(
+            UnifiedCompletionAction.INSTANCE,
+            request,
+            new ServerSentEventsRestActionListener(channel, threadPool)
+        );
     }
 }

@@ -122,7 +122,12 @@ public record UnifiedCompletionRequest(
         );
 
         static {
-            PARSER.declareField(constructorArg(), (p, c) -> parseContent(p), new ParseField("content"), ObjectParser.ValueType.VALUE_ARRAY);
+            PARSER.declareField(
+                optionalConstructorArg(),
+                (p, c) -> parseContent(p),
+                new ParseField("content"),
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
             PARSER.declareString(constructorArg(), new ParseField("role"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("tool_call_id"));
@@ -143,7 +148,7 @@ public record UnifiedCompletionRequest(
 
         public Message(StreamInput in) throws IOException {
             this(
-                in.readNamedWriteable(Content.class),
+                in.readOptionalNamedWriteable(Content.class),
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
@@ -153,7 +158,7 @@ public record UnifiedCompletionRequest(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(content);
+            out.writeOptionalNamedWriteable(content);
             out.writeString(role);
             out.writeOptionalString(name);
             out.writeOptionalString(toolCallId);

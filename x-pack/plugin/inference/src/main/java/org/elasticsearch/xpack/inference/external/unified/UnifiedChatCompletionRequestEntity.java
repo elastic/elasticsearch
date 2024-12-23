@@ -71,6 +71,9 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
                             }
                             builder.endArray();
                         }
+                        case null -> {
+                            // do nothing because content is optional
+                        }
                     }
 
                     builder.field(ROLE_FIELD, message.role());

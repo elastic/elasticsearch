@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
@@ -566,17 +567,19 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean malformedExample;
         private final EnumSet<Metric> storedMetrics;
+        private final Metric defaultMetric;
 
         public AggregateDoubleMetricSyntheticSourceSupport(boolean malformedExample) {
             this.malformedExample = malformedExample;
             this.storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+            this.defaultMetric = storedMetrics.iterator().next();
         }
 
         @Override
         public SyntheticSourceExample example(int maxVals) {
             // aggregate_metric_double field does not support arrays
-            Object value = randomAggregateMetric();
-            return new SyntheticSourceExample(value, value, this::mapping);
+            Map<String, Object> value = randomAggregateMetric();
+            return new SyntheticSourceExample(value, value, value.get(defaultMetric.name()), this::mapping);
         }
 
         private Map<String, Object> randomAggregateMetric() {
@@ -597,7 +600,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
-            b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
+            b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, defaultMetric.name());
             if (malformedExample) {
                 b.field(IGNORE_MALFORMED, true);
             }
@@ -617,5 +620,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsCopyTo() {
         return false;
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return n -> ((Number) n);
     }
 }

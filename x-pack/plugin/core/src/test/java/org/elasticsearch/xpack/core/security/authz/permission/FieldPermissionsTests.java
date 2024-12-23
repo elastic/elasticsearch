@@ -140,7 +140,10 @@ public class FieldPermissionsTests extends ESTestCase {
         final FieldPermissions fieldPermissions0 = FieldPermissions.DEFAULT;
         assertNonNullFieldPermissionDefinitions(fieldPermissions0.getFieldPermissionsDefinitions());
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
-        expectThrows(NullPointerException.class, () -> new FieldPermissions(null, Automatons.MATCH_ALL));
+        expectThrows(
+            NullPointerException.class,
+            () -> new FieldPermissions(null, new FieldPermissions.AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false))
+        );
 
         final FieldPermissions fieldPermissions03 = randomFrom(
             FieldPermissions.DEFAULT,
@@ -253,6 +256,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(
             new CharacterRunAutomaton(
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "abc" }))
+                    .automaton()
             ).run("abc"),
             is(false)
         );
@@ -260,6 +264,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(
             new CharacterRunAutomaton(
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_abc" }))
+                    .automaton()
             ).run("abc"),
             is(true)
         );
@@ -267,6 +272,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(
             new CharacterRunAutomaton(
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
+                    .automaton()
             ).run("_abc"),
             is(false)
         );
@@ -274,6 +280,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(
             new CharacterRunAutomaton(
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
+                    .automaton()
             ).run("_id"),
             is(true)
         );
@@ -281,6 +288,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(
             new CharacterRunAutomaton(
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
+                    .automaton()
             ).run("_id"),
             is(true)
         );
@@ -288,6 +296,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(
             new CharacterRunAutomaton(
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
+                    .automaton()
             ).run("_abc"),
             is(false)
         );

@@ -67,10 +67,7 @@ public final class FieldPermissionsCache {
      */
     public FieldPermissions getFieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition) {
         try {
-            return cache.computeIfAbsent(
-                fieldPermissionsDefinition,
-                (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key))
-            );
+            return cache.computeIfAbsent(fieldPermissionsDefinition, FieldPermissions::new);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ElasticsearchException es) {
                 throw es;
@@ -92,6 +89,7 @@ public final class FieldPermissionsCache {
             .findFirst();
         return allowAllFieldPermissions.orElseGet(() -> {
             final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = new HashSet<>();
+            boolean hasLegacyExceptFields = false;
             for (FieldPermissions fieldPermissions : fieldPermissionsCollection) {
                 final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = fieldPermissions.getFieldPermissionsDefinitions();
                 if (fieldPermissionsDefinitions.size() != 1) {
@@ -99,15 +97,23 @@ public final class FieldPermissionsCache {
                         "Expected a single field permission definition, but found [" + fieldPermissionsDefinitions + "]"
                     );
                 }
-                fieldGrantExcludeGroups.addAll(fieldPermissionsDefinitions.get(0).getFieldGrantExcludeGroups());
+                fieldGrantExcludeGroups.addAll(fieldPermissionsDefinitions.getFirst().getFieldGrantExcludeGroups());
+                hasLegacyExceptFields = hasLegacyExceptFields || fieldPermissions.hasLegacyExceptionFields();
             }
             final FieldPermissionsDefinition combined = new FieldPermissionsDefinition(fieldGrantExcludeGroups);
+            final boolean hasLegacyExceptFieldsFinal = hasLegacyExceptFields;
             try {
                 return cache.computeIfAbsent(combined, (key) -> {
                     List<Automaton> automatonList = fieldPermissionsCollection.stream()
                         .map(FieldPermissions::getIncludeAutomaton)
                         .collect(Collectors.toList());
-                    return new FieldPermissions(key, Automatons.unionAndDeterminize(automatonList));
+                    return new FieldPermissions(
+                        key,
+                        new FieldPermissions.AutomatonWithLegacyExceptFieldsFlag(
+                            Automatons.unionAndDeterminize(automatonList),
+                            hasLegacyExceptFieldsFinal
+                        )
+                    );
                 });
             } catch (ExecutionException e) {
                 throw new ElasticsearchException("unable to compute field permissions", e);

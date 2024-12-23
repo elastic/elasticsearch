@@ -49,16 +49,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        super(
-            LOOKUP_ACTION_NAME,
-            null,
-            clusterService,
-            searchService,
-            transportService,
-            bigArrays,
-            blockFactory,
-            TransportRequest::readFrom
-        );
+        super(LOOKUP_ACTION_NAME, clusterService, searchService, transportService, bigArrays, blockFactory, TransportRequest::readFrom);
     }
 
     @Override
@@ -80,6 +71,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(request.inputDataType, fieldType);
         return termQueryList(fieldType, context, inputBlock, inputDataType);
+    }
+
+    @Override
+    protected String getRequiredPrivilege() {
+        return null;
     }
 
     private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {

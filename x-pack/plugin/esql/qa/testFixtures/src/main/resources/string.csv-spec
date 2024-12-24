@@ -1317,7 +1317,7 @@ emp_no:integer  | first_name:keyword
 
 equalsNullToUpperFolded
 from employees
-| where to_upper(first_name) == to_keyword(null)
+| where to_upper(first_name) == to_string(null)
 | keep emp_no, first_name
 ;
 
@@ -1335,7 +1335,7 @@ emp_no:integer  | first_name:keyword
 
 notEqualsNullToUpperFolded
 from employees
-| where to_upper(first_name) != null::keyword
+| where to_upper(first_name) != to_string(null)
 | keep emp_no, first_name
 ;
 

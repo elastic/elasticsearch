@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1985,8 +1984,6 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2037,8 +2034,6 @@ public class MetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2052,8 +2047,6 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2068,8 +2061,6 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),

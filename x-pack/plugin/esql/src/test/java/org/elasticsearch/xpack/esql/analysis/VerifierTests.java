@@ -945,6 +945,33 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterNonBoolField() {
         assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [KEYWORD]",
+            error("from test | where concat(first_name, \"foobar\")")
+        );
+    }
+
+    public void testFilterNullField() {
+        // `where null` should return empty result set
+        query("from test | where null");
+
+        // Value null of type `BOOLEAN`
+        query("from test | where null::boolean");
+
+        // Provide `NULL` type in `EVAL`
+        query("from t | EVAL x = null | where x");
+
+        // `to_string(null)` is of `KEYWORD` type null, resulting in `to_string(null) == "abc"` being of `BOOLEAN`
+        query("from t | where to_string(null) == \"abc\"");
+
+        // Other DataTypes can contain null values
+        assertEquals("1:19: Condition expression needs to be boolean, found [KEYWORD]", error("from test | where null::string"));
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where null::integer"));
+        assertEquals(
+            "1:45: Condition expression needs to be boolean, found [DATETIME]",
+            error("from test | EVAL x = null::datetime | where x")
+        );
     }
 
     public void testFilterDateConstant() {

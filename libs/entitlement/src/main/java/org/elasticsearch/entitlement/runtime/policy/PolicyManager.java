@@ -32,7 +32,6 @@ import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
-import static java.util.function.Predicate.not;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
@@ -68,24 +67,23 @@ public class PolicyManager {
 
     private static final Set<Module> systemModules = findSystemModules();
 
-    /**
-     * Frames originating from this module are ignored in the permission logic.
-     */
-    private final Module entitlementsModule;
-
     private static Set<Module> findSystemModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
             .findAll()
             .stream()
             .map(ModuleReference::descriptor)
             .collect(Collectors.toUnmodifiableSet());
-
         return ModuleLayer.boot()
             .modules()
             .stream()
             .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
             .collect(Collectors.toUnmodifiableSet());
     }
+
+    /**
+     * Frames originating from this module are ignored in the permission logic.
+     */
+    private final Module entitlementsModule;
 
     public PolicyManager(
         Policy defaultPolicy,
@@ -227,12 +225,12 @@ public class PolicyManager {
      *                    this is a fast-path check that can avoid the stack walk
      *                    in cases where the caller class is available.
      * @return the requesting module, or {@code null} if the entire call stack
-     * comes from modules that are trusted.
+     * comes from the entitlement library itself.
      */
     Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
-            Module callerModule = callerClass.getModule();
-            if (systemModules.contains(callerModule) == false) {
+            var callerModule = callerClass.getModule();
+            if (callerModule != null && entitlementsModule.equals(callerModule) == false) {
                 // fast path
                 return callerModule;
             }
@@ -251,8 +249,8 @@ public class PolicyManager {
     Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
         return classes.map(Objects::requireNonNull)
             .map(PolicyManager::moduleOf)
-            .filter(m -> m != entitlementsModule)  // Ignore the entitlements library itself
-            .filter(not(systemModules::contains))  // Skip trusted JDK modules
+            .filter(m -> m != entitlementsModule)  // Ignore the entitlements library itself entirely
+            .skip(1)                            // Skip the sensitive method itself
             .findFirst();
     }
 
@@ -267,7 +265,11 @@ public class PolicyManager {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (requestingModule == null) {
-            logger.debug("Entitlement trivially allowed: entire call stack is in composed of classes in system modules");
+            logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            return true;
+        }
+        if (systemModules.contains(requestingModule)) {
+            logger.debug("Entitlement trivially allowed from system module [{}]", requestingModule.getName());
             return true;
         }
         logger.trace("Entitlement not trivially allowed");

@@ -22,6 +22,7 @@ import java.util.List;
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
+
     private final PolicyManager policyManager;
 
     public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
@@ -36,6 +37,36 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$$halt(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override

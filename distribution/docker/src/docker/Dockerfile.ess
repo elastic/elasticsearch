@@ -31,8 +31,7 @@ USER root
 
 RUN <%= retry.loop("apt-get", "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends wget") %>
 
-# tweak entry point for ESS specific wolfi image
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\

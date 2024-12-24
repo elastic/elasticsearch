@@ -14,8 +14,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Module for URL repository'
-  classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+  description = 'Module for URL repository'
+  classname ='org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
 restResources {

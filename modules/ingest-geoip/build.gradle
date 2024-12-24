@@ -14,8 +14,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
-  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+  description = 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
+  classname ='org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 
   bundleSpec.from("${project.buildDir}/ingest-geoip") {
     into '/'

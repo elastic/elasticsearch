@@ -4,10 +4,10 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'x-pack-security'
-  description 'Elasticsearch Expanded Pack Plugin - Security'
-  classname 'org.elasticsearch.xpack.security.Security'
-  requiresKeystore true
+  name = 'x-pack-security'
+  description = 'Elasticsearch Expanded Pack Plugin - Security'
+  classname = 'org.elasticsearch.xpack.security.Security'
+  requiresKeystore =true
   extendedPlugins = ['x-pack-core']
 }
 

@@ -9,9 +9,9 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 
 esplugin {
-  name 'queryable-reserved-roles-test'
-  description 'A test plugin for testing that changes to reserved roles are made queryable'
-  classname 'org.elasticsearch.xpack.security.role.QueryableBuiltInRolesTestPlugin'
+  name = 'queryable-reserved-roles-test'
+  description = 'A test plugin for testing that changes to reserved roles are made queryable'
+  classname = 'org.elasticsearch.xpack.security.role.QueryableBuiltInRolesTestPlugin'
   extendedPlugins = ['x-pack-core', 'x-pack-security']
 }
 dependencies {

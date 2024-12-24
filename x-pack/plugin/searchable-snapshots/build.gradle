@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'searchable-snapshots'
-  description 'A plugin for the searchable snapshots functionality'
-  classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
+  name = 'searchable-snapshots'
+  description = 'A plugin for the searchable snapshots functionality'
+  classname = 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
   extendedPlugins = ['x-pack-core', 'blob-cache']
 }
 base {

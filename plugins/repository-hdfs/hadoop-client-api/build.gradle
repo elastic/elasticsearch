@@ -32,11 +32,17 @@ def patchTask = tasks.register("patchClasses", JavaExec) {
   }
 }
 
+
+interface Injected {
+  @Inject ArchiveOperations getArchiveOperations()
+}
+
 tasks.named('jar').configure {
   dependsOn(configurations.thejar)
+  def injected = project.objects.newInstance(Injected)
 
   from(patchTask)
-  from({ project.zipTree(configurations.thejar.singleFile) }) {
+  from({ injected.archiveOperations.zipTree(configurations.thejar.singleFile) }) {
     eachFile {
       if (outputDir.get().file(it.relativePath.pathString).asFile.exists()) {
         it.exclude()

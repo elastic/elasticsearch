@@ -169,23 +169,17 @@ public class InboundDecoder implements Releasable {
             return 0;
         }
 
-        TransportVersion remoteVersion = TransportVersion.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
-        int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
-        if (fixedHeaderSize > reference.length()) {
+        if (reference.length() <= TcpHeader.HEADER_SIZE) {
             return 0;
-        } else if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            return fixedHeaderSize;
         } else {
             int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             if (variableHeaderSize < 0) {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
-            if (variableHeaderSize > maxHeaderSize.getBytes() - fixedHeaderSize) {
-                throw new StreamCorruptedException(
-                    "header size [" + (fixedHeaderSize + variableHeaderSize) + "] exceeds limit of [" + maxHeaderSize + "]"
-                );
+            int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
+            if (totalHeaderSize > maxHeaderSize.getBytes()) {
+                throw new StreamCorruptedException("header size [" + totalHeaderSize + "] exceeds limit of [" + maxHeaderSize + "]");
             }
-            int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             if (totalHeaderSize > reference.length()) {
                 return 0;
             } else {
@@ -213,11 +207,9 @@ public class InboundDecoder implements Releasable {
                 checkVersionCompatibility(header.getVersion());
             }
 
-            if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                // Skip since we already have ensured enough data available
-                streamInput.readInt();
-                header.finishParsingHeader(streamInput);
-            }
+            // Skip since we already have ensured enough data available
+            streamInput.readInt();
+            header.finishParsingHeader(streamInput);
             return header;
         }
     }

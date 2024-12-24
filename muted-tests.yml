@@ -245,26 +245,11 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/10_info/Info}
-  issue: https://github.com/elastic/elasticsearch/issues/118394
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/11_nodes/Additional disk information}
-  issue: https://github.com/elastic/elasticsearch/issues/118395
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/11_nodes/Test cat nodes output with full_id set}
-  issue: https://github.com/elastic/elasticsearch/issues/118396
-- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-  method: test {p0=/11_nodes/Test cat nodes output}
-  issue: https://github.com/elastic/elasticsearch/issues/118397
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test011SecurityEnabledStatus
-  issue: https://github.com/elastic/elasticsearch/issues/118517
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/116521

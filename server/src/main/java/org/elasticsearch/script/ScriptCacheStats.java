@@ -23,6 +23,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.collect.Iterators.flatMap;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
 import static org.elasticsearch.script.ScriptCacheStats.Fields.SCRIPT_CACHE_STATS;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
@@ -73,21 +76,21 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
             .field(ScriptStats.Fields.CACHE_EVICTIONS, s.getCacheEvictions())
             .field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, s.getCompilationLimitTriggered());
 
-        return ChunkedToXContent.builder(outerParams).object(SCRIPT_CACHE_STATS, sb -> {
-            if (general != null) {
-                sb.xContentObject(Fields.SUM, statsFields.apply(general));
-            } else {
-                sb.xContentObject(Fields.SUM, statsFields.apply(sum()));
-                sb.array(
+        if (general != null) {
+            return object(SCRIPT_CACHE_STATS, object(Fields.SUM, statsFields.apply(general)));
+        } else {
+            return object(
+                SCRIPT_CACHE_STATS,
+                object(Fields.SUM, statsFields.apply(sum())),
+                array(
                     Fields.CONTEXTS,
-                    context.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
-                    (eb, e) -> eb.object(ebo -> {
-                        ebo.field(Fields.CONTEXT, e.getKey());
-                        ebo.append(statsFields.apply(e.getValue()));
-                    })
-                );
-            }
-        });
+                    flatMap(
+                        context.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
+                        e -> object((b, p) -> b.field(Fields.CONTEXT, e.getKey()), statsFields.apply(e.getValue()))
+                    )
+                )
+            );
+        }
     }
 
     /**

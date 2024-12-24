@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
@@ -382,7 +383,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return ChunkedToXContent.builder(params).xContentObject(innerToXContentChunked(params));
+        return NewChunkedXContentBuilder.object(innerToXContentChunked(params));
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {

@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -37,6 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.object;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.xContentObjectFieldObjects;
 
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
@@ -149,10 +152,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFieldObjects(PATTERNS_FIELD.getPreferredName(), patterns)
-            .object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs)
-            .object(HEADERS.getPreferredName(), headers);
+        return NewChunkedXContentBuilder.of(
+            xContentObjectFieldObjects(PATTERNS_FIELD.getPreferredName(), patterns),
+            object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs),
+            object(HEADERS.getPreferredName(), headers)
+        );
     }
 
     @Override

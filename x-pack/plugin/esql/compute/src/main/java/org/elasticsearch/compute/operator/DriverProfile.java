@@ -12,8 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.NewChunkedXContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -21,6 +21,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.array;
+import static org.elasticsearch.common.xcontent.NewChunkedXContentBuilder.chunk;
 
 /**
  * Profile results from a single {@link Driver}.
@@ -167,24 +171,20 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.append((b, p) -> {
-                b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
-                b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
-                b.field("took_nanos", tookNanos);
-                if (b.humanReadable()) {
-                    b.field("took_time", TimeValue.timeValueNanos(tookNanos));
-                }
-                b.field("cpu_nanos", cpuNanos);
-                if (b.humanReadable()) {
-                    b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
-                }
-                b.field("iterations", iterations);
-                return b;
-            });
-            ob.array("operators", operators.iterator());
-            ob.field("sleeps", sleeps);
-        });
+        return NewChunkedXContentBuilder.object(chunk((b, p) -> {
+            b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
+            b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
+            b.field("took_nanos", tookNanos);
+            if (b.humanReadable()) {
+                b.field("took_time", TimeValue.timeValueNanos(tookNanos));
+            }
+            b.field("cpu_nanos", cpuNanos);
+            if (b.humanReadable()) {
+                b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
+            }
+            b.field("iterations", iterations);
+            return b;
+        }), array("operators", operators.iterator()), field("sleeps", sleeps));
     }
 
     @Override

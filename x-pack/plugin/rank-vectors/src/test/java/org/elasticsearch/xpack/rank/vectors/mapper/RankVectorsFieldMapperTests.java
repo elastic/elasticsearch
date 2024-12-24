@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.index.mapper.vectors;
+package org.elasticsearch.xpack.rank.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
@@ -29,18 +27,21 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -53,17 +54,17 @@ import static org.mockito.Mockito.when;
 
 public class RankVectorsFieldMapperTests extends MapperTestCase {
 
-    @BeforeClass
-    public static void setup() {
-        assumeTrue("Requires rank vectors support", RankVectorsFieldMapper.FEATURE_FLAG.isEnabled());
-    }
-
     private final ElementType elementType;
     private final int dims;
 
     public RankVectorsFieldMapperTests() {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singletonList(new LocalStateRankVectors(SETTINGS));
     }
 
     @Override

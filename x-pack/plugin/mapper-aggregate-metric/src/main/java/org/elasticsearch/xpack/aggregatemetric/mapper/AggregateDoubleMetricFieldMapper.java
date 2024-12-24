@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -288,7 +289,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.metricType = metricType;
         }
 
@@ -506,6 +507,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // TODO: load other fields besides the default one
+            return delegateFieldType().blockLoader(blContext);
         }
 
         /**

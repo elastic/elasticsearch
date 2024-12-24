@@ -263,7 +263,7 @@ public class PlannerUtils {
         return switch (dataType) {
             case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
-            case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
+            case DOUBLE, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
             case KEYWORD, TEXT, IP, SOURCE, VERSION, SEMANTIC_TEXT, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;

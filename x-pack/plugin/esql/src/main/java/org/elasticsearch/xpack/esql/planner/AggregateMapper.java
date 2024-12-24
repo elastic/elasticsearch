@@ -327,7 +327,7 @@ final class AggregateMapper {
             case DataType.BOOLEAN -> "Boolean";
             case DataType.INTEGER, DataType.COUNTER_INTEGER -> "Int";
             case DataType.LONG, DataType.DATETIME, DataType.COUNTER_LONG, DataType.DATE_NANOS -> "Long";
-            case DataType.DOUBLE, DataType.COUNTER_DOUBLE -> "Double";
+            case DataType.DOUBLE, DataType.AGGREGATE_METRIC_DOUBLE, DataType.COUNTER_DOUBLE -> "Double";
             case DataType.KEYWORD, DataType.IP, DataType.VERSION, DataType.TEXT, DataType.SEMANTIC_TEXT -> "BytesRef";
             case GEO_POINT -> "GeoPoint";
             case CARTESIAN_POINT -> "CartesianPoint";

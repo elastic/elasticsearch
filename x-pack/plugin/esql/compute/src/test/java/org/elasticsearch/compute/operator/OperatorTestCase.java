@@ -143,6 +143,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
         DriverContext driverContext = crankyDriverContext();
 
+        Exception exception = null;
         boolean driverStarted = false;
         try {
             Operator operator = simple().get(driverContext);
@@ -150,8 +151,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            exception = e;
         }
         if (driverStarted == false) {
             // if drive hasn't even started then we need to release the input pages
@@ -159,7 +160,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
 
         // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
-        assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
+        long inputUsedBytes = inputFactoryContext.breaker().getUsed();
+        if (inputUsedBytes != 0L) {
+            fail(exception, "Expected no used bytes for input, found: " + inputUsedBytes);
+        }
+        long driverUsedBytes = driverContext.breaker().getUsed();
+        if (driverUsedBytes != 0L) {
+            fail(exception, "Expected no used bytes for driver, found: " + driverUsedBytes);
+        }
     }
 
     /**

@@ -172,7 +172,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
-        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        MappedFieldType fieldType = context.getFieldType(this.fieldName, QueryRewriteContext.UnmappedType.KEYWORD);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
         }
@@ -212,7 +212,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType mapper = context.getFieldType(this.fieldName);
+        MappedFieldType mapper = context.getFieldType(this.fieldName, QueryRewriteContext.UnmappedType.KEYWORD);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");
         }

@@ -1,3 +1,5 @@
+import org.gradle.api.file.ArchiveOperations
+
 apply plugin: 'elasticsearch.java'
 
 sourceSets {
@@ -33,16 +35,15 @@ def patchTask = tasks.register("patchClasses", JavaExec) {
 }
 
 
-interface Injected {
+interface InjectedArchiveOps {
   @Inject ArchiveOperations getArchiveOperations()
 }
 
 tasks.named('jar').configure {
   dependsOn(configurations.thejar)
-  def injected = project.objects.newInstance(Injected)
-
+  def injected = project.objects.newInstance(InjectedArchiveOps)
   from(patchTask)
-  from({ injected.archiveOperations.zipTree(configurations.thejar.singleFile) }) {
+  from({ injected.getArchiveOperations().zipTree(configurations.thejar.singleFile) }) {
     eachFile {
       if (outputDir.get().file(it.relativePath.pathString).asFile.exists()) {
         it.exclude()

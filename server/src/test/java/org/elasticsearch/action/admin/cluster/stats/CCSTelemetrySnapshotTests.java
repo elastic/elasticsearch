@@ -352,4 +352,20 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
         assertThat(value2Read.count(), equalTo(count1 + count2));
         assertThat(value2Read.max(), equalTo(max1));
     }
+
+    public void testUseMRTFalse() {
+        CCSTelemetrySnapshot empty = new CCSTelemetrySnapshot();
+        // Ignore MRT data
+        empty.setUseMRT(false);
+
+        var randomWithMRT = randomValueOtherThanMany(
+            v -> v.getTookMrtTrue().count() == 0 || v.getTookMrtFalse().count() == 0,
+            this::randomCCSTelemetrySnapshot
+        );
+
+        empty.add(randomWithMRT);
+        assertThat(empty.getTook().count(), equalTo(randomWithMRT.getTook().count()));
+        assertThat(empty.getTookMrtFalse().count(), equalTo(0L));
+        assertThat(empty.getTookMrtTrue().count(), equalTo(0L));
+    }
 }

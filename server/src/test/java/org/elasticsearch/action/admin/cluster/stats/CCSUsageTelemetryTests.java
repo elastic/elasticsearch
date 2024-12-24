@@ -340,4 +340,23 @@ public class CCSUsageTelemetryTests extends ESTestCase {
         CCSTelemetrySnapshot expectedSnapshot = ccsUsageHolder.getCCSTelemetrySnapshot();
         assertThat(snapshot, equalTo(expectedSnapshot));
     }
+
+    public void testUseMRTFalse() {
+        // Ignore MRT counters if instructed.
+        CCSUsageTelemetry ccsUsageHolder = new CCSUsageTelemetry(false);
+
+        CCSUsage.Builder builder = new CCSUsage.Builder();
+        builder.took(10L).setRemotesCount(1).setClient("kibana");
+        builder.setFeature(MRT_FEATURE);
+        ccsUsageHolder.updateUsage(builder.build());
+
+        builder = new CCSUsage.Builder();
+        builder.took(11L).setRemotesCount(1).setClient("kibana");
+        ccsUsageHolder.updateUsage(builder.build());
+
+        CCSTelemetrySnapshot snapshot = ccsUsageHolder.getCCSTelemetrySnapshot();
+        assertThat(snapshot.getTook().count(), equalTo(2L));
+        assertThat(snapshot.getTookMrtFalse().count(), equalTo(0L));
+        assertThat(snapshot.getTookMrtTrue().count(), equalTo(0L));
+    }
 }

@@ -391,7 +391,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 new org.elasticsearch.compute.data.BlockFactory(
                     new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                     BigArrays.NON_RECYCLING_INSTANCE
-                )
+                ),
+                () -> false,
+                () -> {}
             );
             this.convertEvaluator = convertFunction.toEvaluator(e -> driverContext -> new EvalOperator.ExpressionEvaluator() {
                 @Override

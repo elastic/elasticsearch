@@ -114,7 +114,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory, () -> false, () -> {});
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
         try {
@@ -290,7 +290,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                     "dummy-session",
                     0,
                     0,
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), () -> false, () -> {}),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),

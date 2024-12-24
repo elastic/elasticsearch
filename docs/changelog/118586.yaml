@@ -1,0 +1,5 @@
+pr: 118586
+summary: Bump timeout in `SemanticQueryBuilder` to 30s
+area: Search
+type: enhancement
+issues: []

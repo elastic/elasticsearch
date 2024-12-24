@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 import org.elasticsearch.test.ESTestCase;
@@ -85,7 +86,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         int noMatchSize,
         String[] expectedPassages,
         int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset
+        Integer queryMaxAnalyzedOffsetIn
     ) throws Exception {
 
         try (Directory dir = newDirectory()) {
@@ -116,8 +117,9 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 for (int i = 0; i < markedUpInputs.length; i++) {
                     annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
                 }
+                QueryMaxAnalyzedOffset queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffsetIn, maxAnalyzedOffset);
                 if (queryMaxAnalyzedOffset != null) {
-                    wrapperAnalyzer = new LimitTokenOffsetAnalyzer(wrapperAnalyzer, queryMaxAnalyzedOffset);
+                    wrapperAnalyzer = new LimitTokenOffsetAnalyzer(wrapperAnalyzer, queryMaxAnalyzedOffset.getNotNull());
                 }
                 AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
                 hiliteAnalyzer.setAnnotations(annotations);
@@ -309,6 +311,19 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 + "To avoid this error, set the query parameter [max_analyzed_offset] to a value less than index setting [20] and this "
                 + "will tolerate long field values by truncating them.",
             e.getMessage()
+        );
+
+        // Same as before, but force using index maxOffset (20) as queryMaxOffset by passing -1.
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
+            query,
+            Locale.ROOT,
+            breakIterator,
+            0,
+            new String[] { "Long Text [exceeds](_hit_term=exceeds) MAX analyzed offset)" },
+            20,
+            -1
         );
 
         assertHighlightOneDoc(

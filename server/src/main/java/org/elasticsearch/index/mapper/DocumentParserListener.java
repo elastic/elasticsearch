@@ -17,6 +17,10 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Component that listens to events produced by {@link DocumentParser} in order to implement some parsing related logic.
+ * It allows to keep such logic separate from actual document parsing workflow which is by itself complex.
+ */
 public interface DocumentParserListener {
     /**
      * Specifies if this listener is currently actively consuming tokens.
@@ -25,12 +29,30 @@ public interface DocumentParserListener {
      */
     boolean isActive();
 
+    /**
+     * Sends a {@link Token} to this listener.
+     * This is only called when {@link #isActive()} returns true since it involves a somewhat costly operation of creating a token instance
+     * and tokens are low level meaning this is called very frequently.
+     * @param token
+     * @throws IOException
+     */
     void consume(Token token) throws IOException;
 
+    /**
+     * Sends an {@link Event} to this listener. Unlike tokens events are always sent to a listener.
+     * The logic here is that based on the event listener can decide to change the return value of {@link #isActive()}.
+     * @param event
+     * @throws IOException
+     */
     void consume(Event event) throws IOException;
 
     Output finish();
 
+    /**
+     * A lower level notification passed from the parser to a listener.
+     * This token is closely related to {@link org.elasticsearch.xcontent.XContentParser.Token} and is used for use cases like
+     * preserving the exact structure of the parsed document.
+     */
     sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray,
         Token.StringAsCharArrayValue, Token.NullValue, Token.ValueToken {
 
@@ -109,6 +131,13 @@ public interface DocumentParserListener {
         }
     }
 
+    /**
+     * High level notification passed from the parser to a listener.
+     * Events represent meaningful logical operations during parsing and contain relevant context for the operation
+     * like a mapper being used.
+     * A listener can use events and/or tokens depending on the use case. For example, it can wait for a specific event and then switch
+     * to consuming tokens instead.
+     */
     sealed interface Event permits Event.DocumentStart, Event.ObjectStart, Event.ObjectArrayStart, Event.LeafArrayStart, Event.LeafValue {
         record DocumentStart(RootObjectMapper rootObjectMapper, LuceneDocument document) implements Event {}
 

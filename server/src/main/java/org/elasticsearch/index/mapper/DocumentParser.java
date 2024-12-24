@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -136,7 +135,7 @@ public final class DocumentParser {
 
     private Listeners createDefaultListeners(MappingLookup mappingLookup, XContentType xContentType) {
         if (mappingLookup.isSourceSynthetic() && mappingParserContext.getIndexSettings().getSkipIgnoredSourceWrite() == false) {
-            return new Listeners.ListenerCollection(List.of(new SyntheticSourceDocumentParserListener(mappingLookup, xContentType)));
+            return new Listeners.Single(new SyntheticSourceDocumentParserListener(mappingLookup, xContentType));
         }
 
         return Listeners.NOOP;
@@ -244,43 +243,28 @@ public final class DocumentParser {
         /**
          * One or more listeners are present.
          */
-        class ListenerCollection implements Listeners {
-            private final Collection<DocumentParserListener> listeners;
+        class Single implements Listeners {
+            private final DocumentParserListener listener;
 
-            private boolean anyActive = true;
-
-            public ListenerCollection(Collection<DocumentParserListener> listeners) {
-                this.listeners = listeners;
+            public Single(DocumentParserListener listener) {
+                this.listener = listener;
             }
 
             @Override
             public void publish(DocumentParserListener.Event event, DocumentParserContext context) throws IOException {
-                anyActive = false;
-                for (DocumentParserListener l : listeners) {
-                    l.consume(event);
-                    anyActive |= l.isActive();
-                }
+                listener.consume(event);
             }
 
             @Override
             public void publish(DocumentParserListener.Token token) throws IOException {
-                for (DocumentParserListener l : listeners) {
-                    if (l.isActive()) {
-                        l.consume(token);
-                    }
+                if (listener.isActive()) {
+                    listener.consume(token);
                 }
             }
 
             @Override
             public DocumentParserListener.Output finish() {
-                var output = DocumentParserListener.Output.empty();
-
-                for (DocumentParserListener l : listeners) {
-                    var part = l.finish();
-                    output.merge(part);
-                }
-
-                return output;
+                return listener.finish();
             }
 
             @Override
@@ -290,7 +274,7 @@ public final class DocumentParser {
 
             @Override
             public boolean anyActive() {
-                return anyActive;
+                return listener.isActive();
             }
         }
     }

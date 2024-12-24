@@ -90,7 +90,7 @@ public class DocumentParserListenerTests extends MapperServiceTestCase {
         var documentParser = new DocumentParser(
             XContentParserConfiguration.EMPTY,
             mappingService.parserContext(),
-            (ml, xct) -> new DocumentParser.Listeners.ListenerCollection(List.of(listener))
+            (ml, xct) -> new DocumentParser.Listeners.Single(listener)
         );
 
         var source = XContentBuilder.builder(xContentType.xContent());
@@ -156,7 +156,7 @@ public class DocumentParserListenerTests extends MapperServiceTestCase {
         var documentParser = new DocumentParser(
             XContentParserConfiguration.EMPTY,
             mappingService.parserContext(),
-            (ml, xct) -> new DocumentParser.Listeners.ListenerCollection(List.of(listener))
+            (ml, xct) -> new DocumentParser.Listeners.Single(listener)
         );
 
         var source = XContentBuilder.builder(xContentType.xContent());

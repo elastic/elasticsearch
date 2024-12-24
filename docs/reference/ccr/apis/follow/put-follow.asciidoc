@@ -5,6 +5,12 @@
 <titleabbrev>Create follower</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+--
+
 Creates a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-put-follow-request]]

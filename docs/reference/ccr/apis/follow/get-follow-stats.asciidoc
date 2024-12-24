@@ -5,6 +5,12 @@
 <titleabbrev>Get follower stats</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+--
+
 Get <<xpack-ccr,{ccr}>> follower stats.
 
 [[ccr-get-follow-stats-request]]

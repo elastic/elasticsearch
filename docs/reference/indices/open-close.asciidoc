@@ -4,6 +4,12 @@
 <titleabbrev>Open index</titleabbrev>
 ++++
 
+.New API Reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+--
+
 Opens a closed index. For data streams, the API
 opens any closed backing indices.
 

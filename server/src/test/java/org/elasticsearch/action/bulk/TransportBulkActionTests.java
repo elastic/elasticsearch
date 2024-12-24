@@ -28,6 +28,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
@@ -39,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.features.FeatureService;
@@ -84,6 +87,8 @@ import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
 
+    private final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+
     /** Services needed by bulk action */
     private TransportService transportService;
     private ClusterService clusterService;
@@ -112,7 +117,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                FailureStoreMetrics.NOOP
+                FailureStoreMetrics.NOOP,
+                DataStreamFailureStoreSettings.create(clusterSettings)
             );
         }
 
@@ -392,36 +398,52 @@ public class TransportBulkActionTests extends ESTestCase {
     public void testResolveFailureStoreFromMetadata() throws Exception {
         assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
 
-        String dataStreamWithFailureStore = "test-data-stream-failure-enabled";
-        String dataStreamWithoutFailureStore = "test-data-stream-failure-disabled";
+        String dataStreamWithFailureStoreEnabled = "test-data-stream-failure-enabled";
+        String dataStreamWithFailureStoreDefault = "test-data-stream-failure-default";
+        String dataStreamWithFailureStoreDisabled = "test-data-stream-failure-disabled";
         long testTime = randomMillisUpToYear9999();
 
-        IndexMetadata backingIndex1 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithFailureStore, testTime).build();
-        IndexMetadata backingIndex2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithoutFailureStore, testTime).build();
-        IndexMetadata failureStoreIndex1 = DataStreamTestHelper.createFirstFailureStore(dataStreamWithFailureStore, testTime).build();
+        IndexMetadata backingIndex1 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithFailureStoreEnabled, testTime).build();
+        IndexMetadata backingIndex2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithFailureStoreDefault, testTime).build();
+        IndexMetadata backingIndex3 = DataStreamTestHelper.createFirstBackingIndex(dataStreamWithFailureStoreDisabled, testTime).build();
+        IndexMetadata failureStoreIndex1 = DataStreamTestHelper.createFirstFailureStore(dataStreamWithFailureStoreEnabled, testTime)
+            .build();
 
         Metadata metadata = Metadata.builder()
             .dataStreams(
                 Map.of(
-                    dataStreamWithFailureStore,
+                    dataStreamWithFailureStoreEnabled,
                     DataStreamTestHelper.newInstance(
-                        dataStreamWithFailureStore,
+                        dataStreamWithFailureStoreEnabled,
                         List.of(backingIndex1.getIndex()),
                         1L,
                         Map.of(),
                         false,
                         null,
-                        List.of(failureStoreIndex1.getIndex())
+                        List.of(),
+                        DataStreamOptions.FAILURE_STORE_ENABLED
                     ),
-                    dataStreamWithoutFailureStore,
+                    dataStreamWithFailureStoreDefault,
                     DataStreamTestHelper.newInstance(
-                        dataStreamWithoutFailureStore,
+                        dataStreamWithFailureStoreDefault,
                         List.of(backingIndex2.getIndex()),
                         1L,
                         Map.of(),
                         false,
                         null,
-                        List.of()
+                        List.of(),
+                        DataStreamOptions.EMPTY
+                    ),
+                    dataStreamWithFailureStoreDisabled,
+                    DataStreamTestHelper.newInstance(
+                        dataStreamWithFailureStoreDisabled,
+                        List.of(backingIndex3.getIndex()),
+                        1L,
+                        Map.of(),
+                        false,
+                        null,
+                        List.of(),
+                        DataStreamOptions.FAILURE_STORE_DISABLED
                     )
                 ),
                 Map.of()
@@ -432,6 +454,8 @@ public class TransportBulkActionTests extends ESTestCase {
                     backingIndex1,
                     backingIndex2.getIndex().getName(),
                     backingIndex2,
+                    backingIndex3.getIndex().getName(),
+                    backingIndex3,
                     failureStoreIndex1.getIndex().getName(),
                     failureStoreIndex1
                 )
@@ -439,38 +463,56 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithFailureStore, metadata, testTime), is(true));
-        // Data stream without failure store should not
-        assertThat(TransportBulkAction.resolveFailureInternal(dataStreamWithoutFailureStore, metadata, testTime), is(false));
-        // An index should not be considered for failure storage
-        assertThat(TransportBulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
-        // even if that index is itself a failure store
-        assertThat(
-            TransportBulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime),
-            is(nullValue())
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreEnabled, metadata, testTime), is(true));
+        // Data stream with the default failure store options should not...
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDefault, metadata, testTime), is(false));
+        // ...unless we change the cluster setting to enable it that way.
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), dataStreamWithFailureStoreDefault)
+                .build()
         );
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDefault, metadata, testTime), is(true));
+        // Data stream with failure store explicitly disabled should not store failures even if it matches the cluster setting
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), dataStreamWithFailureStoreDisabled)
+                .build()
+        );
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDisabled, metadata, testTime), is(false));
+        // An index should not be considered for failure storage
+        assertThat(bulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
+        // even if that index is itself a failure store
+        assertThat(bulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
         assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
 
-        String dsTemplateWithFailureStore = "test-data-stream-failure-enabled";
-        String dsTemplateWithoutFailureStore = "test-data-stream-failure-disabled";
+        String dsTemplateWithFailureStoreEnabled = "test-data-stream-failure-enabled";
+        String dsTemplateWithFailureStoreDefault = "test-data-stream-failure-default";
+        String dsTemplateWithFailureStoreDisabled = "test-data-stream-failure-disabled";
         String indexTemplate = "test-index";
         long testTime = randomMillisUpToYear9999();
 
         Metadata metadata = Metadata.builder()
             .indexTemplates(
                 Map.of(
-                    dsTemplateWithFailureStore,
+                    dsTemplateWithFailureStoreEnabled,
                     ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of(dsTemplateWithFailureStore + "-*"))
+                        .indexPatterns(List.of(dsTemplateWithFailureStoreEnabled + "-*"))
                         .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
-                    dsTemplateWithoutFailureStore,
+                    dsTemplateWithFailureStoreDefault,
                     ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of(dsTemplateWithoutFailureStore + "-*"))
+                        .indexPatterns(List.of(dsTemplateWithFailureStoreDefault + "-*"))
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(null)))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build(),
+                    dsTemplateWithFailureStoreDisabled,
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dsTemplateWithFailureStoreDisabled + "-*"))
                         .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(false)))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
@@ -481,11 +523,36 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithFailureStore + "-1", metadata, testTime), is(true));
-        // Data stream without failure store should not
-        assertThat(TransportBulkAction.resolveFailureInternal(dsTemplateWithoutFailureStore + "-1", metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreEnabled + "-1", metadata, testTime), is(true));
+        // Same if date math is used
+        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreEnabled + "-{now}>", metadata, testTime), is(true));
+        // Data stream with the default failure store options should not...
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDefault + "-1", metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDefault + "-{now}>", metadata, testTime), is(false));
+        // ...unless we change the cluster setting to enable it that way.
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(),
+                    dsTemplateWithFailureStoreDefault + "*"
+                )
+                .build()
+        );
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDefault + "-1", metadata, testTime), is(true));
+        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDefault + "-{now}>", metadata, testTime), is(true));
+        // Data stream with failure store explicitly disabled should not store failures even if it matches the cluster setting
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(),
+                    dsTemplateWithFailureStoreDisabled + "*"
+                )
+                .build()
+        );
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDisabled + "-1", metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDisabled + "-{now}>", metadata, testTime), is(false));
         // An index template should not be considered for failure storage
-        assertThat(TransportBulkAction.resolveFailureInternal(indexTemplate + "-1", metadata, testTime), is(nullValue()));
+        assertThat(bulkAction.resolveFailureInternal(indexTemplate + "-1", metadata, testTime), is(nullValue()));
     }
 
     /**
@@ -556,38 +623,6 @@ public class TransportBulkActionTests extends ESTestCase {
         assertTrue(failureStoreFailure.isFailed());
         assertEquals("failure-store-rollover-exception", failureStoreFailure.getFailure().getCause().getMessage());
         assertNull(bulkRequest.requests.get(2));
-    }
-
-    public void testFailureStoreFromTemplateResolution() {
-        Metadata metadata = Metadata.builder()
-            .indexTemplates(
-                Map.of(
-                    "my-index-template",
-                    ComposableIndexTemplate.builder().indexPatterns(List.of("my-index*")).build(),
-                    "my-enabled-fs-template",
-                    ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of("my-enabled*"))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
-                        .build(),
-                    "my-disabled-fs-template",
-                    ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of("my-disabled*"))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(false)))
-                        .build(),
-                    "my-no-fs-template",
-                    ComposableIndexTemplate.builder()
-                        .indexPatterns(List.of("my-no*"))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                        .build()
-                )
-            )
-            .build();
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-index", metadata), nullValue());
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-enabled-fs", metadata), equalTo(true));
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-disabled-fs", metadata), equalTo(false));
-        assertThat(TransportBulkAction.resolveFailureStoreFromTemplate("my-no-fs", metadata), equalTo(false));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

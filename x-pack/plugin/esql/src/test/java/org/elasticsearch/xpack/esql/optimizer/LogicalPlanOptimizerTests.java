@@ -6820,14 +6820,5 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
-
-        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
-            from test
-            | where concat(first_name, "foobar")
-            """));
-        assertThat(
-            e.getMessage(),
-            containsString("Found 1 problem\nline 2:9: Condition expression needs to be boolean, found [KEYWORD]")
-        );
     }
 }

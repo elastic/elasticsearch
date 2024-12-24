@@ -33,7 +33,7 @@ public record RepositoriesMetrics(
     LongHistogram httpRequestTimeInMillisHistogram
 ) {
 
-    public static RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
+    public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
 
     /**
      * Is incremented for each request sent to the blob store (including retries)

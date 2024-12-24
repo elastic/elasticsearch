@@ -25,7 +25,7 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
-    public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
+    public static final RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
 
     private static final ObjectParser<RegressionConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<RegressionConfig.Builder, Void> STRICT_PARSER = createParser(false);

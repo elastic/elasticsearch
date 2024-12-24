@@ -102,7 +102,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
-    public static String TYPE = "datafeed";
+    public static final String TYPE = "datafeed";
 
     /**
      * The field name used to specify document counts in Elasticsearch

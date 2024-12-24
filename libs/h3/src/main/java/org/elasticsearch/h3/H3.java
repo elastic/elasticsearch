@@ -33,7 +33,7 @@ public final class H3 {
     /**
      * max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15
      */
-    public static int MAX_H3_RES = 15;
+    public static final int MAX_H3_RES = 15;
 
     private static final long[] NORTH = new long[MAX_H3_RES + 1];
     private static final long[] SOUTH = new long[MAX_H3_RES + 1];

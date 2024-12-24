@@ -91,7 +91,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
      */
     private static final ByteSizeValue MTU = ByteSizeValue.ofBytes(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
-    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
+    public static final Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
         SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
         (s) -> {
             ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);

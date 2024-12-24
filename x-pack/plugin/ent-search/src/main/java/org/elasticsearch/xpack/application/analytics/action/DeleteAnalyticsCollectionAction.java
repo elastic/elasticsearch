@@ -34,7 +34,7 @@ public class DeleteAnalyticsCollectionAction {
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
         private final String collectionName;
 
-        public static ParseField COLLECTION_NAME_FIELD = new ParseField("collection_name");
+        public static final ParseField COLLECTION_NAME_FIELD = new ParseField("collection_name");
 
         public Request(StreamInput in) throws IOException {
             super(in);

@@ -29,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AsyncSearchResponse
  */
 public class SubmitAsyncSearchRequest extends ActionRequest {
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
+    public static final long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;

@@ -56,7 +56,7 @@ public enum DataAttachment implements ToXContentObject {
         }
     };
 
-    public static DataAttachment DEFAULT = YAML;
+    public static final DataAttachment DEFAULT = YAML;
 
     public abstract String contentType();
 

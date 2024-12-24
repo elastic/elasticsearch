@@ -116,25 +116,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     /**
      * Indicates that this custom metadata will be returned as part of an API call but will not be persisted
      */
-    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+    public static final EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and will be persisted between
      * node restarts, but will not be a part of a snapshot global state
      */
-    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+    public static final EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and stored as a part of
      * a snapshot global state, but will not be persisted between node restarts
      */
-    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+    public static final EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call, stored as a part of
      * a snapshot global state, and will be persisted between node restarts
      */
-    public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
+    public static final EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
     /**
      * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered

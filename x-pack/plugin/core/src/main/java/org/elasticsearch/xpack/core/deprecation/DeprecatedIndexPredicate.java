@@ -33,15 +33,24 @@ public class DeprecatedIndexPredicate {
     }
 
     public static boolean reindexRequired(IndexMetadata indexMetadata) {
-        return creationVersionBeforeMinimumWritableVersion(indexMetadata) && isNotSearchableSnapshot(indexMetadata);
+        return creationVersionBeforeMinimumWritableVersion(indexMetadata)
+            && isNotSearchableSnapshot(indexMetadata)
+            && isNotIgnored(indexMetadata);
+    }
+
+    private static boolean creationVersionBeforeMinimumWritableVersion(IndexMetadata metadata) {
+        return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {
         return indexMetadata.isSearchableSnapshot() == false;
     }
 
-    private static boolean creationVersionBeforeMinimumWritableVersion(IndexMetadata metadata) {
-        return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
+    private static boolean isNotIgnored(IndexMetadata indexMetadata) {
+        IndexVersion ignoreVersion = indexMetadata.getSettings()
+            .getAsVersionId(IndexMetadata.INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY, IndexVersion::fromId);
+
+        return ignoreVersion == null || ignoreVersion.before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
     }
 
 }

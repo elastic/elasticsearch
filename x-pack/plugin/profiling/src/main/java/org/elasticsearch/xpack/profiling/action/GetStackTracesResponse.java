@@ -32,7 +32,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, String> executables;
     @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     @Nullable
-    private final Map<String, TraceEvent> stackTraceEvents;
+    private final Map<TraceEventID, TraceEvent> stackTraceEvents;
     @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final int totalFrames;
     private final double samplingRate;
@@ -42,7 +42,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
-        Map<String, TraceEvent> stackTraceEvents,
+        Map<TraceEventID, TraceEvent> stackTraceEvents,
         int totalFrames,
         double samplingRate,
         long totalSamples
@@ -73,7 +73,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return executables;
     }
 
-    public Map<String, TraceEvent> getStackTraceEvents() {
+    public Map<TraceEventID, TraceEvent> getStackTraceEvents() {
         return stackTraceEvents;
     }
 
@@ -100,7 +100,11 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                 optional(
                     "stack_trace_events",
                     stackTraceEvents,
-                    (steb, n, v) -> steb.object(n, v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey(), e.getValue().count))
+                    (steb, n, v) -> steb.object(
+                        n,
+                        v.entrySet().iterator(),
+                        e -> (b, p) -> b.field(e.getKey().stacktraceID(), e.getValue().count)
+                    )
                 )
             );
             ob.field("total_frames", totalFrames);
@@ -112,10 +116,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         });
     }
 
-    private static <T> Consumer<ChunkedToXContentBuilder> optional(
+    private static <K, T> Consumer<ChunkedToXContentBuilder> optional(
         String name,
-        Map<String, T> values,
-        TriConsumer<ChunkedToXContentBuilder, String, Map<String, T>> function
+        Map<K, T> values,
+        TriConsumer<ChunkedToXContentBuilder, String, Map<K, T>> function
     ) {
         return values != null ? b -> function.apply(b, name, values) : b -> {};
     }

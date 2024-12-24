@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogi
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -209,7 +211,7 @@ public class Verifier {
         checkRemoteEnrich(plan, failures);
 
         if (failures.isEmpty()) {
-            checkLicense(plan, licenseState, failures);
+            licenseCheck(plan, failures);
         }
 
         // gather metrics
@@ -589,11 +591,15 @@ public class Verifier {
         });
     }
 
-    private void checkLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
-        plan.forEachExpressionDown(Function.class, p -> {
-            if (p.checkLicense(licenseState) == false) {
-                failures.add(new Failure(p, "current license is non-compliant for function [" + p.sourceText() + "]"));
+    private void licenseCheck(LogicalPlan plan, Set<Failure> failures) {
+        Consumer<Node<?>> licenseCheck = n -> {
+            if (n instanceof LicenseAware la && la.licenseCheck(licenseState) == false) {
+                failures.add(fail(n, "current license is non-compliant for [{}]", n.sourceText()));
             }
+        };
+        plan.forEachDown(p -> {
+            licenseCheck.accept(p);
+            p.forEachExpression(Expression.class, licenseCheck);
         });
     }
 

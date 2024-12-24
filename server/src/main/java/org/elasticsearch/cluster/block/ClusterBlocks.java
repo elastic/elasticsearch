@@ -321,9 +321,6 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
         for (var projectId : projectBlocksMap.keySet().stream().sorted(Comparator.comparing(ProjectId::id)).toList()) {
             final Map<String, Set<ClusterBlock>> indices = indices(projectId);
-            if (indices.isEmpty()) {
-                continue;
-            }
             sb.append("   ").append(projectId).append(":\n");
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
                 sb.append("      ").append(entry.getKey()).append(":\n");
@@ -452,6 +449,9 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         Map<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
         if (global.isEmpty() && indicesBlocks.isEmpty()) {
             return EMPTY_CLUSTER_BLOCK;
+        }
+        if (indicesBlocks.isEmpty()) {
+            return new ClusterBlocks(global, Map.of());
         }
         return new ClusterBlocks(global, Map.of(Metadata.DEFAULT_PROJECT_ID, new ProjectBlocks(indicesBlocks)));
     }

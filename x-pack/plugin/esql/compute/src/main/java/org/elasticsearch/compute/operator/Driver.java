@@ -186,7 +186,14 @@ public class Driver implements Releasable, Describable {
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            IsBlockedResult isBlocked = runSingleLoopIteration();
+            IsBlockedResult isBlocked;
+            try {
+                isBlocked = runSingleLoopIteration();
+            } catch (DriverEarlyTerminationException e) {
+                drainAndCloseOperators(null);
+                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE, "early termination");
+                return Operator.NOT_BLOCKED.listener();
+            }
             iter++;
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
@@ -227,6 +234,17 @@ public class Driver implements Releasable, Describable {
         drainAndCloseOperators(null);
     }
 
+    private void checkForEarlyTermination() throws DriverEarlyTerminationException {
+        if (activeOperators.size() >= 2 && activeOperators.getLast().isFinished()) {
+            for (int i = activeOperators.size() - 2; i >= 0; i--) {
+                Operator op = activeOperators.get(i);
+                if (op.isFinished() == false) {
+                    throw new DriverEarlyTerminationException();
+                }
+            }
+        }
+    }
+
     /**
      * Abort the driver and wait for it to finish
      */
@@ -253,6 +271,7 @@ public class Driver implements Releasable, Describable {
             if (op.isBlocked().listener().isDone() == false) {
                 continue;
             }
+            checkForEarlyTermination();
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
@@ -263,6 +282,15 @@ public class Driver implements Releasable, Describable {
                     page.releaseBlocks();
                 } else {
                     // Non-empty result from the previous operation, move it to the next operation
+                    boolean terminated = true;
+                    try {
+                        checkForEarlyTermination();
+                        terminated = false;
+                    } finally {
+                        if (terminated) {
+                            page.releaseBlocks();
+                        }
+                    }
                     nextOp.addInput(page);
                     movedPage = true;
                 }
@@ -290,6 +318,7 @@ public class Driver implements Releasable, Describable {
                     itr.remove();
                 }
 
+                checkForEarlyTermination();
                 // Finish the next operator, which is now the first operator.
                 if (activeOperators.isEmpty() == false) {
                     Operator newRootOperator = activeOperators.get(0);

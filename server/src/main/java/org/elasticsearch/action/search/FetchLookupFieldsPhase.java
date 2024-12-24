@@ -33,15 +33,11 @@ import java.util.stream.Collectors;
  * @see org.elasticsearch.index.mapper.LookupRuntimeFieldType
  */
 final class FetchLookupFieldsPhase extends SearchPhase {
-    private final AbstractSearchAsyncAction<?> context;
+    private final AsyncSearchContext context;
     private final SearchResponseSections searchResponse;
     private final AtomicArray<SearchPhaseResult> queryResults;
 
-    FetchLookupFieldsPhase(
-        AbstractSearchAsyncAction<?> context,
-        SearchResponseSections searchResponse,
-        AtomicArray<SearchPhaseResult> queryResults
-    ) {
+    FetchLookupFieldsPhase(AsyncSearchContext context, SearchResponseSections searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         super("fetch_lookup_fields");
         this.context = context;
         this.searchResponse = searchResponse;
@@ -129,7 +125,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                     }
                 }
                 if (failure != null) {
-                    context.onPhaseFailure(FetchLookupFieldsPhase.this, "failed to fetch lookup fields", failure);
+                    failPhase(failure);
                 } else {
                     context.sendSearchResponse(searchResponse, queryResults);
                 }
@@ -137,8 +133,12 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(FetchLookupFieldsPhase.this, "failed to fetch lookup fields", e);
+                failPhase(e);
             }
         });
+    }
+
+    private void failPhase(Exception e) {
+        context.onPhaseFailure(FetchLookupFieldsPhase.this.getName(), "failed to fetch lookup fields", e);
     }
 }

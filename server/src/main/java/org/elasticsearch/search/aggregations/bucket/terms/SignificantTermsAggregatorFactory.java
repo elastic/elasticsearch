@@ -13,7 +13,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -128,7 +127,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * <p>
      * Some searches that will never match can still fall through and we endup running query that will produce no results.
      * However even in that case we sometimes do expensive things like loading global ordinals. This method should prevent this.
-     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest, SearchShardTask, ActionListener)}
+     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest,
+     * org.elasticsearch.tasks.CancellableTask, ActionListener)}
      * always do a can match then we don't need this code here.
      */
     static boolean matchNoDocs(AggregationContext context, Aggregator parent) {

@@ -186,7 +186,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             )
         ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-                logger,
                 null,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),

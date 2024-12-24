@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -341,31 +342,44 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferInternal(endpoint, input, null, Map.of());
     }
 
-    protected Deque<ServerSentEvent> streamInferOnMockService(String modelId, TaskType taskType, List<String> input) throws Exception {
+    protected Deque<ServerSentEvent> streamInferOnMockService(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
         var endpoint = Strings.format("_inference/%s/%s/_stream", taskType, modelId);
-        return callAsync(endpoint, input);
+        return callAsync(endpoint, input, responseConsumerCallback);
     }
 
-    protected Deque<ServerSentEvent> unifiedCompletionInferOnMockService(String modelId, TaskType taskType, List<String> input)
-        throws Exception {
+    protected Deque<ServerSentEvent> unifiedCompletionInferOnMockService(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
         var endpoint = Strings.format("_inference/%s/%s/_unified", taskType, modelId);
-        return callAsyncUnified(endpoint, input, "user");
+        return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
     }
 
-    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input) throws Exception {
+    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input, @Nullable Consumer<Response> responseConsumerCallback)
+        throws Exception {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input, null));
 
-        return execAsyncCall(request);
+        return execAsyncCall(request, responseConsumerCallback);
     }
 
-    private Deque<ServerSentEvent> execAsyncCall(Request request) throws Exception {
+    private Deque<ServerSentEvent> execAsyncCall(Request request, @Nullable Consumer<Response> responseConsumerCallback) throws Exception {
         var responseConsumer = new AsyncInferenceResponseConsumer();
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
         var latch = new CountDownLatch(1);
         client().performRequestAsync(request, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
+                if (responseConsumerCallback != null) {
+                    responseConsumerCallback.accept(response);
+                }
                 latch.countDown();
             }
 
@@ -378,11 +392,16 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return responseConsumer.events();
     }
 
-    private Deque<ServerSentEvent> callAsyncUnified(String endpoint, List<String> input, String role) throws Exception {
+    private Deque<ServerSentEvent> callAsyncUnified(
+        String endpoint,
+        List<String> input,
+        String role,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
         var request = new Request("POST", endpoint);
 
         request.setJsonEntity(createUnifiedJsonBody(input, role));
-        return execAsyncCall(request);
+        return execAsyncCall(request, responseConsumerCallback);
     }
 
     private String createUnifiedJsonBody(List<String> input, String role) throws IOException {

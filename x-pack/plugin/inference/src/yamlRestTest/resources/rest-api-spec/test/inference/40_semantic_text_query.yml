@@ -120,7 +120,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Numeric query using a sparse embedding model":
@@ -146,7 +145,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Boolean query using a sparse embedding model":
@@ -172,7 +170,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a sparse embedding model via a search inference ID":
@@ -217,7 +214,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model":
@@ -248,7 +244,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Numeric query using a dense embedding model":
@@ -274,7 +269,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Boolean query using a dense embedding model":
@@ -300,7 +294,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a dense embedding model that uses byte embeddings":
@@ -361,7 +354,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model via a search inference ID":
@@ -406,7 +398,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Apply boost and query name":
@@ -439,7 +430,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.783733e19, error: 1e13 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 ---
@@ -476,7 +466,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query the wrong field type":

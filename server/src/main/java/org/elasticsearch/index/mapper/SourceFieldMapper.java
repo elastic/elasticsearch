@@ -56,6 +56,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         "mapper.source.remove_synthetic_source_only_validation"
     );
     public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
+    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -452,16 +453,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
-    }
-
-    /**
-     * Build something to load source {@code _source}.
-     */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
-        if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
-        }
-        return SourceLoader.FROM_STORED_SOURCE;
     }
 
     public boolean isSynthetic() {

@@ -12,7 +12,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
@@ -559,7 +558,6 @@ public abstract class InternalOrder extends BucketOrder {
      * Contains logic for parsing a {@link BucketOrder} from a {@link XContentParser}.
      */
     public static class Parser {
-        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Parser.class);
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.

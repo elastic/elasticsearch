@@ -27,6 +27,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -319,9 +320,13 @@ public class DfsQueryPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext,
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef
     ) {
-        return new DfsQueryPhase(results.asList(), null, consumer, null, mockSearchPhaseContext) {
+        int shards = mockSearchPhaseContext.numShards;
+        for (int i = 0; i < shards; i++) {
+            mockSearchPhaseContext.results.getAtomicArray().set(i, results.get(i));
+        }
+        return new DfsQueryPhase(consumer, null, mockSearchPhaseContext) {
             @Override
-            protected SearchPhase nextPhase() {
+            protected SearchPhase nextPhase(AggregatedDfs dfs) {
                 return new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -342,7 +347,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         );
         MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
         mspc.searchTransport = new SearchTransportService(null, null, null);
-        DfsQueryPhase dqp = new DfsQueryPhase(List.of(), dkrs, mock(QueryPhaseResultConsumer.class), null, mspc);
+        DfsQueryPhase dqp = new DfsQueryPhase(mock(QueryPhaseResultConsumer.class), null, mspc);
 
         QueryBuilder bm25 = new TermQueryBuilder("field", "term");
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
@@ -356,7 +361,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchRequest sr = new SearchRequest().allowPartialSearchResults(true).source(ssb);
         ShardSearchRequest ssr = new ShardSearchRequest(null, sr, new ShardId("test", "testuuid", 1), 1, 1, null, 1.0f, 0, null);
 
-        dqp.rewriteShardSearchRequest(ssr);
+        dqp.rewriteShardSearchRequest(dkrs, ssr);
 
         KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },

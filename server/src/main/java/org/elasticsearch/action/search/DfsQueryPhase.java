@@ -40,55 +40,45 @@ import java.util.List;
  */
 class DfsQueryPhase extends SearchPhase {
     private final SearchPhaseResults<SearchPhaseResult> queryResult;
-    private final List<DfsSearchResult> searchResults;
-    private final AggregatedDfs dfs;
-    private final List<DfsKnnResults> knnResults;
     private final Client client;
     private final AbstractSearchAsyncAction<?> context;
-    private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
-    DfsQueryPhase(
-        List<DfsSearchResult> searchResults,
-        List<DfsKnnResults> knnResults,
-        SearchPhaseResults<SearchPhaseResult> queryResult,
-        Client client,
-        AbstractSearchAsyncAction<?> context
-    ) {
+    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
-        this.searchResults = searchResults;
-        this.dfs = SearchPhaseController.aggregateDfs(searchResults);
-        this.knnResults = knnResults;
         this.client = client;
         this.context = context;
-        this.searchTransportService = context.getSearchTransport();
     }
 
     // protected for testing
-    protected SearchPhase nextPhase() {
+    protected SearchPhase nextPhase(AggregatedDfs dfs) {
         return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void run() {
+        List<DfsSearchResult> searchResults = (List<DfsSearchResult>) context.results.getAtomicArray().asList();
+        AggregatedDfs dfs = SearchPhaseController.aggregateDfs(searchResults);
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, this::nextPhase),
+            () -> context.executeNextPhase(this, () -> nextPhase(dfs)),
             context
         );
 
+        List<DfsKnnResults> knnResults = SearchPhaseController.mergeKnnResults(context.getRequest(), searchResults);
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),
-                rewriteShardSearchRequest(dfsResult.getShardSearchRequest()),
+                rewriteShardSearchRequest(knnResults, dfsResult.getShardSearchRequest()),
                 dfs
             );
             final Transport.Connection connection;
@@ -98,11 +88,8 @@ class DfsQueryPhase extends SearchPhase {
                 shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
                 continue;
             }
-            searchTransportService.sendExecuteQuery(
-                connection,
-                querySearchRequest,
-                context.getTask(),
-                new SearchActionListener<>(shardTarget, shardIndex) {
+            context.getSearchTransport()
+                .sendExecuteQuery(connection, querySearchRequest, context.getTask(), new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
@@ -127,8 +114,7 @@ class DfsQueryPhase extends SearchPhase {
                             }
                         }
                     }
-                }
-            );
+                });
         }
     }
 
@@ -145,7 +131,7 @@ class DfsQueryPhase extends SearchPhase {
     }
 
     // package private for testing
-    ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    ShardSearchRequest rewriteShardSearchRequest(List<DfsKnnResults> knnResults, ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
         if (source == null || source.knnSearch().isEmpty()) {
             return request;

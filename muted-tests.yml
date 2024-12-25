@@ -430,3 +430,6 @@ tests:
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
+  method: testIngestWithInputFields
+  issue: https://github.com/elastic/elasticsearch/issues/118092

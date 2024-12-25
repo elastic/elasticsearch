@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -29,7 +30,6 @@ import org.elasticsearch.transport.Transport;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
@@ -38,33 +38,37 @@ import java.util.function.Function;
  * operation.
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
-final class DfsQueryPhase extends SearchPhase {
+class DfsQueryPhase extends SearchPhase {
     private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final List<DfsKnnResults> knnResults;
-    private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final Client client;
     private final AbstractSearchAsyncAction<?> context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
     DfsQueryPhase(
         List<DfsSearchResult> searchResults,
-        AggregatedDfs dfs,
         List<DfsKnnResults> knnResults,
         SearchPhaseResults<SearchPhaseResult> queryResult,
-        Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+        Client client,
         AbstractSearchAsyncAction<?> context
     ) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
         this.searchResults = searchResults;
-        this.dfs = dfs;
+        this.dfs = SearchPhaseController.aggregateDfs(searchResults);
         this.knnResults = knnResults;
-        this.nextPhaseFactory = nextPhaseFactory;
+        this.client = client;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
+    }
+
+    // protected for testing
+    protected SearchPhase nextPhase() {
+        return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs);
     }
 
     @Override
@@ -74,7 +78,7 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, () -> nextPhaseFactory.apply(queryResult)),
+            () -> context.executeNextPhase(this, this::nextPhase),
             context
         );
 

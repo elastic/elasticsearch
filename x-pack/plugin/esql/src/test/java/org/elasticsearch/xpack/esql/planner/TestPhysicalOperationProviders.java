@@ -33,7 +33,7 @@ import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -54,10 +54,13 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Random;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -65,8 +68,6 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private final List<IndexPage> indexPages;
@@ -81,15 +82,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     public record IndexPage(String index, Page page, List<String> columnNames) {
-        int columnIndex(String columnName) {
-            return IntStream.range(0, columnNames.size())
-                .filter(i -> columnNames.get(i).equals(columnName))
-                .findFirst()
-                .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, columnNames));
-        }
-
-        boolean isColumnMissing(String s) {
-            return IntStream.range(0, columnNames.size()).noneMatch(i -> columnNames.get(i).equals(s));
+        OptionalInt columnIndex(String columnName) {
+            return IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
         }
     }
 
@@ -160,6 +154,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             var page = pageIndex.page;
             BlockFactory blockFactory = driverContext.blockFactory();
             DocVector docVector = new DocVector(
+                // The shard ID is used to encode the index ID.
                 blockFactory.newConstantIntVector(index, page.getPositionCount()),
                 blockFactory.newConstantIntVector(0, page.getPositionCount()),
                 blockFactory.newIntArrayVector(IntStream.range(0, page.getPositionCount()).toArray(), page.getPositionCount()),
@@ -203,9 +198,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final Attribute attribute;
         private Page lastPage;
         boolean finished;
-        private final MappedFieldType.FieldExtractPreference extractPreference;
+        private final FieldExtractPreference extractPreference;
 
-        TestFieldExtractOperator(Attribute attr, MappedFieldType.FieldExtractPreference extractPreference) {
+        TestFieldExtractOperator(Attribute attr, FieldExtractPreference extractPreference) {
             this.attribute = attr;
             this.extractPreference = extractPreference;
         }
@@ -247,7 +242,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final Operator op;
         private final Attribute attribute;
 
-        TestFieldExtractOperatorFactory(Attribute attr, MappedFieldType.FieldExtractPreference extractPreference) {
+        TestFieldExtractOperatorFactory(Attribute attr, FieldExtractPreference extractPreference) {
             this.op = new TestFieldExtractOperator(attr, extractPreference);
             this.attribute = attr;
         }
@@ -263,7 +258,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    private Block getBlock(DocBlock docBlock, Attribute attribute, MappedFieldType.FieldExtractPreference extractPreference) {
+    private Block getBlock(DocBlock docBlock, Attribute attribute, FieldExtractPreference extractPreference) {
         if (attribute instanceof UnsupportedAttribute) {
             return docBlock.blockFactory().newConstantNullBlock(docBlock.getPositionCount());
         }
@@ -272,45 +267,46 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             attribute.dataType(),
             extractPreference,
             attribute instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField
-                ? (shardDoc, blockCopier) -> getBlockForMultiType(shardDoc, multiTypeEsField, blockCopier)
-                : (shardDoc, blockCopier) -> extractBlockForSingleDoc(shardDoc, attribute.name(), blockCopier)
+                ? (indexDoc, blockCopier) -> getBlockForMultiType(indexDoc, multiTypeEsField, blockCopier)
+                : (indexDoc, blockCopier) -> extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)
         );
     }
 
-    private Block getBlockForMultiType(DocBlock shardDoc, MultiTypeEsField multiTypeEsField, TestBlockCopier blockCopier) {
-        var shard = shardDoc.asVector().shards().getInt(0);
-        var indexPage = indexPages.get(shard);
+    private Block getBlockForMultiType(DocBlock indexDoc, MultiTypeEsField multiTypeEsField, TestBlockCopier blockCopier) {
+        var indexId = indexDoc.asVector().shards().getInt(0);
+        var indexPage = indexPages.get(indexId);
         var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(indexPage.index);
-        Supplier<Block> nulls = () -> shardDoc.blockFactory().newConstantNullBlock(shardDoc.getPositionCount());
+        Supplier<Block> nulls = () -> indexDoc.blockFactory().newConstantNullBlock(indexDoc.getPositionCount());
         if (conversion == null) {
             return nulls.get();
         }
         var field = (FieldAttribute) conversion.field();
-        return indexPage.isColumnMissing(field.fieldName())
+        return indexPage.columnIndex(field.fieldName()).isEmpty()
             ? nulls.get()
-            : TypeConverter.fromConvertFunction(conversion).convert(extractBlockForSingleDoc(shardDoc, field.fieldName(), blockCopier));
+            : TypeConverter.fromConvertFunction(conversion).convert(extractBlockForSingleDoc(indexDoc, field.fieldName(), blockCopier));
     }
 
     private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
-        var shard = docBlock.asVector().shards().getInt(0);
-        var indexPage = indexPages.get(shard);
-        int columnIndex = indexPage.columnIndex(columnName);
+        var indexId = docBlock.asVector().shards().getInt(0);
+        var indexPage = indexPages.get(indexId);
+        int columnIndex = indexPage.columnIndex(columnName)
+            .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames));
         var originalData = indexPage.page.getBlock(columnIndex);
         return blockCopier.copyBlock(originalData);
     }
 
-    private static Iterable<DocBlock> splitByShards(DocBlock docBlock) {
-        var indicesByShard = new LinkedHashMap<Integer, List<Integer>>();
+    private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {
+        var indexDocIdsByIndexId = new LinkedHashMap<Integer, Collection<Integer>>();
         DocVector vector = docBlock.asVector();
         for (int i = 0; i < docBlock.getPositionCount(); i++) {
-            int shardId = vector.shards().getInt(i);
-            indicesByShard.computeIfAbsent(shardId, k -> new ArrayList<>()).add(i);
+            int indexId = vector.shards().getInt(i);
+            indexDocIdsByIndexId.computeIfAbsent(indexId, k -> new ArrayList<>()).add(i);
         }
-        var result = new ArrayList<DocBlock>(indicesByShard.size());
-        for (var indices : indicesByShard.values()) {
-            result.add(vector.filter(indices.stream().mapToInt(Integer::intValue).toArray()).asBlock());
+        for (var indexDocIds : indexDocIdsByIndexId.values()) {
+            try (DocVector indexDocVector = vector.filter(indexDocIds.stream().mapToInt(Integer::intValue).toArray())) {
+                indexDocConsumer.accept(indexDocVector.asBlock());
+            }
         }
-        return result;
     }
 
     private class TestHashAggregationOperator extends HashAggregationOperator {
@@ -329,7 +325,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         protected Page wrapPage(Page page) {
-            return page.appendBlock(getBlock(page.getBlock(0), attribute, NONE));
+            return page.appendBlock(getBlock(page.getBlock(0), attribute, FieldExtractPreference.NONE));
         }
     }
 
@@ -388,28 +384,23 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private Block extractBlockForColumn(
         DocBlock docBlock,
         DataType dataType,
-        MappedFieldType.FieldExtractPreference extractPreference,
+        FieldExtractPreference extractPreference,
         BiFunction<DocBlock, TestBlockCopier, Block> extractBlock
     ) {
         BlockFactory blockFactory = docBlock.blockFactory();
         boolean mapToDocValues = shouldMapToDocValues(dataType, extractPreference);
-        TestBlockCopier blockCopier = mapToDocValues
-            ? TestSpatialPointStatsBlockCopier.create(docBlock.asVector().docs(), dataType)
-            : new TestBlockCopier(docBlock.asVector().docs());
         try (
             Block.Builder blockBuilder = mapToDocValues
                 ? blockFactory.newLongBlockBuilder(docBlock.getPositionCount())
                 : PlannerUtils.blockBuilder(dataType, docBlock.getPositionCount(), TestBlockFactory.getNonBreakingInstance())
         ) {
-            for (DocBlock shardDoc : splitByShards(docBlock)) {
-                try {
-                    Block nextBlock = extractBlock.apply(shardDoc, blockCopier);
-                    blockBuilder.copyFrom(nextBlock, 0, nextBlock.getPositionCount());
-                    nextBlock.close();
-                } finally {
-                    shardDoc.close();
-                }
-            }
+            foreachIndexDoc(docBlock, indexDoc -> {
+                TestBlockCopier blockCopier = mapToDocValues
+                    ? TestSpatialPointStatsBlockCopier.create(indexDoc.asVector().docs(), dataType)
+                    : new TestBlockCopier(indexDoc.asVector().docs());
+                Block blockForIndex = extractBlock.apply(indexDoc, blockCopier);
+                blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+            });
             var result = blockBuilder.build();
             assert result.getPositionCount() == docBlock.getPositionCount()
                 : "Expected " + docBlock.getPositionCount() + " rows, got " + result.getPositionCount();
@@ -417,8 +408,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
-        return extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType);
+    private boolean shouldMapToDocValues(DataType dataType, FieldExtractPreference extractPreference) {
+        return extractPreference == FieldExtractPreference.DOC_VALUES && DataType.isSpatialPoint(dataType);
     }
 
     private static class TestBlockCopier {

@@ -20,7 +20,7 @@ class TypeConverter {
     private final String evaluatorName;
     private final ExpressionEvaluator convertEvaluator;
 
-    TypeConverter(String evaluatorName, ExpressionEvaluator convertEvaluator) {
+    private TypeConverter(String evaluatorName, ExpressionEvaluator convertEvaluator) {
         this.evaluatorName = evaluatorName;
         this.convertEvaluator = convertEvaluator;
     }

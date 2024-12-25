@@ -217,7 +217,7 @@ If you aren't sure how to start investigating traffic issues, consider enabling 
 --------------------------------------------------
 PUT _all/_settings
 {
-  "index.search.slowlog.include.user": true
+  "index.search.slowlog.include.user": true,
   "index.search.slowlog.threshold.fetch.warn": "30s",
   "index.search.slowlog.threshold.query.warn": "30s"
 }
@@ -229,7 +229,7 @@ PUT _all/_settings
 --------------------------------------------------
 PUT _all/_settings
 {
-  "index.indexing.slowlog.include.user": true
+  "index.indexing.slowlog.include.user": true,
   "index.indexing.slowlog.threshold.index.warn": "30s"
 }
 --------------------------------------------------

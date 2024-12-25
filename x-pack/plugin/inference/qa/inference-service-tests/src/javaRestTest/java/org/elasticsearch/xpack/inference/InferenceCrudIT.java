@@ -158,7 +158,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
         Arrays.sort(providers);
@@ -199,7 +199,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
         Arrays.sort(providers);
@@ -231,7 +231,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
         Arrays.sort(providers);
@@ -249,7 +249,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
         Arrays.sort(providers);
@@ -283,7 +283,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
         Arrays.sort(providers);

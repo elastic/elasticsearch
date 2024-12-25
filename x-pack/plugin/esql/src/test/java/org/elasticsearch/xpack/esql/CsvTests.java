@@ -480,12 +480,12 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestDatasets datasets) throws Exception {
         var indexResolution = loadIndexResolution(datasets);
-        var result = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
+        var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.SingularTestDataset dataset : datasets.datasets()) {
             var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-            result.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2()));
+            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2()));
         }
-        return TestPhysicalOperationProviders.create(result);
+        return TestPhysicalOperationProviders.create(indexPages);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {

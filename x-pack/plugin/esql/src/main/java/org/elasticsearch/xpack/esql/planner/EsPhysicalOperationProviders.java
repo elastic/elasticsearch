@@ -374,7 +374,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
-    public static class TypeConvertingBlockLoader implements BlockLoader {
+    private static class TypeConvertingBlockLoader implements BlockLoader {
         private final BlockLoader delegate;
         private final TypeConverter typeConverter;
 

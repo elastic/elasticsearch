@@ -411,8 +411,11 @@ gradle.projectsEvaluated {
   }
 }
 
-tasks.named("validateChangelogs") {
-  onlyIf { project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false }
+tasks.named("validateChangelogs").configure {
+  def triggeredTaskNames = gradle.startParameter.taskNames
+  onlyIf {
+    triggeredTaskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false
+  }
 }
 
 tasks.named("precommit") {

@@ -61,6 +61,7 @@ public class PolicyManager {
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new HashMap<>();
 
     protected final Map<String, List<Entitlement>> serverEntitlements;
+    protected final List<Entitlement> agentEntitlements;
     protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
 
@@ -88,12 +89,14 @@ public class PolicyManager {
     }
 
     public PolicyManager(
-        Policy defaultPolicy,
+        Policy serverPolicy,
+        List<Entitlement> agentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
         Module entitlementsModule
     ) {
-        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(defaultPolicy));
+        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
+        this.agentEntitlements = agentEntitlements;
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
@@ -102,7 +105,7 @@ public class PolicyManager {
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
-        return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name, scope -> scope.entitlements));
+        return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.moduleName, scope -> scope.entitlements));
     }
 
     public void checkStartProcess(Class<?> callerClass) {
@@ -188,6 +191,11 @@ public class PolicyManager {
                 }
                 return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginEntitlements, scopeName);
             }
+        }
+
+        if (requestingModule.isNamed() == false) {
+            // agents are the only thing running non-modular
+            return new ModuleEntitlements(agentEntitlements);
         }
 
         moduleEntitlementsMap.put(requestingModule, ModuleEntitlements.NONE);

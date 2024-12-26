@@ -19,6 +19,7 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -98,7 +99,13 @@ public class EntitlementInitialization {
                 new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement()))
             )
         );
-        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver(), ENTITLEMENTS_MODULE);
+        // agents run without a module, so this is a special hack for the apm agent
+        // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
+        List<Entitlement> agentEntitlements = List.of(
+            new CreateClassLoaderEntitlement()
+        );
+        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
+        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
     }
 
     private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {
@@ -123,8 +130,8 @@ public class EntitlementInitialization {
 
         // TODO: should this check actually be part of the parser?
         for (Scope scope : policy.scopes) {
-            if (moduleNames.contains(scope.name) == false) {
-                throw new IllegalStateException("policy [" + policyFile + "] contains invalid module [" + scope.name + "]");
+            if (moduleNames.contains(scope.moduleName) == false) {
+                throw new IllegalStateException("policy [" + policyFile + "] contains invalid module [" + scope.moduleName + "]");
             }
         }
         return policy;

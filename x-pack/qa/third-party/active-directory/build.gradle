@@ -32,4 +32,5 @@ tasks.named("test").configure {
 
   // Limit how many concurrent docker test fixtures we are running
   maxParallelForks = 1
+  forkEvery = 1
 }

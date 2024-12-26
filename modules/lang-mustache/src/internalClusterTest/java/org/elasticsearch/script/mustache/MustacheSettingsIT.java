@@ -16,9 +16,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MustacheSettingsIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MustachePlugin.class);
+        return Arrays.asList(MustachePlugin.class);
     }
 
     @Override

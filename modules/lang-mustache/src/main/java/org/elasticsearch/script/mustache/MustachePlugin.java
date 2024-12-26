@@ -65,6 +65,6 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(MustacheScriptEngine.MUSTACHE_RESULT_SIZE_LIMIT);
+        return Arrays.asList(MustacheScriptEngine.MUSTACHE_RESULT_SIZE_LIMIT);
     }
 }

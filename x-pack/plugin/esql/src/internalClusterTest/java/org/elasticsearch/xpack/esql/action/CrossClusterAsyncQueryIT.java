@@ -401,11 +401,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        final String asyncExecutionId = startAsyncQuery(
-            client(),
-            "FROM blocking | STATS total=count(const) | LIMIT 1",
-            includeCCSMetadata
-        );
+        final String asyncExecutionId = startAsyncQuery(client(), "FROM blocking | STATS total=count(const) | LIMIT 1", includeCCSMetadata);
 
         // wait until we know that the query against 'remote-b:blocking' has started
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
@@ -425,7 +421,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(asyncResponse.columns().size(), equalTo(1));
             assertThat(asyncResponse.values().hasNext(), is(true));
             Iterator<Object> row = asyncResponse.values().next();
-            assertThat((long)row.next(), greaterThanOrEqualTo(0L));
+            assertThat((long) row.next(), greaterThanOrEqualTo(0L));
 
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
             assertNotNull(executionInfo);

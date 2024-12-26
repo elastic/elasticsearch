@@ -29,4 +29,7 @@ tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
   include '**/*IT.class'
   include '**/*Tests.class'
+
+  // Limit how many concurrent docker test fixtures we are running
+  maxParallelForks = 1
 }

@@ -92,6 +92,13 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
         } else {
             innerStart = Math.max(mainBreak.preceding(offset), 0);
 
+            char previous = mainBreak.getText().previous();
+            while (previous == '?' || previous == '!') {
+                offset = this.mainBreak.getText().getIndex() - 1;
+                innerStart = Math.max(mainBreak.preceding(offset), 0);
+                previous = mainBreak.getText().previous();
+            }
+
             final long targetEndOffset = (long) offset + Math.max(0, maxLen - (offset - innerStart));
             final int textEndIndex = getText().getEndIndex();
 

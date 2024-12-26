@@ -168,11 +168,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             )
         );
         assertIndexingFailureMetrics(
-                telemetry,
-                2,
-                TIME_SERIES_INDEXING_FAILURE,
-                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount()),
-                equalTo(0L)
+            telemetry,
+            2,
+            TIME_SERIES_INDEXING_FAILURE,
+            equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount()),
+            equalTo(0L)
         );
 
         long numLogsdbIndices = randomIntBetween(1, 5);
@@ -195,11 +195,11 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             )
         );
         assertIndexingFailureMetrics(
-                telemetry,
-                3,
-                LOGSDB_INDEXING_FAILURE,
-                equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount()),
-                equalTo(0L)
+            telemetry,
+            3,
+            LOGSDB_INDEXING_FAILURE,
+            equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount()),
+            equalTo(0L)
         );
         // already collected indexing stats
         collectThenAssertMetrics(
@@ -222,27 +222,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L)
             )
         );
-        assertIndexingFailureMetrics(
-                telemetry,
-                4,
-                STANDARD_INDEXING_FAILURE,
-                equalTo(0L),
-                equalTo(0L)
-        );
-        assertIndexingFailureMetrics(
-                telemetry,
-                4,
-                TIME_SERIES_INDEXING_FAILURE,
-                equalTo(0L),
-                equalTo(0L)
-        );
-        assertIndexingFailureMetrics(
-                telemetry,
-                4,
-                LOGSDB_INDEXING_FAILURE,
-                equalTo(0L),
-                equalTo(0L)
-        );
+        assertIndexingFailureMetrics(telemetry, 4, STANDARD_INDEXING_FAILURE, equalTo(0L), equalTo(0L));
+        assertIndexingFailureMetrics(telemetry, 4, TIME_SERIES_INDEXING_FAILURE, equalTo(0L), equalTo(0L));
+        assertIndexingFailureMetrics(telemetry, 4, LOGSDB_INDEXING_FAILURE, equalTo(0L), equalTo(0L));
         String searchNode = internalCluster().startDataOnlyNode();
         indicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         telemetry = internalCluster().getInstance(PluginsService.class, searchNode)

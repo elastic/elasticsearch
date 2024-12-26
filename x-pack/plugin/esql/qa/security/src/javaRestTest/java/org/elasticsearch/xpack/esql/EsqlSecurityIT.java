@@ -544,6 +544,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexAllowed() throws Exception {
+        assumeTrue("LOOKUP JOIN only available on snapshots", Build.current().isSnapshot());
+
         Response resp = runESQLCommand(
             "metadata1_read2",
             "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org"
@@ -578,6 +580,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexForbidden() {
+        assumeTrue("LOOKUP JOIN only available on snapshots", Build.current().isSnapshot());
+
         var resp = expectThrows(
             ResponseException.class,
             () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-user1` ON value | KEEP x")

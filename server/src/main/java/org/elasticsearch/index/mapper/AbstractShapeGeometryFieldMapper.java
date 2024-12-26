@@ -124,7 +124,10 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
                     private void read(BinaryDocValues binaryDocValues, int doc, GeometryDocValueReader reader, BytesRefBuilder builder)
                         throws IOException {
-                        binaryDocValues.advanceExact(doc);
+                        if (binaryDocValues.advanceExact(doc) == false) {
+                            builder.appendNull();
+                            return;
+                        }
                         reader.reset(binaryDocValues.binaryValue());
                         var extent = reader.getExtent();
                         // This is rather silly: an extent is already encoded as ints, but we convert it to Rectangle to

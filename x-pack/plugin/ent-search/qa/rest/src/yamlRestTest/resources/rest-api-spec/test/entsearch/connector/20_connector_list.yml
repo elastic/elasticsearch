@@ -223,7 +223,7 @@ setup:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=", X-elastic-product-origin: "connectors" }  # entsearch-user with read-only access
       connector.list: { }
 
   - match: { count: 3 }
@@ -248,7 +248,7 @@ setup:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=", X-elastic-product-origin: "connectors" }  # entsearch-user with read-only access
       connector.list: { }
 
   - match: { count: 3 }

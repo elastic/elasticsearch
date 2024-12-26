@@ -129,42 +129,40 @@ public class RestShardsActionTests extends ESTestCase {
             ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
             ShardRouting shardRouting = TestShardRouting.newShardRouting(index, i, localNode.getId(), randomBoolean(), shardRoutingState);
             Path path = createTempDir().resolve("indices")
-                    .resolve(shardRouting.shardId().getIndex().getUUID())
-                    .resolve(String.valueOf(shardRouting.shardId().id()));
+                .resolve(shardRouting.shardId().getIndex().getUUID())
+                .resolve(String.valueOf(shardRouting.shardId().id()));
             CommonStats commonStats = null;
             if (includeCommonStats) {
-                commonStats = new CommonStats(
-                        randomFrom(CommonStatsFlags.ALL, new CommonStatsFlags(CommonStatsFlags.Flag.Indexing))
-                );
+                commonStats = new CommonStats(randomFrom(CommonStatsFlags.ALL, new CommonStatsFlags(CommonStatsFlags.Flag.Indexing)));
                 commonStats.indexing.add(
-                        new IndexingStats(
-                                new IndexingStats.Stats(
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomBoolean(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong(),
-                                        randomNonNegativeLong()
-                                )
+                    new IndexingStats(
+                        new IndexingStats.Stats(
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomBoolean(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong()
                         )
+                    )
                 );
             }
             ShardStats shardStats = new ShardStats(
-                    shardRouting,
-                    new ShardPath(false, path, path, shardRouting.shardId()),
-                    commonStats,
-                    null,
-                    null,
-                    null,
-                    false,
-                    0
+                shardRouting,
+                new ShardPath(false, path, path, shardRouting.shardId()),
+                commonStats,
+                null,
+                null,
+                null,
+                false,
+                0
             );
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);

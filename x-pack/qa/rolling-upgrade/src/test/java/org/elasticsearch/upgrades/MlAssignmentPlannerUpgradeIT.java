@@ -15,7 +15,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -83,11 +82,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (clusterHasFeature(RestTestLegacyFeatures.ML_NEW_MEMORY_FORMAT)) {
-                    assertNewMemoryFormat("new_memory_format");
-                } else {
-                    assertOldMemoryFormat("new_memory_format");
-                }
+                assertNewMemoryFormat("new_memory_format");
             }
             case MIXED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -99,12 +94,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (clusterHasFeature(RestTestLegacyFeatures.ML_NEW_MEMORY_FORMAT)) {
-                    assertNewMemoryFormat("new_memory_format");
-                } else {
-                    assertOldMemoryFormat("new_memory_format");
-                }
-
+                assertNewMemoryFormat("new_memory_format");
             }
             case UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -137,14 +127,12 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
-        // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
-        long memoryOverheadMb = clusterHasFeature(RestTestLegacyFeatures.ML_MEMORY_OVERHEAD_FIXED) ? 240 : 270;
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(memoryOverheadMb).getBytes() + RAW_MODEL_SIZE * 2;
+        Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
             Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),

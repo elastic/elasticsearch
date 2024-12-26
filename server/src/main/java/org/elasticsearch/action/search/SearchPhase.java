@@ -79,7 +79,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     /**
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
-    protected void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AbstractSearchAsyncAction<?> context) {
+    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AbstractSearchAsyncAction<?> context) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         if (searchPhaseResult == null) {
@@ -97,11 +97,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
                 context.getLogger().trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-                context.sendReleaseSearchContext(
-                    phaseResult.getContextId(),
-                    connection,
-                    context.getOriginalIndices(phaseResult.getShardIndex())
-                );
+                context.sendReleaseSearchContext(phaseResult.getContextId(), connection);
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

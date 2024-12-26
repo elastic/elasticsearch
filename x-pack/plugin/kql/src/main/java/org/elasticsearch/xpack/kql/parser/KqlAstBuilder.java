@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -56,15 +58,15 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     @Override
     public QueryBuilder visitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
         assert ctx.operator != null;
-        return isAndQuery(ctx) ? visitAndBooleanQuery(ctx) : visitOrBooleanQuery(ctx);
+        return isAndQuery(ctx) ? visitAndBooleanQuery(ctx.query()) : visitOrBooleanQuery(ctx.query());
     }
 
-    public QueryBuilder visitAndBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
+    public QueryBuilder visitAndBooleanQuery(List<? extends ParserRuleContext> clauses) {
         BoolQueryBuilder builder = QueryBuilders.boolQuery();
 
         // TODO: KQLContext has an option to wrap the clauses into a filter instead of a must clause. Do we need it?
-        for (ParserRuleContext subQueryCtx : ctx.query()) {
-            if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx && isAndQuery(booleanSubQueryCtx)) {
+        for (ParserRuleContext subQueryCtx : clauses) {
+            if (isAndQuery(subQueryCtx)) {
                 typedParsing(this, subQueryCtx, BoolQueryBuilder.class).must().forEach(builder::must);
             } else {
                 builder.must(typedParsing(this, subQueryCtx, QueryBuilder.class));
@@ -74,11 +76,11 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         return rewriteConjunctionQuery(builder);
     }
 
-    public QueryBuilder visitOrBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
+    public QueryBuilder visitOrBooleanQuery(List<? extends ParserRuleContext> clauses) {
         BoolQueryBuilder builder = QueryBuilders.boolQuery().minimumShouldMatch(1);
 
-        for (ParserRuleContext subQueryCtx : ctx.query()) {
-            if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx && isOrQuery(booleanSubQueryCtx)) {
+        for (ParserRuleContext subQueryCtx : clauses) {
+            if (isOrQuery(subQueryCtx)) {
                 typedParsing(this, subQueryCtx, BoolQueryBuilder.class).should().forEach(builder::should);
             } else {
                 builder.should(typedParsing(this, subQueryCtx, QueryBuilder.class));
@@ -100,8 +102,40 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitNestedQuery(KqlBaseParser.NestedQueryContext ctx) {
-        // TODO: implementation
-        return new MatchNoneQueryBuilder();
+        String nestedFieldName = extractText(ctx.fieldName());
+
+        if (kqlParsingContext.isNestedField(nestedFieldName) == false) {
+            throw new KqlParsingException(
+                "[{}] is not a valid nested field name.",
+                ctx.start.getLine(),
+                ctx.start.getCharPositionInLine(),
+                nestedFieldName
+            );
+        }
+        QueryBuilder subQuery = kqlParsingContext.withNestedPath(
+            nestedFieldName,
+            () -> typedParsing(this, ctx.nestedSubQuery(), QueryBuilder.class)
+        );
+
+        if (subQuery instanceof MatchNoneQueryBuilder) {
+            return subQuery;
+        }
+
+        return wrapWithNestedQuery(
+            nestedFieldName,
+            QueryBuilders.nestedQuery(kqlParsingContext.fullFieldName(nestedFieldName), subQuery, ScoreMode.None)
+        );
+    }
+
+    @Override
+    public QueryBuilder visitBooleanNestedQuery(KqlBaseParser.BooleanNestedQueryContext ctx) {
+        assert ctx.operator != null;
+        return isAndQuery(ctx) ? visitAndBooleanQuery(ctx.nestedSubQuery()) : visitOrBooleanQuery(ctx.nestedSubQuery());
+    }
+
+    @Override
+    public QueryBuilder visitNestedParenthesizedQuery(KqlBaseParser.NestedParenthesizedQueryContext ctx) {
+        return typedParsing(this, ctx.nestedSubQuery(), QueryBuilder.class);
     }
 
     @Override
@@ -116,7 +150,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
             if (isRuntimeField(mappedFieldType) == false) {
-                boolQueryBuilder.should(QueryBuilders.existsQuery(fieldName));
+                boolQueryBuilder.should(wrapWithNestedQuery(fieldName, QueryBuilders.existsQuery(fieldName)));
             }
         });
 
@@ -137,7 +171,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                 rangeQuery.timeZone(kqlParsingContext.timeZone().getId());
             }
 
-            boolQueryBuilder.should(rangeQuery);
+            boolQueryBuilder.should(wrapWithNestedQuery(fieldName, rangeQuery));
         });
 
         return rewriteDisjunctionQuery(boolQueryBuilder);
@@ -200,24 +234,33 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             }
 
             if (fieldQuery != null) {
-                boolQueryBuilder.should(fieldQuery);
+                boolQueryBuilder.should(wrapWithNestedQuery(fieldName, fieldQuery));
             }
         });
 
         return rewriteDisjunctionQuery(boolQueryBuilder);
     }
 
-    private static boolean isAndQuery(KqlBaseParser.BooleanQueryContext ctx) {
-        return ctx.operator.getType() == KqlBaseParser.AND;
+    private static boolean isAndQuery(ParserRuleContext ctx) {
+        return switch (ctx) {
+            case KqlBaseParser.BooleanQueryContext booleanQueryCtx -> booleanQueryCtx.operator.getType() == KqlBaseParser.AND;
+            case KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx -> booleanNestedCtx.operator.getType() == KqlBaseParser.AND;
+            default -> false;
+        };
     }
 
-    private static boolean isOrQuery(KqlBaseParser.BooleanQueryContext ctx) {
-        return ctx.operator.getType() == KqlBaseParser.OR;
+    private static boolean isOrQuery(ParserRuleContext ctx) {
+        return switch (ctx) {
+            case KqlBaseParser.BooleanQueryContext booleanQueryCtx -> booleanQueryCtx.operator.getType() == KqlBaseParser.OR;
+            case KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx -> booleanNestedCtx.operator.getType() == KqlBaseParser.OR;
+            default -> false;
+        };
     }
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
         assert ctx != null : "Field ctx cannot be null";
         String fieldNamePattern = extractText(ctx);
+
         Set<String> fieldNames = kqlParsingContext.resolveFieldNames(fieldNamePattern);
 
         if (ctx.value.getType() == KqlBaseParser.QUOTED_STRING && Regex.isSimpleMatchPattern(fieldNamePattern)) {
@@ -266,5 +309,15 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             case KqlBaseParser.OP_MORE_EQ -> RangeQueryBuilder::gte;
             default -> throw new IllegalArgumentException(format(null, "Invalid range operator {}\"", operator.getText()));
         };
+    }
+
+    private QueryBuilder wrapWithNestedQuery(String fieldName, QueryBuilder query) {
+        String nestedPath = kqlParsingContext.nestedPath(fieldName);
+
+        if (nestedPath == null || nestedPath.equals(kqlParsingContext.currentNestedPath())) {
+            return query;
+        }
+
+        return wrapWithNestedQuery(nestedPath, QueryBuilders.nestedQuery(nestedPath, query, ScoreMode.None));
     }
 }

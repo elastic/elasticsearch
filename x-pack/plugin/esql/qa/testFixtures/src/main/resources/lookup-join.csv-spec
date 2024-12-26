@@ -1,0 +1,1192 @@
+//
+// CSV spec for LOOKUP JOIN command
+// Reuses the sample dataset and commands from enrich.csv-spec
+//
+
+###############################################
+# Tests with languages_lookup index
+###############################################
+
+basicOnTheDataNode
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+basicRow
+required_capability: join_lookup_v9
+
+ROW language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+;
+
+language_code:integer  | language_name:keyword
+1                      | English
+;
+
+basicOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
+;
+
+subsequentEvalOnTheDataNode
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
+10091          | 3                     | spanish               |                        6
+10092          | 1                     | english               |                        2
+10093          | 3                     | spanish               |                        6
+;
+
+subsequentEvalOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
+10001          | 2                     | french                |                        4
+10002          | 5                     | null                  |                       10
+10003          | 4                     | german                |                        8
+;
+
+sortEvalBeforeLookup
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| EVAL language_code = (emp_no % 10) + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| LIMIT 3
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 3                     | Spanish
+10003          | 4                     | German
+;
+
+nonUniqueLeftKeyOnTheDataNode
+required_capability: join_lookup_v9
+
+FROM employees
+| WHERE emp_no <= 10030
+| EVAL language_code = emp_no % 10
+| WHERE language_code < 3
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          |1                      | English
+10002          |2                      | French
+10010          |0                      | null
+10011          |1                      | English
+10012          |2                      | French
+10020          |0                      | null
+10021          |1                      | English
+10022          |2                      | French
+10030          |0                      | null
+;
+
+nonUniqueRightKeyOnTheDataNode
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| WHERE emp_no > 10090 AND emp_no < 10096
+| SORT emp_no
+| EVAL country = MV_SORT(country)
+| KEEP emp_no, language_code, language_name, country
+;
+
+emp_no:integer | language_code:integer | language_name:keyword       | country:keyword
+10091          | 1                     | [English, English, English] | [Canada, United Kingdom, United States of America]
+10092          | 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
+10093          | 3                     | null                        | null
+10094          | 4                     | Quenya                      | null
+10095          | 5                     | null                        | Atlantis
+;
+
+nonUniqueRightKeyOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL country = MV_SORT(country)
+| KEEP emp_no, language_code, language_name, country
+;
+
+emp_no:integer | language_code:integer | language_name:keyword       | country:keyword
+10001          | 1                     | [English, English, English] | [Canada, United Kingdom, United States of America]
+10002          | 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
+10003          | 3                     | null                        | null
+10004          | 4                     | Quenya                      | null
+10005          | 5                     | null                        | Atlantis
+;
+
+nonUniqueRightKeyFromRow
+required_capability: join_lookup_v9
+
+ROW language_code = 2
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| DROP country.keyword
+| EVAL country = MV_SORT(country)
+;
+
+language_code:integer | language_name:keyword       | country:keyword
+2                     | [German, German, German]    | [Austria, Germany, Switzerland]
+;
+
+repeatedIndexOnFrom
+required_capability: join_lookup_v9
+
+FROM languages_lookup
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+3                     | Spanish
+4                     | German
+;
+
+dropAllLookedUpFieldsOnTheDataNode-Ignore
+// Depends on
+// https://github.com/elastic/elasticsearch/issues/118778
+// https://github.com/elastic/elasticsearch/issues/118781
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| WHERE emp_no == 10001
+| SORT emp_no
+| DROP language*
+;
+
+emp_no:integer
+10001
+10001
+10001
+10001
+;
+
+dropAllLookedUpFieldsOnTheCoordinator-Ignore
+// Depends on
+// https://github.com/elastic/elasticsearch/issues/118778
+// https://github.com/elastic/elasticsearch/issues/118781
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 2
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| DROP language*
+;
+
+emp_no:integer
+10001
+10001
+10001
+10001
+10002
+10002
+10002
+;
+
+###############################################
+# Filtering tests with languages_lookup index
+###############################################
+
+filterOnLeftSide
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| WHERE emp_no >= 10091 AND emp_no < 10094
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+filterOnRightSide
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE type == "Error"
+| KEEP @timestamp, client_ip, event_duration, message, type
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+;
+
+filterOnRightSideAfterStats
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| STATS count = count(message) BY type
+| WHERE type == "Error"
+;
+
+count:long | type:keyword
+3          | Error
+;
+
+filterOnJoinKey
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code == 1
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
+filterOnJoinKeyAndRightSide
+required_capability: join_lookup_v9
+
+FROM employees
+| WHERE emp_no < 10006
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code > 1 AND language_name IS NOT NULL
+| KEEP emp_no, language_code, language_name
+;
+ignoreOrder:true
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
+;
+
+filterOnRightSideOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10005          | 1                     | English
+;
+
+filterOnJoinKeyOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code == 1
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10005          | 1                     | English
+;
+
+filterOnJoinKeyAndRightSideOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code > 1 AND language_name IS NOT NULL
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
+;
+
+filterOnTheDataNodeThenFilterOnTheCoordinator
+required_capability: join_lookup_v9
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+| WHERE language_code == 1
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
+###########################################################################
+# null and multi-value behavior with languages_lookup_non_unique_key index
+###########################################################################
+
+nullJoinKeyOnTheDataNode
+required_capability: join_lookup_v9
+
+FROM employees
+| WHERE emp_no < 10004
+| EVAL language_code = emp_no % 10, language_code = CASE(language_code == 3, null, language_code)
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 1                     | [English, English, English]
+10002          | 2                     | [German, German, German]
+10003          | null                  | null
+;
+
+mvJoinKeyOnTheDataNode
+required_capability: join_lookup_v9
+
+FROM employees
+| WHERE 10003 < emp_no AND emp_no < 10008
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10004          | 4                     | Quenya
+10005          | 5                     | null
+10006          | 6                     | Mv-Lang
+10007          | 7                     | [Mv-Lang, Mv-Lang2]
+;
+
+mvJoinKeyFromRow
+required_capability: join_lookup_v9
+
+ROW language_code = [4, 5, 6, 7]
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL language_name = MV_SORT(language_name), country = MV_SORT(country)
+| KEEP language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:keyword
+[4, 5, 6, 7]          | [Mv-Lang, Mv-Lang2, Quenya] | [Atlantis, Mv-Land, Mv-Land2]
+;
+
+mvJoinKeyFromRowExpanded
+required_capability: join_lookup_v9
+
+ROW language_code = [4, 5, 6, 7, 8]
+| MV_EXPAND language_code
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL language_name = MV_SORT(language_name), country = MV_SORT(country)
+| KEEP language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:keyword
+4                     | Quenya                      | null
+5                     | null                        | Atlantis
+6                     | Mv-Lang                     | Mv-Land
+7                     | [Mv-Lang, Mv-Lang2]         | [Mv-Land, Mv-Land2]
+8                     | Mv-Lang2                    | Mv-Land2
+;
+
+###########################################################################
+# nested filed join behavior with languages_nested_fields index
+###########################################################################
+
+joinOnNestedField
+required_capability: join_lookup_v9
+
+FROM employees
+| WHERE 10000 < emp_no AND emp_no < 10006
+| EVAL language.id = emp_no % 10
+| LOOKUP JOIN languages_nested_fields ON language.id
+| SORT emp_no
+| KEEP emp_no, language.id, language.name
+;
+
+emp_no:integer | language.id:integer | language.name:text
+10001          | 1                   | English
+10002          | 2                   | French
+10003          | 3                   | Spanish
+10004          | 4                   | German
+10005          | 5                   | null
+;
+
+
+joinOnNestedFieldRow
+required_capability: join_lookup_v9
+
+ROW language.code = "EN"
+| LOOKUP JOIN languages_nested_fields ON language.code
+| KEEP language.id, language.code, language.name.keyword
+;
+
+language.id:integer | language.code:keyword | language.name.keyword:keyword
+1                   | EN                    | English
+;
+
+
+joinOnNestedNestedFieldRow
+required_capability: join_lookup_v9
+
+ROW language.name.keyword = "English"
+| LOOKUP JOIN languages_nested_fields ON language.name.keyword
+| KEEP language.id, language.name, language.name.keyword
+;
+
+language.id:integer | language.name:text | language.name.keyword:keyword
+1                   | English            | English
+;
+
+###############################################
+# Tests with clientips_lookup index
+###############################################
+
+lookupIPFromRow
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", right = "right"
+| LOOKUP JOIN clientips_lookup ON client_ip
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+left         | 172.21.0.5        | right         | Development
+;
+
+lookupIPFromKeepRow
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", right = "right"
+| KEEP left, client_ip, right
+| LOOKUP JOIN clientips_lookup ON client_ip
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+left         | 172.21.0.5        | right         | Development
+;
+
+lookupIPFromRowWithShadowing
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
+| LOOKUP JOIN clientips_lookup ON client_ip
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+left         | 172.21.0.5        | right         | Development
+;
+
+lookupIPFromRowWithShadowingKeep
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP left, client_ip, right, env
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+left         | 172.21.0.5        | right         | Development
+;
+
+lookupIPFromRowWithShadowingKeepReordered
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP right, env, client_ip
+;
+
+right:keyword | env:keyword | client_ip:keyword
+right         | Development | 172.21.0.5
+;
+
+lookupIPFromIndex
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+;
+ignoreOrder:true
+
+@timestamp:date          | event_duration:long | message:keyword       | client_ip:keyword | env:keyword
+2023-10-23T13:55:01.543Z | 1756467             | Connected to 10.1.0.1 | 172.21.3.15       | Production
+2023-10-23T13:53:55.832Z | 5033755             | Connection error      | 172.21.3.15       | Production
+2023-10-23T13:52:55.015Z | 8268153             | Connection error      | 172.21.3.15       | Production
+2023-10-23T13:51:54.732Z | 725448              | Connection error      | 172.21.3.15       | Production
+2023-10-23T13:33:34.937Z | 1232382             | Disconnected          | 172.21.0.5        | Development
+2023-10-23T12:27:28.948Z | 2764889             | Connected to 10.1.0.2 | 172.21.2.113      | QA
+2023-10-23T12:15:03.360Z | 3450233             | Connected to 10.1.0.3 | 172.21.2.162      | QA
+;
+
+lookupIPFromIndexKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP @timestamp, client_ip, event_duration, message, env
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:keyword | event_duration:long | message:keyword       | env:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Connected to 10.1.0.1 | Production
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Connection error      | Production
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Connection error      | Production
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Connection error      | Production
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Disconnected          | Development
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | Connected to 10.1.0.2 | QA
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | Connected to 10.1.0.3 | QA
+;
+
+lookupIPFromIndexKeepKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| KEEP client_ip, event_duration, @timestamp, message
+| RENAME @timestamp AS timestamp, message AS msg
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP timestamp, client_ip, event_duration, msg, env
+;
+ignoreOrder:true
+
+timestamp:date           | client_ip:keyword | event_duration:long | msg:keyword           | env:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Connected to 10.1.0.1 | Production
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Connection error      | Production
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Connection error      | Production
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Connection error      | Production
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Disconnected          | Development
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | Connected to 10.1.0.2 | QA
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | Connected to 10.1.0.3 | QA
+;
+
+lookupIPFromIndexStats
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| STATS count = count(client_ip) BY env
+| SORT count DESC, env ASC
+;
+
+count:long | env:keyword
+4          | Production
+2          | QA
+1          | Development
+;
+
+lookupIPFromIndexStatsKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP client_ip, env
+| STATS count = count(client_ip) BY env
+| SORT count DESC, env ASC
+;
+
+count:long | env:keyword
+4          | Production
+2          | QA
+1          | Development
+;
+
+statsAndLookupIPFromIndex
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| STATS count = count(client_ip) BY client_ip
+| LOOKUP JOIN clientips_lookup ON client_ip
+| SORT count DESC, client_ip ASC, env ASC
+;
+
+count:long | client_ip:keyword | env:keyword
+4          | 172.21.3.15       | Production
+1          | 172.21.0.5        | Development
+1          | 172.21.2.113      | QA
+1          | 172.21.2.162      | QA
+;
+
+###############################################
+# Tests with message_types_lookup index
+###############################################
+
+lookupMessageFromRow
+required_capability: join_lookup_v9
+
+ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
+lookupMessageFromKeepRow
+required_capability: join_lookup_v9
+
+ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
+| KEEP left, message, right
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
+lookupMessageFromRowWithShadowing
+required_capability: join_lookup_v9
+
+ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
+lookupMessageFromRowWithShadowingKeep
+required_capability: join_lookup_v9
+
+ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP left, message, right, type
+;
+
+left:keyword | message:keyword       | right:keyword | type:keyword
+left         | Connected to 10.1.0.1 | right         | Success
+;
+
+lookupMessageFromIndex
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected          | Disconnected
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | Success
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | Success
+;
+
+lookupMessageFromIndexKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected          | Disconnected
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | Success
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | Success
+;
+
+lookupMessageFromIndexKeepKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| KEEP client_ip, event_duration, @timestamp, message
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected          | Disconnected
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | Success
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | Success
+;
+
+lookupMessageFromIndexKeepReordered
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP type, client_ip, event_duration, message
+;
+ignoreOrder:true
+
+type:keyword | client_ip:ip | event_duration:long | message:keyword
+Success      | 172.21.3.15  | 1756467             | Connected to 10.1.0.1
+Error        | 172.21.3.15  | 5033755             | Connection error
+Error        | 172.21.3.15  | 8268153             | Connection error
+Error        | 172.21.3.15  | 725448              | Connection error
+Disconnected | 172.21.0.5   | 1232382             | Disconnected
+Success      | 172.21.2.113 | 2764889             | Connected to 10.1.0.2
+Success      | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
+;
+
+lookupMessageFromIndexStats
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| STATS count = count(message) BY type
+| SORT count DESC, type ASC
+;
+
+count:long | type:keyword
+3          | Error
+3          | Success
+1          | Disconnected
+;
+
+lookupMessageFromIndexStatsKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP message, type
+| STATS count = count(message) BY type
+| SORT count DESC, type ASC
+;
+
+count:long | type:keyword
+3          | Error
+3          | Success
+1          | Disconnected
+;
+
+statsAndLookupMessageFromIndex
+required_capability: join_lookup_v9
+
+FROM sample_data
+| STATS count = count(message) BY message
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP count, type, message
+| SORT count DESC, message ASC
+;
+
+count:long | type:keyword | message:keyword
+3          | Error        | Connection error
+1          | Success      | Connected to 10.1.0.1
+1          | Success      | Connected to 10.1.0.2
+1          | Success      | Connected to 10.1.0.3
+1          | Disconnected | Disconnected
+;
+
+lookupMessageFromIndexTwice
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| RENAME message AS message1, type AS type1
+| EVAL message = client_ip::keyword
+| LOOKUP JOIN message_types_lookup ON message
+| RENAME message AS message2, type AS type2
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message1:keyword      | type1:keyword | message2:keyword | type2:keyword 
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success       | 172.21.3.15      | null
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error         | 172.21.3.15      | null
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error         | 172.21.3.15      | null
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error         | 172.21.3.15      | null
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected          | Disconnected  | 172.21.0.5       | null
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | Success       | 172.21.2.113     | null
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | Success       | 172.21.2.162     | null
+;
+
+lookupMessageFromIndexTwiceKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| RENAME message AS message1, type AS type1
+| EVAL message = client_ip::keyword
+| LOOKUP JOIN message_types_lookup ON message
+| RENAME message AS message2, type AS type2
+| KEEP @timestamp, client_ip, event_duration, message1, type1, message2, type2
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message1:keyword      | type1:keyword | message2:keyword | type2:keyword 
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success       | 172.21.3.15      | null
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error         | 172.21.3.15      | null
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error         | 172.21.3.15      | null
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error         | 172.21.3.15      | null
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected          | Disconnected  | 172.21.0.5       | null
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | Success       | 172.21.2.113     | null
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | Success       | 172.21.2.162     | null
+;
+
+lookupMessageFromIndexTwiceFullyShadowing
+required_capability: join_lookup_v9
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467             | Connected to 10.1.0.1 | Success
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1232382             | Disconnected          | Disconnected
+2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889             | Connected to 10.1.0.2 | Success
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3 | Success
+;
+
+###############################################
+# Tests with clientips_lookup and message_types_lookup indexes
+###############################################
+
+lookupIPAndMessageFromRow
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowKeepBefore
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
+| KEEP left, client_ip, message, right
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowKeepBetween
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP left, client_ip, message, right, env
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowKeepAfter
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP left, client_ip, message, right, env, type
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowWithShadowing
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", type = "type", right = "right"
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowWithShadowingKeep
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP left, client_ip, message, right, env, type
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowWithShadowingKeepKeep
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP left, client_ip, message, right, env
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP left, client_ip, message, right, env, type
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowWithShadowingKeepKeepKeep
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
+| EVAL client_ip = client_ip::keyword
+| KEEP left, client_ip, message, right, env
+| LOOKUP JOIN clientips_lookup ON client_ip
+| KEEP left, client_ip, message, right, env
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP left, client_ip, message, right, env, type
+;
+
+left:keyword | client_ip:keyword | message:keyword       | right:keyword | env:keyword | type:keyword
+left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Development | Success
+;
+
+lookupIPAndMessageFromRowWithShadowingKeepReordered
+required_capability: join_lookup_v9
+
+ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP right, env, type, client_ip
+;
+
+right:keyword | env:keyword  | type:keyword | client_ip:keyword
+right         | Development  | Success      | 172.21.0.5
+;
+
+lookupIPAndMessageFromIndex
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+;
+ignoreOrder:true
+
+@timestamp:date          | event_duration:long | message:keyword       | client_ip:keyword | env:keyword | type:keyword
+2023-10-23T13:55:01.543Z | 1756467             | Connected to 10.1.0.1 | 172.21.3.15       | Production  | Success
+2023-10-23T13:53:55.832Z | 5033755             | Connection error      | 172.21.3.15       | Production  | Error
+2023-10-23T13:52:55.015Z | 8268153             | Connection error      | 172.21.3.15       | Production  | Error
+2023-10-23T13:51:54.732Z | 725448              | Connection error      | 172.21.3.15       | Production  | Error
+2023-10-23T13:33:34.937Z | 1232382             | Disconnected          | 172.21.0.5        | Development | Disconnected
+2023-10-23T12:27:28.948Z | 2764889             | Connected to 10.1.0.2 | 172.21.2.113      | QA          | Success
+2023-10-23T12:15:03.360Z | 3450233             | Connected to 10.1.0.3 | 172.21.2.162      | QA          | Success
+;
+
+lookupIPAndMessageFromIndexKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, env, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:keyword | event_duration:long | message:keyword       | env:keyword | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Connected to 10.1.0.1 | Production  | Success
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Connection error      | Production  | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Connection error      | Production  | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Connection error      | Production  | Error
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Disconnected          | Development | Disconnected
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | Connected to 10.1.0.2 | QA          | Success
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | Connected to 10.1.0.3 | QA          | Success
+;
+
+lookupIPAndMessageFromIndexStats
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| STATS count = count(*) BY env, type
+| SORT count DESC, env ASC, type ASC
+;
+
+count:long | env:keyword | type:keyword
+3          | Production  | Error
+2          | QA          | Success
+1          | Development | Disconnected
+1          | Production  | Success
+;
+
+lookupIPAndMessageFromIndexStatsKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP client_ip, env, type
+| STATS count = count(*) BY env, type
+| SORT count DESC, env ASC, type ASC
+;
+
+count:long | env:keyword | type:keyword
+3          | Production  | Error
+2          | QA          | Success
+1          | Development | Disconnected
+1          | Production  | Success
+;
+
+statsAndLookupIPAndMessageFromIndex
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| STATS count = count(*) BY client_ip, message
+| LOOKUP JOIN clientips_lookup ON client_ip
+| LOOKUP JOIN message_types_lookup ON message
+| SORT count DESC, client_ip ASC, message ASC
+;
+
+count:long | client_ip:keyword | message:keyword       | env:keyword | type:keyword
+3          | 172.21.3.15       | Connection error      | Production  | Error
+1          | 172.21.0.5        | Disconnected          | Development | Disconnected
+1          | 172.21.2.113      | Connected to 10.1.0.2 | QA          | Success
+1          | 172.21.2.162      | Connected to 10.1.0.3 | QA          | Success
+1          | 172.21.3.15       | Connected to 10.1.0.1 | Production  | Success
+;
+
+lookupIPAndMessageFromIndexChainedEvalKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| EVAL message = CONCAT(env, " environment")
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:keyword | event_duration:long | message:keyword         | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Production environment  | Production
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Production environment  | Production
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Production environment  | Production
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Production environment  | Production
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Development environment | Development
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | QA environment          | null
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA environment          | null
+;
+
+lookupIPAndMessageFromIndexChainedRenameKeep
+required_capability: join_lookup_v9
+
+FROM sample_data
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN clientips_lookup ON client_ip
+| RENAME env AS message
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP @timestamp, client_ip, event_duration, message, type
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:keyword | event_duration:long | message:keyword | type:keyword
+2023-10-23T13:55:01.543Z | 172.21.3.15       | 1756467             | Production      | null
+2023-10-23T13:53:55.832Z | 172.21.3.15       | 5033755             | Production      | null
+2023-10-23T13:52:55.015Z | 172.21.3.15       | 8268153             | Production      | null
+2023-10-23T13:51:54.732Z | 172.21.3.15       | 725448              | Production      | null
+2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Development     | null
+2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | QA              | null
+2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA              | null
+;

@@ -1,0 +1,5 @@
+pr: 117589
+summary: "Add Inference Unified API for chat completions for OpenAI"
+area: Machine Learning
+type: enhancement
+issues: []

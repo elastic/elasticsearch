@@ -176,8 +176,6 @@ fragmenter:: Specifies how text should be broken up in highlight
 snippets: `simple` or `span`. Only valid for the `plain` highlighter.
 Defaults to `span`.
 
-force_source:: deprecated; this parameter has no effect
-
 `simple`::: Breaks up text into same-sized fragments.
 `span`::: Breaks up text into same-sized fragments, but tries to avoid
 breaking up text between highlighted terms. This is helpful when you're

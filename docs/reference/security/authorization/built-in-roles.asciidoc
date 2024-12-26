@@ -14,11 +14,6 @@ roles have a fixed set of privileges and cannot be updated.
 Grants access necessary for the APM system user to send system-level data
 (such as monitoring) to {es}.
 
-[[built-in-roles-apm-user]] `apm_user` ::
-Grants the privileges required for APM users (such as `read` and
-`view_index_metadata` privileges on the `apm-*` and `.ml-anomalies*` indices).
-deprecated:[7.13.0,"See {kibana-ref}/apm-app-users.html[APM app users and privileges\] for alternatives."].
-
 [[built-in-roles-beats-admin]] `beats_admin` ::
 Grants access to the `.management-beats` index, which contains configuration
 information for the Beats.
@@ -166,12 +161,11 @@ Grants the minimum privileges required to write data into the monitoring indices
 Grants the minimum privileges required to collect monitoring data for the {stack}.
 
 [[built-in-roles-reporting-user]] `reporting_user`::
-Grants the specific privileges required for users of {reporting} other than those
-required to use {kib}. This role grants access to the reporting indices; each
-user has access to only their own reports.
-Reporting users should also be assigned additional roles that grant
-{kibana-ref}/xpack-security-authorization.html[access to {kib}] as well as read
-access to the <<roles-indices-priv,indices>> that will be used to generate reports.
+Grants the necessary privileges required to use {reporting} features in {kib},
+including generating and downloading reports. This role implicitly grants access
+to all Kibana reporting features, with each user having access only to their own reports.
+Note that reporting users should also be assigned additional roles that grant read access
+to the <<roles-indices-priv,indices>> that will be used to generate reports.
 
 [[built-in-roles-rollup-admin]] `rollup_admin`::
 Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions.

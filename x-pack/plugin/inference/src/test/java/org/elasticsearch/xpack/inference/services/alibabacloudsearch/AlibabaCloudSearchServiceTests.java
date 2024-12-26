@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -14,22 +15,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -325,6 +327,43 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_UpdatesEmbeddingSizeAndSimilarity() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomFrom(TaskType.values()),
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.createRandom(),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.createRandom(),
+                null
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            assertEquals(SimilarityMeasure.DOT_PRODUCT, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
     public void testChunkedInfer_TextEmbeddingChunkingSettingsSet() throws IOException {
         testChunkedInfer(TaskType.TEXT_EMBEDDING, ChunkingSettingsTests.createRandomChunkingSettings());
     }
@@ -353,7 +392,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 null
             );
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             try {
                 service.chunkedInfer(
                     model,
@@ -361,7 +400,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     List.of("foo", "bar"),
                     new HashMap<>(),
                     InputType.INGEST,
-                    new ChunkingOptions(null, null),
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );
@@ -379,26 +417,17 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
             assertThat(results, hasSize(2));
             var firstResult = results.get(0);
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                assertThat(firstResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
+                assertThat(firstResult, instanceOf(ChunkedInferenceEmbeddingFloat.class));
             } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-                assertThat(firstResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
+                assertThat(firstResult, instanceOf(ChunkedInferenceEmbeddingSparse.class));
             }
         }
     }

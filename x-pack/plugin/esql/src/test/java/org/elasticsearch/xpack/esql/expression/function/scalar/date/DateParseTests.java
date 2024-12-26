@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -47,11 +48,26 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
                 ),
+                new TestCaseSupplier("Timezoned Case", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+                    long ts_sec = 1657585450L; // 2022-07-12T00:24:10Z
+                    int hours = randomIntBetween(0, 23);
+                    String date = String.format(Locale.ROOT, "12/Jul/2022:%02d:24:10 +0900", hours);
+                    long expected_ts = (ts_sec + (hours - 9) * 3600L) * 1000L;
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("dd/MMM/yyyy:HH:mm:ss Z"), DataType.KEYWORD, "first"),
+                            new TestCaseSupplier.TypedData(new BytesRef(date), DataType.KEYWORD, "second")
+                        ),
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
+                        DataType.DATETIME,
+                        equalTo(expected_ts)
+                    );
+                }),
                 new TestCaseSupplier(
                     "With Text",
                     List.of(DataType.KEYWORD, DataType.TEXT),
@@ -60,7 +76,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -73,7 +89,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -86,7 +102,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         equalTo(1683244800000L)
                     )
@@ -99,7 +115,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
 
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         is(nullValue())
                     ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
@@ -119,7 +135,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataType.KEYWORD, "second")
 
                         ),
-                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
                         DataType.DATETIME,
                         is(nullValue())
                     ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")

@@ -29,6 +29,8 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -46,6 +48,8 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project> {
+
+    private static final Logger log = LoggerFactory.getLogger(ElasticsearchBuildCompletePlugin.class);
 
     @Inject
     protected abstract FlowScope getFlowScope();
@@ -147,12 +151,17 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         @SuppressWarnings("checkstyle:DescendantToken")
         @Override
         public void execute(BuildFinishedFlowAction.Parameters parameters) throws FileNotFoundException {
+            List<File> filesToArchive = parameters.getFilteredFiles().get();
+            if (filesToArchive.isEmpty()) {
+                return;
+            }
             File uploadFile = parameters.getUploadFile().get();
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
             uploadFile.getParentFile().mkdirs();
-            createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
+
+            createBuildArchiveTar(filesToArchive, parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = uploadFile.getName();
                 File uploadFileDir = uploadFile.getParentFile();
@@ -236,8 +245,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
                 tOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
                 for (Path path : files.stream().map(File::toPath).toList()) {
-                    if (!Files.isRegularFile(path)) {
-                        throw new IOException("Support only file!");
+                    if (Files.exists(path) == false) {
+                        log.warn("File disappeared before it could be added to CI archive: " + path);
+                        continue;
+                    } else if (!Files.isRegularFile(path)) {
+                        throw new IOException("Support only file!: " + path);
                     }
 
                     long entrySize = Files.size(path);

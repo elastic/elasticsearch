@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -36,6 +37,7 @@ import java.util.Set;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
+import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
 
 public final class RestResponse implements Releasable {
 
@@ -142,16 +144,16 @@ public final class RestResponse implements Releasable {
         // switched in the xcontent rendering parameters.
         // For authorization problems (RestStatus.UNAUTHORIZED) we don't want to do this since this could
         // leak information to the caller who is unauthorized to make this call
-        if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
+        if (params.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
 
-        if (channel.detailedErrorsEnabled() == false) {
+        if (channel.request().getRestApiVersion() == RestApiVersion.V_8 && channel.detailedErrorsEnabled() == false) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "http_detailed_errors",
-                "The JSON format of non-detailed errors will change in Elasticsearch 9.0 to match the JSON structure"
-                    + " used for detailed errors. To keep using the existing format, use the V8 REST API."
+                "The JSON format of non-detailed errors has changed in Elasticsearch 9.0 to match the JSON structure"
+                    + " used for detailed errors."
             );
         }
 

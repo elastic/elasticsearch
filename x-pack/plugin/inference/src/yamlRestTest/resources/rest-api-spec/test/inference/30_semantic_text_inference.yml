@@ -551,7 +551,7 @@ setup:
 ---
 "Calculates embeddings using the default ELSER 2 endpoint":
   - requires:
-      reason: "default ELSER 2 inference ID is behind a feature flag"
+      reason: "default ELSER 2 inference ID is enabled via a capability"
       test_runner_features: [capabilities]
       capabilities:
         - method: GET
@@ -624,3 +624,55 @@ setup:
   - match: { _source.level_1.dense_field.text: "another inference test" }
   - exists: _source.level_1.dense_field.inference.chunks.0.embeddings
   - match: { _source.level_1.dense_field.inference.chunks.0.text: "another inference test" }
+
+---
+"Deletes on bulk operation":
+  - requires:
+      cluster_features: semantic_text.delete_fix
+      reason: Delete operations are properly applied when subsequent operations include a semantic text field.
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index":{"_id": "1"}}
+          {"dense_field": ["you know, for testing", "now with chunks"]}
+          {"index":{"_id": "2"}}
+          {"dense_field": ["some more tests", "that include chunks"]}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: dense_field
+              query: "you know, for testing"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.dense_field.text: ["you know, for testing", "now with chunks"] }
+  - match: { hits.hits.1._source.dense_field.text: ["some more tests", "that include chunks"] }
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"delete":{ "_id": "2"}}
+          {"update":{"_id": "1"}}
+          {"doc":{"dense_field": "updated text"}}
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: dense_field
+              query: "you know, for testing"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.dense_field.text: "updated text" }

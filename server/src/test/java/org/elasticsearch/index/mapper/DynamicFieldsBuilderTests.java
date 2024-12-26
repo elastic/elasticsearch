@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -69,13 +72,20 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
 
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new PassThroughObjectMapper.Builder("labels").setPriority(0).setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
-        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping), sourceToParse) {
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping, indexSettings), sourceToParse) {
             @Override
             public XContentParser parser() {
                 return parser;

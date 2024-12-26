@@ -174,7 +174,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
 
             assertFalse(handler.streamClosed);
 
@@ -187,7 +187,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // wait for resources to be released
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }
@@ -204,15 +204,13 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.streamClosed);
 
             // terminate connection on server and wait resources are released
             handler.channel.request().getHttpChannel().close();
             assertBusy(() -> {
-                // Cannot be simplified to assertNull.
-                // assertNull requires object to not fail on toString() method, but closing buffer can
-                assertTrue(handler.stream.buf() == null);
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }
@@ -228,14 +226,14 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // await stream handler is ready and request full content
             var handler = ctx.awaitRestChannelAccepted(opaqueId);
-            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertBusy(() -> assertNotEquals(0, handler.stream.bufSize()));
             assertFalse(handler.streamClosed);
 
             handler.shouldThrowInsideHandleChunk = true;
             handler.stream.next();
 
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                assertEquals(0, handler.stream.bufSize());
                 assertTrue(handler.streamClosed);
             });
         }
@@ -701,11 +699,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new BaseRestHandler() {
-                @Override
-                public boolean allowsUnsafeBuffers() {
-                    return true;
-                }
-
                 @Override
                 public String getName() {
                     return ROUTE;

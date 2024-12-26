@@ -9,34 +9,17 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.Map;
 import java.util.Set;
 
 public class HealthFeatures implements FeatureSpecification {
 
-    public static final NodeFeature SUPPORTS_HEALTH = new NodeFeature("health.supports_health");
-    public static final NodeFeature SUPPORTS_HEALTH_REPORT_API = new NodeFeature("health.supports_health_report_api");
-    public static final NodeFeature SUPPORTS_SHARDS_CAPACITY_INDICATOR = new NodeFeature("health.shards_capacity_indicator");
     public static final NodeFeature SUPPORTS_EXTENDED_REPOSITORY_INDICATOR = new NodeFeature("health.extended_repository_indicator");
 
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(SUPPORTS_EXTENDED_REPOSITORY_INDICATOR);
-    }
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(
-            SUPPORTS_HEALTH,
-            Version.V_8_5_0,                // health accessible via /_internal/_health
-            SUPPORTS_HEALTH_REPORT_API,
-            Version.V_8_7_0,                // health accessible via /_health_report
-            SUPPORTS_SHARDS_CAPACITY_INDICATOR,
-            Version.V_8_8_0
-        );
     }
 }

@@ -1,7 +1,6 @@
 // Integral types-specific tests
 
 inLongAndInt
-required_capability: mv_warn
 
 from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
 warningRegex:evaluation of \[avg_worked_seconds in \(372957040, salary_change.long, 236703986\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -68,7 +67,6 @@ long:long                    |ul:ul
 ;
 
 convertDoubleToUL
-required_capability: convert_warn
 
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
 warningRegex:Line 1:48: evaluation of \[to_ul\(1e20\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -127,7 +125,6 @@ int:integer       |long:long
 ;
 
 convertULToLong
-required_capability: convert_warn
 
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
 warningRegex:Line 1:67: evaluation of \[to_long\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -170,7 +167,6 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 ;
 
 convertDoubleToLong
-required_capability: convert_warn
 
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
 warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -190,7 +186,6 @@ int:integer       |ii:integer
 ;
 
 convertLongToInt
-required_capability: convert_warn
 
 // tag::to_int-long[]
 ROW long = [5013792, 2147483647, 501379200000]
@@ -207,7 +202,6 @@ long:long                           |int:integer
 ;
 
 convertULToInt
-required_capability: convert_warn
 
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
 warningRegex:Line 1:57: evaluation of \[to_int\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -239,7 +233,6 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 ;
 
 convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
-required_capability: mv_warn
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warningRegex:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -254,7 +247,6 @@ str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |
 ;
 
 convertDoubleToInt
-required_capability: convert_warn
 
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
 warningRegex:Line 1:54: evaluation of \[to_integer\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -265,7 +257,6 @@ d:double       |d2i:integer   |overflow:integer
 ;
 
 lessThanMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warningRegex:evaluation of \[salary_change.int < 1\] failed, treating result as null. Only first 20 failures recorded.
@@ -281,7 +272,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 greaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warningRegex:evaluation of \[salary_change.int > 1\] failed, treating result as null. Only first 20 failures recorded.
@@ -297,7 +287,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 equalToMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
 warningRegex:evaluation of \[salary_change.int == 0\] failed, treating result as null. Only first 20 failures recorded.
@@ -312,7 +301,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 equalToOrEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
 warningRegex:evaluation of \[salary_change.int\] failed, treating result as null. Only first 20 failures recorded.
@@ -325,7 +313,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 inMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
 warningRegex:evaluation of \[salary_change.int in \(1, 7\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -338,7 +325,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notLessThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change.int < 1.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -354,7 +340,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notGreaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change.int > 1.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -370,7 +355,6 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change.int == 1.*\] failed, treating result as null. Only first 20 failures recorded

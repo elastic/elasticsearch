@@ -34,6 +34,6 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
     long estimatedNumOperations();
 
     default TransportVersion getMinimalCompatibilityVersion() {
-        return TransportVersions.V_7_6_0;
+        return TransportVersions.ZERO;
     }
 }

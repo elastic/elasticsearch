@@ -84,7 +84,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 clusterService,
                 () -> clusterInfo,
                 createShardAllocator(),
-                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER)
+                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER, ClusterSettings.createBuiltInClusterSettings())
             );
             assertThat(
                 service.stats(),
@@ -125,7 +125,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 clusterService,
                 EmptyClusterInfoService.INSTANCE,
                 createShardAllocator(),
-                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER)
+                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER, ClusterSettings.createBuiltInClusterSettings())
             );
             assertThat(
                 service.stats(),
@@ -182,7 +182,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                         );
                     }
                 },
-                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER)
+                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER, ClusterSettings.createBuiltInClusterSettings())
             );
             assertThat(
                 service.stats(),

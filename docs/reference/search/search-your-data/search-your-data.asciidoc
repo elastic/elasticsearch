@@ -43,6 +43,8 @@ DSL, with a simplified user experience. Create search applications based on your
 results directly in the Kibana Search UI.
 
 include::search-api.asciidoc[]
+include::../../how-to/recipes.asciidoc[]
+// ☝️ search relevance recipes
 include::retrievers-overview.asciidoc[]
 include::knn-search.asciidoc[]
 include::semantic-search.asciidoc[]

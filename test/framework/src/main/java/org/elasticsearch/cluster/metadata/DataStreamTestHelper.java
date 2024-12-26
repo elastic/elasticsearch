@@ -147,33 +147,46 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
+        return newInstance(
+            name,
+            indices,
+            generation,
+            metadata,
+            replicated,
+            lifecycle,
+            failureStores,
+            failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED
+        );
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        DataStreamLifecycle lifecycle,
+        List<Index> failureStores,
+        DataStreamOptions dataStreamOptions
+    ) {
         return DataStream.builder(name, indices)
             .setGeneration(generation)
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setDataStreamOptions(failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setDataStreamOptions(dataStreamOptions)
             .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
             .build();
     }
 
-    public static String getLegacyDefaultBackingIndexName(
-        String dataStreamName,
-        long generation,
-        long epochMillis,
-        boolean isNewIndexNameFormat
-    ) {
-        if (isNewIndexNameFormat) {
-            return String.format(
-                Locale.ROOT,
-                BACKING_INDEX_PREFIX + "%s-%s-%06d",
-                dataStreamName,
-                DATE_FORMATTER.formatMillis(epochMillis),
-                generation
-            );
-        } else {
-            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
-        }
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(
+            Locale.ROOT,
+            BACKING_INDEX_PREFIX + "%s-%s-%06d",
+            dataStreamName,
+            DATE_FORMATTER.formatMillis(epochMillis),
+            generation
+        );
     }
 
     public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
@@ -466,19 +479,19 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas,
         boolean replicated,
-        boolean storeFailures
+        Boolean storeFailures
     ) {
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(
-                        false,
-                        false,
-                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
-                    )
+                .template(
+                    Template.builder()
+                        .dataStreamOptions(
+                            DataStream.isFailureStoreFeatureFlagEnabled() ? createDataStreamOptionsTemplate(storeFailures) : null
+                        )
                 )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
 
@@ -493,7 +506,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE.equals(storeFailures)) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -672,7 +685,7 @@ public final class DataStreamTestHelper {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
+            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), null);
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
 
@@ -749,4 +762,12 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
+        if (failureStore == null) {
+            return DataStreamOptions.Template.EMPTY;
+        }
+        return new DataStreamOptions.Template(
+            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
+        );
+    }
 }

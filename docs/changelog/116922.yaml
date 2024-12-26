@@ -1,0 +1,5 @@
+pr: 116922
+summary: Always check if index mode is logsdb
+area: Logs
+type: bug
+issues: []

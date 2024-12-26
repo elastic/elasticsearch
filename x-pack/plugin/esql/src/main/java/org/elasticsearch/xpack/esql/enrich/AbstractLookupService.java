@@ -41,6 +41,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -130,7 +132,6 @@ import java.util.stream.IntStream;
  */
 abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
-    private final String privilegeName;
     private final ClusterService clusterService;
     private final SearchService searchService;
     private final TransportService transportService;
@@ -141,7 +142,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
 
     AbstractLookupService(
         String actionName,
-        String privilegeName,
         ClusterService clusterService,
         SearchService searchService,
         TransportService transportService,
@@ -150,7 +150,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
         this.actionName = actionName;
-        this.privilegeName = privilegeName;
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
@@ -164,6 +163,10 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             in -> readRequest.apply(in, blockFactory),
             new TransportHandler()
         );
+    }
+
+    public ThreadContext getThreadContext() {
+        return transportService.getThreadPool().getThreadContext();
     }
 
     /**
@@ -231,9 +234,21 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         }));
     }
 
+    /**
+     * Get the privilege required to perform the lookup.
+     * <p>
+     *     If null is returned, no privilege check will be performed.
+     * </p>
+     */
+    @Nullable
+    protected abstract String getRequiredPrivilege();
+
     private void hasPrivilege(ActionListener<Void> outListener) {
         final Settings settings = clusterService.getSettings();
-        if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+        String privilegeName = getRequiredPrivilege();
+        if (privilegeName == null
+            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             outListener.onResponse(null);
             return;
         }
@@ -327,11 +342,18 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             releasables.add(mergePositionsOperator);
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             QueryList queryList = queryList(request, searchExecutionContext, inputBlock, request.inputDataType);
+            var warnings = Warnings.createWarnings(
+                DriverContext.WarningsMode.COLLECT,
+                request.source.source().getLineNumber(),
+                request.source.source().getColumnNumber(),
+                request.source.text()
+            );
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                searchExecutionContext.getIndexReader()
+                searchExecutionContext.getIndexReader(),
+                warnings
             );
             releasables.add(queryOperator);
             var extractFieldsOperator = extractFieldsOperator(searchContext, driverContext, request.extractFields);
@@ -447,13 +469,22 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
+        final Source source;
 
-        Request(String sessionId, String index, DataType inputDataType, Page inputPage, List<NamedExpression> extractFields) {
+        Request(
+            String sessionId,
+            String index,
+            DataType inputDataType,
+            Page inputPage,
+            List<NamedExpression> extractFields,
+            Source source
+        ) {
             this.sessionId = sessionId;
             this.index = index;
             this.inputDataType = inputDataType;
             this.inputPage = inputPage;
             this.extractFields = extractFields;
+            this.source = source;
         }
     }
 
@@ -467,6 +498,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
+        final Source source;
         // TODO: Remove this workaround once we have Block RefCount
         final Page toRelease;
         final RefCounted refs = AbstractRefCounted.of(this::releasePage);
@@ -477,7 +509,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             DataType inputDataType,
             Page inputPage,
             Page toRelease,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
@@ -485,6 +518,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             this.inputPage = inputPage;
             this.toRelease = toRelease;
             this.extractFields = extractFields;
+            this.source = source;
         }
 
         @Override

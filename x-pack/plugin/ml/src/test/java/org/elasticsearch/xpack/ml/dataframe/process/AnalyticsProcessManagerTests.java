@@ -138,16 +138,20 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(task.isStopping()).thenReturn(true);
         when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", MlConfigVersion.CURRENT, false));
 
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory,
+        processManager.runJob(
+            task,
+            dataFrameAnalyticsConfig,
+            dataExtractorFactory,
             ActionTestUtils.assertNoFailureListener(stepResponse -> {
-            assertThat(processManager.getProcessContextCount(), equalTo(0));
-            assertThat(stepResponse.isTaskComplete(), is(true));
+                assertThat(processManager.getProcessContextCount(), equalTo(0));
+                assertThat(stepResponse.isTaskComplete(), is(true));
 
-            InOrder inOrder = inOrder(task);
-            inOrder.verify(task).isStopping();
-            inOrder.verify(task).getParams();
-            verifyNoMoreInteractions(task);
-        }));
+                InOrder inOrder = inOrder(task);
+                inOrder.verify(task).isStopping();
+                inOrder.verify(task).getParams();
+                verifyNoMoreInteractions(task);
+            })
+        );
     }
 
     public void testRunJob_ProcessContextAlreadyExists() {

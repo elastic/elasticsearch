@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,8 +31,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,30 +90,38 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
         int totalBulkReqs = randomIntBetween(2, 100);
         long totalDocs = 0;
+        Set<String> ids = new HashSet<>();
         for (int bulkReqs = 0; bulkReqs < totalBulkReqs; bulkReqs++) {
             BulkRequestBuilder bulkReqBuilder = client().prepareBulk();
             int totalBulkSize = randomIntBetween(1, 100);
             for (int bulkSize = 0; bulkSize < totalBulkSize; bulkSize++) {
-                String id = Long.toString(totalDocs);
+                if (ids.size() > 0 && rarely(random())) {
+                    String id = randomFrom(ids);
+                    ids.remove(id);
+                    DeleteRequestBuilder request = new DeleteRequestBuilder(client(), INDEX_NAME).setId(id);
+                    bulkReqBuilder.add(request);
+                    continue;
+                }
+                String id = Long.toString(totalDocs++);
                 boolean isIndexRequest = randomBoolean();
                 Map<String, Object> source = new HashMap<>();
                 source.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
                 source.put("dense_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
                 if (isIndexRequest) {
                     bulkReqBuilder.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(id).setSource(source));
-                    totalDocs++;
+                    ids.add(id);
                 } else {
                     boolean isUpsert = randomBoolean();
                     UpdateRequestBuilder request = new UpdateRequestBuilder(client()).setIndex(INDEX_NAME).setDoc(source);
-                    if (isUpsert || totalDocs == 0) {
+                    if (isUpsert || ids.size() == 0) {
                         request.setDocAsUpsert(true);
-                        totalDocs++;
                     } else {
                         // Update already existing document
-                        id = Long.toString(randomLongBetween(0, totalDocs - 1));
+                        id = randomFrom(ids);
                     }
                     request.setId(id);
                     bulkReqBuilder.add(request);
+                    ids.add(id);
                 }
             }
             BulkResponse bulkResponse = bulkReqBuilder.get();
@@ -135,7 +146,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         SearchResponse searchResponse = client().search(new SearchRequest(INDEX_NAME).source(sourceBuilder)).get();
         try {
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(totalDocs));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) ids.size()));
         } finally {
             searchResponse.decRef();
         }

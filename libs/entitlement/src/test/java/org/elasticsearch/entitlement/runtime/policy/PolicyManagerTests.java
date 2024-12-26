@@ -43,6 +43,7 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsThrowsOnMissingPluginUnnamedModule() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
             c -> "plugin1",
             NO_ENTITLEMENTS_MODULE
@@ -66,7 +67,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -86,7 +87,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsFailureIsCached() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -106,6 +107,7 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsReturnsEntitlementsForPluginUnnamedModule() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
             NO_ENTITLEMENTS_MODULE
@@ -120,7 +122,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(createTestServerPolicy("example"), List.of(), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -143,7 +145,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), List.of(), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -164,6 +166,7 @@ public class PolicyManagerTests extends ESTestCase {
 
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
             c -> "mock-plugin",
             NO_ENTITLEMENTS_MODULE
@@ -184,6 +187,7 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsResultIsCached() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
             NO_ENTITLEMENTS_MODULE
@@ -268,7 +272,7 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     private static PolicyManager policyManagerWithEntitlementsModule(Module entitlementsModule) {
-        return new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "test", entitlementsModule);
+        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", entitlementsModule);
     }
 
     private static Policy createEmptyTestServerPolicy() {

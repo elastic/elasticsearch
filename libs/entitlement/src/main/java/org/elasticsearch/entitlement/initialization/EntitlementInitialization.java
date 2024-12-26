@@ -101,9 +101,7 @@ public class EntitlementInitialization {
         );
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(
-            new CreateClassLoaderEntitlement()
-        );
+        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
     }

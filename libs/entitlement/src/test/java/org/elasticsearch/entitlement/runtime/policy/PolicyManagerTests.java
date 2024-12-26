@@ -145,7 +145,13 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), List.of(), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(
+            createTestServerPolicy("jdk.httpserver"),
+            List.of(),
+            Map.of(),
+            c -> null,
+            NO_ENTITLEMENTS_MODULE
+        );
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.

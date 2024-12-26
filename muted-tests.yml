@@ -195,9 +195,6 @@ tests:
   method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
   issue: https://github.com/elastic/elasticsearch/issues/118196
 - class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured
-  issue: https://github.com/elastic/elasticsearch/issues/118202
-- class: org.elasticsearch.packaging.test.ArchiveTests
   method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
   issue: https://github.com/elastic/elasticsearch/issues/118208
 - class: org.elasticsearch.packaging.test.ArchiveTests

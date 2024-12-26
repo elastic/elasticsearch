@@ -20,7 +20,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,11 +43,13 @@ public class MustacheSettingsIT extends ESSingleNodeTestCase {
             { "query": {"match_all": {}}, "size" : "{{my_size}}"  }""";
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("test");
-        var e = expectThrows(ElasticsearchParseException.class, () ->
-            new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
+        var e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
                 .setScript(query)
                 .setScriptType(ScriptType.INLINE)
-                .setScriptParams(Collections.singletonMap("my_size", 1)).get()
+                .setScriptParams(Collections.singletonMap("my_size", 1))
+                .get()
         );
         assertThat(e.getMessage(), equalTo("Mustache script result size limit exceeded"));
     }

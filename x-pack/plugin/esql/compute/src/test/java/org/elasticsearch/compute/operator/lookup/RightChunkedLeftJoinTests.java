@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.lookup;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
@@ -180,6 +182,7 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
         }
     }
 
+    @Repeat(iterations = 1000)
     public void testRandom() {
         int leftSize = between(100, 10000);
         BlockFactory factory = blockFactory();

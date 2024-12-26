@@ -1,6 +1,8 @@
 steps:
   - label: part-1
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+    command: |
+      .buildkite/scripts/spotless.sh # This doesn't have to be part of part-1, it was just a convenient place to put it
+      .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
     timeout_in_minutes: 300
     agents:
       provider: gcp

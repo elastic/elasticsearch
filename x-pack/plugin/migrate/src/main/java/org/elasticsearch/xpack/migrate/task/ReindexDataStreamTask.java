@@ -15,8 +15,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
@@ -26,9 +29,9 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     private final int totalIndicesToBeUpgraded;
     private volatile boolean complete = false;
     private volatile Exception exception;
-    private final AtomicInteger inProgress = new AtomicInteger(0);
+    private final Set<String> inProgress = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger pending = new AtomicInteger();
-    private final List<Tuple<String, Exception>> errors = new ArrayList<>();
+    private final List<Tuple<String, Exception>> errors = Collections.synchronizedList(new ArrayList<>());
     private final RunOnce completeTask;
 
     @SuppressWarnings("this-escape")
@@ -64,7 +67,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
             totalIndicesToBeUpgraded,
             complete,
             exception,
-            inProgress.get(),
+            inProgress,
             pending.get(),
             errors
         );
@@ -84,17 +87,17 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         allReindexesCompleted(threadPool, timeToLive);
     }
 
-    public void reindexSucceeded() {
-        inProgress.decrementAndGet();
+    public void reindexSucceeded(String index) {
+        inProgress.remove(index);
     }
 
     public void reindexFailed(String index, Exception error) {
         this.errors.add(Tuple.tuple(index, error));
-        inProgress.decrementAndGet();
+        inProgress.remove(index);
     }
 
-    public void incrementInProgressIndicesCount() {
-        inProgress.incrementAndGet();
+    public void incrementInProgressIndicesCount(String index) {
+        inProgress.add(index);
         pending.decrementAndGet();
     }
 

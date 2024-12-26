@@ -13,6 +13,7 @@
 * <<esql-concat>>
 * <<esql-ends_with>>
 * <<esql-from_base64>>
+* <<esql-hash>>
 * <<esql-left>>
 * <<esql-length>>
 * <<esql-locate>>
@@ -37,6 +38,7 @@ include::layout/byte_length.asciidoc[]
 include::layout/concat.asciidoc[]
 include::layout/ends_with.asciidoc[]
 include::layout/from_base64.asciidoc[]
+include::layout/hash.asciidoc[]
 include::layout/left.asciidoc[]
 include::layout/length.asciidoc[]
 include::layout/locate.asciidoc[]

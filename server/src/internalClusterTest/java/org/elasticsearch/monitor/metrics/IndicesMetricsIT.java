@@ -136,10 +136,15 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 STANDARD_INDEXING_COUNT,
                 equalTo(numStandardDocs),
                 STANDARD_INDEXING_TIME,
-                greaterThanOrEqualTo(0L),
-                STANDARD_INDEXING_FAILURE,
-                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexCount())
+                greaterThanOrEqualTo(0L)
             )
+        );
+        assertIndexingFailureMetrics(
+            telemetry,
+            1,
+            STANDARD_INDEXING_FAILURE,
+            equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexFailedCount()),
+            equalTo(0L)
         );
 
         long numTimeSeriesIndices = randomIntBetween(1, 5);
@@ -159,10 +164,15 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 TIME_SERIES_INDEXING_COUNT,
                 equalTo(numTimeSeriesDocs),
                 TIME_SERIES_INDEXING_TIME,
-                greaterThanOrEqualTo(0L),
-                TIME_SERIES_INDEXING_FAILURE,
-                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount())
+                greaterThanOrEqualTo(0L)
             )
+        );
+        assertIndexingFailureMetrics(
+                telemetry,
+                2,
+                TIME_SERIES_INDEXING_FAILURE,
+                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount()),
+                equalTo(0L)
         );
 
         long numLogsdbIndices = randomIntBetween(1, 5);
@@ -181,10 +191,15 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 LOGSDB_INDEXING_COUNT,
                 equalTo(numLogsdbDocs),
                 LOGSDB_INDEXING_TIME,
-                greaterThanOrEqualTo(0L),
-                LOGSDB_INDEXING_FAILURE,
-                equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount())
+                greaterThanOrEqualTo(0L)
             )
+        );
+        assertIndexingFailureMetrics(
+                telemetry,
+                3,
+                LOGSDB_INDEXING_FAILURE,
+                equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount()),
+                equalTo(0L)
         );
         // already collected indexing stats
         collectThenAssertMetrics(
@@ -195,23 +210,38 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L),
                 STANDARD_INDEXING_TIME,
                 equalTo(0L),
-                STANDARD_INDEXING_FAILURE,
-                equalTo(0L),
 
                 TIME_SERIES_INDEXING_COUNT,
                 equalTo(0L),
                 TIME_SERIES_INDEXING_TIME,
                 equalTo(0L),
-                TIME_SERIES_INDEXING_FAILURE,
-                equalTo(0L),
 
                 LOGSDB_INDEXING_COUNT,
                 equalTo(0L),
                 LOGSDB_INDEXING_TIME,
-                equalTo(0L),
-                LOGSDB_INDEXING_FAILURE,
                 equalTo(0L)
             )
+        );
+        assertIndexingFailureMetrics(
+                telemetry,
+                4,
+                STANDARD_INDEXING_FAILURE,
+                equalTo(0L),
+                equalTo(0L)
+        );
+        assertIndexingFailureMetrics(
+                telemetry,
+                4,
+                TIME_SERIES_INDEXING_FAILURE,
+                equalTo(0L),
+                equalTo(0L)
+        );
+        assertIndexingFailureMetrics(
+                telemetry,
+                4,
+                LOGSDB_INDEXING_FAILURE,
+                equalTo(0L),
+                equalTo(0L)
         );
         String searchNode = internalCluster().startDataOnlyNode();
         indicesService = internalCluster().getInstance(IndicesService.class, searchNode);
@@ -345,6 +375,24 @@ public class IndicesMetricsIT extends ESIntegTestCase {
             assertThat(name, measurements, hasSize(times));
             assertThat(name, measurements.getLast().getLong(), e.getValue());
         }
+    }
+
+    void assertIndexingFailureMetrics(
+        TestTelemetryPlugin telemetry,
+        int collectTimes,
+        String indexingFailureMetricsKey,
+        Matcher<Long> anyFailureMatcher,
+        Matcher<Long> versionConflictFailureMatcher
+    ) {
+        List<Measurement> measurements = telemetry.getLongGaugeMeasurement(indexingFailureMetricsKey);
+        // there are 2 metrics collected ("any" and "version_conflicts") every collection time
+        assertThat(measurements, hasSize(collectTimes * 2));
+
+        String causeAttributeName = indexingFailureMetricsKey.replace("total", "cause");
+        assertThat(measurements.get(collectTimes * 2 - 2).attributes(), equalTo(Map.of(causeAttributeName, "any")));
+        assertThat((long) measurements.get(collectTimes * 2 - 2).value(), anyFailureMatcher);
+        assertThat(measurements.get(collectTimes * 2 - 1).attributes(), equalTo(Map.of(causeAttributeName, "version_conflict")));
+        assertThat((long) measurements.get(collectTimes * 2 - 1).value(), versionConflictFailureMatcher);
     }
 
     int populateStandardIndices(long numIndices) {

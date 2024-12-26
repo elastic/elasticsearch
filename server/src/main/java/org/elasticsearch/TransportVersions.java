@@ -146,7 +146,7 @@ public class TransportVersions {
     public static final TransportVersion ERROR_TRACE_IN_TRANSPORT_HEADER = def(8_811_00_0);
     public static final TransportVersion FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING = def(8_812_00_0);
     public static final TransportVersion SIMULATE_IGNORED_FIELDS = def(8_813_00_0);
-    public static final TransportVersion TRACK_INDEX_FAILED_WITH_VERSION_CONFLICT_METRICS = def(8_812_00_0);
+    public static final TransportVersion TRACK_INDEX_FAILED_WITH_VERSION_CONFLICT_METRICS = def(8_814_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

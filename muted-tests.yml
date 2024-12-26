@@ -192,9 +192,6 @@ tests:
   method: testCancelRequestWhenFailingFetchingPages
   issue: https://github.com/elastic/elasticsearch/issues/118193
 - class: org.elasticsearch.packaging.test.ArchiveTests
-  method: test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster
-  issue: https://github.com/elastic/elasticsearch/issues/118196
-- class: org.elasticsearch.packaging.test.ArchiveTests
   method: test44AutoConfigurationNotTriggeredOnNotWriteableConfDir
   issue: https://github.com/elastic/elasticsearch/issues/118208
 - class: org.elasticsearch.packaging.test.ArchiveTests

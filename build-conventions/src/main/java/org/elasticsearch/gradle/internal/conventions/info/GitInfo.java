@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -191,15 +190,4 @@ public class GitInfo {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        GitInfo gitInfo = (GitInfo) o;
-        return Objects.equals(revision, gitInfo.revision) && Objects.equals(origin, gitInfo.origin);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(revision, origin);
-    }
 }

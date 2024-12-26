@@ -73,7 +73,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
     private final QueryBuilderResolver queryBuilderResolver;
-    // Listeners for active async queries
+    // Listeners for active async queries, key being the async task execution ID
     private final Map<String, SubscribableListener<EsqlQueryResponse>> asyncListeners = ConcurrentCollections.newConcurrentMap();
 
     @Inject

@@ -1469,12 +1469,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         populateData();
         String otherUser = populateOtherUser();
 
-        // query remote cluster only
+        // Adding a delay there so that the async query is not completed before we check the status
         Request request = esqlRequestAsync("""
             FROM employees, *:employees
             | SORT emp_id ASC
             | LIMIT 10
-            | WHERE delay(1ms)
+            | WHERE delay(10ms)
             | KEEP emp_id, department""");
         Response response = performRequestWithRemoteSearchUser(request);
         assertOK(response);
@@ -1510,7 +1510,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             FROM employees, *:employees
             | SORT emp_id ASC
             | LIMIT 10
-            | WHERE delay(1ms)
+            | WHERE delay(10ms)
             | KEEP emp_id, department""");
         Response response = performRequestWithRemoteSearchUser(request);
         assertOK(response);

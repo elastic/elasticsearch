@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -283,8 +284,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
          */
 
         // run the stop query
-        var stopRequest = new AsyncStopRequest(asyncExecutionId);
-        var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        AsyncStopRequest stopRequest = new AsyncStopRequest(asyncExecutionId);
+        ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
         // allow remoteB query to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
 
@@ -388,6 +389,47 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertClusterInfoSuccess(localCluster, 1);
 
             assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
+        } finally {
+            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+        }
+    }
+
+    public void testStopQueryLocalNoRemotes() throws Exception {
+        setupClusters(3);
+        populateRuntimeIndex(LOCAL_CLUSTER, "pause", INDEX_WITH_RUNTIME_MAPPING);
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        final String asyncExecutionId = startAsyncQuery(
+            client(),
+            "FROM blocking | STATS total=count(const) | LIMIT 1",
+            includeCCSMetadata
+        );
+
+        // wait until we know that the query against 'remote-b:blocking' has started
+        SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+
+        /* at this point:
+         *  the query against the local cluster should be running because it's blocked
+         */
+
+        // run the stop query
+        var stopRequest = new AsyncStopRequest(asyncExecutionId);
+        var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        // allow local query to proceed
+        SimplePauseFieldPlugin.allowEmitting.countDown();
+
+        try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
+            assertThat(asyncResponse.isRunning(), is(false));
+            assertThat(asyncResponse.columns().size(), equalTo(1));
+            assertThat(asyncResponse.values().hasNext(), is(true));
+            Iterator<Object> row = asyncResponse.values().next();
+            assertThat((long)row.next(), greaterThanOrEqualTo(0L));
+
+            EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+            assertNotNull(executionInfo);
+            assertThat(executionInfo.isCrossClusterSearch(), is(false));
         } finally {
             assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }

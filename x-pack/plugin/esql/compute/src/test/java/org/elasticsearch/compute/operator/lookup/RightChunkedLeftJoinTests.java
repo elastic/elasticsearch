@@ -9,7 +9,10 @@ package org.elasticsearch.compute.operator.lookup;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -17,9 +20,11 @@ import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ListMatcher;
 
 import java.text.NumberFormat;
@@ -34,10 +39,18 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
 
+//@Seed("2D315E29A0E2984D:5304566AE6A44EE2")
 public class RightChunkedLeftJoinTests extends ComputeTestCase {
     public void testNoGaps() {
+        testNoGaps(blockFactory());
+    }
+
+    public void testNoGapsCranky() {
+        testWithCrankyBlockFactory(this::testNoGaps);
+    }
+
+    private void testNoGaps(BlockFactory factory) {
         int size = 100;
-        BlockFactory factory = blockFactory();
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(buildExampleLeftHand(factory, size), 2)) {
             assertJoined(
                 factory,
@@ -63,7 +76,14 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
      * Test the first example in the main javadoc of {@link RightChunkedLeftJoin}.
      */
     public void testFirstExample() {
-        BlockFactory factory = blockFactory();
+        testFirstExample(blockFactory());
+    }
+
+    public void testFirstExampleCranky() {
+        testWithCrankyBlockFactory(this::testFirstExample);
+    }
+
+    private void testFirstExample(BlockFactory factory) {
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(buildExampleLeftHand(factory, 100), 2)) {
             assertJoined(
                 factory,
@@ -86,8 +106,15 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
     }
 
     public void testLeadingNulls() {
+        testLeadingNulls(blockFactory());
+    }
+
+    public void testLeadingNullsCranky() {
+        testWithCrankyBlockFactory(this::testLeadingNulls);
+    }
+
+    private void testLeadingNulls(BlockFactory factory) {
         int size = 3;
-        BlockFactory factory = blockFactory();
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(buildExampleLeftHand(factory, size), 2)) {
             assertJoined(
                 factory,
@@ -103,12 +130,19 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
         }
     }
 
+    public void testSecondExample() {
+        testSecondExample(blockFactory());
+    }
+
+    public void testSecondExampleCranky() {
+        testWithCrankyBlockFactory(this::testSecondExample);
+    }
+
     /**
      * Test the second example in the main javadoc of {@link RightChunkedLeftJoin}.
      */
-    public void testSecondExample() {
+    private void testSecondExample(BlockFactory factory) {
         int size = 100;
-        BlockFactory factory = blockFactory();
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(buildExampleLeftHand(factory, size), 2)) {
             assertJoined(
                 factory,
@@ -153,12 +187,19 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
         }
     }
 
+    public void testThirdExample() {
+        testThirdExample(blockFactory());
+    }
+
+    public void testThirdExampleCranky() {
+        testWithCrankyBlockFactory(this::testThirdExample);
+    }
+
     /**
      * Test the third example in the main javadoc of {@link RightChunkedLeftJoin}.
      */
-    public void testThirdExample() {
+    private void testThirdExample(BlockFactory factory) {
         int size = 100;
-        BlockFactory factory = blockFactory();
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(buildExampleLeftHand(factory, size), 2)) {
             Page pre = buildPage(factory, IntStream.range(0, 96).mapToObj(p -> new int[] { p, p, p }).toArray(int[][]::new));
             try {
@@ -184,8 +225,15 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
 
     @Repeat(iterations = 1000)
     public void testRandom() {
+        testRandom(blockFactory());
+    }
+
+    public void testRandomCranky() {
+        testWithCrankyBlockFactory(this::testRandom);
+    }
+
+    private void testRandom(BlockFactory factory) {
         int leftSize = between(100, 10000);
-        BlockFactory factory = blockFactory();
         ElementType[] leftColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
         ElementType[] rightColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
 
@@ -356,7 +404,7 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
     IntVector randomPositions(BlockFactory factory, int leftSize, int positionCount) {
         int[] positions = new int[positionCount];
         for (int p = 0; p < positions.length; p++) {
-            positions[p] = between(0, leftSize);
+            positions[p] = between(0, leftSize - 1);
         }
         Arrays.sort(positions);
         return factory.newIntArrayVector(positions, positions.length);

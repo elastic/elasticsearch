@@ -26,6 +26,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -544,7 +545,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexAllowed() throws Exception {
-        assumeTrue("LOOKUP JOIN only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("Requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
 
         Response resp = runESQLCommand(
             "metadata1_read2",
@@ -580,7 +581,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexForbidden() {
-        assumeTrue("LOOKUP JOIN only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("Requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
 
         var resp = expectThrows(
             ResponseException.class,

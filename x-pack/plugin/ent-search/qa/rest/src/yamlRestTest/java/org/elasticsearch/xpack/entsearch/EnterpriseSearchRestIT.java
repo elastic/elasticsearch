@@ -35,6 +35,9 @@ public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
     @Override
     protected Settings restClientSettings() {
         final String value = basicAuthHeaderValue("entsearch-admin", new SecureString("entsearch-admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", value)
+            .put(ThreadContext.PREFIX + ".X-elastic-product-origin", "connectors")
+            .build();
     }
 }

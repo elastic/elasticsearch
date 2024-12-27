@@ -138,7 +138,6 @@ public class IndexVersions {
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion DEPRECATE_SOURCE_MODE_MAPPER = def(9_003_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_00_0, Version.LUCENE_10_0_0);
-
     public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_005_00_0, Version.LUCENE_10_1_0);
 
     /*

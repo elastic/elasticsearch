@@ -416,8 +416,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
   method: testCancellationDuringTimeSeriesAggregation
   issue: https://github.com/elastic/elasticsearch/issues/118992
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/119159
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
@@ -427,12 +425,12 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119191
   method: test {yaml=indices.create/20_synthetic_source/create index with use_synthetic_source}
-- class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
-  method: testCartesianBoundsBlockLoader
-  issue: https://github.com/elastic/elasticsearch/issues/119201
 - class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
   method: testIngestWithInputFields
   issue: https://github.com/elastic/elasticsearch/issues/118092
 - class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
   method: testIngestWithMultipleInputFields
   issue: https://github.com/elastic/elasticsearch/issues/118093
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  method: testRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/119280

@@ -32,8 +32,8 @@ correlating log as `EsRejectedExecutionException` with either
 
 These errors are often related to <<task-queue-backlog,backlogged tasks>>.
 
-See https://www.youtube.com/watch?v=auZJRXoAVpI[this video] for an example
-troubleshooting walkthrough.
+See https://www.youtube.com/watch?v=auZJRXoAVpI[this video] for a walkthrough
+of troubleshooting threadpool rejections.
 
 [discrete]
 [[check-circuit-breakers]]
@@ -50,8 +50,8 @@ GET /_nodes/stats/breaker
 These statistics are cumulative from node startup. For more information, see
 <<circuit-breaker,circuit breaker errors>>.
 
-See https://www.youtube.com/watch?v=k3wYlRVbMSw[this video] for an example
-troubleshooting walkthrough.
+See https://www.youtube.com/watch?v=k3wYlRVbMSw[this video] for a walkthrough
+of diagnosing circuit breaker errors.
 
 [discrete]
 [[check-indexing-pressure]]
@@ -75,8 +75,8 @@ These errors are often related to <<task-queue-backlog,backlogged tasks>>,
 <<docs-bulk,bulk index>> sizing, or the ingest target's
 <<index-modules,`refresh_interval` setting>>.
 
-See https://www.youtube.com/watch?v=QuV8QqSfc0c[this video] for an example
-troubleshooting walkthrough.
+See https://www.youtube.com/watch?v=QuV8QqSfc0c[this video] for a walkthrough
+of diagnosing indexing pressure rejections.
 
 [discrete]
 [[prevent-rejected-requests]]

@@ -14,12 +14,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -382,17 +383,39 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return ChunkedToXContent.builder(params).xContentObject(innerToXContentChunked(params));
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            this.innerToXContentChunked(params),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .append(SearchResponse.this::headerToXContent)
-            .append(clusters)
-            .append(hits)
-            .appendIfPresent(aggregations)
-            .appendIfPresent(suggest)
-            .appendIfPresent(profileResults);
+        return Iterators.concat(
+            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            Iterators.single(clusters),
+            Iterators.concat(
+                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
+                Iterators.single((ToXContent) (b, p) -> {
+                    if (aggregations != null) {
+                        aggregations.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (suggest != null) {
+                        suggest.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (profileResults != null) {
+                        profileResults.toXContent(b, p);
+                    }
+                    return b;
+                })
+            )
+        );
     }
 
     public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

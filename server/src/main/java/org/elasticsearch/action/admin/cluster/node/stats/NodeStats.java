@@ -19,6 +19,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -39,6 +40,7 @@ import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -371,15 +373,15 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 (builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)
             ),
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getFs())),
+            singleChunkIfPresent(getFs()),
             ifPresent(getTransport()).toXContentChunked(outerParams),
             ifPresent(getHttp()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getBreaker())),
+            singleChunkIfPresent(getBreaker()),
             ifPresent(getScriptStats()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getDiscoveryStats())),
+            singleChunkIfPresent(getDiscoveryStats()),
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getAdaptiveSelectionStats())),
-            singleChunk(ifPresent(getScriptCacheStats())),
+            singleChunkIfPresent(getAdaptiveSelectionStats()),
+            singleChunkIfPresent(getScriptCacheStats()),
             singleChunk(
                 (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
                     .value(ifPresent(getRepositoriesStats()), p)
@@ -394,5 +396,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     private static ToXContent ifPresent(@Nullable ToXContent toXContent) {
         return Objects.requireNonNullElse(toXContent, ToXContent.EMPTY);
+    }
+
+    private static Iterator<ToXContent> singleChunkIfPresent(ToXContent toXContent) {
+        return toXContent == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(toXContent);
     }
 }

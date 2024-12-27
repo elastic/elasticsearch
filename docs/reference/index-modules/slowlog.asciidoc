@@ -21,8 +21,6 @@ The following is an example of a search event in the slow log:
 
 TIP: If a call was initiated with an `X-Opaque-ID` header, then the ID is automatically included in Search slow logs in the **elasticsearch.slowlog.id** field. See <<x-opaque-id,X-Opaque-Id HTTP header>> for details and best practices.
 
-TIP: You can use the `index.search.slowlog.include.user` or `index.indexing.slowlog.include.user` settings to append `user.*` and `auth.type` fields to slow log entries. These fields contain information about the user who triggered the request.
-
 [source,js]
 ---------------------------
 {
@@ -111,6 +109,8 @@ GET _all/_settings?expand_wildcards=all&filter_path=*.settings.index.*.slowlog
 
 Search slow logs emit per shard. They must be enabled separately for the shard's link:https://www.elastic.co/blog/understanding-query-then-fetch-vs-dfs-query-then-fetch[query and fetch search phases].
 
+You can use the `index.search.slowlog.include.user` setting to append `user.*` and `auth.type` fields to slow log entries. These fields contain information about the user who triggered the request.
+
 The following snippet adjusts all available search slow log settings across all indices using the 
 <<settings,`log4j2.properties` configuration file>>:
 
@@ -154,6 +154,8 @@ PUT /my-index-000001/_settings
 ==== Enable slow logging for indexing events
 
 Indexing slow logs emit per index document. 
+
+You can use the `index.indexing.slowlog.include.user` setting to append `user.*` and `auth.type` fields to slow log entries. These fields contain information about the user who triggered the request.
 
 The following snippet adjusts all available indexing slow log settings across all indices using the 
 <<settings,`log4j2.properties` configuration file>>:

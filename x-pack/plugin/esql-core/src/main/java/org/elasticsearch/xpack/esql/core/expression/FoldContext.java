@@ -23,13 +23,6 @@ public class FoldContext {
         return new FoldContext(Long.MAX_VALUE);
     }
 
-    /**
-     * {@link Expression#fold} using a small amount of memory.
-     */
-    public static FoldContext small() {
-        return new FoldContext(Long.MAX_VALUE);
-    }
-
     private long allowedBytes;
 
     public FoldContext(long allowedBytes) {

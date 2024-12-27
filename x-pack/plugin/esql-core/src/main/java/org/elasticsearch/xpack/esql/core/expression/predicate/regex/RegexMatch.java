@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -65,11 +64,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
 
     @Override
     public Boolean fold(FoldContext ctx) {
-        Object val = field().fold(ctx);
-        if (val instanceof BytesRef br) {
-            val = br.utf8ToString();
-        }
-        return RegexOperation.match(val, pattern().asJavaRegex());
+        throw new UnsupportedOperationException();
     }
 
     @Override

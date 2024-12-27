@@ -1618,6 +1618,12 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
+    private static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
+
+    public static TypeParser createTypeParserWithLegacySupport(BiFunction<String, MappingParserContext, Builder> builderFunction) {
+        return new TypeParser(builderFunction, MINIMUM_LEGACY_COMPATIBILITY_VERSION);
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
@@ -1632,14 +1638,14 @@ public abstract class FieldMapper extends Mapper {
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         /**
-         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * Variant of {@link #TypeParser(BiFunction)} that allows to define a minimumCompatibilityVersion to
          * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(IndexVersion)}).
          */
-        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
+        private TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
@@ -1647,14 +1653,14 @@ public abstract class FieldMapper extends Mapper {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, contextValidator, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             List<BiConsumer<String, MappingParserContext>> contextValidator
         ) {
-            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         private TypeParser(

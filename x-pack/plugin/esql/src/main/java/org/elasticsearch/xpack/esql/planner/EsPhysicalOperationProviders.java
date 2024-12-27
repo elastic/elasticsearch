@@ -116,12 +116,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
-        var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             var unionTypes = findUnionTypes(attr);
             DataType dataType = attr.dataType();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             // Do not use the field attribute name, this can deviate from the field name for union types.
             String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();

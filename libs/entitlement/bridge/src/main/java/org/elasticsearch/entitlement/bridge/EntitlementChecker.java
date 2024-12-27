@@ -11,9 +11,14 @@ package org.elasticsearch.entitlement.bridge;
 
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
+import java.util.List;
 
 public interface EntitlementChecker {
-    void check$java_lang_System$exit(Class<?> callerClass, int status);
+
+    // Exit the JVM process
+    void check$$exit(Class<?> callerClass, Runtime runtime, int status);
+
+    void check$$halt(Class<?> callerClass, Runtime runtime, int status);
 
     // URLClassLoader ctor
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
@@ -25,4 +30,10 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    // Process creation
+    void check$$start(Class<?> callerClass, ProcessBuilder that, ProcessBuilder.Redirect[] redirects);
+
+    void check$java_lang_ProcessBuilder$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
+
 }

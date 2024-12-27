@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -79,7 +80,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 
@@ -91,6 +92,11 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

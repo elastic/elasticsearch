@@ -236,7 +236,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
         "monitor_data_frame_transforms",
-        Set.of()
+        MONITOR_TRANSFORM_PATTERN
     );
     public static final NamedClusterPrivilege MONITOR_TEXT_STRUCTURE = new ActionClusterPrivilege(
         "monitor_text_structure",
@@ -255,7 +255,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
         "manage_data_frame_transforms",
-        Set.of()
+        MANAGE_TRANSFORM_PATTERN
     );
     public static final NamedClusterPrivilege MANAGE_TRANSFORM = new ActionClusterPrivilege("manage_transform", MANAGE_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TOKEN = new ActionClusterPrivilege("manage_token", MANAGE_TOKEN_PATTERN);

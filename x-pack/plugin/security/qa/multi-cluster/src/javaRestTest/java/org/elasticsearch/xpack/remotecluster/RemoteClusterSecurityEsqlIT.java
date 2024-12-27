@@ -1465,6 +1465,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     public void testCrossClusterAsyncQuery() throws Exception {
+        assumeTrue("delay() is only available in snapshot builds", Build.current().isSnapshot());
         configureRemoteCluster();
         populateData();
         String otherUser = populateOtherUser();
@@ -1501,6 +1502,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     public void testCrossClusterAsyncQueryStop() throws Exception {
+        assumeTrue("delay() is only available in snapshot builds", Build.current().isSnapshot());
         configureRemoteCluster();
         populateData();
         String otherUser = populateOtherUser();

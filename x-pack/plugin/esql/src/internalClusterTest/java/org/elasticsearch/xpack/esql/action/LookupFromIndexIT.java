@@ -45,7 +45,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -90,7 +89,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         void populate(int docCount, List<String> expected) throws IOException;
     }
 
-    class UsingSingleLookupTable implements PopulateIndices{
+    class UsingSingleLookupTable implements PopulateIndices {
         private final Object[] lookupData;
 
         UsingSingleLookupTable(Object[] lookupData) {

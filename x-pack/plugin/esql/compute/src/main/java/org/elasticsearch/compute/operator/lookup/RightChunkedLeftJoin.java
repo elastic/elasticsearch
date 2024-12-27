@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
@@ -181,7 +180,6 @@ class RightChunkedLeftJoin implements Releasable {
 
             int b = 0;
             while (b < leftHand.getBlockCount()) {
-                System.err.println("ADSFDAFDSA " + Arrays.toString(leftFilterArray));
                 blocks[b] = leftHand.getBlock(b).filter(leftFilterArray);
                 b++;
             }

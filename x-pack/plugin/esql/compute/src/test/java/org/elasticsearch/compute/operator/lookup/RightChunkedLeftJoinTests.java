@@ -7,12 +7,7 @@
 
 package org.elasticsearch.compute.operator.lookup;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -20,26 +15,24 @@ import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ListMatcher;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
 
-//@Seed("2D315E29A0E2984D:5304566AE6A44EE2")
 public class RightChunkedLeftJoinTests extends ComputeTestCase {
     public void testNoGaps() {
         testNoGaps(blockFactory());
@@ -223,7 +216,6 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
         }
     }
 
-    @Repeat(iterations = 1000)
     public void testRandom() {
         testRandom(blockFactory());
     }
@@ -242,6 +234,7 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
             int rightSize = 5;
             IntVector selected = randomPositions(factory, leftSize, rightSize);
             RandomPage right = randomPage(factory, rightColumns, rightSize, selected.asBlock());
+
             try {
                 Page joined = join.join(right.page);
                 try {
@@ -252,8 +245,8 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
                     int rightRow = 0;
                     for (int leftRow = 0; leftRow < joined.getPositionCount(); leftRow++) {
                         List<Object> actualRow = new ArrayList<>();
-                        for (int c = 0; c < actualColumns.size(); c++) {
-                            actualRow.add(actualColumns.get(c).get(leftRow));
+                        for (List<Object> actualColumn : actualColumns) {
+                            actualRow.add(actualColumn.get(leftRow));
                         }
                         ListMatcher matcher = ListMatcher.matchesList();
                         for (int c = 0; c < leftColumns.length; c++) {
@@ -273,6 +266,35 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
                     }
                 } finally {
                     joined.releaseBlocks();
+                }
+
+                int start = selected.max() + 1;
+                if (start >= left.page.getPositionCount()) {
+                    assertThat(join.noMoreRightHandPages().isPresent(), equalTo(false));
+                    return;
+                }
+                Page remaining = join.noMoreRightHandPages().get();
+                try {
+                    assertThat(remaining.getPositionCount(), equalTo(left.page.getPositionCount() - start));
+                    List<List<Object>> actualColumns = new ArrayList<>();
+                    BlockTestUtils.readInto(actualColumns, remaining);
+                    for (int leftRow = start; leftRow < left.page.getPositionCount(); leftRow++) {
+                        List<Object> actualRow = new ArrayList<>();
+                        for (List<Object> actualColumn : actualColumns) {
+                            actualRow.add(actualColumn.get(leftRow - start));
+                        }
+                        ListMatcher matcher = ListMatcher.matchesList();
+                        for (int c = 0; c < leftColumns.length; c++) {
+                            matcher = matcher.item(unwrapSingletonLists(left.blocks[c].values().get(leftRow)));
+                        }
+                        for (int c = 0; c < rightColumns.length; c++) {
+                            matcher = matcher.item(null);
+                        }
+                        assertMap(actualRow, matcher);
+                    }
+
+                } finally {
+                    remaining.releaseBlocks();
                 }
             } finally {
                 right.page.releaseBlocks();
@@ -402,11 +424,11 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
     }
 
     IntVector randomPositions(BlockFactory factory, int leftSize, int positionCount) {
-        int[] positions = new int[positionCount];
-        for (int p = 0; p < positions.length; p++) {
-            positions[p] = between(0, leftSize - 1);
+        Set<Integer> positions = new HashSet<>();
+        while (positions.size() < positionCount) {
+            positions.add(between(0, leftSize - 1));
         }
-        Arrays.sort(positions);
-        return factory.newIntArrayVector(positions, positions.length);
+        int[] positionsArray = positions.stream().mapToInt(i -> i).sorted().toArray();
+        return factory.newIntArrayVector(positionsArray, positionsArray.length);
     }
 }

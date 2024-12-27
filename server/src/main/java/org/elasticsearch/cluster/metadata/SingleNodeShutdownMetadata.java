@@ -68,7 +68,10 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NODE_EPHEMERAL_ID_FIELD);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.textOrNull(),
+            NODE_EPHEMERAL_ID_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
@@ -116,6 +119,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      */
     private SingleNodeShutdownMetadata(
         String nodeId,
+        @Nullable
         String nodeEphemeralId,
         Type type,
         String reason,

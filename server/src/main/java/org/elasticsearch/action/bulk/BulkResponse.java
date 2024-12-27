@@ -158,13 +158,13 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> ob.append((b, p) -> {
-            b.field(ERRORS, hasFailures());
-            b.field(TOOK, tookInMillis);
+        return ChunkedToXContent.builder(params).object(ob -> {
+            ob.field(ERRORS, hasFailures());
+            ob.field(TOOK, tookInMillis);
             if (ingestTookInMillis != BulkResponse.NO_INGEST_TOOK) {
-                b.field(INGEST_TOOK, ingestTookInMillis);
+                ob.field(INGEST_TOOK, ingestTookInMillis);
             }
-            return b;
-        }).array(ITEMS, Iterators.forArray(responses)));
+            ob.array(ITEMS, Iterators.forArray(responses));
+        });
     }
 }

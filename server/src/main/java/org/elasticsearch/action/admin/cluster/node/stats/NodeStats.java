@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -41,6 +42,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -342,46 +345,58 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return ChunkedToXContent.builder(outerParams).append((builder, params) -> {
-            builder.field("name", getNode().getName());
-            builder.field("transport_address", getNode().getAddress().toString());
-            builder.field("host", getNode().getHostName());
-            builder.field("ip", getNode().getAddress());
 
-            builder.startArray("roles");
-            for (DiscoveryNodeRole role : getNode().getRoles()) {
-                builder.value(role.roleName());
-            }
-            builder.endArray();
+        return Iterators.concat(
 
-            if (getNode().getAttributes().isEmpty() == false) {
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                    builder.field(attrEntry.getKey(), attrEntry.getValue());
+            singleChunk((builder, params) -> {
+                builder.field("name", getNode().getName());
+                builder.field("transport_address", getNode().getAddress().toString());
+                builder.field("host", getNode().getHostName());
+                builder.field("ip", getNode().getAddress());
+
+                builder.startArray("roles");
+                for (DiscoveryNodeRole role : getNode().getRoles()) {
+                    builder.value(role.roleName());
                 }
-                builder.endObject();
-            }
-            return builder;
-        })
+                builder.endArray();
 
-            .appendIfPresent(getIndices())
-            .append((builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p))
+                if (getNode().getAttributes().isEmpty() == false) {
+                    builder.startObject("attributes");
+                    for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                        builder.field(attrEntry.getKey(), attrEntry.getValue());
+                    }
+                    builder.endObject();
+                }
 
-            .appendIfPresent(getThreadPool())
-            .appendIfPresent(getFs())
-            .appendIfPresent(getTransport())
-            .appendIfPresent(getHttp())
-            .appendIfPresent(getBreaker())
-            .appendIfPresent(getScriptStats())
-            .appendIfPresent(getDiscoveryStats())
-            .appendIfPresent(getIngestStats())
-            .appendIfPresent(getAdaptiveSelectionStats())
-            .appendIfPresent(getScriptCacheStats())
-            .append(
+                return builder;
+            }),
+
+            ifPresent(getIndices()).toXContentChunked(outerParams),
+
+            singleChunk(
+                (builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)
+            ),
+
+            ifPresent(getThreadPool()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getFs())),
+            ifPresent(getTransport()).toXContentChunked(outerParams),
+            ifPresent(getHttp()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getBreaker())),
+            ifPresent(getScriptStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getDiscoveryStats())),
+            ifPresent(getIngestStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getAdaptiveSelectionStats())),
+            ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
+            singleChunk(
                 (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
                     .value(ifPresent(getRepositoriesStats()), p)
                     .value(ifPresent(getNodeAllocationStats()), p)
-            );
+            )
+        );
+    }
+
+    private static ChunkedToXContent ifPresent(@Nullable ChunkedToXContent chunkedToXContent) {
+        return Objects.requireNonNullElse(chunkedToXContent, ChunkedToXContent.EMPTY);
     }
 
     private static ToXContent ifPresent(@Nullable ToXContent toXContent) {

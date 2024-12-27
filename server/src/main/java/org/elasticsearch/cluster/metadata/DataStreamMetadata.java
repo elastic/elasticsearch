@@ -218,7 +218,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
@@ -232,7 +232,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             ChunkedToXContentHelper.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams),
             ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
@@ -315,7 +315,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersions.V_7_7_0;
         }
     }
 }

@@ -1,0 +1,6 @@
+pr: 119310
+summary: Revert builder stuff
+area: "Search, Network"
+type: bug
+issues:
+ - 118647

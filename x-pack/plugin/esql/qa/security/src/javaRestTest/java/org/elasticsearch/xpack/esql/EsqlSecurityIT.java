@@ -27,6 +27,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -545,7 +546,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexAllowed() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V9.capabilityName()))
+        );
 
         Response resp = runESQLCommand(
             "metadata1_read2",
@@ -580,8 +584,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(123.0, null))));
     }
 
-    public void testLookupJoinIndexForbidden() {
-        assumeTrue("Requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+    public void testLookupJoinIndexForbidden() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V9.capabilityName()))
+        );
 
         var resp = expectThrows(
             ResponseException.class,

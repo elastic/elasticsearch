@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 import static org.hamcrest.Matchers.containsString;
@@ -199,7 +199,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         assertDeprecationWarnings(config.identifier(), useAttribute, useLegacyBindPassword);
     }
 
-    public void testConstructorLogsErrorIfBindDnSetWithoutPassword() throws Exception {
+    public void testConstructorThrowsIfBindDnSetWithoutPassword() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "cn=William Bush,ou=people,o=sevenSeas";
 
@@ -216,19 +216,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
 
-        try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
-            assertCriticalWarnings(
-                String.format(
-                    Locale.ROOT,
-                    "[%s] is set but no bind password is specified. Without a corresponding bind password, "
-                        + "all ldap realm authentication will fail. Specify a bind password via [%s] or [%s]. "
-                        + "In the next major release, nodes with incomplete bind credentials will fail to start.",
-                    RealmSettings.getFullSettingKey(config, BIND_DN),
-                    RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
-                    RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                )
-            );
-        }
+        Exception ex = expectThrows(SettingsException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "[%s] is set but no bind password is specified. Without a corresponding bind password, "
+                    + "all %s realm authentication will fail. Specify a bind password via [%s].",
+                RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                config.type(),
+                RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+            ),
+            ex.getMessage()
+        );
     }
 
     public void testConstructorThrowsIfBothLegacyAndSecureBindPasswordSet() throws Exception {

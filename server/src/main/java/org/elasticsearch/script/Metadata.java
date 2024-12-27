@@ -51,7 +51,7 @@ public class Metadata {
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
 
-    public static FieldProperty<Object> ObjectField = new FieldProperty<>(Object.class);
+    public static final FieldProperty<Object> ObjectField = new FieldProperty<>(Object.class);
     public static FieldProperty<String> StringField = new FieldProperty<>(String.class);
     public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
 
@@ -335,7 +335,7 @@ public class Metadata {
             return new FieldProperty<>(type, nullable, writable, extendedValidation);
         }
 
-        public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
+        public static final BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
             long version = v.longValue();
             // did we round?
             if (v.doubleValue() == version) {
@@ -346,7 +346,7 @@ public class Metadata {
             );
         };
 
-        public static FieldProperty<?> ALLOW_ALL = new FieldProperty<>(null, true, true, null);
+        public static final FieldProperty<?> ALLOW_ALL = new FieldProperty<>(null, true, true, null);
 
         @SuppressWarnings("fallthrough")
         public void check(MapOperation op, String key, Object value) {

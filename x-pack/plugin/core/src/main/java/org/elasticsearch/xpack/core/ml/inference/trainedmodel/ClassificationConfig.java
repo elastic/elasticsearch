@@ -29,7 +29,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     public static final ParseField PREDICTION_FIELD_TYPE = new ParseField("prediction_field_type");
     private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
 
-    public static ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(
+    public static final ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(
         0,
         DEFAULT_RESULTS_FIELD,
         DEFAULT_TOP_CLASSES_RESULTS_FIELD,

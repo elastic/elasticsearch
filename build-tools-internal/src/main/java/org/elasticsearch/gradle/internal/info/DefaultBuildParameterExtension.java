@@ -36,7 +36,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Provider<JavaVersion> runtimeJavaVersion;
     private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
     private final Provider<String> runtimeJavaDetails;
-    private final Provider<String> gitRevision;
+    private final String gitRevision;
 
     private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
     private final String testSeed;
@@ -46,7 +46,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     // not final for testing
     private Provider<BwcVersions> bwcVersions;
-    private Provider<String> gitOrigin;
+    private String gitOrigin;
 
     public DefaultBuildParameterExtension(
         ProviderFactory providers,
@@ -59,8 +59,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         JavaVersion minimumCompilerVersion,
         JavaVersion minimumRuntimeVersion,
         JavaVersion gradleJavaVersion,
-        Provider<String> gitRevision,
-        Provider<String> gitOrigin,
+        String gitRevision,
+        String gitOrigin,
         String testSeed,
         boolean isCi,
         int defaultParallel,
@@ -155,12 +155,12 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Provider<String> getGitRevision() {
+    public String getGitRevision() {
         return gitRevision;
     }
 
     @Override
-    public Provider<String> getGitOrigin() {
+    public String getGitOrigin() {
         return gitOrigin;
     }
 
@@ -239,7 +239,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     // for testing; not part of public api
-    public void setGitOrigin(Provider<String> gitOrigin) {
+    public void setGitOrigin(String gitOrigin) {
         this.gitOrigin = gitOrigin;
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -82,16 +83,18 @@ public class IndicesServiceBuilder {
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return Map.of();
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return Map.of();
-        }
-
-        @Override
-        public Map<String, String> searchSlowLogFields() {
-            return Map.of();
+                @Override
+                public Map<String, String> searchFields() {
+                    return Map.of();
+                }
+            };
         }
     };
 

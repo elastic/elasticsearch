@@ -103,7 +103,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
-    private final SlowLogFieldProvider slowLogFieldProvider;
+    private final SlowLogFields slowLogFields;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -126,7 +126,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     );
 
     IndexingSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldProvider) {
-        this.slowLogFieldProvider = slowLogFieldProvider;
+        this.slowLogFields = slowLogFieldProvider.create(indexSettings);
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -180,7 +180,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
                 indexLogger.warn(
                     IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        this.slowLogFields.indexFields(),
                         index,
                         doc,
                         tookInNanos,
@@ -191,7 +191,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
                 indexLogger.info(
                     IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        this.slowLogFields.indexFields(),
                         index,
                         doc,
                         tookInNanos,
@@ -202,7 +202,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
                 indexLogger.debug(
                     IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        this.slowLogFields.indexFields(),
                         index,
                         doc,
                         tookInNanos,
@@ -213,7 +213,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
                 indexLogger.trace(
                     IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
+                        this.slowLogFields.indexFields(),
                         index,
                         doc,
                         tookInNanos,

@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -34,12 +36,14 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -48,17 +52,20 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
 
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.rewriteForUpdate;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransformConfig.class);
 
     private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final TransformConfigAutoMigration transformConfigAutoMigration;
 
     @Inject
     public TransportPutTransformAction(
@@ -69,7 +76,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        TransformConfigAutoMigration transformConfigAutoMigration
     ) {
         super(
             PutTransformAction.NAME,
@@ -88,14 +96,18 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.auditor();
+        this.transformConfigAutoMigration = transformConfigAutoMigration;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-
-        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
-        config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
+        TransformConfig config = rewriteForUpdate(
+            request.getConfig()
+                .setCreateTime(Instant.now())
+                .setVersion(TransformConfigVersion.CURRENT)
+                .setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState))
+        );
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
@@ -169,7 +181,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-        var config = request.getConfig();
+        var config = autoMigrateConfig(request);
         transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
             var transformId = config.getId();
             logger.info("[{}] created transform", transformId);
@@ -183,5 +195,17 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
             l.onResponse(AcknowledgedResponse.TRUE);
         }));
+    }
+
+    private TransformConfig autoMigrateConfig(Request request) {
+        var config = transformConfigAutoMigration.migrate(request.getConfig());
+        if (config != request.getConfig()) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
+                TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION
+            );
+        }
+        return config;
     }
 }

@@ -39,11 +39,10 @@ public class MustacheSettingsIT extends ESSingleNodeTestCase {
         prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
-        String query = """
-            { "query": {"match_all": {}}, "size" : "{{my_size}}"  }""";
+        String query = "{ \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }";
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("test");
-        var e = expectThrows(
+        ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
             () -> new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
                 .setScript(query)

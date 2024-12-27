@@ -215,26 +215,24 @@ If you aren't sure how to start investigating traffic issues, consider enabling 
 +
 [source,console]
 --------------------------------------------------
-PUT _all/_settings
+PUT /*/_settings
 {
   "index.search.slowlog.include.user": true,
   "index.search.slowlog.threshold.fetch.warn": "30s",
   "index.search.slowlog.threshold.query.warn": "30s"
 }
 --------------------------------------------------
-// NOTCONSOLE
 
 * Enable for indexing requests:
 +
 [source,console]
 --------------------------------------------------
-PUT _all/_settings
+PUT /*/_settings
 {
   "index.indexing.slowlog.include.user": true,
   "index.indexing.slowlog.threshold.index.warn": "30s"
 }
 --------------------------------------------------
-// NOTCONSOLE
 
 Slow log thresholds being met does not guarantee cluster performance issues. In the event that symptoms are noticed, slow logs can provide helpful data to diagnose upstream traffic patterns or sources to resolve client-side issues. For example, you can use data included in `X-Opaque-ID`, the `_source` request body, or `user.*` fields to identify the source of your issue. This is similar to troubleshooting <<task-queue-backlog,live expensive tasks>>.
 

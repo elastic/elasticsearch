@@ -55,7 +55,7 @@ dependencies {
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
   api "io.projectreactor:reactor-core:3.4.38"
-  api "org.reactivestreams:reactive-streams:1.0.4"
+  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   // Others
   api "com.fasterxml.woodstox:woodstox-core:6.7.0"

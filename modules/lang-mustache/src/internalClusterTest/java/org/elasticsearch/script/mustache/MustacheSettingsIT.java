@@ -36,8 +36,8 @@ public class MustacheSettingsIT extends ESSingleNodeTestCase {
 
     public void testResultSizeLimit() throws Exception {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
-        indicesAdmin().prepareRefresh().get();
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
+        client().admin().indices().prepareRefresh().get();
 
         String query = "{ \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }";
         SearchRequest searchRequest = new SearchRequest();

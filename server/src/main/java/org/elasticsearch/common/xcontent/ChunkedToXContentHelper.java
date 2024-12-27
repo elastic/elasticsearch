@@ -62,6 +62,10 @@ public enum ChunkedToXContentHelper {
         }
     }
 
+    public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
+        return Iterators.concat(ChunkedToXContentHelper.startArray(name), contents, ChunkedToXContentHelper.endArray());
+    }
+
     /**
      * Creates an Iterator of a single ToXContent object that serializes the given object as a single chunk. Just wraps {@link
      * Iterators#single}, but still useful because it avoids any type ambiguity.

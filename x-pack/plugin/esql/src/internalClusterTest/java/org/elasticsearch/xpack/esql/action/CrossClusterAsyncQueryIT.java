@@ -259,7 +259,6 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
-        int remote2NumShards = 1;
         populateRuntimeIndex(REMOTE_CLUSTER_2, "pause", INDEX_WITH_RUNTIME_MAPPING);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
@@ -286,6 +285,14 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         // run the stop query
         AsyncStopRequest stopRequest = new AsyncStopRequest(asyncExecutionId);
         ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        // ensure stop operation is running
+        assertBusy(() -> {
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
+                EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isPartial(), is(true));
+            }
+        });
         // allow remoteB query to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
 
@@ -312,8 +319,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("blocking"));
-            // TODO: it may be wrong marking this as SUCCESS, we may need to revisit this
-            assertClusterInfoSuccess(remote2Cluster, remote2NumShards);
+            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
@@ -354,8 +360,16 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
          */
 
         // run the stop query
-        var stopRequest = new AsyncStopRequest(asyncExecutionId);
-        var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        AsyncStopRequest stopRequest = new AsyncStopRequest(asyncExecutionId);
+        ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        // ensure stop operation is running
+        assertBusy(() -> {
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
+                EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isPartial(), is(true));
+            }
+        });
         // allow local query to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
 
@@ -386,7 +400,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertThat(localCluster.getIndexExpression(), equalTo("blocking"));
-            assertClusterInfoSuccess(localCluster, 1);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
             assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
         } finally {

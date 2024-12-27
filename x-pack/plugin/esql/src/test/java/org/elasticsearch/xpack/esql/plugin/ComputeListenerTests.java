@@ -116,8 +116,7 @@ public class ComputeListenerTests extends ESTestCase {
                 10,
                 10,
                 randomIntBetween(0, 3),
-                0,
-                false
+                0
             );
         } else {
             return new ComputeResponse(profiles);

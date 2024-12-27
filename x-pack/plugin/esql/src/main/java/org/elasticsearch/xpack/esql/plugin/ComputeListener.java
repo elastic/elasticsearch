@@ -119,8 +119,7 @@ final class ComputeListener implements Releasable {
                     cluster.getTotalShards(),
                     cluster.getSuccessfulShards(),
                     cluster.getSkippedShards(),
-                    cluster.getFailedShards(),
-                    cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
+                    cluster.getFailedShards()
                 );
             } else {
                 result = new ComputeResponse(collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList());
@@ -235,9 +234,13 @@ final class ComputeListener implements Releasable {
                 assert relativeStartNanos != null : "queryStartTimeNanos not set properly";
                 TimeValue tookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
                 esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
+                    EsqlExecutionInfo.Cluster.Status resultStatus = v.getStatus();
+                    if (esqlExecutionInfo.isPartial()) {
+                        resultStatus = EsqlExecutionInfo.Cluster.Status.PARTIAL;
+                    }
                     if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
                         && (v.getTook() == null || v.getTook().nanos() < tookTime.nanos())) {
-                        return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime).build();
+                        return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime).setStatus(resultStatus).build();
                     } else {
                         return v;
                     }
@@ -249,7 +252,7 @@ final class ComputeListener implements Releasable {
 
     private void updateExecutionInfoWithRemoteResponse(String computeClusterAlias, ComputeResponse resp) {
         TimeValue tookOnCluster;
-        EsqlExecutionInfo.Cluster.Status resultStatus = resp.isPartial()
+        EsqlExecutionInfo.Cluster.Status resultStatus = esqlExecutionInfo.isPartial()
             ? EsqlExecutionInfo.Cluster.Status.PARTIAL
             : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
         if (resp.getTook() != null) {

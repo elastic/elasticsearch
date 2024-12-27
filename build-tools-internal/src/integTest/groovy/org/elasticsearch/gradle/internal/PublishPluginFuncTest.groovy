@@ -45,8 +45,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0-javadoc.jar").exists()
         file("build/distributions/hello-world-1.0-sources.jar").exists()
         file("build/distributions/hello-world-1.0.pom").exists()
-        assertXmlEquals(
-            file("build/distributions/hello-world-1.0.pom").text, """
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <!-- This module was also published with a richer model, Gradle metadata,  -->
   <!-- which should be used instead. Do not delete the following line which  -->
@@ -131,8 +130,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0-javadoc.jar").exists()
         file("build/distributions/hello-world-1.0-sources.jar").exists()
         file("build/distributions/hello-world-1.0.pom").exists()
-        assertXmlEquals(
-            file("build/distributions/hello-world-1.0.pom").text, """
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
@@ -221,8 +219,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0-javadoc.jar").exists()
         file("build/distributions/hello-world-1.0-sources.jar").exists()
         file("build/distributions/hello-world-1.0.pom").exists()
-        assertXmlEquals(
-            file("build/distributions/hello-world-1.0.pom").text, """
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
@@ -315,8 +312,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-plugin-1.0-javadoc.jar").exists()
         file("build/distributions/hello-world-plugin-1.0-sources.jar").exists()
         file("build/distributions/hello-world-plugin-1.0.pom").exists()
-        assertXmlEquals(
-            file("build/distributions/hello-world-plugin-1.0.pom").text, """
+        assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <!-- This module was also published with a richer model, Gradle metadata,  -->
               <!-- which should be used instead. Do not delete the following line which  -->
@@ -393,8 +389,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world-plugin-2.0.pom").exists()
-        assertXmlEquals(
-            file("build/distributions/hello-world-plugin-2.0.pom").text, """
+        assertXmlEquals(file("build/distributions/hello-world-plugin-2.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <!-- This module was also published with a richer model, Gradle metadata,  -->
               <!-- which should be used instead. Do not delete the following line which  -->
@@ -444,7 +439,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         // scm info only added for internal builds
         internalBuild()
         buildFile << """
-            buildParams.setGitOrigin(project.providers.provider(() -> "https://some-repo.com/repo.git"))
+            buildParams.setGitOrigin("https://some-repo.com/repo.git")
             apply plugin:'elasticsearch.java'
             apply plugin:'elasticsearch.publish'
 
@@ -452,7 +447,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             group = 'org.acme'
             description = "just a test project"
 
-            ext.projectLicenses.set(['The Apache Software License, Version 2.0': project.providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
+            ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
         """
 
         when:
@@ -461,8 +456,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world-1.0.pom").exists()
-        assertXmlEquals(
-            file("build/distributions/hello-world-1.0.pom").text, """
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
           <!-- This module was also published with a richer model, Gradle metadata,  -->
           <!-- which should be used instead. Do not delete the following line which  -->
@@ -499,15 +493,15 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     private boolean assertXmlEquals(String toTest, String expected) {
         def diff = DiffBuilder.compare(Input.fromString(expected))
-            .ignoreWhitespace()
-            .ignoreComments()
-            .normalizeWhitespace()
-            .withTest(Input.fromString(toTest))
-            .build()
+                .ignoreWhitespace()
+                .ignoreComments()
+                .normalizeWhitespace()
+                .withTest(Input.fromString(toTest))
+                .build()
         diff.differences.each { difference ->
             println difference
         }
-        if (diff.differences.size() > 0) {
+        if(diff.differences.size() > 0) {
             println """ given:
 $toTest
 """

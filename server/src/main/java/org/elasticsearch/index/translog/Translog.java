@@ -971,7 +971,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
 
-        public static Location EMPTY = new Location(0, 0, 0);
+        public static final Location EMPTY = new Location(0, 0, 0);
 
         @Override
         public String toString() {

@@ -29,7 +29,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     public static final String NAME = TextEmbeddingConfig.NAME;
 
-    public static TextEmbeddingConfigUpdate EMPTY_INSTANCE = new TextEmbeddingConfigUpdate(null, null);
+    public static final TextEmbeddingConfigUpdate EMPTY_INSTANCE = new TextEmbeddingConfigUpdate(null, null);
 
     public static TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);

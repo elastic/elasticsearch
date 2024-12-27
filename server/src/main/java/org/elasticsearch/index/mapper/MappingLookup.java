@@ -43,7 +43,7 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of());
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), null);
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -59,14 +59,16 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final int totalFieldsCount;
+    private final CustomSyntheticSourceFieldLookup customSyntheticSourceFieldLookup;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
+     * @param indexSettings index settings
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping) {
+    public static MappingLookup fromMapping(Mapping mapping, IndexSettings indexSettings) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -79,7 +81,7 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers, indexSettings);
     }
 
     private static void collect(
@@ -120,6 +122,7 @@ public final class MappingLookup {
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
      * @param passThroughMappers the pass-through mappers
+     * @param indexSettings index settings
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMappers(
@@ -127,13 +130,19 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughObjectMapper> passThroughMappers,
+        @Nullable IndexSettings indexSettings
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers, indexSettings);
     }
 
-    public static MappingLookup fromMappers(Mapping mapping, Collection<FieldMapper> mappers, Collection<ObjectMapper> objectMappers) {
-        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of());
+    public static MappingLookup fromMappers(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        @Nullable IndexSettings indexSettings
+    ) {
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexSettings);
     }
 
     private MappingLookup(
@@ -141,7 +150,8 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughObjectMapper> passThroughMappers,
+        @Nullable IndexSettings indexSettings
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
@@ -207,6 +217,7 @@ public final class MappingLookup {
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.customSyntheticSourceFieldLookup = new CustomSyntheticSourceFieldLookup(mapping, indexSettings, isSourceSynthetic());
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
@@ -542,5 +553,9 @@ public final class MappingLookup {
         if (shadowed.getMetricType() != null) {
             throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
         }
+    }
+
+    public CustomSyntheticSourceFieldLookup getCustomSyntheticSourceFieldLookup() {
+        return customSyntheticSourceFieldLookup;
     }
 }

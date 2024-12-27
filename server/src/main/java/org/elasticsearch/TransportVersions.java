@@ -145,6 +145,7 @@ public class TransportVersions {
     public static final TransportVersion NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION = def(8_810_00_0);
     public static final TransportVersion ERROR_TRACE_IN_TRANSPORT_HEADER = def(8_811_00_0);
     public static final TransportVersion FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING = def(8_812_00_0);
+    public static final TransportVersion SIMULATE_IGNORED_FIELDS = def(8_813_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

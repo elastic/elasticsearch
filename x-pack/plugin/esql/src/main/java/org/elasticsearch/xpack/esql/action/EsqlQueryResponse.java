@@ -224,9 +224,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         Iterator<ToXContent> profileRender = profile == null
             ? Collections.emptyIterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
-        Iterator<ToXContent> executionInfoRender = executionInfo == null || executionInfo.isCrossClusterSearch() == false
-            ? Collections.emptyIterator()
-            : ChunkedToXContentHelper.field("_clusters", executionInfo, params);
+        Iterator<ToXContent> executionInfoRender = executionInfo != null
+            && executionInfo.isCrossClusterSearch()
+            && executionInfo.includeCCSMetadata()
+                ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
+                : Collections.emptyIterator();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),

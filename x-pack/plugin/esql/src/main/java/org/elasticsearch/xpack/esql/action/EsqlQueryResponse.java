@@ -222,10 +222,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
-            ? List.<ToXContent>of().iterator()
+            ? Collections.emptyIterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
         Iterator<ToXContent> executionInfoRender = executionInfo == null || executionInfo.isCrossClusterSearch() == false
-            ? List.<ToXContent>of().iterator()
+            ? Collections.emptyIterator()
             : ChunkedToXContentHelper.field("_clusters", executionInfo, params);
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),

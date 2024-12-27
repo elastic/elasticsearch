@@ -62,7 +62,9 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
                 if (ft instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
                     fieldFetchers.put(inferenceField, semanticTextFieldType.valueFetcherWithInferenceResults(bitSetCache, searcher));
                 } else {
-                    throw new IllegalArgumentException("Illegal format for field [" + name() + "], got " + ft.typeName());
+                    throw new IllegalArgumentException(
+                        "Invalid inference field [" + ft.name() + "]. Expected field type [semantic_text] but got [" + ft.typeName() + "]"
+                    );
                 }
             }
             if (fieldFetchers.isEmpty()) {

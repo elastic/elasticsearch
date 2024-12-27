@@ -282,14 +282,20 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         {
             Exception e = expectThrows(
                 MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")), false)
+                () -> createMapperService(
+                    fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")),
+                    useLegacyFormat
+                )
             );
             assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
         {
             Exception e = expectThrows(
                 MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")), false)
+                () -> createMapperService(
+                    fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")),
+                    useLegacyFormat
+                )
             );
             assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
@@ -511,8 +517,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertFalse(textFieldMapper.fieldType().isIndexed());
             assertFalse(textFieldMapper.fieldType().hasDocValues());
         } else {
-            // TODO: Check for offsets mapper here
             assertNull(textMapper);
+            var offsetMapper = semanticTextFieldType.getOffsetsField();
+            assertThat(offsetMapper, instanceOf(OffsetSourceFieldMapper.class));
         }
 
         if (expectedModelSettings) {

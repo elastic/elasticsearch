@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -88,16 +92,31 @@ public interface EvaluatorMapper {
             }
         };
 
-        DriverContext driverCtx = new DriverContext(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            new BlockFactory(ctx.circuitBreakerView(source), BigArrays.NON_RECYCLING_INSTANCE)
-        );
+        CircuitBreaker breaker = ctx.circuitBreakerView(source);
+        BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                if (name.equals(CircuitBreaker.REQUEST) == false) {
+                    throw new UnsupportedOperationException();
+                }
+                return breaker;
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                throw new UnsupportedOperationException();
+            }
+        }, CircuitBreaker.REQUEST).withCircuitBreaking();
+        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
         Block block = toEvaluator(toEvaluator).get(driverCtx).eval(new Page(1));
         if (block.getPositionCount() != 1) {
             throw new IllegalStateException("generated odd block from fold [" + block + "]");
         }
-        return
-
-        toJavaObject(block, 0);
+        return toJavaObject(block, 0);
     }
 }

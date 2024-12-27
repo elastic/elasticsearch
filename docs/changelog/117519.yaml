@@ -1,5 +1,5 @@
 pr: 117519
-summary: Deprecating `data_frame_transforms` roles
+summary: Remove `data_frame_transforms` roles
 area: Transform
 type: breaking
 issues: []

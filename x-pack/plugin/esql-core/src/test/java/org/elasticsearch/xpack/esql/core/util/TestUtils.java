@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.util.regex.Pattern;
+
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -25,6 +27,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public final class TestUtils {
     private TestUtils() {}
+
+    private static final Pattern WS_PATTERN = Pattern.compile("\\s");
 
     public static Literal of(Object value) {
         return of(Source.EMPTY, value);
@@ -58,5 +62,10 @@ public final class TestUtils {
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+    }
+
+    /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */
+    public static String stripThrough(String input) {
+        return WS_PATTERN.matcher(input).replaceAll(StringUtils.EMPTY);
     }
 }

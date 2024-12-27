@@ -1524,7 +1524,7 @@ This may include requests where partial results were returned, but not requests 
 
 ======
 `_esql`:::
-(object) Contains the information about the ES|QL <<esql-cross-clusters,cross-cluster queries>> usage in the cluster.
+(object) Contains the information about the ES|QL <<esql-cross-clusters,{ccs}>> usage in the cluster.
 The structure of the object is the same as the `_search` object above.
 
 =====

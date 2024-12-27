@@ -144,7 +144,8 @@ public class CCSUsage {
             if (ExceptionsHelper.unwrapCorruption(e) != null) {
                 return Result.CORRUPTION;
             }
-            if (ExceptionsHelper.unwrap(e, ElasticsearchStatusException.class) != null) {
+            ElasticsearchStatusException se = (ElasticsearchStatusException) ExceptionsHelper.unwrap(e, ElasticsearchStatusException.class);
+            if (se != null && se.getDetailedMessage().contains("license")) {
                 return Result.LICENSE;
             }
             // This is kind of last resort check - if we still don't know the reason but all shard failures are remote,

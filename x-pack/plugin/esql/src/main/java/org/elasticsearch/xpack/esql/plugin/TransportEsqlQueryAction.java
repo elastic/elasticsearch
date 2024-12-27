@@ -225,8 +225,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
         usageBuilder.setClientFromTask(task);
         if (exception != null) {
-            if (exception instanceof VerificationException) {
-                CCSUsageTelemetry.Result failureType = classifyVerificationException((VerificationException) exception);
+            if (exception instanceof VerificationException ve) {
+                CCSUsageTelemetry.Result failureType = classifyVerificationException(ve);
                 if (failureType != CCSUsageTelemetry.Result.UNKNOWN) {
                     usageBuilder.setFailure(failureType);
                 } else {
@@ -244,7 +244,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             usageBuilder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
         }
 
-        AtomicInteger count = new AtomicInteger();
+        AtomicInteger remotesCount = new AtomicInteger();
         executionInfo.getClusters().forEach((clusterAlias, cluster) -> {
             if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                 usageBuilder.skippedRemote(clusterAlias);
@@ -252,11 +252,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 usageBuilder.perClusterUsage(clusterAlias, cluster.getTook());
             }
             if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                count.getAndIncrement();
+                remotesCount.getAndIncrement();
             }
         });
-        assert count.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
-        usageBuilder.setRemotesCount(count.get());
+        assert remotesCount.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
+        usageBuilder.setRemotesCount(remotesCount.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
     }
 

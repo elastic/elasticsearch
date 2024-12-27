@@ -65,6 +65,8 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     private final Map<String, Long> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
+    // Whether we should use per-MRT (minimize roundtrips) metrics.
+    // ES|QL does not have "minimize_roundtrips" option, so we don't collect those metrics for ES|QL usage.
     private boolean useMRT = true;
 
     /**

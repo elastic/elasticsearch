@@ -328,7 +328,7 @@ class EsqlSessionCCSUtils {
             if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
                     // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
-                    // so that the CCS telemetry handler can recognize that this error is a CCS-related
+                    // so that the CCS telemetry handler can recognize that this error is CCS-related
                     for (Map.Entry<String, OriginalIndices> entry : groupedIndices.entrySet()) {
                         executionInfo.swapCluster(
                             entry.getKey(),

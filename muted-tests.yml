@@ -358,18 +358,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117937
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
   issue: https://github.com/elastic/elasticsearch/issues/118414
-- class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
-  method: getJavaToolChainSpec is cached anc concurrently accessible
-  issue: https://github.com/elastic/elasticsearch/issues/119173
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
   issue: https://github.com/elastic/elasticsearch/issues/116777
-- class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
-  method: getRuntimeJavaDetails is cached anc concurrently accessible
-  issue: https://github.com/elastic/elasticsearch/issues/119234
-- class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
-  method: getBwcVersionsProvider is cached anc concurrently accessible
-  issue: https://github.com/elastic/elasticsearch/issues/119172
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.1.3, bwcProject: bugfix2, expectedAssembleTaskName:
     extractedAssemble, #3]"

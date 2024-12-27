@@ -224,6 +224,7 @@ PUT /*/_settings
   "index.search.slowlog.threshold.query.warn": "30s"
 }
 --------------------------------------------------
+// TEST[setup:my_index]
 
 * Enable for indexing requests:
 +
@@ -235,6 +236,7 @@ PUT /*/_settings
   "index.indexing.slowlog.threshold.index.warn": "30s"
 }
 --------------------------------------------------
+// TEST[setup:my_index]
 
 Slow log thresholds being met does not guarantee cluster performance issues. In the event that symptoms are noticed, slow logs can provide helpful data to diagnose upstream traffic patterns or sources to resolve client-side issues. For example, you can use data included in `X-Opaque-ID`, the `_source` request body, or `user.*` fields to identify the source of your issue. This is similar to troubleshooting <<task-queue-backlog,live expensive tasks>>.
 

@@ -818,13 +818,15 @@ class NodeConstruction {
             return new SlowLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
-                    return fields.stream().flatMap(f -> f.indexFields().entrySet().stream())
+                    return fields.stream()
+                        .flatMap(f -> f.indexFields().entrySet().stream())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 }
 
                 @Override
                 public Map<String, String> searchFields() {
-                    return fields.stream().flatMap(f -> f.searchFields().entrySet().stream())
+                    return fields.stream()
+                        .flatMap(f -> f.searchFields().entrySet().stream())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 }
             };

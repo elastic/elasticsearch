@@ -20,8 +20,7 @@ import static org.elasticsearch.index.SearchSlowLog.INDEX_SEARCH_SLOWLOG_INCLUDE
 public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
     private final Security plugin;
 
-
-    private class SecuritySlowLogFields implements SlowLogFields{
+    private class SecuritySlowLogFields implements SlowLogFields {
         private boolean includeUserInIndexing = false;
         private boolean includeUserInSearch = false;
 

@@ -20,7 +20,7 @@ import org.apache.logging.log4j.util.Supplier;
  */
 public class NoOpLogger implements Logger {
 
-    public static NoOpLogger INSTANCE = new NoOpLogger();
+    public static final NoOpLogger INSTANCE = new NoOpLogger();
 
     private NoOpLogger() {
 

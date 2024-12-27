@@ -13,10 +13,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
-
-import java.util.Locale;
 
 /**
  * Some actions cannot be executed on a data stream's write index (eg. `searchable-snapshot`). This step checks if the managed index is
@@ -46,8 +45,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         String indexName = index.getName();
 
         if (indexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
                 getKey().action(),
                 indexName
@@ -64,8 +62,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         if (dataStream != null) {
             boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
             if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "index [%s] is the%s write index for data stream [%s], pausing "
                         + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                         + "automated rollover",

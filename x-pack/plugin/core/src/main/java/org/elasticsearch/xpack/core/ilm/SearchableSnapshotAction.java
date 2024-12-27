@@ -113,6 +113,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return snapshotRepository;
     }
 
+    @Nullable
     public Integer getTotalShardsPerNode() {
         return totalShardsPerNode;
     }
@@ -230,8 +231,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             skipGeneratingSnapshotKey,
-            Instant::now,
-            client
+            Instant::now
         );
 
         // When generating a snapshot, we either jump to the force merge step, or we skip the
@@ -318,7 +318,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             client,
             getRestoredIndexPrefix(mountSnapshotKey),
             storageType,
-            totalShardsPerNode
+            totalShardsPerNode,
+            0
         );
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
             waitForGreenRestoredIndexKey,
@@ -470,5 +471,5 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return new SearchableSnapshotMetadata(indexName, repo, snapshotName, partial);
     }
 
-    record SearchableSnapshotMetadata(String sourceIndex, String repositoryName, String snapshotName, boolean partial) {};
+    record SearchableSnapshotMetadata(String sourceIndex, String repositoryName, String snapshotName, boolean partial) {}
 }

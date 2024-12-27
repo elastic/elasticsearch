@@ -172,7 +172,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             if (settings.hasValue(CACHE_SIZE_SETTING_NAME)) {
                 throw new IllegalArgumentException(
                     Strings.format(
-                        "Both [{}] and [{}] are set, please use [{}]",
+                        "Both [%s] and [%s] are set, please use [%s]",
                         CACHE_SIZE_SETTING_NAME,
                         CACHE_SIZE_SETTING_BWC_NAME,
                         CACHE_SIZE_SETTING_NAME
@@ -308,7 +308,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
-            CACHE_SIZE
+            CACHE_SIZE,
+            CACHE_SIZE_BWC
         );
     }
 

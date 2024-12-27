@@ -244,6 +244,25 @@ The deprecated highlighting `force_source` parameter is no longer supported.
 Users should remove usages of the `force_source` parameter from their search requests.
 ====
 
+[discrete]
+[[breaking_90_transforms_changes]]
+==== {transforms-cap} changes
+
+[[updating_deprecated_transform_roles]]
+.Updating deprecated {transform} roles (`data_frame_transforms_admin` and `data_frame_transforms_user`)
+[%collapsible]
+====
+*Details* +
+The `data_frame_transforms_admin` and `data_frame_transforms_user` {transform} roles have been deprecated.
+
+*Impact* +
+Users must update any existing {transforms} that use deprecated {transform} roles (`data_frame_transforms_admin` or `data_frame_transforms_user`) to use the new equivalent {transform} roles (`transform_admin` or `transform_user`).
+To update the {transform} roles:
+
+1. Switch to a user with the `transform_admin` role (to replace `data_frame_transforms_admin`) or the `transform_user` role (to replace `data_frame_transforms_user`).
+2. Call the <<update-transform, update {transforms} API>> with that user.
+====
+
 
 [discrete]
 [[deprecated-9.0]]

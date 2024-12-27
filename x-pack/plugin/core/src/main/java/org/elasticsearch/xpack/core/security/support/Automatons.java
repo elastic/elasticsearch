@@ -76,7 +76,7 @@ public final class Automatons {
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
     // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
-    public static boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
+    public static final boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
     private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
 
     private Automatons() {}

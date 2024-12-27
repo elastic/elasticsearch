@@ -22,7 +22,7 @@ public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arme
     private final ArmenianAnalyzer analyzer;
 
     ArmenianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new ArmenianAnalyzer(
             Analysis.parseStopWords(env, settings, ArmenianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

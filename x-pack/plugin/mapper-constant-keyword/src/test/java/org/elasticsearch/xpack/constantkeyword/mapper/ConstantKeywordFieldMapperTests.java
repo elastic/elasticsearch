@@ -296,8 +296,22 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeTrue("not rendered in synthetic source because the value is constant anyway", false);
-        return null;
+        assertFalse("constant_keyword doesn't support ignore_malformed", ignoreMalformed);
+        String value = randomUnicodeOfLength(5);
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) {
+                return new SyntheticSourceExample(value, value, b -> {
+                    b.field("type", "constant_keyword");
+                    b.field("value", value);
+                });
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                throw new AssumptionViolatedException("copy_to on constant_keyword not supported");
+            }
+        };
     }
 
     @Override

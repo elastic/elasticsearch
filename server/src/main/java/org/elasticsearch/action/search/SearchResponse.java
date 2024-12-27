@@ -395,25 +395,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
             Iterators.concat(
-                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
-                Iterators.single((ToXContent) (b, p) -> {
-                    if (aggregations != null) {
-                        aggregations.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (suggest != null) {
-                        suggest.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (profileResults != null) {
-                        profileResults.toXContent(b, p);
-                    }
-                    return b;
-                })
+                hits.toXContentChunked(params),
+                aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(aggregations),
+                suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(suggest),
+                profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(profileResults)
             )
         );
     }

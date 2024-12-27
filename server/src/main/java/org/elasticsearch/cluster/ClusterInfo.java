@@ -160,8 +160,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 }
                 builder.endObject(); // end "most_available"
             }
-            builder.endObject(); // end $nodename
-            return builder;
+            return builder.endObject(); // end $nodename
         }),
             singleChunk(
                 (builder, p) -> builder.endObject() // end "nodes"
@@ -202,9 +201,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 }
                 return builder.endObject(); // NodeAndPath
             }),
-
             endArray() // end "reserved_sizes"
-
         );
     }
 

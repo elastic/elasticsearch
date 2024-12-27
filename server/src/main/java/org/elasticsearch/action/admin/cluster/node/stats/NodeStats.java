@@ -345,38 +345,31 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(singleChunk((builder, params) -> {
+            builder.field("name", getNode().getName());
+            builder.field("transport_address", getNode().getAddress().toString());
+            builder.field("host", getNode().getHostName());
+            builder.field("ip", getNode().getAddress());
 
-        return Iterators.concat(
-
-            singleChunk((builder, params) -> {
-                builder.field("name", getNode().getName());
-                builder.field("transport_address", getNode().getAddress().toString());
-                builder.field("host", getNode().getHostName());
-                builder.field("ip", getNode().getAddress());
-
-                builder.startArray("roles");
-                for (DiscoveryNodeRole role : getNode().getRoles()) {
-                    builder.value(role.roleName());
+            builder.startArray("roles");
+            for (DiscoveryNodeRole role : getNode().getRoles()) {
+                builder.value(role.roleName());
+            }
+            builder.endArray();
+            if (getNode().getAttributes().isEmpty() == false) {
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                    builder.field(attrEntry.getKey(), attrEntry.getValue());
                 }
-                builder.endArray();
+                builder.endObject();
+            }
 
-                if (getNode().getAttributes().isEmpty() == false) {
-                    builder.startObject("attributes");
-                    for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                        builder.field(attrEntry.getKey(), attrEntry.getValue());
-                    }
-                    builder.endObject();
-                }
-
-                return builder;
-            }),
-
+            return builder;
+        }),
             ifPresent(getIndices()).toXContentChunked(outerParams),
-
             singleChunk(
                 (builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)
             ),
-
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getFs())),
             ifPresent(getTransport()).toXContentChunked(outerParams),
@@ -386,7 +379,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             singleChunk(ifPresent(getDiscoveryStats())),
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getAdaptiveSelectionStats())),
-            ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
+            singleChunk(ifPresent(getScriptCacheStats())),
             singleChunk(
                 (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
                     .value(ifPresent(getRepositoriesStats()), p)

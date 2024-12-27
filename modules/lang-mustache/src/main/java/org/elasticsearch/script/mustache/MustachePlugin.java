@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -60,5 +61,10 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
             new RestMultiSearchTemplateAction(settings),
             new RestRenderSearchTemplateAction()
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(MustacheScriptEngine.MUSTACHE_RESULT_SIZE_LIMIT);
     }
 }

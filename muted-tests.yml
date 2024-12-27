@@ -199,9 +199,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/usage/line_38}
-  issue: https://github.com/elastic/elasticsearch/issues/113694
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/115475
@@ -317,9 +314,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
 
 # Examples:
 #
@@ -364,21 +358,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117591
 - class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117596
-- class: "org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117641
-- class: "org.elasticsearch.xpack.esql.qa.mixed.MultiClusterEsqlSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/118460
-- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
-  method: "test {scoring.*}"
-  issue: https://github.com/elastic/elasticsearch/issues/117751
 - class: org.elasticsearch.search.ccs.CrossClusterIT
   method: testCancel
   issue: https://github.com/elastic/elasticsearch/issues/108061
@@ -428,27 +407,30 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/118514
-- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
-  method: testOpenAiEmbeddings {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/118156
-- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
-  method: testHFEmbeddings {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/118197
-- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
-  method: testOpenAiCompletions {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/118163
-- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
-  method: testOpenAiCompletions {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/118162
-- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
-  method: testElser {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/118127
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testCohereEmbeddings {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/116974
-- class: org.elasticsearch.index.engine.RecoverySourcePruneMergePolicyTests
-  method: testPruneSome
-  issue: https://github.com/elastic/elasticsearch/issues/118728
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
-  method: test {docs.testFilterToday}
-  issue: https://github.com/elastic/elasticsearch/issues/118810
+- class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
+  method: test {yaml=/20_metrics_ingest/Test metrics-apm.app-* setting event.ingested via ingest pipeline}
+  issue: https://github.com/elastic/elasticsearch/issues/118875
+- class: org.elasticsearch.xpack.ml.integration.ForecastIT
+  method: testOverflowToDisk
+  issue: https://github.com/elastic/elasticsearch/issues/117740
+- class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
+  method: testCancellationDuringTimeSeriesAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/118992
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116777
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/119191
+  method: test {yaml=indices.create/20_synthetic_source/create index with use_synthetic_source}
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
+  method: testIngestWithInputFields
+  issue: https://github.com/elastic/elasticsearch/issues/118092
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
+  method: testIngestWithMultipleInputFields
+  issue: https://github.com/elastic/elasticsearch/issues/118093
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  method: testRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/119280

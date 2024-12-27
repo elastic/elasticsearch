@@ -1,6 +1,6 @@
 pr: 119310
-summary: Revert builder stuff
-area: "Search, Network"
+summary: Remove ChunkedToXContentBuilder
+area: "Network"
 type: bug
 issues:
  - 118647

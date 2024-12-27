@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Remove `data_frame_transforms` roles
-  area: Machine Learning
+  area: Transform
   details: >-
     `data_frame_transforms_admin` and `data_frame_transforms_user` were deprecated in
     Elasticsearch 7 and are being removed in Elasticsearch 9.

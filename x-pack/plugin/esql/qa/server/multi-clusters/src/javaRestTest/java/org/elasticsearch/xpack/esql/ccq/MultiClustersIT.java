@@ -400,7 +400,11 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testStats() throws IOException {
-        assumeTrue("Older versions do not have ESQL stats", Clusters.localClusterVersion().onOrAfter(Version.V_8_18_0));
+        Request caps = new Request("GET", "_capabilities?method=GET&path=_cluster/stats&capabilities=esql-stats");
+        Response capsResponse = client().performRequest(caps);
+        Map<String, Object> capsResult = entityAsMap(capsResponse.getEntity());
+        assumeTrue("esql stats capability missing", capsResult.get("supported").equals(true));
+
         run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color", includeCCSMetadata());
         Request stats = new Request("GET", "_cluster/stats");
         Response statsResponse = client().performRequest(stats);

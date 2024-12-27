@@ -36,7 +36,7 @@ subprojects {
   }
 
   project.pluginManager.withPlugin("elasticsearch.licensing") {
-    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl])
+    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
   }
 
   project.pluginManager.withPlugin("elasticsearch.build") {

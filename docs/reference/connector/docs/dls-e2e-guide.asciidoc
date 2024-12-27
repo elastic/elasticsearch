@@ -54,7 +54,7 @@ To build our search experience for our SharePoint Online data, we need to create
 
 Follow these steps to create a Search Application in the Kibana UI:
 
-. Navigate to *Search > Search Applications*.
+. Navigate to *Search > Search Applications* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 . Select *Create*.
 . *Name* the Search Application.
 . Select the *index* used by the SharePoint Online connector.

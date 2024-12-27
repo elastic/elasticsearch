@@ -1,5 +1,0 @@
-pr: 111079
-summary: PUT slm policy should only increase version if actually changed
-area: ILM+SLM
-type: enhancement
-issues: []

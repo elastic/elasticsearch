@@ -74,7 +74,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         .setIndexFormat(6)
         .setSettings(getSettings())
         .setMappings(getMappings())
-        .setVersionMetaKey("version")
         .setOrigin("FAKE_ORIGIN")
         .build();
 
@@ -103,7 +102,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
 
@@ -137,7 +135,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
@@ -146,7 +143,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
 

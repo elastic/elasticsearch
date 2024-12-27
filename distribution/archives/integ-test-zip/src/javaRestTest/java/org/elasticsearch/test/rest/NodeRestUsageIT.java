@@ -15,6 +15,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,6 +29,14 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class NodeRestUsageIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @SuppressWarnings("unchecked")
     public void testWithRestUsage() throws IOException {

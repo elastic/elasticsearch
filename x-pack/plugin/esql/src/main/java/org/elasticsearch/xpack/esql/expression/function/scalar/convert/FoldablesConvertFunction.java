@@ -59,7 +59,8 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
 
     @Override
     protected final Map<DataType, BuildFactory> factories() {
-        // TODO if a union type field is provided as an input, the correct error message is not shown, #112668 is a follow up
+        // This is used by ResolveUnionTypes, which is expected to be applied to ES fields only
+        // FoldablesConvertFunction takes only constants as inputs, so this is empty
         return Map.of();
     }
 

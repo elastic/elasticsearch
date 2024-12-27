@@ -9,22 +9,44 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpriseLicense;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
+    private static final String DATA_STREAM_NAME = "logs-app1";
     public static final String DEFAULT_MAPPING = """
         {
             "_doc": {
@@ -43,8 +65,39 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         }
         """;
 
+    private SyntheticSourceLicenseService syntheticSourceLicenseService;
+    private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
+
+    @Before
+    public void setup() throws Exception {
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.isAllowed(any())).thenReturn(true);
+        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        licenseService.setLicenseState(licenseState);
+        var mockLicenseService = mock(LicenseService.class);
+        License license = createEnterpriseLicense();
+        when(mockLicenseService.getLicense()).thenReturn(license);
+        syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        syntheticSourceLicenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
+    }
+
+    LogsdbIndexModeSettingsProvider withSyntheticSourceDemotionSupport(boolean enabled) {
+        newMapperServiceCounter.set(0);
+        var provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
+            Settings.builder().put("cluster.logsdb.enabled", enabled).build()
+        );
+        provider.init(im -> {
+            newMapperServiceCounter.incrementAndGet();
+            return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
+        }, IndexVersion::current);
+        return provider;
+    }
+
     public void testLogsDbDisabled() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", false).build()
         );
 
@@ -63,6 +116,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testOnIndexCreation() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -81,6 +135,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testOnExplicitStandardIndex() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -99,6 +154,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testOnExplicitTimeSeriesIndex() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -117,6 +173,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testNonLogsDataStream() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -135,6 +192,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithoutLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -153,6 +211,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -171,6 +230,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithMultipleComponentTemplates() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -189,6 +249,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithCustomComponentTemplatesOnly() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -207,6 +268,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testNonMatchingTemplateIndexPattern() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -225,6 +287,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testCaseSensitivity() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -243,6 +306,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testMultipleHyphensInDataStreamName() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -261,6 +325,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testBeforeAndAFterSettingUpdate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", false).build()
         );
 
@@ -323,4 +388,433 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertEquals(expectedIndexMode, settings.get(IndexSettings.MODE.getKey()));
     }
 
+    public void testNewIndexHasSyntheticSourceUsage() throws IOException {
+        String dataStreamName = DATA_STREAM_NAME;
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        Settings settings = Settings.EMPTY;
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        {
+            String mapping = """
+                {
+                    "_doc": {
+                        "_source": {
+                            "mode": "synthetic"
+                        },
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+                """;
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            assertTrue(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(1));
+            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+        }
+        {
+            String mapping;
+            boolean withSourceMode = randomBoolean();
+            if (withSourceMode) {
+                mapping = """
+                    {
+                        "_doc": {
+                            "_source": {
+                                "mode": "stored"
+                            },
+                            "properties": {
+                                "my_field": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                    """;
+            } else {
+                mapping = """
+                    {
+                        "_doc": {
+                            "properties": {
+                                "my_field": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                    """;
+            }
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(2));
+            if (withSourceMode) {
+                assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            }
+        }
+    }
+
+    public void testValidateIndexName() throws IOException {
+        String indexName = "validate-index-name";
+        String mapping = """
+            {
+                "_doc": {
+                    "_source": {
+                        "mode": "synthetic"
+                    },
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings settings = Settings.EMPTY;
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+        assertFalse(result);
+    }
+
+    public void testNewIndexHasSyntheticSourceUsageLogsdbIndex() throws IOException {
+        String dataStreamName = DATA_STREAM_NAME;
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        {
+            Settings settings = Settings.builder().put("index.mode", "logsdb").build();
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            assertTrue(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(0));
+        }
+        {
+            Settings settings = Settings.builder().put("index.mode", "logsdb").build();
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of());
+            assertTrue(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(0));
+        }
+        {
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, Settings.EMPTY, List.of());
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(1));
+        }
+        {
+            boolean result = provider.newIndexHasSyntheticSourceUsage(
+                indexName,
+                null,
+                Settings.EMPTY,
+                List.of(new CompressedXContent(mapping))
+            );
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(2));
+        }
+    }
+
+    public void testNewIndexHasSyntheticSourceUsageTimeSeries() throws IOException {
+        String dataStreamName = DATA_STREAM_NAME;
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        {
+            Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            assertTrue(result);
+        }
+        {
+            Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of());
+            assertTrue(result);
+        }
+        {
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, Settings.EMPTY, List.of());
+            assertFalse(result);
+        }
+        {
+            boolean result = provider.newIndexHasSyntheticSourceUsage(
+                indexName,
+                null,
+                Settings.EMPTY,
+                List.of(new CompressedXContent(mapping))
+            );
+            assertFalse(result);
+        }
+    }
+
+    public void testNewIndexHasSyntheticSourceUsage_invalidSettings() throws IOException {
+        String dataStreamName = DATA_STREAM_NAME;
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        Settings settings = Settings.builder().put("index.soft_deletes.enabled", false).build();
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        {
+            String mapping = """
+                {
+                    "_doc": {
+                        "_source": {
+                            "mode": "synthetic"
+                        },
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+                """;
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(1));
+        }
+        {
+            String mapping = """
+                {
+                    "_doc": {
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+                """;
+            boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
+            assertFalse(result);
+            assertThat(newMapperServiceCounter.get(), equalTo(2));
+        }
+    }
+
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() throws IOException {
+        String dataStreamName = DATA_STREAM_NAME;
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        Metadata metadata = mb.build();
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        Settings settings = builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .build();
+
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
+        assertThat(newMapperServiceCounter.get(), equalTo(0));
+
+        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertThat(newMapperServiceCounter.get(), equalTo(0));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertThat(newMapperServiceCounter.get(), equalTo(0));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.LOGSDB,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertThat(newMapperServiceCounter.get(), equalTo(0));
+    }
+
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceFileMatch() throws IOException {
+        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(true);
+        final Settings settings = Settings.EMPTY;
+
+        String dataStreamName = DATA_STREAM_NAME;
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        Metadata metadata = mb.build();
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
+
+        dataStreamName = "logs-app1-0";
+        mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        metadata = mb.build();
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(2));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(IndexMode.LOGSDB, IndexSettings.MODE.get(result));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString()).build(),
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
+    }
+
+    public void testLogsdbRoutingPathOnSortFields() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
+    public void testLogsdbRoutingPathOnSortFieldsFilterTimestamp() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
+    public void testLogsdbRoutingPathOnSortSingleField() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "data stream ["
+                    + DATA_STREAM_NAME
+                    + "] in logsdb mode and with [index.logsdb.route_on_sort_fields] index setting has only 1 sort fields "
+                    + "(excluding timestamp), needs at least 2"
+            )
+        );
+    }
+
+    public void testLogsdbExplicitRoutingPathMatchesSortFields() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertTrue(result.isEmpty());
+    }
+
+    public void testLogsdbExplicitRoutingPathDoesNotMatchSortFields() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "data stream ["
+                    + DATA_STREAM_NAME
+                    + "] in logsdb mode and with [index."
+                    + "logsdb.route_on_sort_fields] index setting has mismatching sort "
+                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
+            )
+        );
+    }
+
+    private Settings generateLogsdbSettings(Settings settings) throws IOException {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        var provider = new LogsdbIndexModeSettingsProvider(
+            syntheticSourceLicenseService,
+            Settings.builder().put("cluster.logsdb.enabled", true).build()
+        );
+        var result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
+            DATA_STREAM_NAME,
+            IndexMode.LOGSDB,
+            metadata,
+            Instant.now(),
+            settings,
+            List.of()
+        );
+        return builder().put(result).build();
+    }
 }

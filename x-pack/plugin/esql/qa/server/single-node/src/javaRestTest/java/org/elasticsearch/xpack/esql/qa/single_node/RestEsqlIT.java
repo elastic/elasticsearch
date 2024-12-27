@@ -76,7 +76,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
-        requestObjectBuilder().includeCCSMetadata(randomBoolean());
         if (Build.current().isSnapshot()) {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
@@ -360,6 +359,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(signatures, hasItem(hasItem("OrdinalsGroupingOperator[aggregators=[\"sum of longs\", \"count\"]]")));
     }
 
+    @AwaitsFix(bugUrl = "disabled until JOIN infrastructrure properly lands")
     public void testInlineStatsProfile() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);

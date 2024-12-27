@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -188,6 +190,35 @@ public class DynamicMappingIT extends ESIntegTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         return properties;
+    }
+
+    public void testConcurrentDynamicMappingsWithConflictingType() throws Throwable {
+        int numberOfDocsToCreate = 16;
+        indicesAdmin().prepareCreate("index").setSettings(Settings.builder()).get();
+        ensureGreen("index");
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numberOfDocsToCreate, i -> {
+            try {
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(Integer.toString(i)).setSource("field" + i, 0, "field" + (i + 1), 0.1).get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw error.get();
+        }
+        client().admin().indices().prepareRefresh("index").get();
+        for (int i = 0; i < numberOfDocsToCreate; ++i) {
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
+        }
+        Map<String, Object> index = indicesAdmin().prepareGetMappings("index").get().getMappings().get("index").getSourceAsMap();
+        for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
+            assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
+            assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
+        }
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {

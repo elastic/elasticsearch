@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -32,6 +33,8 @@ public class ListQueryRulesetsAction {
 
     public static final String NAME = "cluster:admin/xpack/query_rules/list";
     public static final ActionType<ListQueryRulesetsAction.Response> INSTANCE = new ActionType<>(NAME);
+
+    public static final NodeFeature QUERY_RULE_LIST_TYPES = new NodeFeature("query_rule_list_types");
 
     private ListQueryRulesetsAction() {/* no instances */}
 

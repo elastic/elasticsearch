@@ -182,13 +182,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+        IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
         IndexSettings.PREFER_ILM_SETTING,
         DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
-        IndexSettings.SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING,
         SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
+        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

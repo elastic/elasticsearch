@@ -303,6 +303,10 @@ class S3Service implements Closeable {
         IdleConnectionReaper.shutdown();
     }
 
+    public void onBlobStoreClose() {
+        releaseCachedClients();
+    }
+
     @Override
     public void close() throws IOException {
         releaseCachedClients();
@@ -335,7 +339,7 @@ class S3Service implements Closeable {
      * Customizes {@link com.amazonaws.auth.WebIdentityTokenCredentialsProvider}
      *
      * <ul>
-     * <li>Reads the the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
+     * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
      * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
      * <li>Supports customization of the STS endpoint via a system property, so we can test it against a test fixture.</li>
      * <li>Supports gracefully shutting down the provider and the STS client.</li>
@@ -344,6 +348,8 @@ class S3Service implements Closeable {
     static class CustomWebIdentityTokenCredentialsProvider implements AWSCredentialsProvider {
 
         private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
+
+        static final String WEB_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/aws-web-identity-token-file";
 
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
@@ -363,7 +369,7 @@ class S3Service implements Closeable {
             }
             // Make sure that a readable symlink to the token file exists in the plugin config directory
             // AWS_WEB_IDENTITY_TOKEN_FILE exists but we only use Web Identity Tokens if a corresponding symlink exists and is readable
-            Path webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
+            Path webIdentityTokenFileSymlink = environment.configFile().resolve(WEB_IDENTITY_TOKEN_FILE_LOCATION);
             if (Files.exists(webIdentityTokenFileSymlink) == false) {
                 LOGGER.warn(
                     "Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined but no corresponding symlink exists "

@@ -11,6 +11,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
 import org.apache.lucene.util.BytesRef;
@@ -66,6 +67,43 @@ public class Netty4UtilsTests extends ESTestCase {
             assertTrue(buffer instanceof CompositeByteBuf);
         }
         assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));
+    }
+
+    /**
+     * Test that wrapped reference counted object from netty reflects correct counts in ES RefCounted
+     */
+    public void testToRefCounted() {
+        var buf = PooledByteBufAllocator.DEFAULT.buffer(1);
+        assertEquals(1, buf.refCnt());
+
+        var refCounted = Netty4Utils.toRefCounted(buf);
+        assertEquals(1, refCounted.refCnt());
+
+        buf.retain();
+        assertEquals(2, refCounted.refCnt());
+
+        refCounted.incRef();
+        assertEquals(3, refCounted.refCnt());
+        assertEquals(buf.refCnt(), refCounted.refCnt());
+
+        refCounted.decRef();
+        assertEquals(2, refCounted.refCnt());
+        assertEquals(buf.refCnt(), refCounted.refCnt());
+        assertTrue(refCounted.hasReferences());
+
+        refCounted.decRef();
+        refCounted.decRef();
+        assertFalse(refCounted.hasReferences());
+    }
+
+    /**
+     * Ensures that released ByteBuf cannot be accessed from ReleasableBytesReference
+     */
+    public void testToReleasableBytesReferenceThrowOnByteBufRelease() {
+        var buf = PooledByteBufAllocator.DEFAULT.buffer(1);
+        var relBytes = Netty4Utils.toReleasableBytesReference(buf);
+        buf.release();
+        assertThrows(AssertionError.class, () -> relBytes.get(0));
     }
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {

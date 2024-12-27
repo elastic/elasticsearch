@@ -11,6 +11,8 @@ package org.elasticsearch.test.rest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
@@ -22,6 +24,14 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests for the "Location" header returned when returning {@code 201 CREATED}.
  */
 public class CreatedLocationHeaderIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testCreate() throws IOException {
         locationTestCase("PUT", "test/_doc/1");

@@ -20,4 +20,5 @@ testClusters.configureEach {
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("stack/10_basic/Test kibana reporting index auto creation", "warning does not exist for compatibility")
+  task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
 })

@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -25,19 +24,22 @@ dependencies {
   clusterModules project(':x-pack:plugin:enrich')
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ml')
+  clusterModules project(xpackModule('ilm'))
   clusterModules(project(":modules:ingest-common"))
 }
 
 tasks.named("javaRestTest") {
   enabled = true
   // This is tested explicitly in bwc test tasks.
-  exclude '**/RemoteClusterSecurityBwcRestIT.class'
+  exclude '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
+  exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
 }
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.before(BuildParams.isSnapshotBuild() ? '8.8.0' : '8.9.1')) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
-    include '**/RemoteClusterSecurityBwcRestIT.class'
+    include '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
+    include '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
   }
 }

@@ -209,6 +209,15 @@ public final class ServiceUtils {
         );
     }
 
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
+        Class<? extends Model> invalidModelType
+    ) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
@@ -765,6 +774,10 @@ public final class ServiceUtils {
 
     public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
         return requestValue == null ? originalSettingsValue : requestValue;
+    }
+
+    public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
     }
 
     private ServiceUtils() {}

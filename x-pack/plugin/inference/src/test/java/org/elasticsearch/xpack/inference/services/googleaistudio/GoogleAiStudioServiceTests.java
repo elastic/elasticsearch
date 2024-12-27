@@ -18,8 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -35,10 +34,9 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -163,37 +161,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
-        throws IOException {
-        var apiKey = "apiKey";
-        var modelId = "model";
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createGoogleAiStudioService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, Matchers.instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-                }
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-                    new HashMap<>(Map.of()),
-                    createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap(apiKey)
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var apiKey = "apiKey";
         var modelId = "model";
 
@@ -221,9 +189,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var apiKey = "apiKey";
         var modelId = "model";
 
@@ -394,40 +360,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleAiStudioEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        var modelId = "model";
-        var apiKey = "apiKey";
-
-        try (var service = createGoogleAiStudioService()) {
-            var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-                getTaskSettingsMapEmpty(),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap(apiKey)
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
-
-            var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var modelId = "model";
         var apiKey = "apiKey";
 
@@ -456,9 +389,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var modelId = "model";
         var apiKey = "apiKey";
 
@@ -617,33 +548,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAGoogleAiEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        var modelId = "model";
-
-        try (var service = createGoogleAiStudioService()) {
-            var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-                getTaskSettingsMapEmpty(),
-                createRandomChunkingSettingsMap()
-            );
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
-
-            var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-            assertNull(embeddingsModel.getSecretSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var modelId = "model";
 
         try (var service = createGoogleAiStudioService()) {
@@ -665,9 +570,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var modelId = "model";
 
         try (var service = createGoogleAiStudioService()) {
@@ -921,16 +824,15 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_Batches() throws IOException {
+    public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var modelId = "modelId";
         var apiKey = "apiKey";
-        var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, apiKey, getUrl(webServer));
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, null, apiKey, getUrl(webServer));
 
         testChunkedInfer(modelId, apiKey, model);
     }
 
-    public void testChunkedInfer_ChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var modelId = "modelId";
         var apiKey = "apiKey";
         var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, createRandomChunkingSettings(), apiKey, getUrl(webServer));
@@ -966,25 +868,16 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
 
             // first result
             {
-                assertThat(results.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding()));
@@ -992,8 +885,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             // second result
             {
-                assertThat(results.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0456f, -0.0456f }, floatResult.chunks().get(0).embedding()));

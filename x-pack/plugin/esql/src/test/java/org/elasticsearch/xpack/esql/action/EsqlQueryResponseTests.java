@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -99,7 +100,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), Block.getNamedWriteables().stream()).toList()
+            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), BlockWritables.getNamedWriteables().stream()).toList()
         );
     }
 
@@ -203,7 +204,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                 // TODO - add a random instant thing here?
-                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomNonNegativeLong());
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));

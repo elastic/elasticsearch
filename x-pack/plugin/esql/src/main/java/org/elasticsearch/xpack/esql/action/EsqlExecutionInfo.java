@@ -107,7 +107,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.includeCCSMetadata = in.readBoolean();
         } else {
             this.includeCCSMetadata = false;
@@ -124,7 +124,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(includeCCSMetadata);
         }
     }
@@ -167,6 +167,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public TimeValue overallTook() {
         return overallTook;
+    }
+
+    /**
+     * How much time the query took since starting.
+     */
+    public TimeValue tookSoFar() {
+        if (relativeStartNanos == null) {
+            return new TimeValue(0);
+        } else {
+            return new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
+        }
     }
 
     public Set<String> clusterAliases() {
@@ -229,7 +240,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
             b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
             b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
-            // each clusterinfo defines its own field object name
+            // each Cluster object defines its own field object name
             b.xContentObject("details", clusterInfo.values().iterator());
         });
     }
@@ -352,11 +363,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.successfulShards = successfulShards;
             this.skippedShards = skippedShards;
             this.failedShards = failedShards;
-            if (failures == null) {
-                this.failures = List.of();
-            } else {
-                this.failures = failures;
-            }
+            this.failures = failures == null ? Collections.emptyList() : failures;
             this.took = took;
         }
 
@@ -373,7 +380,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXEC_INFO_WITH_FAILURES)) {
                 this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
             } else {
-                this.failures = List.of();
+                this.failures = Collections.emptyList();
             }
         }
 
@@ -475,14 +482,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
-            if (clusterAlias.equals("")) {
+            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                 name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);
             {
                 builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
                 builder.field(INDICES_FIELD.getPreferredName(), indexExpression);
-                if (took != null) {
+                if (took != null && status != Status.RUNNING) {
                     builder.field(TOOK.getPreferredName(), took.millis());
                 }
                 if (totalShards != null) {

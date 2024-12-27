@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
-import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -97,22 +96,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 request.masterNodeTimeout()
             )
         );
-    }
-
-    @Override
-    protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
-        if (request.clusterHasRequiredFeatures(nf -> featureService.clusterHasFeature(clusterService.state(), nf)) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Unable to use processor ranges, floating-point (with greater precision) processors "
-                        + "in mixed-clusters with nodes that do not support feature "
-                        + DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED.id()
-                )
-            );
-            return;
-        }
-
-        super.doExecute(task, request, listener);
     }
 
     static ClusterState replaceDesiredNodes(ClusterState clusterState, DesiredNodes newDesiredNodes) {

@@ -1,5 +1,0 @@
-pr: 112303
-summary: Add 'verbose' flag retrieving `maximum_timestamp` for get data stream API
-area: Data streams
-type: enhancement
-issues: []

@@ -18,6 +18,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -455,11 +457,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         private void increment() {
             tokenCount++;
             if (tokenCount > maxTokenCount) {
-                throw new IllegalStateException(
+                throw new ElasticsearchStatusException(
                     "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
                         + maxTokenCount
                         + "]."
-                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting."
+                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.",
+                    RestStatus.BAD_REQUEST
                 );
             }
         }

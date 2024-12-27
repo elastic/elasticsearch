@@ -10,7 +10,7 @@ include::{esql-specs}/median_absolute_deviation.csv-spec[tag=median-absolute-dev
 |===
 include::{esql-specs}/median_absolute_deviation.csv-spec[tag=median-absolute-deviation-result]
 |===
-The expression can use inline functions. For example, to calculate the the median absolute deviation of the maximum values of a multivalued column, first use `MV_MAX` to get the maximum value per row, and use the result with the `MEDIAN_ABSOLUTE_DEVIATION` function
+The expression can use inline functions. For example, to calculate the median absolute deviation of the maximum values of a multivalued column, first use `MV_MAX` to get the maximum value per row, and use the result with the `MEDIAN_ABSOLUTE_DEVIATION` function
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/median_absolute_deviation.csv-spec[tag=docsStatsMADNestedExpression]

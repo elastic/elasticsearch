@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
@@ -18,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -56,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -80,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -100,7 +107,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -109,8 +115,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -119,6 +128,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -136,6 +146,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
@@ -143,12 +154,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -167,6 +180,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -213,7 +227,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                defaultLookupResolution(),
+                enrichResolution
+            ),
             TEST_VERIFIER
         );
 
@@ -491,6 +511,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(aggregates.get(0), Alias.class);
         var max = as(alias.child(), Max.class);
         assertThat(Expressions.name(max.arguments().get(0)), equalTo("emp_no"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:28: Field 'x' shadowed by field at line 2:45",
+            "Line 2:9: Field 'x' shadowed by field at line 2:45"
+        );
     }
 
     // expected stats b by b (grouping overrides the rest of the aggs)
@@ -513,6 +538,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var aggregates = agg.aggregates();
         assertThat(aggregates, hasSize(1));
         assertThat(Expressions.names(aggregates), contains("b"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:28: Field 'b' shadowed by field at line 2:47",
+            "Line 2:9: Field 'b' shadowed by field at line 2:47"
+        );
     }
 
     /**
@@ -553,6 +583,537 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(agg.aggregates(), hasSize(2));
         assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[sum(salary) where false{r}#26],[ConstantNullBlock[positions=1]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) where false
+            """);
+
+        var project = as(plan, Limit.class);
+        var source = as(project.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("sum(salary) where false"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        assertThat(blocks[0].getPositionCount(), is(1));
+        assertTrue(blocks[0].areAllValuesNull());
+    }
+
+    /*
+     * Project[[sum(salary) + 1 where false{r}#68]]
+     * \_Eval[[$$SUM$sum(salary)_+_1$0{r$}#79 + 1[INTEGER] AS sum(salary) + 1 where false]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_LocalRelation[[$$SUM$sum(salary)_+_1$0{r$}#79],[ConstantNullBlock[positions=1]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) + 1 where false
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("sum(salary) + 1 where false"));
+        var add = as(alias.child(), Add.class);
+        var literal = as(add.right(), Literal.class);
+        assertThat(literal.fold(), is(1));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        assertThat(blocks[0].getPositionCount(), is(1));
+        assertTrue(blocks[0].areAllValuesNull());
+    }
+
+    /*
+     * Project[[sum(salary) + 1 where false{r}#4, sum(salary) + 2{r}#6, emp_no{f}#7]]
+     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_2$1{r$}#18 + 2[INTEGER] AS sum(salary) + 2]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#7],[SUM(salary{f}#12,true[BOOLEAN]) AS $$SUM$sum(salary)_+_2$1, emp_no{f}#7]]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) + 1 where false,
+                    sum(salary) + 2
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false", "sum(salary) + 2", "emp_no"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(LONG));
+
+        alias = as(eval.fields().getLast(), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where false{r}#7]]
+     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_3$1{r$}#19 + 3[INTEGER] AS sum(salary) + 3, nu
+     * ll[LONG] AS sum(salary) + 2 where false]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[],[SUM(salary{f}#13,true[BOOLEAN]) AS $$SUM$sum(salary)_+_3$1]]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalFilterFalseAndNull() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) + 1 where false,
+                    sum(salary) + 3,
+                    sum(salary) + 2 where null
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(
+            Expressions.names(project.projections()),
+            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null")
+        );
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(3));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(LONG));
+
+        alias = as(eval.fields().get(1), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 3"));
+
+        alias = as(eval.fields().getLast(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(LONG));
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalCount() {
+        var plan = plan("""
+            from test
+            | stats count(salary) where false
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
+     * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_LocalRelation[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
+        var plan = plan("""
+            from test
+            | stats count_distinct(salary + 2) + 3 where false
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("count_distinct(salary + 2) + 3 where false"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("count_distinct(salary + 2) + 3 where false"));
+        var add = as(alias.child(), Add.class);
+        var literal = as(add.right(), Literal.class);
+        assertThat(literal.fold(), is(3));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Project[[max{r}#91, max_a{r}#94, min{r}#97, min_a{r}#100, emp_no{f}#101]]
+     * \_Eval[[null[INTEGER] AS max_a, null[INTEGER] AS min_a]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#101],[MAX(salary{f}#106,true[BOOLEAN]) AS max, MIN(salary{f}#106,true[BOOLEAN]) AS min, emp_
+     * no{f}#101]]
+     *       \_EsRelation[test][_meta_field{f}#107, emp_no{f}#101, first_name{f}#10..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
+        var plan = plan("""
+            from test
+            | stats max = max(salary), max_a = max(salary) where null,
+                    min = min(salary), min_a = min(salary) where to_string(null) == "abc"
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("max", "max_a", "min", "min_a", "emp_no"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("max_a"));
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(INTEGER));
+
+        alias = as(eval.fields().getLast(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("min_a"));
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(INTEGER));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("max", "min", "emp_no"));
+
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
+    public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
+        var plan = plan("""
+            from test
+            | eval my_length = length(concat(first_name, null))
+            | stats count = count(my_length) where my_length > 0
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Project[[c{r}#67, emp_no{f}#68]]
+     * \_Eval[[0[LONG] AS c]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#68],[emp_no{f}#68]]
+     *       \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
+        var plan = plan("""
+            from test
+            | stats c = count(emp_no) where false
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "emp_no"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("c"));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("emp_no"));
+
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilter() {
+        var plan = plan("""
+            from test
+            | stats m = min(salary) where emp_no > 1,
+                    max(salary) where emp_no > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no > 1"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterUsingAliases() {
+        var plan = plan("""
+            from test
+            | eval eno = emp_no
+            | drop emp_no
+            | stats min(salary) where eno > 1,
+                    max(salary) where eno > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("eno > 1"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterUsingJustOneAlias() {
+        var plan = plan("""
+            from test
+            | eval eno = emp_no
+            | stats min(salary) where emp_no > 1,
+                    max(salary) where eno > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        var gt = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(gt.left()), is("emp_no"));
+        assertTrue(gt.right().foldable());
+        assertThat(gt.right().fold(), is(1));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterSkippedNotSameFilter() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 1,
+                    max(salary) where emp_no > 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterSkippedOnLackingFilter() {
+        var plan = plan("""
+            from test
+            | stats min(salary),
+                    max(salary) where emp_no > 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterSkippedWithGroups() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 2,
+                    max(salary) where emp_no > 2 by first_name
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(3));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterNormalizeAndCombineWithExistingFilter() {
+        var plan = plan("""
+            from test
+            | where emp_no > 3
+            | stats min(salary) where emp_no > 2,
+                    max(salary) where 2 < emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no > 3"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterInConjunction() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 2 and first_name == "John",
+                    max(salary) where emp_no > 1 + 1 and length(last_name) < 19
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("first_name == \"John\""));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("length(last_name) < 19"));
+
+        var filter = as(agg.child(), Filter.class);
+        var gt = as(filter.condition(), GreaterThan.class); // name is "emp_no > 1 + 1"
+        assertThat(Expressions.name(gt.left()), is("emp_no"));
+        assertTrue(gt.right().foldable());
+        assertThat(gt.right().fold(), is(2));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterInConjunctionWithMultipleCommonConjunctions() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no < 10 and first_name == "John" and last_name == "Doe",
+                    max(salary) where emp_no - 1 < 2 + 7 and length(last_name) < 19 and last_name == "Doe"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("first_name == \"John\""));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("length(last_name) < 19"));
+
+        var filter = as(agg.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+
+        var lt = as(and.left(), LessThan.class);
+        assertThat(Expressions.name(lt.left()), is("emp_no"));
+        assertTrue(lt.right().foldable());
+        assertThat(lt.right().fold(), is(10));
+
+        var equals = as(and.right(), Equals.class);
+        assertThat(Expressions.name(equals.left()), is("last_name"));
+        assertTrue(equals.right().foldable());
+        assertThat(equals.right().fold(), is(BytesRefs.toBytesRef("Doe")));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterSkippedDueToDisjunction() {
+        // same query as in testExtractStatsCommonFilterInConjunction, except for the OR in the filter
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 2 OR first_name == "John",
+                    max(salary) where emp_no > 1 + 1 and length(last_name) < 19
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(Or.class));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(And.class));
+
+        var source = as(agg.child(), EsRelation.class);
     }
 
     public void testQlComparisonOptimizationsApply() {
@@ -662,6 +1223,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[CATEGORIZE(first_name{f}#18) AS cat],[SUM(salary{f}#22,true[BOOLEAN]) AS s, cat{r}#10]]
+     *   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testCombineProjectionWithCategorizeGrouping() {
+        var plan = plan("""
+            from test
+            | eval k = first_name, k1 = k
+            | stats s = sum(salary) by cat = CATEGORIZE(k1)
+            | keep s, cat
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.child(), instanceOf(EsRelation.class));
+
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "cat"));
+        assertThat(Expressions.names(agg.groupings()), contains("cat"));
+
+        var categorizeAlias = as(agg.groupings().get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var categorizeField = as(categorize.field(), FieldAttribute.class);
+        assertThat(categorizeField.name(), is("first_name"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
      * \_Aggregate[[first_name{f}#16],[SUM(emp_no{f}#15) AS s, first_name{f}#16 AS f]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
@@ -717,6 +1305,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
             new PushDownAndCombineLimits().rule(anotherLimit)
         );
+    }
+
+    public void testPushdownLimitsPastLeftJoin() {
+        var leftChild = emptySource();
+        var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);
+        assertNotEquals(leftChild, rightChild);
+
+        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
+        var join = switch (randomIntBetween(0, 2)) {
+            case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig);
+            case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
+            default -> throw new IllegalArgumentException();
+        };
+
+        var limit = new Limit(EMPTY, L(10), join);
+
+        var optimizedPlan = new PushDownAndCombineLimits().rule(limit);
+
+        assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
     }
 
     public void testMultipleCombineLimits() {
@@ -1597,7 +2205,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         mvExpand = as(topN.child(), MvExpand.class);
         var limit = as(mvExpand.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(7300));
-        as(limit.child(), Row.class);
+        as(limit.child(), LocalRelation.class);
     }
 
     /**
@@ -1742,7 +2350,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var expand = as(plan, MvExpand.class);
         assertThat(expand.limit(), equalTo(1000));
         var topN = as(expand.child(), TopN.class);
-        var row = as(topN.child(), Row.class);
+        var row = as(topN.child(), LocalRelation.class);
     }
 
     /**
@@ -1783,7 +2391,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(expand.limit(), equalTo(1000));
         var limit2 = as(expand.child(), Limit.class);
         assertThat(limit2.limit().fold(), is(1000));
-        var row = as(limit2.child(), Row.class);
+        var row = as(limit2.child(), LocalRelation.class);
     }
 
     private static List<String> orderNames(TopN topN) {
@@ -2019,7 +2627,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testRLikeWrongPattern() {
         String query = "from test | where first_name rlike \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
-        String error = "line 1:20: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+        String error = "line 1:19: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[invalid range: from (95) cannot be > to (93)]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
@@ -2027,7 +2635,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testLikeWrongPattern() {
         String query = "from test | where first_name like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
-        String error = "line 1:20: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+        String error = "line 1:19: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[Invalid sequence - escape character is not followed by special wildcard char]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
@@ -2404,6 +3012,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
+    }
+
+    public void testPruneChainedEvalNoProjection() {
+        var plan = plan("""
+              from test
+            | eval garbage = salary + 3
+            | eval garbage = emp_no / garbage, garbage = garbage
+            | eval garbage = 1
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+
+        assertEquals(1, eval.fields().size());
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertEquals(alias.name(), "garbage");
+        var literal = as(alias.child(), Literal.class);
+        assertEquals(1, literal.value());
     }
 
     /**
@@ -3001,7 +3627,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filterProp = ((GreaterThan) filter.condition()).left();
         assertTrue(expand.expanded().semanticEquals(filterProp));
         assertFalse(expand.target().semanticEquals(filterProp));
-        var row = as(expand.child(), Row.class);
+        var row = as(expand.child(), LocalRelation.class);
     }
 
     /**
@@ -3020,7 +3646,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("a"));
-        var row = as(agg.child(), Row.class);
+        var row = as(agg.child(), LocalRelation.class);
     }
 
     /**
@@ -3039,7 +3665,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("a", "b"));
-        var row = as(agg.child(), Row.class);
+        var row = as(agg.child(), LocalRelation.class);
     }
 
     /**
@@ -3363,6 +3989,39 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(1));
         assertThat(eval.fields().get(0).toAttribute(), is(ref));
         assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[CATEGORIZE(CATEGORIZE(CONCAT(first_name, "abc")){r$}#18) AS CATEGORIZE(CONCAT(first_name, "abc"))],[CO
+     * UNT(salary{f}#13,true[BOOLEAN]) AS c, CATEGORIZE(CONCAT(first_name, "abc")){r}#3]]
+     *   \_Eval[[CONCAT(first_name{f}#9,[61 62 63][KEYWORD]) AS CATEGORIZE(CONCAT(first_name, "abc"))]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testNestedExpressionsInGroupsWithCategorize() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary) by CATEGORIZE(CONCAT(first_name, "abc"))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var categorizeAlias = as(groupings.get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        var aggs = agg.aggregates();
+        assertThat(aggs.get(1), is(categorizeAlias.toAttribute()));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), Concat.class);
+
+        assertThat(evalFieldAlias.name(), is("CATEGORIZE(CONCAT(first_name, \"abc\"))"));
+        assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
+        assertThat(categorizeAlias.source(), is(evalFieldAlias.source()));
     }
 
     /**
@@ -4210,7 +4869,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         e.forEachUp(node -> {
             if (node.children().size() == 0) {
-                result.set(result.get() || Expressions.isNull(node));
+                result.set(result.get() || Expressions.isGuaranteedNull(node));
             }
         });
 
@@ -4265,6 +4924,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
         assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
+    }
+
+    public void testPlanSanityCheckWithBinaryPlans() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        var join = as(plan, Join.class);
+
+        var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+
+        var joinWithInvalidRightPlan = join.replaceChildren(join.left(), join.left());
+        e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidRightPlan));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
     // https://github.com/elastic/elasticsearch/issues/104995
@@ -4639,10 +5318,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
-     * \_InlineStats[[emp_no % 2{r}#6],[COUNT(salary{f}#12) AS c, emp_no % 2{r}#6]]
-     *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no % 2]]
-     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * \_InlineJoin[LEFT OUTER,[emp_no % 2{r}#1793],[emp_no % 2{r}#1793],[emp_no % 2{r}#1793]]
+     *   |_Eval[[emp_no{f}#1794 % 2[INTEGER] AS emp_no % 2]]
+     *   | \_EsRelation[test][_meta_field{f}#1800, emp_no{f}#1794, first_name{f}#..]
+     *   \_Aggregate[STANDARD,[emp_no % 2{r}#1793],[COUNT(salary{f}#1799,true[BOOLEAN]) AS c, emp_no % 2{r}#1793]]
+     *     \_StubRelation[[_meta_field{f}#1800, emp_no{f}#1794, first_name{f}#1795, gender{f}#1796, job{f}#1801, job.raw{f}#1802, langua
+     * ges{f}#1797, last_name{f}#1798, long_noidx{f}#1803, salary{f}#1799, emp_no % 2{r}#1793]]
      */
+    @AwaitsFix(bugUrl = "Needs updating to join plan per above")
     public void testInlinestatsNestedExpressionsInGroups() {
         var query = """
             FROM test
@@ -4655,7 +5338,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
         var plan = optimizedPlan(query);
         var limit = as(plan, Limit.class);
-        var agg = as(limit.child(), InlineStats.class);
+        var inline = as(limit.child(), InlineJoin.class);
+        var agg = as(inline.left(), Aggregate.class);
         var groupings = agg.groupings();
         var aggs = agg.aggregates();
         var ref = as(groupings.get(0), ReferenceAttribute.class);
@@ -5054,6 +5738,78 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperFalse() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), is("first_name"));
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
+        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
+        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(IsNotNull.class));
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var insensitive = as(filter.condition(), InsensitiveEquals.class);
+            as(insensitive.left(), FieldAttribute.class);
+            var bRef = as(insensitive.right().fold(), BytesRef.class);
+            assertThat(bRef.utf8ToString(), is(value));
+            as(filter.child(), EsRelation.class);
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var not = as(filter.condition(), Not.class);
+            var insensitive = as(not.field(), InsensitiveEquals.class);
+            as(insensitive.left(), FieldAttribute.class);
+            var bRef = as(insensitive.right().fold(), BytesRef.class);
+            assertThat(bRef.utf8ToString(), is(value));
+            as(filter.child(), EsRelation.class);
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUnwrap() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var insensitive = as(filter.condition(), InsensitiveEquals.class);
+        var field = as(insensitive.left(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        var bRef = as(insensitive.right().fold(), BytesRef.class);
+        assertThat(bRef.utf8ToString(), is("VALÜ"));
+        as(filter.child(), EsRelation.class);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -5075,11 +5831,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int""";
+            | LOOKUP_?? int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
@@ -5101,7 +5858,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(left.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 
-        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
@@ -5112,6 +5869,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(join.children().get(0).outputSet() + " contains " + lhs, join.children().get(0).outputSet().contains(lhs));
         assertTrue(join.children().get(1).outputSet() + " contains " + rhs, join.children().get(1).outputSet().contains(rhs));
 
+        // TODO: this needs to be fixed
         // Join's output looks sensible too
         assertMap(
             join.output().stream().map(Object::toString).toList(),
@@ -5136,7 +5894,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                  * on it and discover that it doesn't exist in the index. It doesn't!
                  * We don't expect it to. It exists only in the lookup table.
                  */
-                .item(containsString("name{r}"))
+                .item(containsString("name"))
         );
     }
 
@@ -5153,11 +5911,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupStats() {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP_?? int_number_names ON int
             | STATS MIN(emp_no) BY name""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
@@ -5171,9 +5930,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertMap(
             agg.aggregates().stream().map(Object::toString).sorted().toList(),
-            matchesList().item(startsWith("MIN(emp_no)")).item(startsWith("name{r}"))
+            matchesList().item(startsWith("MIN(emp_no)")).item(startsWith("name"))
         );
-        assertMap(agg.groupings().stream().map(Object::toString).toList(), matchesList().item(startsWith("name{r}")));
+        assertMap(agg.groupings().stream().map(Object::toString).toList(), matchesList().item(startsWith("name")));
 
         var join = as(agg.child(), Join.class);
         // Right is the lookup table
@@ -5188,7 +5947,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(left.output().toString(), containsString("int{r}"));
         as(left.child(), EsRelation.class);
 
-        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
@@ -5197,6 +5956,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(lhs.toString(), startsWith("int{r}"));
         assertThat(rhs.toString(), startsWith("int{r}"));
 
+        // TODO: fixme
         // Join's output looks sensible too
         assertMap(
             join.output().stream().map(Object::toString).toList(),
@@ -5221,9 +5981,248 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                  * on it and discover that it doesn't exist in the index. It doesn't!
                  * We don't expect it to. It exists only in the lookup table.
                  */
-                .item(containsString("name{r}"))
+                .item(containsString("name"))
         );
     }
+
+    //
+    // Lookup JOIN
+    //
+
+    /**
+     * Filter on join keys should be pushed down
+     * Expects
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *     | \_Limit[1000[INTEGER]]
+     *     |  \_Filter[languages{f}#10 > 1[INTEGER]]
+     *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_code > 1
+            """;
+        var plan = optimizedPlan(query);
+
+        var join = as(plan, Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        var project = as(join.left(), Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        var filter = as(limit.child(), Filter.class);
+        // assert that the rename has been undone
+        var op = as(filter.condition(), GreaterThan.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("languages"));
+
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var leftRel = as(filter.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Filter on on left side fields (outside the join key) should be pushed down
+     * Expects
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *     | \_Limit[1000[INTEGER]]
+     *     |  \_Filter[emp_no{f}#7 > 1[INTEGER]]
+     *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLookupJoinPushDownFilterOnLeftSideField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE emp_no > 1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var join = as(plan, Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        var project = as(join.left(), Project.class);
+
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        var filter = as(limit.child(), Filter.class);
+        var op = as(filter.condition(), GreaterThan.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var leftRel = as(filter.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Filter works on the right side fields and thus cannot be pushed down
+     * Expects
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Filter[language_name{f}#19 == [45 6e 67 6c 69 73 68][KEYWORD]]
+     *     \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *       |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *       | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLookupJoinPushDownDisabledForLookupField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "English"
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var filter = as(limit.child(), Filter.class);
+        var op = as(filter.condition(), Equals.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("language_name"));
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("English")));
+
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        var project = as(join.left(), Project.class);
+
+        var leftRel = as(project.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Split the conjunction into pushable and non pushable filters.
+     * Expects
+     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guage_code{r}#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Filter[language_name{f}#20 == [45 6e 67 6c 69 73 68][KEYWORD]]
+     *     \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#19]]
+     *       |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *       | \_Filter[emp_no{f}#8 > 1[INTEGER]]
+     *       |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "English" AND emp_no > 1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+        // filter kept in place, working on the right side
+        var filter = as(limit.child(), Filter.class);
+        EsqlBinaryComparison op = as(filter.condition(), Equals.class);
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("language_name"));
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("English")));
+
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        var project = as(join.left(), Project.class);
+        // filter pushed down
+        filter = as(project.child(), Filter.class);
+        op = as(filter.condition(), GreaterThan.class);
+        field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+
+        literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var leftRel = as(filter.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Disjunctions however keep the filter in place, even on pushable fields
+     * Expects
+     * Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guage_code{r}#4, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_name{f}#20]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Filter[language_name{f}#20 == [45 6e 67 6c 69 73 68][KEYWORD] OR emp_no{f}#8 > 1[INTEGER]]
+     *     \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#19]]
+     *       |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled());
+
+        String query = """
+              FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "English" OR emp_no > 1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var filter = as(limit.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        EsqlBinaryComparison op = as(or.left(), Equals.class);
+        // OR left side
+        var field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("language_name"));
+        var literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("English")));
+        // OR right side
+        op = as(or.right(), GreaterThan.class);
+        field = as(op.left(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+        literal = as(op.right(), Literal.class);
+        assertThat(literal.value(), equalTo(1));
+
+        var join = as(filter.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        var project = as(join.left(), Project.class);
+
+        var leftRel = as(project.child(), EsRelation.class);
+        var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    //
+    //
+    //
 
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
@@ -5785,7 +6784,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
-            "1:67: [MATCH] cannot operate on [initial], which is not a field from an index mapping",
+            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
             e.getMessage().substring(header.length())
         );
 
@@ -5793,7 +6792,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
-            "1:67: [MATCH] cannot operate on [text], which is not a field from an index mapping",
+            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
             e.getMessage().substring(header.length())
         );
     }
@@ -5806,11 +6805,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
         assertThat(
             ve.getMessage(),
-            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
+            containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
-    }
-
-    private Literal nullOf(DataType dataType) {
-        return new Literal(Source.EMPTY, null, dataType);
     }
 }

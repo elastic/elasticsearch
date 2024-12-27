@@ -55,7 +55,6 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -94,6 +93,7 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -147,7 +147,6 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
@@ -182,7 +181,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -2246,7 +2244,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .client(client)
-                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();
@@ -2316,9 +2314,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
-                    responseCollectorService,
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP
@@ -2413,7 +2409,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
-                        FailureStoreMetrics.NOOP
+                        FailureStoreMetrics.NOOP,
+                        DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -2485,6 +2482,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new NoneCircuitBreakerService(),
                         transportService,
                         searchService,
+                        responseCollectorService,
                         searchTransportService,
                         searchPhaseController,
                         clusterService,
@@ -2492,7 +2490,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService

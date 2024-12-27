@@ -126,11 +126,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return this;
     }
 
-    /** Returns the validation method to use for geo coordinates. */
-    public GeoValidationMethod getValidationMethod() {
-        return this.validationMethod;
-    }
-
     /**
      * Sets whether the query builder should ignore unmapped fields (and run a
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
@@ -139,15 +134,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     public GeoPolygonQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
         return this;
-    }
-
-    /**
-     * Gets whether the query builder will ignore unmapped fields (and run a
-     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
-     * the field is unmapped.
-     */
-    public boolean ignoreUnmapped() {
-        return ignoreUnmapped;
     }
 
     @Override

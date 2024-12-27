@@ -100,6 +100,7 @@ public class RestShardsActionTests extends ESTestCase {
         assertThat(headers.get(7).value, equalTo("ip"));
         assertThat(headers.get(8).value, equalTo("id"));
         assertThat(headers.get(9).value, equalTo("node"));
+        assertThat(headers.get(10).value, equalTo("unassigned.reason"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(numShards));
@@ -114,8 +115,8 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
             assertThat(row.get(7).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(8).value, equalTo(localNode.getId()));
-            assertThat(row.get(70).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(71).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(69).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(70).value, equalTo(shardStats.getStatePath()));
         }
     }
 }

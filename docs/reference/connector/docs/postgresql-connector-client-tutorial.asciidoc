@@ -70,7 +70,7 @@ To complete this tutorial, you'll need to complete the following steps:
 Elastic connectors enable you to create searchable, read-only replicas of your data sources in Elasticsearch.
 The first step in setting up your self-managed connector is to create an index.
 
-In the {kibana-ref}[Kibana^] UI go to *Search > Content > Elasticsearch indices*.
+In the {kibana-ref}[Kibana^] UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Create a new connector index:
 

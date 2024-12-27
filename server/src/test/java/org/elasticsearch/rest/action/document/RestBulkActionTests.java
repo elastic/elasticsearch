@@ -222,7 +222,7 @@ public class RestBulkActionTests extends ESTestCase {
             })
             .withHeaders(Map.of("Content-Type", Collections.singletonList("application/json")))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
 
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(
             true,
@@ -251,6 +251,7 @@ public class RestBulkActionTests extends ESTestCase {
         assertTrue(next.get());
         next.set(false);
         assertFalse(isLast.get());
+        assertFalse(r1.hasReferences());
 
         ReleasableBytesReference r2 = new ReleasableBytesReference(new BytesArray("{\"field\":1}"), () -> {});
         chunkHandler.handleChunk(channel, r2, false);
@@ -258,7 +259,6 @@ public class RestBulkActionTests extends ESTestCase {
         assertTrue(next.get());
         next.set(false);
         assertFalse(isLast.get());
-        assertTrue(r1.hasReferences());
         assertTrue(r2.hasReferences());
 
         ReleasableBytesReference r3 = new ReleasableBytesReference(new BytesArray("\n{\"delete\":"), () -> {});

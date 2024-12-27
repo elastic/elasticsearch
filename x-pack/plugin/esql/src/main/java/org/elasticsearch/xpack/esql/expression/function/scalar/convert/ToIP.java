@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 
@@ -34,7 +35,8 @@ public class ToIP extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (field, source) -> field),
         Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToIPFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

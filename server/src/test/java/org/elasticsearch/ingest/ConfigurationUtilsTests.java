@@ -65,11 +65,12 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadStringPropertyInvalidType() {
-        try {
-            ConfigurationUtils.readStringProperty(null, null, config, "arr");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
-        }
+        ElasticsearchParseException caught = assertThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readStringProperty(null, null, config, "arr")
+        );
+        assertThat(caught.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
+
     }
 
     public void testReadBooleanProperty() {
@@ -83,11 +84,11 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadBooleanPropertyInvalidType() {
-        try {
-            ConfigurationUtils.readBooleanProperty(null, null, config, "arr", true);
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
-        }
+        ElasticsearchParseException caught = assertThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readBooleanProperty(null, null, config, "arr", true)
+        );
+        assertThat(caught.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
     }
 
     public void testReadStringOrIntProperty() {
@@ -98,11 +99,11 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadStringOrIntPropertyInvalidType() {
-        try {
-            ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null);
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
-        }
+        ElasticsearchParseException caught = assertThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null)
+        );
+        assertThat(caught.getMessage(), equalTo("[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
     }
 
     public void testReadMediaProperty() {

@@ -15,7 +15,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -40,9 +39,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSourceAction extends BaseRestHandler {
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source "
-        + "requests is deprecated.";
 
     @Override
     public List<Route> routes() {

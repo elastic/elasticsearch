@@ -259,22 +259,9 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 .orElse(-1L);
         }
 
-        /**
-         * @return commit sync id if exists, else null
-         */
-        public String syncId() {
-            return metadataSnapshot.getSyncId();
-        }
-
         @Override
         public String toString() {
-            return "StoreFilesMetadata{"
-                + ", metadataSnapshot{size="
-                + metadataSnapshot.size()
-                + ", syncId="
-                + metadataSnapshot.getSyncId()
-                + "}"
-                + '}';
+            return "StoreFilesMetadata{" + ", metadataSnapshot{size=" + metadataSnapshot.size() + "}" + '}';
         }
     }
 

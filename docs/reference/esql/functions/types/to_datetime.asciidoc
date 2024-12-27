@@ -6,6 +6,7 @@
 |===
 field | result
 date | date
+date_nanos | date
 double | date
 integer | date
 keyword | date

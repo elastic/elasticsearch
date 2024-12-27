@@ -94,14 +94,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         ) {
             @Override
-            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+            protected SearchPhase getNextPhase() {
                 return null;
             }
 
             @Override
             protected void executePhaseOnShard(
                 final SearchShardIterator shardIt,
-                final SearchShardTarget shard,
+                final Transport.Connection shard,
                 final SearchActionListener<SearchPhaseResult> listener
             ) {}
 
@@ -112,11 +112,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendReleaseSearchContext(
-                ShardSearchContextId contextId,
-                Transport.Connection connection,
-                OriginalIndices originalIndices
-            ) {
+            public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
                 releasedContexts.add(contextId);
             }
 

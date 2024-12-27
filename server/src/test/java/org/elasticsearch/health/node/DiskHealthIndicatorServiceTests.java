@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -1085,12 +1084,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Collection<DiscoveryNode> nodes,
         Map<String, Set<String>> indexNameToNodeIdsMap
     ) {
-        Map<String, Set<String>> features = new HashMap<>();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        for (DiscoveryNode node : nodes) {
-            nodesBuilder = nodesBuilder.add(node);
-            features.put(node.getId(), Set.of(HealthFeatures.SUPPORTS_HEALTH.id()));
-        }
+        nodes.forEach(nodesBuilder::add);
         nodesBuilder.localNodeId(randomFrom(nodes).getId());
         nodesBuilder.masterNodeId(randomFrom(nodes).getId());
         ClusterBlocks.Builder clusterBlocksBuilder = new ClusterBlocks.Builder();
@@ -1125,7 +1120,6 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         state.metadata(metadata.generateClusterUuidIfNeeded().build());
         state.routingTable(routingTable.build());
         state.blocks(clusterBlocksBuilder);
-        state.nodeFeatures(features);
         return state.build();
     }
 

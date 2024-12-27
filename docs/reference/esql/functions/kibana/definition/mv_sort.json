@@ -44,6 +44,24 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Multivalue expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "order",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Multivalue expression. If `null`, the function returns `null`."

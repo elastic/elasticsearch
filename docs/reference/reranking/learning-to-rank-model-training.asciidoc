@@ -43,7 +43,7 @@ feature_extractors=[
         feature_name="title_bm25",
         query={"match": {"title": "{{query}}"}}
     ),
-    # We want to use the the number of matched terms in the title field as a feature:
+    # We want to use the number of matched terms in the title field as a feature:
     QueryFeatureExtractor(
         feature_name="title_matched_term_count",
         query={

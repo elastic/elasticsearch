@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,8 +41,9 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
+import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -50,7 +52,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -69,6 +70,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
+    private final QueryBuilderResolver queryBuilderResolver;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -83,7 +85,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Client client,
-        NamedWriteableRegistry registry
+        NamedWriteableRegistry registry,
+        IndexNameExpressionResolver indexNameExpressionResolver
 
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -102,6 +105,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             transportService,
             exchangeService,
             enrichLookupService,
+            lookupFromIndexService,
             clusterService,
             threadPool,
             bigArrays,
@@ -121,6 +125,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.queryBuilderResolver = new QueryBuilderResolver(searchService, clusterService, transportService, indexNameExpressionResolver);
     }
 
     @Override
@@ -151,6 +156,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
+        // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
+        task.setExecutionInfo(createEsqlExecutionInfo(request));
         ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
@@ -170,14 +177,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             System.nanoTime()
         );
         String sessionId = sessionID(task);
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias),
-            request.includeCCSMetadata()
-        );
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
+        // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
+        // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
+        EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
+        PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
-            physicalPlan,
+            plan,
             configuration,
             executionInfo,
             resultListener
@@ -189,9 +195,22 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             enrichPolicyResolver,
             executionInfo,
             remoteClusterService,
-            runPhase,
+            planRunner,
+            queryBuilderResolver,
             listener.map(result -> toResponse(task, request, configuration, result))
         );
+    }
+
+    private EsqlExecutionInfo getOrCreateExecutionInfo(Task task, EsqlQueryRequest request) {
+        if (task instanceof EsqlQueryTask esqlQueryTask && esqlQueryTask.executionInfo() != null) {
+            return esqlQueryTask.executionInfo();
+        } else {
+            return createEsqlExecutionInfo(request);
+        }
+    }
+
+    private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
+        return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias), request.includeCCSMetadata());
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
@@ -269,7 +288,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             asyncExecutionId,
             true, // is_running
             true, // isAsync
-            null
+            task.executionInfo()
         );
     }
 

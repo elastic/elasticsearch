@@ -49,9 +49,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.StoreRecovery;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.tasks.Task;
@@ -385,17 +383,40 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
-                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                        // for archives indices mounted as searchable snapshots, we need to call this
                         indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                        final Store store = indexShard.store();
-                        store.incRef();
-                        try {
-                            StoreRecovery.bootstrap(indexShard, store);
-                        } finally {
-                            store.decRef();
-                        }
                     }
                     indexShard.recoverLocallyUpToGlobalCheckpoint(ActionListener.assertOnce(l));
+                })
+                // peer recovery can consume a lot of disk space, so it's worth cleaning up locally ahead of the attempt
+                // operation runs only if the previous operation succeeded, and returns the previous operation's result.
+                // Failures at this stage aren't fatal, we can attempt to recover and then clean up again at the end. #104473
+                .andThenApply(startingSeqNo -> {
+                    Store.MetadataSnapshot snapshot;
+                    try {
+                        snapshot = indexShard.snapshotStoreMetadata();
+                    } catch (IOException e) {
+                        // We give up on the contents for any checked exception thrown by snapshotStoreMetadata. We don't want to
+                        // allow those to bubble up and interrupt recovery because the subsequent recovery attempt is expected
+                        // to fix up these problems for us if it completes successfully.
+                        if (e instanceof org.apache.lucene.index.IndexNotFoundException) {
+                            // this is the expected case on first recovery, so don't spam the logs with exceptions
+                            logger.debug(() -> format("no snapshot found for shard %s, treating as empty", indexShard.shardId()));
+                        } else {
+                            logger.warn(() -> format("unable to load snapshot for shard %s, treating as empty", indexShard.shardId()), e);
+                        }
+                        snapshot = Store.MetadataSnapshot.EMPTY;
+                    }
+
+                    Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        logger.debug(() -> format("cleaning up index directory for %s before recovery", indexShard.shardId()));
+                        store.cleanupAndVerify("cleanup before peer recovery", snapshot);
+                    } finally {
+                        store.decRef();
+                    }
+                    return startingSeqNo;
                 })
                 // now construct the start-recovery request
                 .andThenApply(startingSeqNo -> {
@@ -458,8 +479,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene
                 // index.
                 try {
-                    final String expectedTranslogUUID = metadataSnapshot.commitUserData().get(Translog.TRANSLOG_UUID_KEY);
-                    final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                    final long globalCheckpoint = recoveryTarget.indexShard()
+                        .readGlobalCheckpointForRecovery(metadataSnapshot.commitUserData());
                     assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
                 } catch (IOException | TranslogCorruptedException e) {
                     logGlobalCheckpointWarning(logger, startingSeqNo, e);

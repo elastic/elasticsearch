@@ -144,7 +144,7 @@ public class JoinReasonServiceTests extends ESTestCase {
             discoveryNodes[i] = randomDiscoveryNode();
         }
 
-        // we stop tracking the the oldest absent node(s) when only 1/3 of the tracked nodes are present
+        // we stop tracking the oldest absent node(s) when only 1/3 of the tracked nodes are present
         final int cleanupNodeCount = (discoveryNodes.length - 2) / 3;
 
         final DiscoveryNodes.Builder cleanupNodesBuilder = new DiscoveryNodes.Builder().add(masterNode)

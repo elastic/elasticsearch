@@ -18,8 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -34,10 +33,8 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -48,7 +45,6 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -61,7 +57,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -73,7 +68,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -119,32 +113,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createHuggingFaceService()) {
-            var config = getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
-            config.put("extra_key", "value");
-
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-                }
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap(), getSecretSettingsMap("secret")),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
                 assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -164,8 +133,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
                 assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -287,36 +255,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url"),
-                new HashMap<>(),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
-
-            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("url"),
@@ -341,9 +280,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), getSecretSettingsMap("secret"));
 
@@ -502,25 +439,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createHuggingFaceService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap());
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
-
-            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-            assertNull(embeddingsModel.getSecretSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap());
 
@@ -535,8 +454,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
 
@@ -853,32 +771,24 @@ public class HuggingFaceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
                 List.of("abc"),
                 new HashMap<>(),
                 InputType.INGEST,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-
-            MatcherAssert.assertThat(
-                asMapWithListsInsteadOfArrays((InferenceChunkedTextEmbeddingFloatResults) result),
-                Matchers.is(
-                    Map.of(
-                        InferenceChunkedTextEmbeddingFloatResults.FIELD_NAME,
-                        List.of(
-                            Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, List.of(-0.0123f, 0.0123f))
-                        )
-                    )
-                )
-            );
+            assertThat(result, CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+            var embeddingResult = (ChunkedInferenceEmbeddingFloat) result;
+            assertThat(embeddingResult.chunks(), hasSize(1));
+            assertThat(embeddingResult.chunks().get(0).matchedText(), is("abc"));
+            assertThat(embeddingResult.chunks().get(0).offset(), is(new ChunkedInference.TextOffset(0, "abc".length())));
+            assertArrayEquals(new float[] { -0.0123f, 0.0123f }, embeddingResult.chunks().get(0).embedding(), 0.001f);
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
@@ -909,14 +819,13 @@ public class HuggingFaceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
                 List.of("abc"),
                 new HashMap<>(),
                 InputType.INGEST,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -924,8 +833,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(1));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("abc", floatResult.chunks().get(0).matchedText());
                 assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding(), 0.0f);

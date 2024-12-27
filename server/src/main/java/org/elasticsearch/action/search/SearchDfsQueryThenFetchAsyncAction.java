@@ -84,21 +84,14 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     @Override
     protected void executePhaseOnShard(
         final SearchShardIterator shardIt,
-        final SearchShardTarget shard,
+        final Transport.Connection connection,
         final SearchActionListener<DfsSearchResult> listener
     ) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
         getSearchTransport().sendExecuteDfs(connection, buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
+    protected SearchPhase getNextPhase() {
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
         final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
@@ -107,8 +100,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             aggregatedDfs,
             mergedKnnResults,
             queryPhaseResultConsumer,
-            (queryResults) -> SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResults, aggregatedDfs),
-            context
+            (queryResults) -> SearchQueryThenFetchAsyncAction.nextPhase(client, this, queryResults, aggregatedDfs),
+            this
         );
     }
 

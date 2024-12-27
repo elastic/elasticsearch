@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;

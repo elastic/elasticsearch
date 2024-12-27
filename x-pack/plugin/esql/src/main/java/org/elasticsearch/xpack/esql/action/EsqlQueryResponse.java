@@ -114,7 +114,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         }
         return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
@@ -133,7 +133,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(executionInfo);
         }
     }
@@ -216,9 +216,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
             ? Iterators.concat(
-            ResponseXContentUtils.allColumns(columns, "all_columns"),
-            ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
-        )
+                ResponseXContentUtils.allColumns(columns, "all_columns"),
+                ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
+            )
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
@@ -239,7 +239,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         );
     }
 
-    private boolean[] nullColumns() {
+    public boolean[] nullColumns() {
         boolean[] nullColumns = new boolean[columns.size()];
         for (int c = 0; c < nullColumns.length; c++) {
             nullColumns[c] = allColumnsAreNull(c);
@@ -375,8 +375,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContent.builder(params)
-                .object(ob -> ob.array("drivers", drivers.iterator(), ChunkedToXContentBuilder::append));
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.array("drivers", drivers.iterator(), params),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         List<DriverProfile> drivers() {

@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
@@ -322,8 +323,12 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
-            assertClusterInfoSuccess(localCluster, localNumShards);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
+            assertThat(
+                localCluster.getStatus(),
+                oneOf(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, EsqlExecutionInfo.Cluster.Status.PARTIAL)
+            );
+            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
 
             assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
         } finally {

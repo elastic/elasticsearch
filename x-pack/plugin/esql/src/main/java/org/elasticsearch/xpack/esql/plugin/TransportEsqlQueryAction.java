@@ -162,8 +162,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
-        // If the request is async, we need to wrap the listener in a SubscribableListener so that we can collect the results from other
-        // endpoints
+        // Since the request is async here, we need to wrap the listener in a SubscribableListener so that we can collect the results from
+        // other endpoints, such as _query/async/stop
         var subListener = new SubscribableListener<EsqlQueryResponse>();
         String asyncExecutionId = task.getExecutionId().getEncoded();
         // TODO: is runBefore correct here?

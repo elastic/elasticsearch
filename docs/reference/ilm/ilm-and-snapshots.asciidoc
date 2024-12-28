@@ -20,8 +20,9 @@ or prevent the index from being immediately deleted.
 
 To prevent {ilm-init} from executing a restored index's policy:
 
-1. Temporarily <<ilm-stop,stop {ilm-init}>>. This pauses execution of _all_ {ilm-init} policies.
-2. Restore the snapshot.
-3. <<ilm-remove-policy,Remove the policy>> from the index or perform whatever actions you need to 
-   before {ilm-init} resumes policy execution. 
-4. <<ilm-start,Restart {ilm-init}>> to resume policy execution.
+1. Go to `Kibana: Stack Management > Snapshot and Restore > Snapshots`.
+2. Select the snapshot you wish to restore and click on `Next`.
+3. Enable the `Reset index settings` option and add the `index.lifecycle.name` and `index.lifecycle.rollover_alias` index settings.
+4. Click on `Next` and `Restore snapshot`.
+
+Alternatively, this can also be done via the <<restore-snapshot-api,Restore snapshot API>> with the help of the `ignore_index_settings` option. And if you need to readd the {ilm-init} policy, you can do so with our <<apply-policy-manually,Apply lifecycle policy manually>> instructions.

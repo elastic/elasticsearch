@@ -242,6 +242,9 @@ tests:
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
+  issue: https://github.com/elastic/elasticsearch/issues/119332
 
 # Examples:
 #

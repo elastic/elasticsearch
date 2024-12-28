@@ -38,6 +38,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -194,7 +195,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             switch (c.type()) {
                 case UNSIGNED_LONG, LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(randomLong());
                 case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
-                case DOUBLE, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
+                case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
                 case TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(
@@ -213,6 +214,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 );
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
+                );
+                case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateDoubleMetricBuilder) builder).append(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomInt()
                 );
                 case NULL -> builder.appendNull();
                 case SOURCE -> {
@@ -869,8 +876,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case UNSIGNED_LONG -> ((LongBlock.Builder) builder).appendLong(longToUnsignedLong(((Number) value).longValue(), true));
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
-                    case DOUBLE, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(
-                        ((Number) value).doubleValue()
+                    case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
+                    case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateDoubleMetricBuilder) builder).append(
+                        ((Number) value).doubleValue(),
+                        ((Number) value).doubleValue(),
+                        ((Number) value).doubleValue(),
+                        ((Number) value).intValue()
                     );
                     case KEYWORD, TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();

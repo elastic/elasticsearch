@@ -605,7 +605,9 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be used in disjunctions
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        AGGREGATE_METRIC_DOUBLE;
 
         private final boolean enabled;
 

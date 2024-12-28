@@ -82,8 +82,7 @@ setup:
                 time_series_dimension: true
               agg_metric:
                 type: aggregate_metric_double
-                metrics:
-                  - max
+                metrics: [ max, min, sum, value_count]
                 default_metric: max
               k8s:
                 properties:
@@ -101,9 +100,9 @@ setup:
         index: test2
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10, "min": 5, "sum": 15, "value_count": 2}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20, "min": -10, "sum": 5, "value_count": 3}}'
 
 ---
 load everything:
@@ -229,16 +228,20 @@ stats on aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test2 | STATS max(agg_metric) BY dim'
+          query: 'FROM test2 | STATS max(agg_metric)'
 
   - match: { columns.0.name: "max(agg_metric)" }
   - match: { columns.0.type: "aggregate_metric_double" }
-  - match: { columns.1.name: "dim" }
-  - match: { columns.1.type: "keyword" }
-  - match: { values.0.0: 10.0 }
-  - match: { values.0.1: "A" }
-  - match: { values.1.0: 20.0 }
-  - match: { values.1.1: "B" }
+  - match: { values.0.0: 20.0 }
+# TODO: add other aggregations (min, sum, count)
+
+---
+grouping stats on aggregate_metric_double:
+  - do:
+      catch: /grouping aggregator is not supported yet/
+      esql.query:
+        body:
+          query: 'FROM test2 | STATS max(agg_metric) BY dim'
 
 ---
 from index pattern unsupported counter:

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxAggregatedMetricDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
@@ -48,7 +49,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.DATE_NANOS, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.INTEGER, MaxIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.DOUBLE, MaxDoubleAggregatorFunctionSupplier::new),
-        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, MaxDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, MaxAggregatedMetricDoubleAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),

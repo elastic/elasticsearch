@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -113,7 +114,8 @@ public final class ResponseValueUtils {
             case UNSIGNED_LONG -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> ((LongBlock) block).getLong(offset);
             case INTEGER, COUNTER_INTEGER -> ((IntBlock) block).getInt(offset);
-            case DOUBLE, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case AGGREGATE_METRIC_DOUBLE -> ((DoubleBlock) ((CompositeBlock) block).getBlock(1)).getDouble(offset);
             case KEYWORD, SEMANTIC_TEXT, TEXT -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case IP -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);

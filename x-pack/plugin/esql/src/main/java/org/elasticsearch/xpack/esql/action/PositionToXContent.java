@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -74,11 +75,25 @@ abstract class PositionToXContent {
                     return builder.value(((IntBlock) block).getInt(valueIndex));
                 }
             };
-            case DOUBLE, COUNTER_DOUBLE, AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
+            case DOUBLE, COUNTER_DOUBLE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(((DoubleBlock) block).getDouble(valueIndex));
+                }
+            };
+            case AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    // TODO: remove if statement. The block should always be of type CompositeBlock
+                    DoubleBlock doubleBlock;
+                    if (block instanceof CompositeBlock compositeBlock) {
+                        doubleBlock = compositeBlock.getBlock(1);
+                    } else {
+                        doubleBlock = (DoubleBlock) block;
+                    }
+                    return builder.value(doubleBlock.getDouble(valueIndex));
                 }
             };
             case UNSIGNED_LONG -> new PositionToXContent(block) {

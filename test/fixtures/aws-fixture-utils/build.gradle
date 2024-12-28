@@ -8,13 +8,9 @@
  */
 apply plugin: 'elasticsearch.java'
 
-description = 'Fixture for S3 Storage service'
+description = 'Utils for AWS-related fixtures'
 
 dependencies {
-  api project(':server')
-  api("junit:junit:${versions.junit}") {
-    transitive = false
-  }
+  implementation project(':server')
   implementation project(':test:framework')
-  implementation project(':test:fixtures:aws-fixture-utils')
 }

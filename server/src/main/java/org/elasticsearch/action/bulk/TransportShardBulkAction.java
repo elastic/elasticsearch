@@ -313,7 +313,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.id(),
                 request.versionType(),
                 request.ifSeqNo(),
-                request.ifPrimaryTerm()
+                request.ifPrimaryTerm(),
+                request.routing()
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
@@ -605,7 +606,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getPrimaryTerm(),
                     primaryResponse.getVersion(),
                     deleteRequest.type(),
-                    deleteRequest.id()
+                    deleteRequest.id(),
+                    deleteRequest.routing()
                 );
                 break;
             default:

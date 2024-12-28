@@ -92,6 +92,8 @@ public abstract class StreamInput extends InputStream {
      */
     public abstract byte readByte() throws IOException;
 
+    public abstract byte tryReadByte() throws IOException;
+
     /**
      * Reads a specified number of bytes into an array at the specified offset.
      *
@@ -358,6 +360,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public boolean tryReadOptionalBoolean() throws IOException {
+        try {
+            tryReadBoolean();
+            return true;
+        } catch (IllegalStateException e) {
+            return false;
+        }
+    }
+
+    @Nullable
     public SecureString readOptionalSecureString() throws IOException {
         SecureString value = null;
         BytesReference bytesRef = readOptionalBytesReference();
@@ -562,6 +574,10 @@ public abstract class StreamInput extends InputStream {
      */
     public final boolean readBoolean() throws IOException {
         return readBoolean(readByte());
+    }
+
+    public final boolean tryReadBoolean() throws IOException {
+        return readBoolean(tryReadByte());
     }
 
     private boolean readBoolean(final byte value) {

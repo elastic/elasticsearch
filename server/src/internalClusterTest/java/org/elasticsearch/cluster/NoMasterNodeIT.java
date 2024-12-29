@@ -85,12 +85,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
+            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -249,12 +244,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
+            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -348,7 +338,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             for (String node : nodesWithShards) {
-                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             }
         });

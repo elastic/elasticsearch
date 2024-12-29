@@ -51,11 +51,11 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             BytesStreamOutput output = new BytesStreamOutput();
             output.setTransportVersion(testVersion);
-            clusterStateRequest.writeTo(output);
+            new RemoteClusterStateRequest(clusterStateRequest).writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setTransportVersion(testVersion);
-            ClusterStateRequest deserializedCSRequest = new ClusterStateRequest(streamInput);
+            ClusterStateRequest deserializedCSRequest = new RemoteClusterStateRequest(streamInput).clusterStateRequest();
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
             assertThat(deserializedCSRequest.metadata(), equalTo(clusterStateRequest.metadata()));
@@ -87,7 +87,7 @@ public class ClusterStateRequestTests extends ESTestCase {
     public void testDescription() {
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().getDescription(), equalTo("cluster state [master timeout [30s]]"));
         assertThat(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).masterNodeTimeout(TimeValue.timeValueMinutes(5)).getDescription(),
+            new ClusterStateRequest(TimeValue.timeValueMinutes(5)).getDescription(),
             equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]")
         );
         assertThat(
@@ -98,7 +98,6 @@ public class ClusterStateRequestTests extends ESTestCase {
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().metadata(true).getDescription(), containsString("metadata"));
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().blocks(true).getDescription(), containsString("blocks"));
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().customs(true).getDescription(), containsString("customs"));
-        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).local(true).getDescription(), containsString("local"));
         assertThat(
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(23L).getDescription(),
             containsString("wait for metadata version [23] with timeout [1m]")

@@ -34,13 +34,7 @@ public class InitialClusterStateIT extends ESIntegTestCase {
 
     private static void assertClusterUuid(boolean expectCommitted, String expectedValue) {
         for (String nodeName : internalCluster().getNodeNames()) {
-            final Metadata metadata = client(nodeName).admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState()
-                .metadata();
+            final Metadata metadata = client(nodeName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
             assertEquals(expectCommitted, metadata.clusterUUIDCommitted());
             assertEquals(expectedValue, metadata.clusterUUID());
 

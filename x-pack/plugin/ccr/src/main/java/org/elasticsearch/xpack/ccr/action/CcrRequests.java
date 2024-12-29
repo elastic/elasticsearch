@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.RemoteClusterClient;
@@ -65,40 +66,44 @@ public final class CcrRequests {
         if (metadataVersion > 0) {
             request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
-        client.execute(ClusterStateAction.REMOTE_TYPE, request, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.getState() == null) { // timeout on wait_for_metadata_version
-                assert metadataVersion > 0 : metadataVersion;
-                if (timeoutSupplier.get().nanos() < 0) {
-                    delegate.onFailure(
-                        new IllegalStateException(
-                            "timeout to get cluster state with"
-                                + " metadata version ["
-                                + metadataVersion
-                                + "], mapping version ["
-                                + mappingVersion
-                                + "]"
-                        )
-                    );
+        client.execute(
+            ClusterStateAction.REMOTE_TYPE,
+            new RemoteClusterStateRequest(request),
+            listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.getState() == null) { // timeout on wait_for_metadata_version
+                    assert metadataVersion > 0 : metadataVersion;
+                    if (timeoutSupplier.get().nanos() < 0) {
+                        delegate.onFailure(
+                            new IllegalStateException(
+                                "timeout to get cluster state with"
+                                    + " metadata version ["
+                                    + metadataVersion
+                                    + "], mapping version ["
+                                    + mappingVersion
+                                    + "]"
+                            )
+                        );
+                    } else {
+                        getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, delegate);
+                    }
                 } else {
-                    getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, delegate);
+                    final Metadata metadata = response.getState().metadata();
+                    final IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(index);
+                    if (indexMetadata.getMappingVersion() >= mappingVersion) {
+                        delegate.onResponse(indexMetadata);
+                        return;
+                    }
+                    if (timeoutSupplier.get().nanos() < 0) {
+                        delegate.onFailure(
+                            new IllegalStateException("timeout to get cluster state with mapping version [" + mappingVersion + "]")
+                        );
+                    } else {
+                        // ask for the next version.
+                        getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, delegate);
+                    }
                 }
-            } else {
-                final Metadata metadata = response.getState().metadata();
-                final IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(index);
-                if (indexMetadata.getMappingVersion() >= mappingVersion) {
-                    delegate.onResponse(indexMetadata);
-                    return;
-                }
-                if (timeoutSupplier.get().nanos() < 0) {
-                    delegate.onFailure(
-                        new IllegalStateException("timeout to get cluster state with mapping version [" + mappingVersion + "]")
-                    );
-                } else {
-                    // ask for the next version.
-                    getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, delegate);
-                }
-            }
-        }));
+            })
+        );
     }
 
     public static final RequestValidators.RequestValidator<PutMappingRequest> CCR_PUT_MAPPING_REQUEST_VALIDATOR = (

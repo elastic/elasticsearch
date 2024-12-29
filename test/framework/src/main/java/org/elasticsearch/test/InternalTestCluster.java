@@ -2039,7 +2039,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         try {
             ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+            final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             final DiscoveryNode masterNode = state.nodes().getMasterNode();
             if (masterNode == null) {
                 throw new AssertionError("Master is not stable but the method expects a stable master node");

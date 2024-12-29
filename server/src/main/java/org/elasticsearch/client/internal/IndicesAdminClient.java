@@ -115,6 +115,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -336,8 +337,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetAliasesAction.INSTANCE, request, listener);
     }
 
-    public GetAliasesRequestBuilder prepareGetAliases(String... aliases) {
-        return new GetAliasesRequestBuilder(this, aliases);
+    public GetAliasesRequestBuilder prepareGetAliases(TimeValue masterTimeout, String... aliases) {
+        return new GetAliasesRequestBuilder(this, masterTimeout, aliases);
     }
 
     public ActionFuture<GetIndexResponse> getIndex(GetIndexRequest request) {

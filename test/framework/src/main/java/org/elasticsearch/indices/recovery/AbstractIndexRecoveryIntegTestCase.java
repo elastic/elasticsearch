@@ -344,7 +344,6 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                                 client(blueNodeName).admin()
                                     .cluster()
                                     .prepareState(TEST_REQUEST_TIMEOUT)
-                                    .setLocal(true)
                                     .get()
                                     .getState()
                                     .getRoutingTable()

@@ -288,7 +288,7 @@ public abstract class TestCluster {
     private void wipeAllTemplates(Set<String> exclude, RefCountingListener listeners) {
         SubscribableListener
 
-            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates().execute(l))
+            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT).execute(l))
             .andThenAccept(response -> {
                 for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
                     if (exclude.contains(indexTemplate.getName())) {

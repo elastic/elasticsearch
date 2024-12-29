@@ -22,6 +22,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -54,17 +55,17 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
+        final var masterNodeTimeout = getMasterNodeTimeout(request);
         final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null
-            ? new GetIndexTemplatesRequest()
-            : new GetIndexTemplatesRequest(matchPattern);
-        getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+            ? new GetIndexTemplatesRequest(masterNodeTimeout)
+            : new GetIndexTemplatesRequest(masterNodeTimeout, matchPattern);
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
             matchPattern
         );
         getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
-        getComposableTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        getComposableTemplatesRequest.masterNodeTimeout(masterNodeTimeout);
 
         return channel -> {
 

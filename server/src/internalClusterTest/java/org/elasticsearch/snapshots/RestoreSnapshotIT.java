@@ -424,7 +424,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  delete test template");
         assertThat(indicesAdmin().prepareDeleteTemplate("test-template").get().isAcknowledged(), equalTo(true));
-        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
@@ -437,7 +437,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template is restored");
-        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
     }
 

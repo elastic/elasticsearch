@@ -64,7 +64,7 @@ public abstract class LocalClusterStateRequest extends LegacyActionRequest {
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
     }
 

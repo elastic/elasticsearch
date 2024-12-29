@@ -304,7 +304,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         new ClusterStateRequest(waitForMetadataTimeOut).clear()
                             .metadata(true)
                             .routingTable(true)
-                            .local(true)
                             .waitForMetadataVersion(metadataVersion)
                             .waitForTimeout(waitForMetadataTimeOut),
                         e -> handler.accept(null, e),

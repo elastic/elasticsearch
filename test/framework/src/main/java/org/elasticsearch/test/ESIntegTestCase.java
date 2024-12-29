@@ -1364,9 +1364,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
         for (Client client : cluster().getClients()) {
             localStates.add(
-                SubscribableListener.newForked(
-                    l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().setLocal(true).execute(l)
-                )
+                SubscribableListener.newForked(l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l))
             );
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {

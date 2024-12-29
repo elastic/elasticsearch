@@ -118,10 +118,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void expectMasterNotFound() {
-        expectThrows(
-            MasterNotDiscoveredException.class,
-            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-        );
+        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState(TimeValue.timeValueMillis(100)));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108613")

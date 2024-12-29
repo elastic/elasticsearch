@@ -14,7 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
@@ -50,13 +51,19 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
+public class TransportClusterStateAction extends TransportLocalClusterStateAction<ClusterStateRequest, ClusterStateResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ThreadPool threadPool;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportClusterStateAction(
         TransportService transportService,
@@ -68,17 +75,23 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     ) {
         super(
             ClusterStateAction.NAME,
-            false,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            ClusterStateRequest::new,
-            ClusterStateResponse::new,
+            transportService.getTaskManager(),
+            clusterService,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.threadPool = threadPool;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            ClusterStateRequest::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
@@ -91,7 +104,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         final ClusterStateRequest request,
         final ClusterState state,
@@ -105,17 +118,13 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ? Predicates.always()
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
-        final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
-            ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
-
         if (cancellableTask.notifyIfCancelled(listener)) {
             return;
         }
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
-            assert acceptableClusterStateOrFailedPredicate.test(state) == false;
+            assert acceptableClusterStatePredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 
@@ -149,7 +158,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                             }
                         });
                     }
-                }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
+                }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStatePredicate.test(clusterState));
         }
     }
 

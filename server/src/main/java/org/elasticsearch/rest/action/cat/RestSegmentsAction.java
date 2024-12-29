@@ -23,6 +23,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -59,7 +60,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
         final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

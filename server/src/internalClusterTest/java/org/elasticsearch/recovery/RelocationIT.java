@@ -419,7 +419,7 @@ public class RelocationIT extends ESIntegTestCase {
                 if (node.equals(p_node)) {
                     continue;
                 }
-                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 assertThat(
                     node + " indicates assigned replicas",
                     state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(),

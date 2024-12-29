@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.util.EntityUtils;
-import org.apache.mina.core.RuntimeIoException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.client.Request;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
@@ -483,7 +483,7 @@ public class TestSecurityClient {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             return ElasticsearchException.fromXContent(parser);
         } catch (IOException e) {
-            throw new RuntimeIoException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

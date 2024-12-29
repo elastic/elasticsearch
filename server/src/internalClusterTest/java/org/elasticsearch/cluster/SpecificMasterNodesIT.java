@@ -37,15 +37,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
-            assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            );
+            assertThat(clusterAdmin().prepareState(TimeValue.timeValueMillis(100)).get().getState().nodes().getMasterNodeId(), nullValue());
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
@@ -82,15 +74,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().stopCurrentMasterNode();
 
         try {
-            assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            );
+            assertThat(clusterAdmin().prepareState(TimeValue.timeValueMillis(100)).get().getState().nodes().getMasterNodeId(), nullValue());
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
@@ -131,15 +115,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
-            assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            );
+            assertThat(clusterAdmin().prepareState(TimeValue.timeValueMillis(100)).get().getState().nodes().getMasterNodeId(), nullValue());
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected

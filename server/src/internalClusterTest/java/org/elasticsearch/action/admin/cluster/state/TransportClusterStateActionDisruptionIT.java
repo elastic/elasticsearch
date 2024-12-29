@@ -50,11 +50,10 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
     public void testNonLocalRequestAlwaysFindsMaster() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState(TimeValue.timeValueMillis(100))
                 .clear()
                 .setNodes(true)
-                .setBlocks(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100));
+                .setBlocks(true);
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
@@ -70,12 +69,10 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             final String node = randomFrom(internalCluster().getNodeNames());
             final DiscoveryNodes discoveryNodes = client(node).admin()
                 .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
+                .prepareState(TimeValue.timeValueMillis(100))
                 .clear()
-                .setLocal(true)
                 .setNodes(true)
                 .setBlocks(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .getState()
                 .nodes();
@@ -99,12 +96,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
             final ClusterStateRequestBuilder clusterStateRequestBuilder = client(node).admin()
                 .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
+                .prepareState(TimeValue.timeValueMillis(100))
                 .clear()
                 .setNodes(true)
                 .setMetadata(true)
                 .setBlocks(true)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .setWaitForMetadataVersion(waitForMetadataVersion);
             final ClusterStateResponse clusterStateResponse;
@@ -132,13 +128,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
             final ClusterStateResponse clusterStateResponse = client(node).admin()
                 .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
+                .prepareState(TimeValue.timeValueMillis(100))
                 .clear()
-                .setLocal(true)
                 .setMetadata(true)
                 .setBlocks(true)
                 .setWaitForMetadataVersion(waitForMetadataVersion)
-                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .get();
             if (clusterStateResponse.isWaitForTimedOut() == false) {

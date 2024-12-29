@@ -9,16 +9,13 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-    ClusterStateRequest,
-    ClusterStateResponse,
-    ClusterStateRequestBuilder> {
+public class ClusterStateRequestBuilder extends ActionRequestBuilder<ClusterStateRequest, ClusterStateResponse> {
 
     public ClusterStateRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout) {
         super(client, ClusterStateAction.INSTANCE, new ClusterStateRequest(masterNodeTimeout));

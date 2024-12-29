@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -83,7 +83,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
@@ -149,24 +149,14 @@ public class RestClusterStateAction extends BaseRestHandler {
 
         private final ClusterStateRequest request;
         private final ClusterStateResponse response;
-        private final LongSupplier currentTimeMillisSupplier;
-        private final long startTimeMillis;
 
         RestClusterStateResponse(ClusterStateRequest request, ClusterStateResponse response, LongSupplier currentTimeMillisSupplier) {
             this.request = request;
             this.response = response;
-            this.currentTimeMillisSupplier = currentTimeMillisSupplier;
-            this.startTimeMillis = currentTimeMillisSupplier.getAsLong();
         }
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-            if (request.local() == false
-                && request.masterNodeTimeout().millis() >= 0
-                && currentTimeMillisSupplier.getAsLong() - startTimeMillis > request.masterNodeTimeout().millis()) {
-                throw new ElasticsearchTimeoutException("Timed out getting cluster state");
-            }
-
             final ClusterState responseState = response.getState();
 
             return Iterators.concat(Iterators.single((builder, params) -> {

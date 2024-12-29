@@ -172,12 +172,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         expectThrows(
             MasterNotDiscoveredException.class,
             () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
+                clusterAdmin().prepareState(TimeValue.timeValueMillis(100)).get().getState().nodes().getMasterNodeId(),
                 nullValue()
             )
         );

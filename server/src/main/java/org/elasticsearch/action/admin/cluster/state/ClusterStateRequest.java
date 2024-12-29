@@ -9,14 +9,16 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -25,7 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
+public class ClusterStateRequest extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
 
@@ -43,6 +45,11 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         super(masterNodeTimeout);
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
         routingTable = in.readBoolean();
@@ -58,7 +65,12 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        getParentTask().writeTo(out);
+        out.writeTimeValue(masterTimeout());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            out.writeVLong(0L); // Master term
+        } // else no protection against routing loops in older versions
+        out.writeBoolean(true); // Local
         out.writeBoolean(routingTable);
         out.writeBoolean(nodes);
         out.writeBoolean(metadata);
@@ -212,9 +224,6 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (customs) {
             stringBuilder.append("customs, ");
         }
-        if (local) {
-            stringBuilder.append("local, ");
-        }
         if (waitForMetadataVersion != null) {
             stringBuilder.append("wait for metadata version [")
                 .append(waitForMetadataVersion)
@@ -225,7 +234,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (indices.length > 0) {
             stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
         }
-        stringBuilder.append("master timeout [").append(masterNodeTimeout()).append("]]");
+        stringBuilder.append("master timeout [").append(masterTimeout()).append("]]");
         return stringBuilder.toString();
     }
 

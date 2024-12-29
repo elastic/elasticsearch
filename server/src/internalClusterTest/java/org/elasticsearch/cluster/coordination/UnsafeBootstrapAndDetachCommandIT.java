@@ -138,7 +138,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .build()
         );
         assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -243,13 +243,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> ensure NO_MASTER_BLOCK on data-only node");
         assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode)
-                .admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
+            ClusterState state = internalCluster().client(dataNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -295,13 +289,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> ensure there is no NO_MASTER_BLOCK and unsafe-bootstrap is reflected in cluster state");
         assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode2)
-                .admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
+            ClusterState state = internalCluster().client(dataNode2).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertFalse(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             assertTrue(state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
         });
@@ -346,13 +334,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .build()
         );
 
-        ClusterState state = internalCluster().client()
-            .admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setLocal(true)
-            .get()
-            .getState();
+        ClusterState state = internalCluster().client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         internalCluster().stopNode(node);

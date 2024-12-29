@@ -87,9 +87,14 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     }
 
     public static class ExceptionWrapper implements ToXContentObject {
+
+        private final Index index;
+        private final String policyName;
         private final Throwable exception;
 
-        public ExceptionWrapper(Throwable exception) {
+        public ExceptionWrapper(Index index, String policyName, Throwable exception) {
+            this.index = index;
+            this.policyName = policyName;
             this.exception = exception;
         }
 
@@ -99,6 +104,21 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
             ElasticsearchException.generateThrowableXContent(builder, params, exception);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof ExceptionWrapper) == false) return false;
+            ExceptionWrapper that = (ExceptionWrapper) o;
+            return index.equals(that.index)
+                && policyName.equals(that.policyName)
+                && Objects.equals(exception.getMessage(), that.exception.getMessage());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(index, policyName, exception.getMessage());
         }
     }
 }

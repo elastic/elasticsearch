@@ -1,0 +1,6 @@
+pr: 89832
+summary: Prevent duplicate ILM Cluster State Updates when policy is deleted
+area: ILM+SLM
+type: bug
+issues:
+  - 89831

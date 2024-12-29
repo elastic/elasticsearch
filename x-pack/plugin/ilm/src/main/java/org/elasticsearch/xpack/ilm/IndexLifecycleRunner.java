@@ -525,7 +525,12 @@ class IndexLifecycleRunner {
             ),
             e
         );
-        setStepInfo(index, policyName, Step.getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));
+        setStepInfo(
+            index,
+            policyName,
+            Step.getCurrentStepKey(executionState),
+            new SetStepInfoUpdateTask.ExceptionWrapper(index, policyName, e)
+        );
     }
 
     /**
@@ -592,6 +597,11 @@ class IndexLifecycleRunner {
                 failure
             )
         );
+    }
+
+    // used for unit testing
+    int getExecutingTasksSize() {
+        return executingTasks.size();
     }
 
     private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());

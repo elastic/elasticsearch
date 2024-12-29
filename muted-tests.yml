@@ -248,6 +248,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnTheDataNode ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/119179
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/119191
 
 # Examples:
 #

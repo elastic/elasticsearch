@@ -5,6 +5,12 @@
 <titleabbrev>Promote data stream</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 The purpose of the promote <<data-streams,data stream>> API is to turn
 a data stream that is replicated by CCR into a regular
 data stream.

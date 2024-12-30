@@ -922,6 +922,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                             "node-0",
                             SingleNodeShutdownMetadata.builder()
                                 .setNodeId("node-0")
+                                .setNodeEphemeralId("node-0")
                                 .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                                 .setTargetNodeName("node-2")
                                 .setStartedAtMillis(System.currentTimeMillis())
@@ -1280,6 +1281,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             var builder = SingleNodeShutdownMetadata.builder()
                 .setType(type)
                 .setNodeId("data-node-1")
+                .setNodeEphemeralId("data-node-1")
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setReason("test");
             if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {

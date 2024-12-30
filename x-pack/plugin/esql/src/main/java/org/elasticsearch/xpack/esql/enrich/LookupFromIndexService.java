@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,6 +18,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -71,6 +74,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(request.inputDataType, fieldType);
         return termQueryList(fieldType, context, inputBlock, inputDataType);
+    }
+
+    @Override
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(pages, blockFactory);
+    }
+
+    @Override
+    protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
     }
 
     @Override
@@ -169,6 +182,44 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Override
         protected String extraDescription() {
             return " ,match_field=" + matchField;
+        }
+    }
+
+    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private List<Page> pages;
+
+        private LookupResponse(List<Page> pages, BlockFactory blockFactory) {
+            super(blockFactory);
+            this.pages = pages;
+        }
+
+        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.pages = bsi.readCollectionAsList(Page::new);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            long bytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            reservedBytes += bytes;
+            out.writeCollection(pages);
+        }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = pages;
+            pages = null;
+            return p;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (pages != null) {
+                Releasables.closeExpectNoException(() -> Iterators.map(pages.iterator(), page -> (Releasable) page::releaseBlocks));
+            }
         }
     }
 }

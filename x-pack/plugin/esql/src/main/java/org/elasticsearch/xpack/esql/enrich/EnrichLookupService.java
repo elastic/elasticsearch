@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -84,6 +85,19 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     @Override
     protected String getRequiredPrivilege() {
         return ClusterPrivilegeResolver.MONITOR_ENRICH.name();
+    }
+
+    @Override
+    protected AbstractLookupService.LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+        if (pages.size() != 1) {
+            throw new UnsupportedOperationException("ENRICH always makes a single page of output");
+        }
+        return new LookupResponse(pages.getFirst(), blockFactory);
+    }
+
+    @Override
+    protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
     }
 
     private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
@@ -208,6 +222,44 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         @Override
         protected String extraDescription() {
             return " ,match_type=" + matchType + " ,match_field=" + matchField;
+        }
+    }
+
+    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private Page page;
+
+        private LookupResponse(Page page, BlockFactory blockFactory) {
+            super(blockFactory);
+            this.page = page;
+        }
+
+        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.page = new Page(bsi);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            long bytes = page.ramBytesUsedByBlocks();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            reservedBytes += bytes;
+            page.writeTo(out);
+        }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = List.of(page);
+            page = null;
+            return p;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (page != null) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
         }
     }
 }

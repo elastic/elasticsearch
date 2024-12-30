@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -128,10 +129,16 @@ public final class EnrichLookupOperator extends AsyncOperator {
             enrichFields,
             source
         );
+        CheckedFunction<List<Page>, Page, Exception> handleResponse = pages -> {
+            if (pages.size() != 1) {
+                throw new UnsupportedOperationException("ENRICH should only return a single page");
+            }
+            return inputPage.appendPage(pages.getFirst());
+        };
         enrichLookupService.lookupAsync(
             request,
             parentTask,
-            ActionListener.runBefore(listener.map(inputPage::appendPage), responseHeadersCollector::collect)
+            ActionListener.runBefore(listener.map(handleResponse), responseHeadersCollector::collect)
         );
     }
 

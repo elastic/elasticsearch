@@ -120,7 +120,8 @@ public final class LookupFromIndexOperator extends AsyncOperator {
             loadFields,
             source
         );
-        lookupService.lookupAsync(request, parentTask, listener.map(inputPage::appendPage));
+        // NOCOMMIT join pages with the operator dude
+        lookupService.lookupAsync(request, parentTask, listener.map(pages -> inputPage.appendPage(pages.getFirst())));
     }
 
     @Override

@@ -22,6 +22,10 @@ import java.util.LinkedList;
 /**
  * Operations for minimizing automata.
  * <p>
+ * Lucene 10 removed minimization, but Elasticsearch still requires it.
+ * Minimization is critical in the security codebase to reduce the heap
+ * usage of automata used for permission checks.
+ * <p>
  * Copied of Lucene's AutomatonTestUtil
  */
 public final class MinimizationOperations {

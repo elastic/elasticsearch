@@ -471,6 +471,12 @@ public abstract class DocumentParserContext {
     }
 
     public void publishEvent(DocumentParserListener.Event event) throws IOException {
+        if (isWithinCopyTo()) {
+            // Copy_to handling is implemented by parsing an injected fake object.
+            // It does not make sense to listeners and breaks their assumptions about the flow of events.
+            return;
+        }
+
         listeners.publish(event, this);
     }
 

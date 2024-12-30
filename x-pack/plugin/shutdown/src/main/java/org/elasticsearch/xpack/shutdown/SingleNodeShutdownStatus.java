@@ -118,7 +118,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(startObject(), singleChunk((builder, p) -> {
             builder.field(SingleNodeShutdownMetadata.NODE_ID_FIELD.getPreferredName(), metadata.getNodeId());
-                        builder.field(SingleNodeShutdownMetadata.NODE_EPHEMERAL_ID_FIELD.getPreferredName(), metadata.getNodeEphemeralId());
+            builder.field(SingleNodeShutdownMetadata.NODE_EPHEMERAL_ID_FIELD.getPreferredName(), metadata.getNodeEphemeralId());
             builder.field(SingleNodeShutdownMetadata.TYPE_FIELD.getPreferredName(), metadata.getType());
             builder.field(SingleNodeShutdownMetadata.REASON_FIELD.getPreferredName(), metadata.getReason());
             if (metadata.getAllocationDelay() != null) {

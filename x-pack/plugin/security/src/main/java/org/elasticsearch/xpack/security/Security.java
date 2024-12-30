@@ -2412,7 +2412,7 @@ public class Security extends Plugin
         return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
             return Collections.emptyList();

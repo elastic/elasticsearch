@@ -1183,6 +1183,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             mock(ClusterService.class),
             null,
             List.of(),
+            List.of(),
             RestExtension.allowAll(),
             new IncrementalBulkService(null, null),
             TestProjectResolvers.singleProjectOnly()

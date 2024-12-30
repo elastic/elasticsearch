@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -941,6 +942,8 @@ class NodeConstruction {
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
 
+        var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedClusterStateHandlerProvider.class);
+
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -957,7 +960,8 @@ class NodeConstruction {
             telemetryProvider,
             clusterService,
             rerouteService,
-            buildReservedStateHandlers(
+            buildReservedClusterStateHandlers(
+                reservedStateHandlerProviders,
                 settingsModule,
                 clusterService,
                 indicesService,
@@ -966,6 +970,7 @@ class NodeConstruction {
                 metadataCreateIndexService,
                 dataStreamGlobalRetentionSettings
             ),
+            buildReservedProjectStateHandlers(reservedStateHandlerProviders),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
             projectResolver
@@ -1051,8 +1056,8 @@ class NodeConstruction {
             indicesService
         );
 
-        actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoriesService));
-        actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
+        actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
+        actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedPipelineAction());
 
         FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService();
         FileSettingsService fileSettingsService = new FileSettingsService(
@@ -1557,7 +1562,8 @@ class NodeConstruction {
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);
     }
 
-    private List<ReservedClusterStateHandler<?>> buildReservedStateHandlers(
+    private List<ReservedClusterStateHandler<ClusterState, ?>> buildReservedClusterStateHandlers(
+        List<? extends ReservedClusterStateHandlerProvider> handlers,
         SettingsModule settingsModule,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -1566,7 +1572,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
+        List<ReservedClusterStateHandler<ClusterState, ?>> reservedStateHandlers = new ArrayList<>();
 
         // add all reserved state handlers from server
         reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
@@ -1584,8 +1590,18 @@ class NodeConstruction {
         reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 
         // add all reserved state handlers from plugins
-        pluginsService.loadServiceProviders(ReservedClusterStateHandlerProvider.class)
-            .forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+        handlers.forEach(h -> reservedStateHandlers.addAll(h.clusterHandlers()));
+
+        return reservedStateHandlers;
+    }
+
+    private List<ReservedClusterStateHandler<ProjectMetadata, ?>> buildReservedProjectStateHandlers(
+        List<? extends ReservedClusterStateHandlerProvider> handlers
+    ) {
+        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedStateHandlers = new ArrayList<>();
+
+        // add all reserved state handlers from plugins
+        handlers.forEach(h -> reservedStateHandlers.addAll(h.projectHandlers()));
 
         return reservedStateHandlers;
     }

@@ -47,7 +47,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  */
 public class ReservedComposableIndexTemplateAction
     implements
-        ReservedClusterStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
+        ReservedClusterStateHandler<ClusterState, ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
     public static final String NAME = "index_templates";
     public static final String COMPONENTS = "component_templates";
     private static final String COMPONENT_PREFIX = "component_template:";
@@ -135,9 +135,9 @@ public class ReservedComposableIndexTemplateAction
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((ComponentsAndComposables) source);
+    public TransformState<ClusterState> transform(ComponentsAndComposables source, TransformState<ClusterState> prevState)
+        throws Exception {
+        var requests = prepare(source);
         ClusterState state = prevState.state();
 
         // We transform in the following order:
@@ -203,7 +203,7 @@ public class ReservedComposableIndexTemplateAction
             state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state.projectState(projectId), componentNames);
         }
 
-        return new TransformState(state, Sets.union(componentEntities, composableEntities));
+        return new TransformState<>(state, Sets.union(componentEntities, composableEntities));
     }
 
     @Override

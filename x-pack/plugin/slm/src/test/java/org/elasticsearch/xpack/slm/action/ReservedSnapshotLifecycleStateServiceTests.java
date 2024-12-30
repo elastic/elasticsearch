@@ -74,7 +74,8 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedSnapshotAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ClusterState> processJSON(ReservedSnapshotAction action, TransformState<ClusterState> prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -92,7 +93,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
         ReservedSnapshotAction action = new ReservedSnapshotAction(mock(FeatureService.class));
-        TransformState prevState = new TransformState(state, Set.of());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
 
         String badPolicyJSON = """
             {
@@ -127,7 +128,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
         ClusterState state = ClusterState.builder(clusterName).metadata(mdBuilder).build();
-        TransformState prevState = new TransformState(state, Set.of());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
         String goodPolicyJSON = """
             {
                "daily-snapshots": {
@@ -184,9 +185,9 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String emptyJSON = "";
 
-        TransformState prevState = new TransformState(state, Set.of());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -292,37 +293,38 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             if ((getQueueArgs[2] instanceof ReservedStateUpdateTaskExecutor executor)) {
                 doAnswer(submitTaskInvocation -> {
                     Object[] submitTaskArgs = submitTaskInvocation.getArguments();
-                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
-                        @Override
-                        public ReservedStateUpdateTask getTask() {
-                            return (ReservedStateUpdateTask) submitTaskArgs[1];
-                        }
+                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask<?>> context =
+                        new ClusterStateTaskExecutor.TaskContext<>() {
+                            @Override
+                            public ReservedStateUpdateTask<?> getTask() {
+                                return (ReservedStateUpdateTask<?>) submitTaskArgs[1];
+                            }
 
-                        @Override
-                        public void success(Runnable onPublicationSuccess) {}
+                            @Override
+                            public void success(Runnable onPublicationSuccess) {}
 
-                        @Override
-                        public void success(Consumer<ClusterState> publishedStateConsumer) {}
+                            @Override
+                            public void success(Consumer<ClusterState> publishedStateConsumer) {}
 
-                        @Override
-                        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+                            @Override
+                            public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
 
-                        @Override
-                        public void success(
-                            Consumer<ClusterState> publishedStateConsumer,
-                            ClusterStateAckListener clusterStateAckListener
-                        ) {}
+                            @Override
+                            public void success(
+                                Consumer<ClusterState> publishedStateConsumer,
+                                ClusterStateAckListener clusterStateAckListener
+                            ) {}
 
-                        @Override
-                        public void onFailure(Exception failure) {
-                            fail("Shouldn't fail here");
-                        }
+                            @Override
+                            public void onFailure(Exception failure) {
+                                fail("Shouldn't fail here");
+                            }
 
-                        @Override
-                        public Releasable captureResponseHeaders() {
-                            return null;
-                        }
-                    };
+                            @Override
+                            public Releasable captureResponseHeaders() {
+                                return null;
+                            }
+                        };
                     executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
                     return null;
                 }).when(taskQueue).submitTask(anyString(), any(), any());
@@ -341,7 +343,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedRepositoryAction(repositoriesService))
+            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedRepositoryAction(repositoriesService)),
+            List.of()
         );
 
         String testJSON = """
@@ -416,7 +419,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedSnapshotAction(mock(FeatureService.class)),
                 new ReservedRepositoryAction(repositoriesService)
-            )
+            ),
+            List.of()
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {

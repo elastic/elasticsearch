@@ -107,9 +107,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
     }
 
-    private TransformState processJSON(
-        ReservedClusterStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> action,
-        TransformState prevState,
+    private TransformState<ClusterState> processJSON(
+        ReservedClusterStateHandler<ClusterState, ReservedComposableIndexTemplateAction.ComponentsAndComposables> action,
+        TransformState<ClusterState> prevState,
         String json
     ) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
@@ -119,7 +119,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
     public void testComponentValidation() {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String badComponentJSON = """
@@ -147,7 +147,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
     public void testComposableIndexValidation() {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String badComponentJSON = """
@@ -238,12 +238,12 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
     public void testAddRemoveComponentTemplates() throws Exception {
         ClusterState state = clusterService.state();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -313,12 +313,12 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
     public void testAddRemoveIndexTemplates() throws Exception {
         ClusterState state = clusterService.state();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -505,12 +505,12 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
     public void testAddRemoveIndexTemplatesWithOverlap() throws Exception {
         ClusterState state = clusterService.state();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -743,7 +743,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
     public void testBlockUsingReservedComponentTemplates() throws Exception {
         ClusterState state = clusterService.state();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String settingsJSON = """
@@ -914,10 +914,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName)))
         );
 
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         var action = new ReservedComposableIndexTemplateAction(mockedTemplateService, indexScopedSettings);
 
-        TransformState updatedState = processJSON(action, prevState, composableTemplate);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, composableTemplate);
 
         // only one reserved key for 'validate_template'
         assertThat(updatedState.keys(), containsInAnyOrder(reservedComposableIndexName(conflictingTemplateName)));

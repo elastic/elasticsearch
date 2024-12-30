@@ -215,7 +215,9 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -478,7 +480,8 @@ public class ActionModule extends AbstractModule {
         TelemetryProvider telemetryProvider,
         ClusterService clusterService,
         RerouteService rerouteService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers,
+        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers,
         RestExtension restExtension,
         IncrementalBulkService bulkService,
         ProjectIdResolver projectIdResolver
@@ -529,7 +532,12 @@ public class ActionModule extends AbstractModule {
         } else {
             restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, telemetryProvider);
         }
-        reservedClusterStateService = new ReservedClusterStateService(clusterService, rerouteService, reservedStateHandlers);
+        reservedClusterStateService = new ReservedClusterStateService(
+            clusterService,
+            rerouteService,
+            reservedClusterStateHandlers,
+            reservedProjectStateHandlers
+        );
         this.restExtension = restExtension;
     }
 

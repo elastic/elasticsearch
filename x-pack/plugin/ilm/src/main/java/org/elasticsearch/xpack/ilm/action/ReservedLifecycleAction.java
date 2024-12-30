@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class ReservedLifecycleAction implements ReservedClusterStateHandler<List<LifecyclePolicy>> {
+public class ReservedLifecycleAction implements ReservedClusterStateHandler<ClusterState, List<LifecyclePolicy>> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -76,7 +76,7 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
+    public TransformState<ClusterState> transform(List<LifecyclePolicy> source, TransformState<ClusterState> prevState) throws Exception {
         var requests = prepare(source);
 
         ClusterState state = prevState.state();
@@ -111,7 +111,7 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
             state = task.execute(state);
         }
 
-        return new TransformState(state, entities);
+        return new TransformState<>(state, entities);
     }
 
     @Override

@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * It is used by the ReservedClusterStateService to add/update or remove snapshot repositories. Typical usage
  * for this action is in the context of file based settings.
  */
-public class ReservedRepositoryAction implements ReservedClusterStateHandler<List<PutRepositoryRequest>> {
+public class ReservedRepositoryAction implements ReservedClusterStateHandler<ClusterState, List<PutRepositoryRequest>> {
     public static final String NAME = "snapshot_repositories";
 
     private final RepositoriesService repositoriesService;
@@ -67,7 +67,8 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
+    public TransformState<ClusterState> transform(List<PutRepositoryRequest> source, TransformState<ClusterState> prevState)
+        throws Exception {
         var requests = prepare(source);
 
         ClusterState state = prevState.state();
@@ -87,7 +88,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
             state = task.execute(state);
         }
 
-        return new TransformState(state, entities);
+        return new TransformState<>(state, entities);
 
     }
 

@@ -135,7 +135,8 @@ public class FileSettingsServiceTests extends ESTestCase {
             new ReservedClusterStateService(
                 clusterService,
                 mock(RerouteService.class),
-                List.of(new ReservedClusterSettingsAction(clusterSettings))
+                List.of(new ReservedClusterSettingsAction(clusterSettings)),
+                List.of()
             )
         );
         healthIndicatorService = spy(new FileSettingsHealthIndicatorService());

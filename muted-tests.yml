@@ -257,6 +257,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityIT
   method: testLookupJoinIndexForbidden
   issue: https://github.com/elastic/elasticsearch/issues/119269
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testLookupJoinIndexForbidden
+  issue: https://github.com/elastic/elasticsearch/issues/119270
 
 # Examples:
 #

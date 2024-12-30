@@ -12,8 +12,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
+  description = 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
+  classname ='org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
 versions << [

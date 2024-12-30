@@ -12,8 +12,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Placeholder plugin for geospatial features in ES'
-  classname 'org.elasticsearch.legacygeo.LegacyGeoPlugin'
+  description = 'Placeholder plugin for geospatial features in ES'
+  classname = 'org.elasticsearch.legacygeo.LegacyGeoPlugin'
 }
 
 dependencies {

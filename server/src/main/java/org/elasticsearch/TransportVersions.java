@@ -148,8 +148,6 @@ public class TransportVersions {
     public static final TransportVersion SIMULATE_IGNORED_FIELDS = def(8_813_00_0);
     public static final TransportVersion JINA_AI_INTEGRATION_ADDED = def(8_814_00_0);
 
-
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

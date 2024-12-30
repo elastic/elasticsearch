@@ -4,6 +4,12 @@
 <titleabbrev>Cluster get settings</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns cluster-wide settings.
 
 [source,console]

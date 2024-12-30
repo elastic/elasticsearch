@@ -4,6 +4,12 @@
 <titleabbrev>Nodes hot threads</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns the hot threads on each selected node in the cluster.
 
 [[cluster-nodes-hot-threads-api-request]]

@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -452,7 +453,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             if (usesCompetitiveIterator) {
                 // A DocIdSetIterator view of the filterIterators heap
                 assert filterIterators != null;
-                return new DisjunctionDISIApproximation(filterIterators);
+                Collection<DisiWrapper> actualList = new ArrayList<>();
+                filterIterators.iterator().forEachRemaining(actualList::add);
+                return DisjunctionDISIApproximation.of(actualList, Long.MAX_VALUE);
             }
             return null;
         }

@@ -94,8 +94,8 @@ develocity {
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
         } else {
-          value 'Git Commit ID', gitRevision
-          link 'Source', "https://github.com/${repository}/tree/${gitRevision}"
+          value 'Git Commit ID', gitRevision.get()
+          link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
 
         buildFinished { result ->

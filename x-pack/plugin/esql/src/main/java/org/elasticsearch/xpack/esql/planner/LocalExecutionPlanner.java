@@ -575,6 +575,15 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
+        Map<String, IndexMode> indicesWithModes = localSourceExec.index().indexNameWithModes();
+        if (indicesWithModes.size() != 1) {
+            throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
+        }
+        var entry = indicesWithModes.entrySet().iterator().next();
+        if (entry.getValue() != IndexMode.LOOKUP) {
+            throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        }
+        String indexName = entry.getKey();
         List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
         for (Attribute m : join.leftFields()) {
             Layout.ChannelAndType t = source.layout.get(m.id());
@@ -595,7 +604,7 @@ public class LocalExecutionPlanner {
                 matchFields.get(0).channel(),
                 lookupFromIndexService,
                 matchFields.get(0).type(),
-                localSourceExec.index().name(),
+                indexName,
                 join.leftFields().get(0).name(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
@@ -749,7 +758,7 @@ public class LocalExecutionPlanner {
             return Stream.concat(
                 Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
                 Stream.of(sinkOperatorFactory)
-            ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
+            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
         }
 
         @Override

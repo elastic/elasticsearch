@@ -89,6 +89,7 @@ List projects = [
   'distribution:tools:ansi-console',
   'server',
   'test:framework',
+  'test:fixtures:aws-fixture-utils',
   'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
   'test:fixtures:ec2-imds-fixture',

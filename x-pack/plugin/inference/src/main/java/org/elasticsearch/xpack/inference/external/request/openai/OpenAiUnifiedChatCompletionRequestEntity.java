@@ -66,7 +66,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             for (UnifiedCompletionRequest.Message message : unifiedRequest.messages()) {
                 builder.startObject();
                 {
-                    if (message.content() instanceof UnifiedCompletionRequest.ContentString contentString) {
+                    if (message.content() == null) {
+                        // content is optional
+                    } else if (message.content() instanceof UnifiedCompletionRequest.ContentString contentString) {
                         builder.field(CONTENT_FIELD, contentString.content());
                     } else if (message.content() instanceof UnifiedCompletionRequest.ContentObjects contentObjects) {
                         builder.startArray(CONTENT_FIELD);
@@ -77,10 +79,6 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                             builder.endObject();
                         }
                         builder.endArray();
-                    } else {
-                        throw new IllegalArgumentException(
-                            Strings.format("Unsupported message.content class received: %s", message.content().getClass().getSimpleName())
-                        );
                     }
 
                     builder.field(ROLE_FIELD, message.role());

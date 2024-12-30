@@ -143,12 +143,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                             return builder;
                         }
                     ),
-
-                    Iterators.<ToXContent>single((builder, params) -> builder.endArray().endObject())
+                    Iterators.single((builder, params) -> builder.endArray().endObject())
                 )
             ),
-
-            Iterators.<ToXContent>single((builder, params) -> builder.endObject().endObject())
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 

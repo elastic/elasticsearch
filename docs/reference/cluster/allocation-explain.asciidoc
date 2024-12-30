@@ -4,6 +4,12 @@
 <titleabbrev>Cluster allocation explain</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Provides an explanation for a shard's current <<index-modules-allocation,allocation>>.
 
 [source,console]

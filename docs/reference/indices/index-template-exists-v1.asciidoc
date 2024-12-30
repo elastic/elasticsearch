@@ -9,6 +9,12 @@ templates>>, which are deprecated and will be replaced by the composable
 templates introduced in {es} 7.8. For information about composable templates,
 see <<index-templates>>.
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Checks if an <<indices-templates-v1,legacy index template>> exists.
 
 

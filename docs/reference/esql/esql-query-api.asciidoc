@@ -4,6 +4,12 @@
 <titleabbrev>{esql} query API</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-esql[ES|QL APIs].
+--
+
 Returns search results for an <<esql,ES|QL ({es} query language)>> query.
 
 [source,console]

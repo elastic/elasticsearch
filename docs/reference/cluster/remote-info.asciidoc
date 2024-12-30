@@ -4,8 +4,13 @@
 <titleabbrev>Remote cluster info</titleabbrev>
 ++++
 
-Returns configured remote cluster information.
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
 
+Returns configured remote cluster information.
 
 [[cluster-remote-info-api-request]]
 ==== {api-request-title}

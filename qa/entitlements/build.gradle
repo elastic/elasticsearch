@@ -13,9 +13,9 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'entitlement-qa'
-  description 'A test module that triggers entitlement checks'
-  classname 'org.elasticsearch.test.entitlements.EntitlementsCheckPlugin'
+  name = 'entitlement-qa'
+  description = 'A test module that triggers entitlement checks'
+  classname = 'org.elasticsearch.test.entitlements.EntitlementsCheckPlugin'
 }
 
 dependencies {

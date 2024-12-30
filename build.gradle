@@ -371,24 +371,24 @@ tasks.register("verifyBwcTestsEnabled") {
 }
 
 tasks.register("branchConsistency") {
-  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  description = 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
   dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 tasks.named("wrapper").configure {
   distributionType = 'ALL'
+  def minimumGradleVersionFile = project.file('build-tools-internal/src/main/resources/minimumGradleVersion')
   doLast {
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
-    Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
+    Files.copy(getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
     // copy wrapper properties file to plugins/examples to allow seamless idea integration
     def examplePluginsWrapperProperties = new File("plugins/examples/gradle/wrapper/gradle-wrapper.properties")
-    Files.copy(wrapper.getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
-
+    Files.copy(getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion
+    minimumGradleVersionFile.text = gradleVersion
     println "Updated minimum Gradle Version"
   }
 }

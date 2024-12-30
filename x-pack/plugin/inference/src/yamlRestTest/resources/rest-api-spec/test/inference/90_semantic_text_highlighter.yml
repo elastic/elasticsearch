@@ -2,6 +2,15 @@ setup:
   - requires:
       cluster_features: "semantic_text.highlighter"
       reason: a new highlighter for semantic text field
+      test_runner_features: [ capabilities ]
+
+  # TODO: Remove once highlighter supports inference metadata fields
+  - skip:
+      reason: Test suite targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       inference.put:

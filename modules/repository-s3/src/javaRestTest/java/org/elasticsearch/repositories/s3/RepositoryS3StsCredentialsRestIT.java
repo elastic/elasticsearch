@@ -9,8 +9,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.DynamicAwsCredentials;
 import fixture.aws.sts.AwsStsHttpFixture;
-import fixture.s3.DynamicS3Credentials;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -32,9 +32,9 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "sts_credentials_client";
 
-    private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials();
 
-    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicS3Credentials::isAuthorized);
+    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 
     private static final String WEB_IDENTITY_TOKEN_FILE_CONTENTS = """
         Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
@@ -42,7 +42,7 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
         zTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ""";
 
     private static final AwsStsHttpFixture stsHttpFixture = new AwsStsHttpFixture(
-        dynamicS3Credentials::addValidCredentials,
+        dynamicCredentials::addValidCredentials,
         WEB_IDENTITY_TOKEN_FILE_CONTENTS
     );
 

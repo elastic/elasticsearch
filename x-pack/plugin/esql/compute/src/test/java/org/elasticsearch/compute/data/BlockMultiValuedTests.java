@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -68,6 +69,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
             assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertInsertNulls(b.block());
         } finally {
             b.block().close();
         }
@@ -166,6 +168,16 @@ public class BlockMultiValuedTests extends ESTestCase {
                 assertThat(masked.isNull(p), equalTo(false));
                 assertThat(valuesAtPosition, equalTo(inputValues));
             }
+        } finally {
+            b.block().close();
+        }
+    }
+
+    public void testInsertNull() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
+        try {
+            assertInsertNulls(b.block());
         } finally {
             b.block().close();
         }

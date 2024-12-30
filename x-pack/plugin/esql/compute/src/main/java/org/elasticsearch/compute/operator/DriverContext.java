@@ -16,17 +16,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.compute.operator.Warnings.MAX_ADDED_WARNINGS;
 
 /**
  * A driver-local context that is shared across operators.
@@ -64,8 +60,6 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
-    private final List<Exception> warnings = new ArrayList<>(MAX_ADDED_WARNINGS);
-
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
         this(bigArrays, blockFactory, WarningsMode.COLLECT);
     }
@@ -82,8 +76,7 @@ public class DriverContext {
         return new DriverContext(
             BigArrays.NON_RECYCLING_INSTANCE,
             // TODO maybe this should have a small fixed limit?
-            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE),
-            WarningsMode.LOCAL
+            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
         );
     }
 
@@ -195,26 +188,7 @@ public class DriverContext {
      */
     public enum WarningsMode {
         COLLECT,
-        IGNORE,
-        LOCAL
-    }
-
-    public Warnings createWarnings(int lineNumber, int columnNumber, String sourceText) {
-        return Warnings.createWarnings(warningsMode, lineNumber, columnNumber, sourceText);
-    }
-
-    public void registerException(Warnings warnings, Exception e) {
-        if (warningsMode == WarningsMode.COLLECT) {
-            warnings.registerException(e);
-        } else if (warningsMode == WarningsMode.LOCAL) {
-            if (warnings().size() < MAX_ADDED_WARNINGS) { // folding errors do not go to thread, throw a VerificationException in stead
-                warnings().add(e);
-            }
-        }
-    }
-
-    public List<Exception> warnings() {
-        return this.warnings;
+        IGNORE
     }
 
     private static class AsyncActions {

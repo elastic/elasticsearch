@@ -33,6 +33,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
+import static com.squareup.javapoet.TypeName.BOOLEAN;
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
@@ -105,8 +106,12 @@ public class EvaluatorImplementer {
 
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
 
+        builder.addField(BOOLEAN, "evalFoldable", Modifier.PRIVATE);
+        builder.addField(EXCEPTION, "foldException", Modifier.PRIVATE);
+
         builder.addMethod(ctor());
         builder.addMethod(eval());
+        builder.addMethod(evalFoldable());
 
         if (processOutputsMultivalued) {
             if (processFunction.args.stream().anyMatch(x -> x instanceof FixedProcessFunctionArg == false)) {
@@ -121,7 +126,6 @@ public class EvaluatorImplementer {
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         builder.addMethod(warnings());
-        builder.addMethod(registerException());
         return builder.build();
     }
 
@@ -132,6 +136,8 @@ public class EvaluatorImplementer {
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
+        builder.addStatement("this.evalFoldable = false");
+        builder.addStatement("this.foldException = null");
         return builder.build();
     }
 
@@ -147,6 +153,19 @@ public class EvaluatorImplementer {
             builder.addStatement(invokeRealEval(false));
         }
         processFunction.args.stream().forEach(a -> a.closeEvalToBlock(builder));
+        return builder.build();
+    }
+
+    private MethodSpec evalFoldable() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("evalFoldable").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page").addException(EXCEPTION);
+        builder.addStatement("this.evalFoldable = true");
+        builder.addStatement("Block result = eval(page)");
+        builder.beginControlFlow("if (this.foldException == null)");
+        builder.addStatement("return result");
+        builder.nextControlFlow("else");
+        builder.addStatement("throw this.foldException");
+        builder.endControlFlow();
         return builder.build();
     }
 
@@ -255,8 +274,12 @@ public class EvaluatorImplementer {
                         + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
                         + " e)";
                     builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
-                    builder.addStatement("registerException(e)");
+                    builder.beginControlFlow("if (this.evalFoldable && this.foldException == null)");
+                    builder.addStatement("this.foldException = e");
+                    builder.nextControlFlow("else");
+                    builder.addStatement("warnings().registerException(e)");
                     builder.addStatement("result.appendNull()");
+                    builder.endControlFlow();
                     builder.endControlFlow();
                 }
             }
@@ -279,11 +302,17 @@ public class EvaluatorImplementer {
         {
             builder.beginControlFlow("if ($N.getValueCount(p) > 1)", value);
             {
+                String error = "\"single-value function encountered multi-value\"";
+                builder.addStatement("IllegalArgumentException e = new $T($L)", IllegalArgumentException.class, error);
+                builder.beginControlFlow("if (this.evalFoldable && this.foldException == null)");
+                builder.addStatement("this.foldException = e");
+                builder.nextControlFlow("else");
                 builder.addStatement(
                     // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
-                    "registerException(new $T(\"single-value function encountered multi-value\"))",
+                    "warnings().registerException(e)",
                     IllegalArgumentException.class
                 );
+                builder.endControlFlow();
             }
             builder.endControlFlow();
             builder.addStatement("result.appendNull()");
@@ -326,20 +355,14 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
         builder.addStatement("""
-            this.warnings = driverContext.createWarnings(
+            this.warnings = Warnings.createWarnings(
+                driverContext.warningsMode(),
                 source.source().getLineNumber(),
                 source.source().getColumnNumber(),
                 source.text()
             )""");
         builder.endControlFlow();
         builder.addStatement("return warnings");
-        return builder.build();
-    }
-
-    static MethodSpec registerException() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("registerException");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(EXCEPTION, "exception");
-        builder.addStatement("driverContext.registerException(warnings(), exception)");
         return builder.build();
     }
 

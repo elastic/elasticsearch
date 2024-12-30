@@ -19,9 +19,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -58,6 +60,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
@@ -293,5 +296,25 @@ public class PlannerUtils {
      */
     public static MappedFieldType.FieldExtractPreference extractPreference(boolean hasPreference) {
         return hasPreference ? DOC_VALUES : NONE;
+    }
+
+    /**
+     * Wrap the errors happen during evaluating foldable expressions into {@code VerificationException}.
+     * This is called by {@code EvaluatorMapper.fold()}, {@code ConstantFolding} and {@code PropagateEvalFoldables}.
+     * {@code EvaluatorMapper.fold()} is not aware of the location, null is provided for location.
+     */
+    public static VerificationException convertToVerificationException(Exception e, Location location) {
+        String loc = location != null ? format("Line {}:{}: ", location.getLineNumber(), location.getColumnNumber()) : null;
+        String originalExceptionName = e instanceof VerificationException ? null : e.getClass().getName();
+        String message = e.getMessage();
+        if (originalExceptionName != null) {
+            message = originalExceptionName + ": " + message;
+        }
+        if (loc != null) {
+            message = loc + message;
+        }
+        VerificationException ve = new VerificationException(message);
+        ve.initCause(e.getCause());
+        return ve;
     }
 }

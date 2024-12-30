@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,7 +54,10 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
                 nullValue()
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
-                .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
+                .withFoldingException(
+                    VerificationException.class,
+                    "java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]"
+                );
         }));
 
         cases.add(new TestCaseSupplier("Space with number too large", List.of(DataType.INTEGER), () -> {
@@ -68,7 +72,10 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
                 .withWarning(
                     "Line -1:-1: java.lang.IllegalArgumentException: Creating strings longer than [" + max + "] bytes is not supported"
                 )
-                .withFoldingException(IllegalArgumentException.class, "Creating strings longer than [" + max + "] bytes is not supported");
+                .withFoldingException(
+                    VerificationException.class,
+                    "java.lang.IllegalArgumentException: Creating strings longer than [" + max + "] bytes is not supported"
+                );
         }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "integer");

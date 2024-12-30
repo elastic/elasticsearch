@@ -81,6 +81,14 @@ public class EvalOperator extends AbstractPageMappingOperator {
          * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         Block eval(Page page);
+
+        /**
+         * Evaluate a foldable expression, it is called by {@code EvaluatorMapper.fold()}.
+         * It throws a {@code RuntimeException} if there are errors when evaluating a foldable expression.
+         */
+        default Block evalFoldable(Page page) throws Exception {
+            return eval(page);
+        }
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {

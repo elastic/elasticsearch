@@ -4948,18 +4948,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     // https://github.com/elastic/elasticsearch/issues/104995
     public void testNoWrongIsNotNullPruning() {
-        /*
-        var plan = optimizedPlan("""
-              ROW a = 5, b = [ 1, 2 ]
-              | EVAL sum = a + b
-              | LIMIT 1
-              | WHERE sum IS NOT NULL
-            """);
-
-        var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
-         */
-
         VerificationException ve = expectThrows(VerificationException.class, () -> plan("""
                   ROW a = 5, b = [ 1, 2 ]
                   | EVAL sum = a + b
@@ -6631,126 +6619,148 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             e.getMessage().substring(header.length())
         );
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+        VerificationException ve = expectThrows(VerificationException.class, () -> plan("""
             row v = [1, 2, 3] | EVAL sd = mv_sort(v, "dsc")
             """));
-        assertEquals("Invalid order value in [mv_sort(v, \"dsc\")], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
+        assertEquals(
+            "Line 1:31: java.lang.IllegalArgumentException: "
+                + "Invalid order value in [mv_sort(v, \"dsc\")], expected one of [ASC, DESC] but got [dsc]",
+            ve.getMessage()
+        );
 
-        iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+        ve = expectThrows(VerificationException.class, () -> plan("""
             row v = [1, 2, 3], o = concat("d", "sc") | EVAL sd = mv_sort(v, o)
             """));
-        assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
+        assertEquals(
+            "Line 1:54: java.lang.IllegalArgumentException: "
+                + "Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]",
+            ve.getMessage()
+        );
     }
 
     public void testToDatePeriodTimeDurationInvalidIntervals() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes("""
             from types | EVAL interval = "3 dys", x = date + interval::date_period"""));
         assertEquals(
-            "Invalid interval value in [interval::date_period], expected integer followed by one of "
+            "Line 1:50: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [interval::date_period], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types | EVAL interval = "- 3 days", x = date + interval::date_period"""));
         assertEquals(
-            "Invalid interval value in [interval::date_period], expected integer followed by one of "
+            "Line 1:53: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [interval::date_period], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [- 3 days]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "3 dys", x = date - to_dateperiod(interval)"""));
         assertEquals(
-            "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
+            "Line 1:51: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "- 3 days", x = date - to_dateperiod(interval)"""));
         assertEquals(
-            "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
+            "Line 1:54: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [- 3 days]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "3 ours", x = date + interval::time_duration"""));
         assertEquals(
-            "Invalid interval value in [interval::time_duration], expected integer followed by one of "
+            "Line 1:52: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [interval::time_duration], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "- 3 hours", x = date + interval::time_duration"""));
         assertEquals(
-            "Invalid interval value in [interval::time_duration], expected integer followed by one of "
+            "Line 1:55: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [interval::time_duration], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [- 3 hours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)"""));
         assertEquals(
-            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+            "Line 1:52: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "- 3 hours", x = date - to_timeduration(interval)"""));
         assertEquals(
-            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+            "Line 1:55: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [- 3 hours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)"""));
         assertEquals(
-            "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
+            "Line 1:55: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             row x = "2024-01-01"::datetime | eval y = x + "3 dys"::date_period"""));
         assertEquals(
-            "Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
+            "Line 1:43: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             row x = "2024-01-01"::datetime | eval y = x - to_dateperiod("3 dys")"""));
         assertEquals(
-            "Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
+            "Line 1:43: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             row x = "2024-01-01"::datetime | eval y = x + "3 ours"::time_duration"""));
         assertEquals(
-            "Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
+            "Line 1:43: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3 ours")"""));
         assertEquals(
-            "Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
+            "Line 1:43: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
+        e = expectThrows(VerificationException.class, () -> planTypes("""
             row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3.5 hours")"""));
         assertEquals(
-            "Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
+            "Line 1:43: java.lang.IllegalArgumentException: "
+                + "Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
         );
@@ -6994,7 +7004,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd HH:mm:ss", a) | keep b
             """));
         assertEquals(
-            "Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]",
+            "Line 1:33: java.lang.IllegalArgumentException: " + "failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]",
             ve.getMessage()
         );
 
@@ -7009,7 +7019,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             row dt = to_dt(0) | eval plus = dt + 2147483647 years | keep plus
             """));
         assertEquals(
-            "Line 1:33: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617",
+            "Line 1:33: java.time.DateTimeException: " + "Invalid value for Year (valid values -999999999 - 999999999): 2147485617",
             ve.getMessage()
         );
 
@@ -7096,6 +7106,41 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """));
         assertEquals("Line 2:12: java.lang.IllegalArgumentException: Prefix length v4 must be in range [0, 32], found -1", ve.getMessage());
 
-        // TODO case, conversion functions
+        // date_nanos.dateMathArithmeticOverflow
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row dt = to_date_nanos(9223372036854775807)
+            | eval plus = dt + 1 day
+            | keep plus
+            """));
+        assertEquals(
+            "Line 2:15: java.time.DateTimeException: Date nanos out of range.  "
+                + "Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807",
+            ve.getMessage()
+        );
+
+        // data_nanos.date nanos subtraction before 1970
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row dt = to_date_nanos(0::long)
+            | eval minus = dt - 1 day
+            | keep minus
+            """));
+        assertEquals(
+            "Line 2:16: java.time.DateTimeException: Date nanos out of range.  "
+                + "Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807",
+            ve.getMessage()
+        );
+
+        // date_nanos.dateMathDateException
+        ve = expectThrows(VerificationException.class, () -> plan("""
+            row dt = to_date_nanos(0::long)
+            | eval plus = dt + 2147483647 years
+            | keep plus
+            """));
+        assertEquals(
+            "Line 2:15: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617",
+            ve.getMessage()
+        );
+
+        // TODO conversion functions are not included yet, some tests that should fail are referenced by doc, e.g. ints.convertStringToUL
     }
 }

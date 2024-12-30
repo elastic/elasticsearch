@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,7 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.convertToVerificationException;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
@@ -45,9 +44,8 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
                 if (shouldCollect) {
                     collectRefs.put(a.toAttribute(), Literal.of(c));
                 }
-            } catch (VerificationException ve) {
-                String location = format("Line {}:{}: ", c.source().source().getLineNumber(), c.source().source().getColumnNumber());
-                throw new VerificationException(location + ve.getMessage());
+            } catch (Exception e) {
+                throw convertToVerificationException(e, c.source().source());
             }
         });
         if (collectRefs.isEmpty()) {

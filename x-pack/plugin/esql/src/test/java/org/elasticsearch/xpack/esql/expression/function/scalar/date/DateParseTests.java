@@ -123,8 +123,9 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                             "Line -1:-1: java.lang.IllegalArgumentException: Invalid format: " + "[not a format]: Unknown pattern letter: o"
                         )
                         .withFoldingException(
-                            InvalidArgumentException.class,
-                            "invalid date pattern for []: Invalid format: [not a format]: Unknown pattern letter: o"
+                            VerificationException.class,
+                            "org.elasticsearch.xpack.esql.core.InvalidArgumentException: "
+                                + "invalid date pattern for []: Invalid format: [not a format]: Unknown pattern letter: o"
                         )
                 ),
                 new TestCaseSupplier(

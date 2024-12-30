@@ -119,10 +119,14 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
         protected final DriverContext driverContext;
         protected final EvalOperator.ExpressionEvaluator field;
+        protected boolean evalFoldable;
+        protected Exception foldException;
 
         protected AbstractNullableEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
             this.driverContext = driverContext;
             this.field = field;
+            this.evalFoldable = false;
+            this.foldException = null;
         }
 
         protected abstract String name();
@@ -150,6 +154,17 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
                 } else {
                     return evalSingleValuedNullable(block);
                 }
+            }
+        }
+
+        @Override
+        public final Block evalFoldable(Page page) throws Exception {
+            this.evalFoldable = true;
+            Block result = eval(page);
+            if (this.foldException == null) {
+                return result;
+            } else {
+                throw this.foldException;
             }
         }
 

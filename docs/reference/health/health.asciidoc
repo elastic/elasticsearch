@@ -4,10 +4,10 @@
 <titleabbrev>Health</titleabbrev>
 ++++
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-health_report[cluster health APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-health_report[Cluster health APIs].
 --
 
 An API that reports the health status of an {es} cluster.

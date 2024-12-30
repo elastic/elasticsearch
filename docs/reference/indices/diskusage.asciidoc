@@ -6,10 +6,10 @@
 
 experimental[]
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[index APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
 --
 
 Analyzes the disk usage of each field of an index or data stream.

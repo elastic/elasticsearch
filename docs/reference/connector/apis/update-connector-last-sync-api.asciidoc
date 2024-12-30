@@ -6,10 +6,10 @@
 
 preview::[]
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
 --
 
 Updates the fields related to the last sync of a connector.

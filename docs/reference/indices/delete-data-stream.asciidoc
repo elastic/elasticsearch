@@ -5,10 +5,10 @@
 <titleabbrev>Delete data stream</titleabbrev>
 ++++
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[data stream APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
 --
 
 Deletes one or more <<data-streams,data streams>> and their backing

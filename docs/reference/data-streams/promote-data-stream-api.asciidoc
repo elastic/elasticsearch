@@ -5,10 +5,10 @@
 <titleabbrev>Promote data stream</titleabbrev>
 ++++
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[data stream APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
 --
 
 The purpose of the promote <<data-streams,data stream>> API is to turn

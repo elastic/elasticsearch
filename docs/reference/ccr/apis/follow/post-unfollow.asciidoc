@@ -5,10 +5,10 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
 --
 
 Converts a <<xpack-ccr,{ccr}>> follower index to a regular index.

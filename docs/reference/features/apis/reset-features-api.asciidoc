@@ -6,10 +6,10 @@
 
 experimental::[]
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-features[features APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-features[Features APIs].
 --
 
 Clears all of the state information stored in system indices by {es} features, including the security and machine learning indices.

@@ -6,10 +6,10 @@
 
 NOTE: {cloud-only}
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[cluster APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
 --
 
 Delete desired nodes.

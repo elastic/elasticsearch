@@ -6,10 +6,10 @@
 
 beta::[]
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
 --
 
 Manages the `features` of a connector. This endpoint can be used to control the following aspects of a connector:

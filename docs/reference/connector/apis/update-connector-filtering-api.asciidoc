@@ -6,10 +6,10 @@
 
 beta::[]
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
 --
 
 Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering draft is activated once validated by the running Elastic connector service.

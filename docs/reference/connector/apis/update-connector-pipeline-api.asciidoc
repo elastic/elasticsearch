@@ -6,10 +6,10 @@
 
 beta::[]
 
-.New API Reference
+..New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[connector APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
 --
 
 Updates the `pipeline` configuration of a connector.

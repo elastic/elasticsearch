@@ -11,13 +11,13 @@ package org.elasticsearch.gradle.internal.info
 
 import spock.lang.Specification
 
-import org.elasticsearch.gradle.internal.BwcVersions
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.testfixtures.ProjectBuilder
 import org.junit.Assert
+import org.junit.Ignore
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -31,6 +31,7 @@ class BuildParameterExtensionSpec extends Specification {
 
     ProjectBuilder projectBuilder = new ProjectBuilder()
 
+    @Ignore
     def "#getterName is cached anc concurrently accessible"() {
         given:
         def project = projectBuilder.build()

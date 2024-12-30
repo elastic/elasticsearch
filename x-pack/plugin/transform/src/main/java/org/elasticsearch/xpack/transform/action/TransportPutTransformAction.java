@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.rewriteForUpdate;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
@@ -116,12 +115,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        TransformConfig config = rewriteForUpdate(
-            request.getConfig()
-                .setCreateTime(Instant.now())
-                .setVersion(TransformConfigVersion.CURRENT)
-                .setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState))
-        );
+        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
+        config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name

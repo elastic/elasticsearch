@@ -68,8 +68,6 @@ public class ParallelDetector {
                 _defaultParallel = socketToCore.values().stream().mapToInt(i -> i).sum();
             } else if (isMac(project.getProviders())) {
                 // Ask macOS to count physical CPUs for us
-                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
                 // On Apple silicon, we only want to use the performance cores
                 boolean isAppleSilicon = project.getProviders().systemProperty("os.arch").getOrElse("").equals("aarch64");
                 String query = isAppleSilicon && isMontereyOrNewer(project.getProviders())

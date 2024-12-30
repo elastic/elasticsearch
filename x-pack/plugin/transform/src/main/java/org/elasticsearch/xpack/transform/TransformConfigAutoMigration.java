@@ -16,6 +16,14 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 
+/**
+ * Intended to automatically apply configuration changes as part of `PUT _transform` or during the persistent task's start
+ * in {@link org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor}.
+ *
+ * This is intentionally separate from {@link org.elasticsearch.xpack.transform.action.TransformUpdater}, which is designed to be called
+ * from `_update` and `_upgrade` and apply potentially breaking changes and a broader set of changes.
+ * This class is more designed for serverless rolling updates to apply a smaller non-breaking subset of changes.
+ */
 public class TransformConfigAutoMigration {
 
     private static final Logger logger = LogManager.getLogger(TransformConfigAutoMigration.class);

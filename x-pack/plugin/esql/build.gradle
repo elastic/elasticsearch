@@ -82,7 +82,6 @@ tasks.named("test").configure {
       }
     }
     File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File signatureFolder = file("build/testrun/test/temp/esql/functions/signature")
     File typesFolder = file("build/testrun/test/temp/esql/functions/types")
     def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
     def effectiveProjectDir = projectDir

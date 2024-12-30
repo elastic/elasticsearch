@@ -6,6 +6,12 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Updates the `pipeline` configuration of a connector.
 
 When you create a new connector, the configuration of an <<ingest-pipeline-search-details-generic-reference, ingest pipeline>> is populated with default settings.

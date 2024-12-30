@@ -1,7 +1,6 @@
 [[docs]]
 == Document APIs
 
-=======
 .New API reference
 [sidebar]
 --

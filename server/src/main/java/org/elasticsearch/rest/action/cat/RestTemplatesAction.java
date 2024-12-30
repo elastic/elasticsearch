@@ -22,6 +22,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestTemplatesAction extends AbstractCatAction {
@@ -58,13 +58,13 @@ public class RestTemplatesAction extends AbstractCatAction {
             ? new GetIndexTemplatesRequest()
             : new GetIndexTemplatesRequest(matchPattern);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        getIndexTemplatesRequest.masterNodeTimeout(RestUtils.getMasterNodeTimeout(request));
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
             matchPattern
         );
-        getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
-        getComposableTemplatesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         return channel -> {
 

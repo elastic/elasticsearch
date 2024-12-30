@@ -116,7 +116,11 @@ public abstract class TestCluster {
 
     private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
         final SubscribableListener<GetComposableIndexTemplateAction.Response> getComposableTemplates = SubscribableListener.newForked(
-            l -> client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"), l)
+            l -> client().execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"),
+                l
+            )
         );
 
         final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = SubscribableListener.newForked(

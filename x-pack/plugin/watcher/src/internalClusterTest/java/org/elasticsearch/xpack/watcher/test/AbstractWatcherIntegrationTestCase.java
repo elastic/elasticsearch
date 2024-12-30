@@ -510,7 +510,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertBusy(() -> {
             GetComposableIndexTemplateAction.Response response = client().execute(
                 GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, HISTORY_TEMPLATE_NAME)
             ).get();
             assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });

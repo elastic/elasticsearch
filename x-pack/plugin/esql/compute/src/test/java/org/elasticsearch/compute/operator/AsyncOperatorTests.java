@@ -110,12 +110,22 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         };
         int maxConcurrentRequests = randomIntBetween(1, 10);
-        AsyncOperator asyncOperator = new AsyncOperator(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
             final LookupService lookupService = new LookupService(threadPool, globalBlockFactory, dict, maxConcurrentRequests);
 
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 lookupService.lookupAsync(inputPage, listener);
+            }
+
+            @Override
+            public Page getOutput() {
+                return getResultFromBuffer();
+            }
+
+            @Override
+            protected void releaseResultOnAnyThread(Page page) {
+                releasePageOnAnyThread(page);
             }
 
             @Override
@@ -159,7 +169,7 @@ public class AsyncOperatorTests extends ESTestCase {
         Releasables.close(localBreaker);
     }
 
-    class TestOp extends AsyncOperator {
+    class TestOp extends AsyncOperator<Page> {
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
 
         TestOp(DriverContext driverContext, int maxOutstandingRequests) {
@@ -169,6 +179,16 @@ public class AsyncOperatorTests extends ESTestCase {
         @Override
         protected void performAsync(Page inputPage, ActionListener<Page> listener) {
             handlers.put(inputPage, listener);
+        }
+
+        @Override
+        public Page getOutput() {
+            return getResultFromBuffer();
+        }
+
+        @Override
+        protected void releaseResultOnAnyThread(Page page) {
+            releasePageOnAnyThread(page);
         }
 
         @Override
@@ -233,7 +253,7 @@ public class AsyncOperatorTests extends ESTestCase {
         );
         int maxConcurrentRequests = randomIntBetween(1, 10);
         AtomicBoolean failed = new AtomicBoolean();
-        AsyncOperator asyncOperator = new AsyncOperator(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -254,6 +274,16 @@ public class AsyncOperatorTests extends ESTestCase {
                     TimeValue delay = TimeValue.timeValueMillis(randomIntBetween(0, 50));
                     threadPool.schedule(command, delay, threadPool.executor(ESQL_TEST_EXECUTOR));
                 }
+            }
+
+            @Override
+            public Page getOutput() {
+                return getResultFromBuffer();
+            }
+
+            @Override
+            protected void releaseResultOnAnyThread(Page page) {
+                releasePageOnAnyThread(page);
             }
 
             @Override
@@ -285,7 +315,7 @@ public class AsyncOperatorTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
             CyclicBarrier barrier = new CyclicBarrier(2);
-            AsyncOperator asyncOperator = new AsyncOperator(driverContext, between(1, 10)) {
+            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, between(1, 10)) {
                 @Override
                 protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                     ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -300,6 +330,16 @@ public class AsyncOperatorTests extends ESTestCase {
                         }
                     };
                     threadPool.executor(ESQL_TEST_EXECUTOR).execute(command);
+                }
+
+                @Override
+                public Page getOutput() {
+                    return getResultFromBuffer();
+                }
+
+                @Override
+                protected void releaseResultOnAnyThread(Page page) {
+                    releasePageOnAnyThread(page);
                 }
 
                 @Override

@@ -128,7 +128,7 @@ import java.util.stream.IntStream;
  * |     l99 | null | null |
  * }</pre>
  */
-class RightChunkedLeftJoin implements Releasable {
+public class RightChunkedLeftJoin implements Releasable {
     private final Page leftHand;
     private final int mergedElementCount;
     /**

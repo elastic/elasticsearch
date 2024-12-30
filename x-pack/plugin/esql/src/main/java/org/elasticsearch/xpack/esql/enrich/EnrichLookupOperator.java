@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public final class EnrichLookupOperator extends AsyncOperator {
+public final class EnrichLookupOperator extends AsyncOperator<Page> {
     private final EnrichLookupService enrichLookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -140,6 +140,16 @@ public final class EnrichLookupOperator extends AsyncOperator {
             parentTask,
             ActionListener.runBefore(listener.map(handleResponse), responseHeadersCollector::collect)
         );
+    }
+
+    @Override
+    public Page getOutput() {
+        return getResultFromBuffer();
+    }
+
+    @Override
+    protected void releaseResultOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
 
     @Override

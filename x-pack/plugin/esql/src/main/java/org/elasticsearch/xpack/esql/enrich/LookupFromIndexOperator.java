@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Objects;
 
 // TODO rename package
-public final class LookupFromIndexOperator extends AsyncOperator {
+public final class LookupFromIndexOperator extends AsyncOperator<Page> {
     public record Factory(
         String sessionId,
         CancellableTask parentTask,
@@ -122,6 +122,16 @@ public final class LookupFromIndexOperator extends AsyncOperator {
         );
         // NOCOMMIT join pages with the operator dude
         lookupService.lookupAsync(request, parentTask, listener.map(pages -> inputPage.appendPage(pages.getFirst())));
+    }
+
+    @Override
+    public Page getOutput() {
+        return getResultFromBuffer();
+    }
+
+    @Override
+    protected void releaseResultOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
 
     @Override

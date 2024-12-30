@@ -210,6 +210,16 @@ public class CategorizeBlockHash extends BlockHash {
 
     record SerializedCategorizer(BytesRef bytesRef, long preAdjustedBytes) {}
 
+    /**
+     * Serializes the categorizer state into a BytesRef.
+     * <p>
+     *     The BytesRef is accounted for in the breaker, and its accounted value is returned too for future adjustments.
+     * </p>
+     * <p>
+     *     If the BytesRef is goind to be added to somewhere that will adjust the breaker, the pre-adjusted should be then
+     *     subtracted from the breaker.
+     * </p>
+     */
     SerializedCategorizer serializeCategorizer() {
         Long preAdjustedBytes = null;
         try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(blockFactory.bigArrays())) {

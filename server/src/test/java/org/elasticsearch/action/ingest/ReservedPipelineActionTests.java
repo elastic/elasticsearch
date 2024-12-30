@@ -145,7 +145,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
         );
     }
 
-    private TransformState processJSON(ReservedPipelineAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ClusterState> processJSON(ReservedPipelineAction action, TransformState<ClusterState> prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -153,12 +154,12 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
     public void testAddRemoveIngestPipeline() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedPipelineAction action = new ReservedPipelineAction();
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 

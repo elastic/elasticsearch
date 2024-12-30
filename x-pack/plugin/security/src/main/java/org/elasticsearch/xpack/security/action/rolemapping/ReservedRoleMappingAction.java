@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * It is used by the ReservedClusterStateService to add/update or remove role mappings. Typical usage
  * for this action is in the context of file based settings.
  */
-public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<PutRoleMappingRequest>> {
+public class ReservedRoleMappingAction implements ReservedClusterStateHandler<ClusterState, List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
 
     @Override
@@ -41,9 +41,9 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        Set<ExpressionRoleMapping> roleMappings = validateAndTranslate((List<PutRoleMappingRequest>) source);
+    public TransformState<ClusterState> transform(List<PutRoleMappingRequest> source, TransformState<ClusterState> prevState)
+        throws Exception {
+        Set<ExpressionRoleMapping> roleMappings = validateAndTranslate(source);
         RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
         if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
             return prevState;
@@ -53,7 +53,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
                 .stream()
                 .map(ExpressionRoleMapping::getName)
                 .collect(Collectors.toSet());
-            return new TransformState(newState, entities);
+            return new TransformState<>(newState, entities);
         }
     }
 

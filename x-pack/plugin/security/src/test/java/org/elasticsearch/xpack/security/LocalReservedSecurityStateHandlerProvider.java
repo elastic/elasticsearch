@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
@@ -44,7 +45,7 @@ public class LocalReservedSecurityStateHandlerProvider implements ReservedCluste
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<?>> handlers() {
+    public Collection<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers() {
         for (Plugin subPlugin : plugin.plugins()) {
             if (subPlugin instanceof Security security) {
                 return security.reservedClusterStateHandlers();

@@ -27,7 +27,8 @@ import static org.hamcrest.Matchers.empty;
  */
 public class ReservedRoleMappingActionTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ClusterState> processJSON(ReservedRoleMappingAction action, TransformState<ClusterState> prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
             return action.transform(content, prevState);
@@ -36,7 +37,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
 
     public void testValidation() {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String badPolicyJSON = """
             {
@@ -65,11 +66,11 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
 
     public void testAddRemoveRoleMapping() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 

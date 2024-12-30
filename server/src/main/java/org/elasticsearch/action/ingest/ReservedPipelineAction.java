@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * It is used by the ReservedClusterStateService to add/update or remove ingest pipelines. Typical usage
  * for this action is in the context of file based state.
  */
-public class ReservedPipelineAction implements ReservedClusterStateHandler<List<PutPipelineRequest>> {
+public class ReservedPipelineAction implements ReservedClusterStateHandler<ClusterState, List<PutPipelineRequest>> {
     public static final String NAME = "ingest_pipelines";
 
     /**
@@ -78,9 +78,9 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((List<PutPipelineRequest>) source);
+    public TransformState<ClusterState> transform(List<PutPipelineRequest> source, TransformState<ClusterState> prevState)
+        throws Exception {
+        var requests = prepare(source);
 
         ClusterState state = prevState.state();
 
@@ -113,7 +113,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
             state = wrapIngestTaskExecute(task, state);
         }
 
-        return new TransformState(state, entities);
+        return new TransformState<>(state, entities);
     }
 
     @Override

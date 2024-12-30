@@ -111,27 +111,26 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(b -> {
-            b.append((builder, p) -> {
-                builder.field(SingleNodeShutdownMetadata.NODE_ID_FIELD.getPreferredName(), metadata.getNodeId());
-                builder.field(SingleNodeShutdownMetadata.TYPE_FIELD.getPreferredName(), metadata.getType());
-                builder.field(SingleNodeShutdownMetadata.REASON_FIELD.getPreferredName(), metadata.getReason());
-                if (metadata.getAllocationDelay() != null) {
-                    builder.field(
-                        SingleNodeShutdownMetadata.ALLOCATION_DELAY_FIELD.getPreferredName(),
-                        metadata.getAllocationDelay().getStringRep()
-                    );
-                }
-                builder.timestampFieldsFromUnixEpochMillis(
-                    SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
-                    SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,
-                    metadata.getStartedAtMillis()
+        return Iterators.concat(startObject(), singleChunk((builder, p) -> {
+            builder.field(SingleNodeShutdownMetadata.NODE_ID_FIELD.getPreferredName(), metadata.getNodeId());
+            builder.field(SingleNodeShutdownMetadata.TYPE_FIELD.getPreferredName(), metadata.getType());
+            builder.field(SingleNodeShutdownMetadata.REASON_FIELD.getPreferredName(), metadata.getReason());
+            if (metadata.getAllocationDelay() != null) {
+                builder.field(
+                    SingleNodeShutdownMetadata.ALLOCATION_DELAY_FIELD.getPreferredName(),
+                    metadata.getAllocationDelay().getStringRep()
                 );
-                builder.field(STATUS.getPreferredName(), overallStatus());
-                return builder;
-            });
-            b.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
-            b.append((builder, p) -> {
+            }
+            builder.timestampFieldsFromUnixEpochMillis(
+                SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
+                SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,
+                metadata.getStartedAtMillis()
+            );
+            builder.field(STATUS.getPreferredName(), overallStatus());
+            return builder;
+        }),
+            ChunkedToXContentHelper.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus, params),
+            singleChunk((builder, p) -> {
                 builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
                 builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
                 if (metadata.getTargetNodeName() != null) {

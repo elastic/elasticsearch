@@ -145,19 +145,6 @@ public class PublishPlugin implements Plugin<Project> {
         });
     }
 
-    /**
-     * just ensure we put dependencies to the end. more a cosmetic thing than anything else
-     * */
-    private void formatDependencies(XmlProvider xml) {
-        Element rootElement = xml.asElement();
-        var dependencies = rootElement.getElementsByTagName("dependencies");
-        if (dependencies.getLength() == 1 && dependencies.item(0) != null) {
-            org.w3c.dom.Node item = dependencies.item(0);
-            rootElement.removeChild(item);
-            rootElement.appendChild(item);
-        }
-    }
-
     private void addNameAndDescriptionToPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
         var name = project.getName();
         var description = providerFactory.provider(() -> project.getDescription() != null ? project.getDescription() : "");
@@ -209,20 +196,6 @@ public class PublishPlugin implements Plugin<Project> {
                 jar.from(mainSourceSet.getAllSource());
             });
             project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(sourcesJarTask));
-        });
-    }
-
-    /**
-     * Format the generated pom files to be in a sort of reproducible order.
-     */
-    private void formatGeneratedPom(Project project) {
-        var publishing = project.getExtensions().getByType(PublishingExtension.class);
-        final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
-        mavenPublications.configureEach(publication -> {
-            publication.getPom().withXml(xml -> {
-                // Add some pom formatting
-                formatDependencies(xml);
-            });
         });
     }
 

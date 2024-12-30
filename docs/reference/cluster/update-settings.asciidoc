@@ -4,8 +4,13 @@
 <titleabbrev>Cluster update settings</titleabbrev>
 ++++
 
-Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
 
+Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
 
 [[cluster-update-settings-api-request]]
 ==== {api-request-title}

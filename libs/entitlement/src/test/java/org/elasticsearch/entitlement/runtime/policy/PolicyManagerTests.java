@@ -13,6 +13,7 @@ import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.lang.module.Configuration;
@@ -37,15 +38,21 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ESTestCase.WithoutSecurityManager
 public class PolicyManagerTests extends ESTestCase {
+    /**
+     * A module you can use for test cases that don't actually care about the
+     * entitlements module.
+     */
+    private static Module NO_ENTITLEMENTS_MODULE;
 
-    private static final Module NO_ENTITLEMENTS_MODULE;
-    static {
+    @BeforeClass
+    public static void beforeClass() {
         try {
             // Any old module will do for tests using NO_ENTITLEMENTS_MODULE
             NO_ENTITLEMENTS_MODULE = makeClassInItsOwnModule().getModule();
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+
     }
 
     public void testGetEntitlementsThrowsOnMissingPluginUnnamedModule() {

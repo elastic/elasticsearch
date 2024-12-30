@@ -85,8 +85,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEquals("openai", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            var modelIdFound = serviceSettings.containsKey("model_id") || taskSettings.containsKey("model_id");
-            assertTrue("model_id not found in config: " + configs.toString(), modelIdFound);
+            var modelIdFound = serviceSettings.containsKey("model_id") || (taskSettings.containsKey("model") &&
+                getOldClusterTestVersion().onOrBefore(OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED));
+            assertTrue("model_id not found in config: " + configs, modelIdFound);
 
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {

@@ -140,6 +140,7 @@ public class IndexVersions {
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion INFERENCE_METADATA_FIELDS = def(9_005_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_006_00_0, Version.LUCENE_10_1_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_1_1 = def(9_007_00_0, Version.LUCENE_10_1_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

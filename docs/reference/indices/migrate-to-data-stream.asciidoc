@@ -5,6 +5,12 @@
 <titleabbrev>Migrate to data stream</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Converts an <<aliases,index alias>> to a <<data-streams,data stream>>.
 
 ////

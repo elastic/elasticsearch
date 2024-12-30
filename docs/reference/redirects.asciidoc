@@ -1215,7 +1215,7 @@ See <<search-search>>.
 [role="exclude",id="modules-gateway-dangling-indices"]
 === Dangling indices
 
-See <<dangling-indices>>.
+See <<dangling-indices-api>>.
 
 [role="exclude",id="shards-allocation"]
 === Cluster-level shard allocation

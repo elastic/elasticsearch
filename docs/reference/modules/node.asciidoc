@@ -420,7 +420,7 @@ Similarly, each master-eligible node maintains the following data on disk:
 
 Each node checks the contents of its data path at startup. If it discovers
 unexpected data then it will refuse to start. This is to avoid importing
-unwanted <<dangling-indices,dangling indices>> which can lead
+unwanted <<dangling-indices-api,dangling indices>> which can lead
 to a red cluster health. To be more precise, nodes without the `data` role will
 refuse to start if they find any shard data on disk at startup, and nodes
 without both the `master` and `data` roles will refuse to start if they have any

@@ -6,6 +6,12 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Retrieves the details about a connector sync job.
 
 To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.

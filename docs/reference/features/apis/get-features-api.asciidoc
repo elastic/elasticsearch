@@ -4,6 +4,12 @@
 <titleabbrev>Get features</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-features[Features APIs].
+--
+
 Gets a list of features which can be included in snapshots using the
 <<create-snapshot-api-feature-states,`feature_states` field>> when creating a
 snapshot.

@@ -6,9 +6,9 @@
 {es} exposes REST APIs that are used by the UI components and can be called
 directly to configure and access {es} features.
 
-[NOTE]
-We are working on including more {es} APIs in this section. Some content might
-not be included yet.
+..New API reference
+[sidebar]
+For the most up-to-date API details, refer to {api-es}[{es} APIs].
 
 * <<api-conventions, API conventions>>
 * <<common-options, Common Options>>

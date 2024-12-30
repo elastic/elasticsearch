@@ -52,7 +52,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        super(LOOKUP_ACTION_NAME, clusterService, searchService, transportService, bigArrays, blockFactory, TransportRequest::readFrom);
+        super(
+            LOOKUP_ACTION_NAME,
+            clusterService,
+            searchService,
+            transportService,
+            bigArrays,
+            blockFactory,
+            false,
+            TransportRequest::readFrom
+        );
     }
 
     @Override

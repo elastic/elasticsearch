@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
@@ -137,6 +138,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final boolean mergePages;
 
     AbstractLookupService(
         String actionName,
@@ -145,6 +147,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        boolean mergePages,
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
         this.actionName = actionName;
@@ -155,6 +158,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
+        this.mergePages = mergePages;
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -323,31 +327,31 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
             }
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
-            final MergePositionsOperator mergePositionsOperator;
+            final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
-            if (inputBlock instanceof BytesRefBlock bytesRefBlock && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+            if (mergePages  // TODO fix this faster branch with mergePages == false
+                && inputBlock instanceof BytesRefBlock bytesRefBlock
+                && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+
                 inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
                 var selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
-                mergePositionsOperator = new MergePositionsOperator(
-                    1,
-                    mergingChannels,
-                    mergingTypes,
-                    selectedPositions,
-                    driverContext.blockFactory()
-                );
-
+                finishPages = new MergePositionsOperator(1, mergingChannels, mergingTypes, selectedPositions, driverContext.blockFactory());
             } else {
-                try (var selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock()) {
-                    mergePositionsOperator = new MergePositionsOperator(
-                        1,
-                        mergingChannels,
-                        mergingTypes,
-                        selectedPositions,
-                        driverContext.blockFactory()
-                    );
+                if (mergePages) {
+                    try (var selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock()) {
+                        finishPages = new MergePositionsOperator(
+                            1,
+                            mergingChannels,
+                            mergingTypes,
+                            selectedPositions,
+                            driverContext.blockFactory()
+                        );
+                    }
+                } else {
+                    finishPages = dropDocBlockOperator(request.extractFields);
                 }
             }
-            releasables.add(mergePositionsOperator);
+            releasables.add(finishPages);
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             QueryList queryList = queryList(request, searchExecutionContext, inputBlock, request.inputDataType);
             var warnings = Warnings.createWarnings(
@@ -377,7 +381,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 driverContext,
                 request::toString,
                 queryOperator,
-                List.of(extractFieldsOperator, mergePositionsOperator),
+                List.of(extractFieldsOperator, finishPages),
                 outputOperator,
                 Driver.DEFAULT_STATUS_INTERVAL,
                 Releasables.wrap(searchContext, localBreaker)
@@ -440,6 +444,16 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), searchContext::newSourceLoader)),
             0
         );
+    }
+
+    private Operator dropDocBlockOperator(List<NamedExpression> extractFields) {
+        // Drop just the first block, keeping the remaining
+        int end = extractFields.size() + 1;
+        List<Integer> projection = new ArrayList<>(end);
+        for (int i = 1; i <= end; i++) {
+            projection.add(i);
+        }
+        return new ProjectOperator(projection);
     }
 
     private Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {

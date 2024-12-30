@@ -131,7 +131,7 @@ public abstract class AsyncOperator<Result> implements Operator {
             notifyIfBlocked();
         }
         if (closed || failureCollector.hasFailure()) {
-            discardPages();
+            discardResults();
         }
     }
 
@@ -151,12 +151,12 @@ public abstract class AsyncOperator<Result> implements Operator {
     private void checkFailure() {
         Exception e = failureCollector.getFailure();
         if (e != null) {
-            discardPages();
+            discardResults();
             throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 
-    private void discardPages() {
+    private void discardResults() {
         long nextCheckpoint;
         while ((nextCheckpoint = checkpoint.getPersistedCheckpoint() + 1) <= checkpoint.getProcessedCheckpoint()) {
             Result result = buffers.remove(nextCheckpoint);
@@ -171,7 +171,7 @@ public abstract class AsyncOperator<Result> implements Operator {
     public final void close() {
         finish();
         closed = true;
-        discardPages();
+        discardResults();
         doClose();
     }
 
@@ -239,6 +239,7 @@ public abstract class AsyncOperator<Result> implements Operator {
     }
 
     protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
+        // NOCOMMIT this is wrong - completedPages is the number of results, not pages.
         return new Status(receivedPages, completedPages, totalTimeInMillis);
     }
 

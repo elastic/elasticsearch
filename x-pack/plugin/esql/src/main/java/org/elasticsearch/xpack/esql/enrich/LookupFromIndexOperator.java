@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,7 +16,11 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -23,11 +28,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 // TODO rename package
-public final class LookupFromIndexOperator extends AsyncOperator<Page> {
+public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
     public record Factory(
         String sessionId,
         CancellableTask parentTask,
@@ -81,6 +88,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<Page> {
     private final List<NamedExpression> loadFields;
     private final Source source;
     private long totalTerms = 0L;
+    /**
+     * The ongoing join or {@code null} none is ongoing at the moment.
+     */
+    private OngoingJoin ongoing = null;
 
     public LookupFromIndexOperator(
         String sessionId,
@@ -108,7 +119,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<Page> {
     }
 
     @Override
-    protected void performAsync(Page inputPage, ActionListener<Page> listener) {
+    protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
+        System.err.println("AAAAAA input " + inputPage);
         final Block inputBlock = inputPage.getBlock(inputChannel);
         totalTerms += inputBlock.getTotalValueCount();
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
@@ -121,17 +133,48 @@ public final class LookupFromIndexOperator extends AsyncOperator<Page> {
             source
         );
         // NOCOMMIT join pages with the operator dude
-        lookupService.lookupAsync(request, parentTask, listener.map(pages -> inputPage.appendPage(pages.getFirst())));
+        lookupService.lookupAsync(
+            request,
+            parentTask,
+            listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()))
+        );
     }
 
     @Override
     public Page getOutput() {
-        return getResultFromBuffer();
+        if (ongoing == null) {
+            System.err.println("AAAAAA starting");
+            // No ongoing join, start a new one if we can.
+            ongoing = getResultFromBuffer();
+            if (ongoing == null) {
+                // Buffer empty, wait for the next time we're called.
+                System.err.println("AAAAAA nothing");
+                return null;
+            }
+            System.err.println("AAAAAA started");
+        }
+        if (ongoing.itr.hasNext()) {
+            // There's more to do in the ongoing join.
+            Page right = ongoing.itr.next();
+            System.err.println("AAAAAA joining " + right);
+            try {
+                return ongoing.join.join(right);
+            } finally {
+                right.releaseBlocks();
+            }
+        }
+        // Current join is all done. Emit any trailing unmatched rows.
+        System.err.println("AAAAAA finishing");
+        Optional<Page> remaining = ongoing.join.noMoreRightHandPages();
+        remaining.ifPresent(page -> System.err.println("AAAAAA remaining " + page.getPositionCount()));
+        ongoing.close();
+        ongoing = null;
+        return remaining.orElse(null);
     }
 
     @Override
-    protected void releaseResultOnAnyThread(Page page) {
-        releasePageOnAnyThread(page);
+    protected void releaseResultOnAnyThread(OngoingJoin ongoingJoin) {
+        ongoingJoin.releaseOnAnyThread();
     }
 
     @Override
@@ -150,13 +193,28 @@ public final class LookupFromIndexOperator extends AsyncOperator<Page> {
     }
 
     @Override
+    public boolean isFinished() {
+        return ongoing == null && super.isFinished();
+    }
+
+    @Override
+    public IsBlockedResult isBlocked() {
+        if (ongoing != null) {
+            return NOT_BLOCKED;
+        }
+        return super.isBlocked();
+    }
+
+    @Override
     protected void doClose() {
         // TODO: Maybe create a sub-task as the parent task of all the lookup tasks
         // then cancel it when this operator terminates early (e.g., have enough result).
+        Releasables.close(ongoing);
     }
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
+        // NOCOMMIT this is wrong - completedPages is the number of results, not pages.
         return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
     }
 
@@ -213,6 +271,20 @@ public final class LookupFromIndexOperator extends AsyncOperator<Page> {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), totalTerms);
+        }
+    }
+
+    protected record OngoingJoin(RightChunkedLeftJoin join, Iterator<Page> itr) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.close(join, Releasables.wrap(() -> Iterators.map(itr, page -> page::releaseBlocks)));
+        }
+
+        public void releaseOnAnyThread() {
+            Releasables.close(
+                join::releaseOnAnyThread,
+                Releasables.wrap(() -> Iterators.map(itr, page -> () -> releasePageOnAnyThread(page)))
+            );
         }
     }
 }

@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -80,9 +81,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     /**
      * Tests when multiple results match.
      */
-    @AwaitsFix(bugUrl = "fixing real soon now")
     public void testLookupIndexMultiResults() throws IOException {
-        runLookup(new UsingSingleLookupTable(new Object[] { "aa", new String[] { "bb", "ff" }, "cc", "dd" }));
+        runLookup(new UsingSingleLookupTable(new String[] { "aa", "bb", "bb", "dd" }));
     }
 
     interface PopulateIndices {
@@ -90,24 +90,24 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     }
 
     class UsingSingleLookupTable implements PopulateIndices {
-        private final Object[] lookupData;
+        private final Map<String, List<Integer>> matches = new HashMap<>();
+        private final String[] lookupData;
 
-        UsingSingleLookupTable(Object[] lookupData) {
+        UsingSingleLookupTable(String[] lookupData) {
             this.lookupData = lookupData;
+            for (int i = 0; i < lookupData.length; i++) {
+                matches.computeIfAbsent(lookupData[i], k -> new ArrayList<>()).add(i);
+            }
         }
 
         @Override
-        public void populate(int docCount, List<String> expected) throws IOException {
+        public void populate(int docCount, List<String> expected) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
             for (int i = 0; i < docCount; i++) {
-                docs.add(client().prepareIndex("source").setSource(Map.of("data", lookupData[i % lookupData.length])));
-                Object d = lookupData[i % lookupData.length];
-                if (d instanceof String s) {
-                    expected.add(s + ":" + (i % lookupData.length));
-                } else if (d instanceof String[] ss) {
-                    for (String s : ss) {
-                        expected.add(s + ":" + (i % lookupData.length));
-                    }
+                String data = lookupData[i % lookupData.length];
+                docs.add(client().prepareIndex("source").setSource(Map.of("data", data)));
+                for (Integer match: matches.get(data)) {
+                    expected.add(data + ":" + match);
                 }
             }
             for (int i = 0; i < lookupData.length; i++) {
@@ -230,6 +230,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
                     new PageConsumerOperator(page -> {
                         try {
+                            System.err.println(docCount + " ADSFADFDAFADSF " + page);
                             BytesRefVector dataBlock = page.<BytesRefBlock>getBlock(1).asVector();
                             LongVector loadedBlock = page.<LongBlock>getBlock(2).asVector();
                             for (int p = 0; p < page.getPositionCount(); p++) {

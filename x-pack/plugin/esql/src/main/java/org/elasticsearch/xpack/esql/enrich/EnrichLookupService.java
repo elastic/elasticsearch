@@ -53,7 +53,16 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        super(LOOKUP_ACTION_NAME, clusterService, searchService, transportService, bigArrays, blockFactory, TransportRequest::readFrom);
+        super(
+            LOOKUP_ACTION_NAME,
+            clusterService,
+            searchService,
+            transportService,
+            bigArrays,
+            blockFactory,
+            true,
+            TransportRequest::readFrom
+        );
     }
 
     @Override

@@ -2,6 +2,12 @@
 [[enrich-apis]]
 == Enrich APIs
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-enrich[Enrich APIs].
+--
+
 The following enrich APIs are available for managing <<enrich-policy,enrich
 policies>>:
 

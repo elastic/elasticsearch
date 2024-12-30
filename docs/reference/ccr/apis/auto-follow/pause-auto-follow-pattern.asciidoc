@@ -5,6 +5,12 @@
 <titleabbrev>Pause auto-follow pattern</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
 Pauses a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-pause-auto-follow-pattern-request]]

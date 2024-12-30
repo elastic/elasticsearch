@@ -6,6 +6,12 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Updates the `api_key_id` and/or `api_key_secret_id` field(s) of a connector, specifying:
 
 . The ID of the API key used for authorization

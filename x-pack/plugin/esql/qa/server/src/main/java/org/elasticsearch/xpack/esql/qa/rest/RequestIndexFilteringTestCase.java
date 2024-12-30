@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 
@@ -101,7 +102,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
         indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
 
-        // filter includes only test1. Columns are rows of test2 are filtered out
+        // filter includes only test1. Columns and rows of test2 are filtered out
         RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query("FROM test*");
         Map<String, Object> result = runEsql(builder);
         assertMap(
@@ -219,6 +220,16 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), containsString("no such index [foo]"));
+
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled()) {
+            e = expectThrows(
+                ResponseException.class,
+                () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))
+            );
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), containsString("verification_exception"));
+            assertThat(e.getMessage(), containsString("Unknown index [foo]"));
+        }
     }
 
     private static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
@@ -252,6 +263,9 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 "properties": {
                   "@timestamp": {
                     "type": "date"
+                  },
+                  "value": {
+                    "type": "long"
                   },
                   "%differentiator_field_name%": {
                     "type": "integer"

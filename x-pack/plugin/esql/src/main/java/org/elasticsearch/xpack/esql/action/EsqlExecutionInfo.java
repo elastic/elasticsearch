@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
@@ -107,7 +108,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
             this.clusterInfo = m;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.includeCCSMetadata = in.readBoolean();
         } else {
             this.includeCCSMetadata = false;
@@ -124,7 +125,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.OPT_IN_ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(includeCCSMetadata);
         }
     }
@@ -233,16 +234,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
             return Collections.emptyIterator();
         }
-        return ChunkedToXContent.builder(params).object(b -> {
-            b.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
-            b.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
-            b.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
-            b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
-            b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
-            b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            ChunkedToXContentHelper.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size()),
+            ChunkedToXContentHelper.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL)),
+            ChunkedToXContentHelper.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING)),
+            ChunkedToXContentHelper.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED)),
+            ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
+            ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
             // each Cluster object defines its own field object name
-            b.xContentObject("details", clusterInfo.values().iterator());
-        });
+            ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     /**

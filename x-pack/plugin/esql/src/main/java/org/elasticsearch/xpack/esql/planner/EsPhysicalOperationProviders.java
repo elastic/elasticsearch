@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -113,12 +114,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
-        var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             var unionTypes = findUnionTypes(attr);
             DataType dataType = attr.dataType();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             // Do not use the field attribute name, this can deviate from the field name for union types.
             String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
@@ -297,15 +297,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Query toQuery(QueryBuilder queryBuilder) {
             Query query = ctx.toQuery(queryBuilder).query();
-            NestedLookup nestedLookup = ctx.nestedLookup();
-            if (nestedLookup != NestedLookup.EMPTY) {
-                NestedHelper nestedHelper = new NestedHelper(nestedLookup, ctx::isFieldMapped);
-                if (nestedHelper.mightMatchNestedDocs(query)) {
-                    // filter out nested documents
-                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                        .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
-                        .build();
-                }
+            if (ctx.nestedLookup() != NestedLookup.EMPTY && NestedHelper.mightMatchNestedDocs(query, ctx)) {
+                // filter out nested documents
+                query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                    .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                    .build();
             }
             if (aliasFilter != AliasFilter.EMPTY) {
                 Query filterQuery = ctx.toQuery(aliasFilter.getQueryBuilder()).query();
@@ -348,7 +344,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
                 @Override
                 public SearchLookup lookup() {
-                    return ctx.lookup();
+                    boolean syntheticSource = SourceFieldMapper.isSynthetic(indexSettings());
+                    var searchLookup = ctx.lookup();
+                    if (syntheticSource) {
+                        // in the context of scripts and when synthetic source is used the search lookup can't always be reused between
+                        // users of SearchLookup. This is only an issue when scripts fallback to _source, but since we can't always
+                        // accurately determine whether a script uses _source, we should do this for all script usages.
+                        // This lookup() method is only invoked for scripts / runtime fields, so it is ok to do here.
+                        searchLookup = searchLookup.swapSourceProvider(ctx.createSourceProvider());
+                    }
+                    return searchLookup;
                 }
 
                 @Override

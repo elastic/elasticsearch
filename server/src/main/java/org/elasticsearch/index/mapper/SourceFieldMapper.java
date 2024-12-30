@@ -56,9 +56,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         "mapper.source.remove_synthetic_source_only_validation"
     );
     public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
+    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
+
+    public static final String RECOVERY_SOURCE_SIZE_NAME = "_recovery_source_size";
 
     public static final String CONTENT_TYPE = "_source";
 
@@ -402,7 +405,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
+        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -413,19 +416,49 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
-            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+                assert isSynthetic() : "recovery source should not be disabled on non-synthetic source";
+                /**
+                 * We use synthetic source for recovery, so we omit the recovery source.
+                 * Instead, we record only the size of the uncompressed source.
+                 * This size is used in {@link LuceneSyntheticSourceChangesSnapshot} to control memory
+                 * usage during the recovery process when loading a batch of synthetic sources.
+                 */
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, ref.length));
+            } else {
+                context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            }
         }
     }
 
     @Nullable
-    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (stored() == false) {
+    public BytesReference applyFilters(
+        @Nullable MappingLookup mappingLookup,
+        @Nullable BytesReference originalSource,
+        @Nullable XContentType contentType
+    ) throws IOException {
+        if (stored() == false || originalSource == null) {
             return null;
         }
-        if (originalSource != null && sourceFilter != null) {
+        var modSourceFilter = sourceFilter;
+        if (mappingLookup != null
+            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false) {
+            /**
+             * Removes {@link InferenceMetadataFieldsMapper} content from _source.
+             * This content is re-generated at query time (if requested) using stored fields and doc values.
+             */
+            String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
+            if (excludes != null) {
+                System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);
+            }
+            modExcludes[modExcludes.length - 1] = InferenceMetadataFieldsMapper.NAME;
+            modSourceFilter = new SourceFilter(includes, modExcludes);
+        }
+        if (modSourceFilter != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
+            return Source.fromBytes(originalSource, contentType).filter(modSourceFilter).internalSourceRef();
         } else {
             return originalSource;
         }
@@ -439,16 +472,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
-    }
-
-    /**
-     * Build something to load source {@code _source}.
-     */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
-        if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
-        }
-        return SourceLoader.FROM_STORED_SOURCE;
     }
 
     public boolean isSynthetic() {

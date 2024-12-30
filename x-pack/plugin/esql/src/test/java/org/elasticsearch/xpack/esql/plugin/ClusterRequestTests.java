@@ -65,7 +65,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
     protected ClusterComputeRequest createTestInstance() {
         var sessionId = randomAlphaOfLength(10);
         String query = randomQuery();
-        PhysicalPlan physicalPlan = DataNodeRequestTests.mapAndMaybeOptimize(parse(query));
+        PhysicalPlan physicalPlan = DataNodeRequestSerializationTests.mapAndMaybeOptimize(parse(query));
         OriginalIndices originalIndices = new OriginalIndices(
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
@@ -156,11 +156,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
 
     public void testFallbackIndicesOptions() throws Exception {
         ClusterComputeRequest request = createTestInstance();
-        var version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_14_0,
-            TransportVersions.ESQL_ORIGINAL_INDICES
-        );
+        var version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_14_0, TransportVersions.V_8_16_0);
         ClusterComputeRequest cloned = copyInstance(request, version);
         assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
         assertThat(cloned.sessionId(), equalTo(request.sessionId()));

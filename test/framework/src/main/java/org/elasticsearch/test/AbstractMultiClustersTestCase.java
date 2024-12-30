@@ -36,10 +36,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,7 +58,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     private static volatile ClusterGroup clusterGroup;
 
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return randomSubsetOf(List.of("cluster-a", "cluster-b"));
     }
 
@@ -100,17 +100,18 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             return;
         }
         stopClusters();
-        final Map<String, InternalTestCluster> clusters = new HashMap<>();
+        final Map<String, InternalTestCluster> clusters = new ConcurrentHashMap<>();
         final List<String> clusterAliases = new ArrayList<>(remoteClusterAlias());
         clusterAliases.add(LOCAL_CLUSTER);
-        for (String clusterAlias : clusterAliases) {
+        final List<Class<? extends Plugin>> mockPlugins = List.of(
+            MockHttpTransport.TestPlugin.class,
+            MockTransportService.TestPlugin.class,
+            getTestTransportPlugin()
+        );
+        runInParallel(clusterAliases.size(), i -> {
+            String clusterAlias = clusterAliases.get(i);
             final String clusterName = clusterAlias.equals(LOCAL_CLUSTER) ? "main-cluster" : clusterAlias;
             final int numberOfNodes = randomIntBetween(1, 3);
-            final List<Class<? extends Plugin>> mockPlugins = List.of(
-                MockHttpTransport.TestPlugin.class,
-                MockTransportService.TestPlugin.class,
-                getTestTransportPlugin()
-            );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 
             final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
@@ -128,10 +129,14 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 mockPlugins,
                 Function.identity()
             );
-            cluster.beforeTest(random());
+            try {
+                cluster.beforeTest(random());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             clusters.put(clusterAlias, cluster);
-        }
-        clusterGroup = new ClusterGroup(clusters);
+        });
+        clusterGroup = new ClusterGroup(Map.copyOf(clusters));
         configureAndConnectsToRemoteClusters();
     }
 

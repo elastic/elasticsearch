@@ -195,7 +195,7 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             ChunkedToXContentHelper.array("ExeFilename", Iterators.map(fileNames.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("AddressOrLine", Iterators.map(addressOrLines.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("FunctionName", Iterators.map(functionNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("FunctionOffset");
                 for (int functionOffset : functionOffsets) {
                     b.value(functionOffset);
@@ -203,28 +203,28 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
                 return b.endArray();
             }),
             ChunkedToXContentHelper.array("SourceFilename", Iterators.map(sourceFileNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("SourceLine");
                 for (int sourceLine : sourceLines) {
                     b.value(sourceLine);
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("CountInclusive");
                 for (long countInclusive : countInclusive) {
                     b.value(countInclusive);
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("CountExclusive");
                 for (long c : countExclusive) {
                     b.value(c);
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCO2TonsInclusive");
                 for (double co2Tons : annualCO2TonsInclusive) {
                     // write as raw value - we need direct control over the output representation (here: limit to 4 decimal places)
@@ -232,21 +232,21 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCO2TonsExclusive");
                 for (double co2Tons : annualCO2TonsExclusive) {
                     b.rawValue(NumberUtils.doubleToString(co2Tons));
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCostsUSDInclusive");
                 for (double costs : annualCostsUSDInclusive) {
                     b.rawValue(NumberUtils.doubleToString(costs));
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCostsUSDExclusive");
                 for (double costs : annualCostsUSDExclusive) {
                     b.rawValue(NumberUtils.doubleToString(costs));

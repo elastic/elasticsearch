@@ -93,7 +93,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.xContentValuesMap(MODEL_ALIASES.getPreferredName(), modelAliases);
+        return ChunkedToXContentHelper.xContentObjectFields(MODEL_ALIASES.getPreferredName(), modelAliases);
     }
 
     @Override

@@ -103,7 +103,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(COMPONENT_TEMPLATE.getPreferredName(), componentTemplates);
+        return ChunkedToXContentHelper.xContentObjectFields(COMPONENT_TEMPLATE.getPreferredName(), componentTemplates);
     }
 
     @Override

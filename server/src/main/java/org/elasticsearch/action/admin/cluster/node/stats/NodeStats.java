@@ -45,7 +45,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -347,7 +347,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return Iterators.concat(singleChunk((builder, params) -> {
+        return Iterators.concat(chunk((builder, params) -> {
             builder.field("name", getNode().getName());
             builder.field("transport_address", getNode().getAddress().toString());
             builder.field("host", getNode().getHostName());
@@ -369,9 +369,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             return builder;
         }),
             ifPresent(getIndices()).toXContentChunked(outerParams),
-            singleChunk(
-                (builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)
-            ),
+            chunk((builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)),
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
             singleChunkIfPresent(getFs()),
             ifPresent(getTransport()).toXContentChunked(outerParams),
@@ -382,7 +380,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
             singleChunkIfPresent(getAdaptiveSelectionStats()),
             singleChunkIfPresent(getScriptCacheStats()),
-            singleChunk(
+            chunk(
                 (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
                     .value(ifPresent(getRepositoriesStats()), p)
                     .value(ifPresent(getNodeAllocationStats()), p)
@@ -399,6 +397,6 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
     }
 
     private static Iterator<ToXContent> singleChunkIfPresent(ToXContent toXContent) {
-        return toXContent == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(toXContent);
+        return toXContent == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(toXContent);
     }
 }

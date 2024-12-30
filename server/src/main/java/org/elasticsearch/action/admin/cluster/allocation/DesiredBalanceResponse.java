@@ -33,8 +33,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
@@ -88,7 +88,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            singleChunk(
+            chunk(
                 (builder, p) -> builder.startObject()
                     .field("stats", stats)
                     .field("cluster_balance_stats", clusterBalanceStats)
@@ -101,16 +101,16 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                     Iterators.flatMap(
                         indexEntry.getValue().entrySet().iterator(),
                         shardEntry -> Iterators.concat(
-                            singleChunk((builder, p) -> builder.field(String.valueOf(shardEntry.getKey()))),
+                            chunk((builder, p) -> builder.field(String.valueOf(shardEntry.getKey()))),
                             shardEntry.getValue().toXContentChunked(params)
                         )
                     ),
                     endObject()
                 )
             ),
-            singleChunk((builder, p) -> builder.endObject().startObject("cluster_info")),
+            chunk((builder, p) -> builder.endObject().startObject("cluster_info")),
             clusterInfo.toXContentChunked(params),
-            singleChunk((builder, p) -> builder.endObject().endObject())
+            chunk((builder, p) -> builder.endObject().endObject())
         );
     }
 
@@ -173,9 +173,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
-                singleChunk((builder, p) -> builder.startObject().startArray("current")),
+                chunk((builder, p) -> builder.startObject().startArray("current")),
                 current().iterator(),
-                singleChunk((builder, p) -> builder.endArray().field("desired").value(desired, p).endObject())
+                chunk((builder, p) -> builder.endArray().field("desired").value(desired, p).endObject())
             );
         }
     }

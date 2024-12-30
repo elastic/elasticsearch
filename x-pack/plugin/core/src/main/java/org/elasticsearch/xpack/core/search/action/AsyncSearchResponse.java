@@ -234,7 +234,7 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.singleChunk((builder, p) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, p) -> {
             builder.startObject();
             if (id != null) {
                 builder.field("id", id);
@@ -257,7 +257,7 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
             return builder;
         }),
             searchResponse == null ? Collections.emptyIterator() : searchResponse.toXContentChunked(params),
-            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+            ChunkedToXContentHelper.chunk((builder, p) -> {
                 if (error != null) {
                     builder.startObject("error");
                     ElasticsearchException.generateThrowableXContent(builder, params, error);

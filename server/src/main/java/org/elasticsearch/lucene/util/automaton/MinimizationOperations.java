@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.core.security.support;
+package org.elasticsearch.lucene.util.automaton;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntCursor;
@@ -19,6 +21,8 @@ import java.util.LinkedList;
 
 /**
  * Operations for minimizing automata.
+ * <p>
+ * Copied of Lucene's AutomatonTestUtil
  */
 public final class MinimizationOperations {
 
@@ -32,8 +36,6 @@ public final class MinimizationOperations {
      *     allow more complex queries and lower to prevent memory exhaustion. Use {@link
      *     Operations#DEFAULT_DETERMINIZE_WORK_LIMIT} as a decent default if you don't otherwise know
      *     what to specify.
-     *
-     * Copied of Lucene's AutomatonTestUtil
      */
     public static Automaton minimize(Automaton a, int determinizeWorkLimit) {
 

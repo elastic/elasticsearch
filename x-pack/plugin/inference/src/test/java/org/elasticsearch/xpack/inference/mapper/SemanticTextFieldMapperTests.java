@@ -641,7 +641,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         generateNestedTermSparseVectorQuery(mapperService.mappingLookup().nestedLookup(), fieldName1, List.of("a")),
                         10
                     );
-                    assertEquals(1, topDocs.totalHits.value());
+                    assertEquals(1, topDocs.totalHits.value);
                     assertEquals(3, topDocs.scoreDocs[0].doc);
                 }
                 {
@@ -649,7 +649,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         generateNestedTermSparseVectorQuery(mapperService.mappingLookup().nestedLookup(), fieldName1, List.of("a", "b")),
                         10
                     );
-                    assertEquals(1, topDocs.totalHits.value());
+                    assertEquals(1, topDocs.totalHits.value);
                     assertEquals(3, topDocs.scoreDocs[0].doc);
                 }
                 {
@@ -657,7 +657,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         generateNestedTermSparseVectorQuery(mapperService.mappingLookup().nestedLookup(), fieldName2, List.of("d")),
                         10
                     );
-                    assertEquals(1, topDocs.totalHits.value());
+                    assertEquals(1, topDocs.totalHits.value);
                     assertEquals(3, topDocs.scoreDocs[0].doc);
                 }
                 {
@@ -665,7 +665,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         generateNestedTermSparseVectorQuery(mapperService.mappingLookup().nestedLookup(), fieldName2, List.of("z")),
                         10
                     );
-                    assertEquals(0, topDocs.totalHits.value());
+                    assertEquals(0, topDocs.totalHits.value);
                 }
             });
         }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.info
 
+import spock.lang.Ignore
 import spock.lang.Specification
 
 import org.gradle.api.JavaVersion
@@ -17,7 +18,6 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.testfixtures.ProjectBuilder
 import org.junit.Assert
-import org.junit.Ignore
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors

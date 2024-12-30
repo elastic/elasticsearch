@@ -6,6 +6,12 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-eql[EQL APIs].
+--
+
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
 EQL assumes each document in a data stream or index corresponds to an

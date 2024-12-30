@@ -4,6 +4,12 @@
 <titleabbrev>{esql} async query get API</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-esql[ES|QL APIs].
+--
+
 Returns the current status and available results for an <<esql-async-query-api,{esql}
 async query>> or a stored results.
 

@@ -5,7 +5,7 @@
 NOTE: {cloud-only}
 
 
-.New API Reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-autoscaling[autoscaling APIs].

@@ -8,8 +8,8 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Elasticsearch Expanded Pack Plugin - Data Streams'
-  classname 'org.elasticsearch.datastreams.DataStreamsPlugin'
+  description = 'Elasticsearch Expanded Pack Plugin - Data Streams'
+  classname ='org.elasticsearch.datastreams.DataStreamsPlugin'
 }
 
 restResources {

@@ -16,6 +16,7 @@ import com.sun.tools.attach.VirtualMachine;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -53,6 +54,7 @@ public class EntitlementBootstrap {
         EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(Objects.requireNonNull(pluginData), Objects.requireNonNull(pluginResolver));
         exportInitializationToAgent();
         loadAgent(findAgentJar());
+        selfTest();
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
@@ -96,6 +98,22 @@ public class EntitlementBootstrap {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+    }
+
+    /**
+     * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
+     */
+    private static void selfTest() {
+        var pb = new ProcessBuilder(""); // The command doesn't matter; it doesn't even need to exist
+        try {
+            pb.start();
+        } catch (NotEntitledException e) {
+            logger.debug("Success: Entitlement protection correctly prevented disallowed action");
+            return;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed entitlement protection self-test", e);
+        }
+        throw new IllegalStateException("Failed entitlement protection self-test");
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

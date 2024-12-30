@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -51,7 +52,11 @@ public class GetConnectorAction {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
-            this.isDeleted = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
+                this.isDeleted = in.readBoolean();
+            } else {
+                this.isDeleted = false;
+            }
         }
 
         public String getConnectorId() {
@@ -77,7 +82,9 @@ public class GetConnectorAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(connectorId);
-            out.writeBoolean(isDeleted);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
+                out.writeBoolean(isDeleted);
+            }
         }
 
         @Override

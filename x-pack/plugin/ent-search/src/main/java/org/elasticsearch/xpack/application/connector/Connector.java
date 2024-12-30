@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -209,7 +210,11 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.status = in.readEnum(ConnectorStatus.class);
         this.syncCursor = in.readGenericValue();
         this.syncNow = in.readBoolean();
-        this.isDeleted = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
+            this.isDeleted = in.readBoolean();
+        } else {
+            this.isDeleted = false;
+        }
     }
 
     public static final ParseField ID_FIELD = new ParseField("id");
@@ -479,7 +484,9 @@ public class Connector implements NamedWriteable, ToXContentObject {
         out.writeEnum(status);
         out.writeGenericValue(syncCursor);
         out.writeBoolean(syncNow);
-        out.writeBoolean(isDeleted);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
+            out.writeBoolean(isDeleted);
+        }
     }
 
     public String getConnectorId() {

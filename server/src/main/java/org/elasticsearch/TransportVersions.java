@@ -140,6 +140,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
     public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_809_00_0);
     public static final TransportVersion NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION = def(8_810_00_0);
+    public static final TransportVersion CONNECTOR_API_SUPPORT_SOFT_DELETES = def(8_811_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

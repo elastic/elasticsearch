@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -16,6 +17,9 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
 
 public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<ListConnectorAction.Request> {
     @Override
@@ -56,5 +60,12 @@ public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
             instance.getConnectorSearchQuery(),
             instance.getDeleted()
         );
+    }
+
+    @Override
+    protected List<TransportVersion> bwcVersions() {
+        return getAllBWCVersions().stream()
+            .filter(v -> v.onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES))
+            .collect(Collectors.toList());
     }
 }

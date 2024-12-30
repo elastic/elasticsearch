@@ -6,7 +6,7 @@
 {es} exposes REST APIs that are used by the UI components and can be called
 directly to configure and access {es} features.
 
-..New API reference
+.New API reference
 [sidebar]
 For the most up-to-date API details, refer to {api-es}[{es} APIs].
 

@@ -17,6 +17,9 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionRes
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.action.CoordinatedInferenceStreamAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
@@ -145,6 +149,7 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(InferenceResults.class, LegacyTextEmbeddingResults.NAME, LegacyTextEmbeddingResults::new)
         );
 
+        addInferenceRequestsNamedWriteables(namedWriteables);
         addInferenceResultsNamedWriteables(namedWriteables);
 
         // Empty default task settings
@@ -187,6 +192,7 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
         namedWriteables.addAll(SageMakerModel.namedWriteables());
         namedWriteables.addAll(SageMakerSchemas.namedWriteables());
+        namedWriteables.addAll(CoordinatedInferenceStreamAction.namedWriteables());
 
         return namedWriteables;
     }
@@ -618,6 +624,19 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ChunkingSettings.class, RecursiveChunkingSettings.NAME, RecursiveChunkingSettings::new)
+        );
+    }
+
+    private static void addInferenceRequestsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(BaseInferenceActionRequest.class, InferenceAction.Request.NAME, InferenceAction.Request::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                BaseInferenceActionRequest.class,
+                UnifiedCompletionAction.Request.NAME,
+                UnifiedCompletionAction.Request::new
+            )
         );
     }
 

@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_CROSS_NODE_STREAMING;
 import static org.elasticsearch.core.Strings.format;
 
 public class InferenceAction extends ActionType<InferenceAction.Response> {
@@ -55,6 +56,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Request extends BaseInferenceActionRequest {
 
+        public static final String NAME = "InferenceActionRequest";
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField INPUT_TYPE = new ParseField("input_type");
@@ -191,8 +193,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.topN = null;
             }
 
-            // streaming is not supported yet for transport traffic
-            this.stream = false;
+            this.stream = in.getTransportVersion().onOrAfter(INFERENCE_CROSS_NODE_STREAMING) && in.readBoolean();
         }
 
         public TaskType getTaskType() {
@@ -310,6 +311,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
             }
+
+            if (out.getTransportVersion().onOrAfter(INFERENCE_CROSS_NODE_STREAMING)) {
+                out.writeBoolean(stream);
+            }
         }
 
         // default for easier testing
@@ -358,6 +363,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 inferenceTimeout,
                 stream
             );
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
 
         public static class Builder {
@@ -508,7 +518,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 // hugging face elser and elser
                 results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
-            // streaming isn't supported via Writeable yet
+            // streaming isn't supported via the normal Transport protocol, use CoordinatedInferenceStreamAction
             this.isStreaming = false;
             this.publisher = null;
         }
@@ -584,7 +594,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // streaming isn't supported via Writeable yet
+            assert isStreaming == false
+                : "Streaming is not supported across the normal Transport protocol, please use CoordinatedInferenceStreamAction";
             out.writeNamedWriteable(results);
         }
 

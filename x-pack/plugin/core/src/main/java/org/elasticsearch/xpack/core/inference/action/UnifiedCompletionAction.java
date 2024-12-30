@@ -29,6 +29,9 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
     }
 
     public static class Request extends BaseInferenceActionRequest {
+
+        public static final String NAME = "UnifiedCompletionActionRequest";
+
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
@@ -140,6 +143,11 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         @Override
         public int hashCode() {
             return Objects.hash(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 

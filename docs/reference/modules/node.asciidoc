@@ -120,6 +120,25 @@ modify the contents of the data directory. The data directory contains no
 executables so a virus scan will only find false positives.
 // end::modules-node-data-path-warning-tag[]
 
+[[custom-node-attributes]]
+==== Custom node attributes
+
+If needed, you can add custom attributes to a node. These attributes can be used to <<cluster-routing-settings,filter which nodes a shard can be allocated to>>, or to group nodes together for <<shard-allocation-awareness,shard allocation awareness>>.
+
+[TIP]
+===============================================
+You can also set a node attribute using the `-E` command line argument when you start a node:
+
+[source,sh]
+--------------------------------------------------------
+./bin/elasticsearch -Enode.attr.rack_id=rack_one
+--------------------------------------------------------
+===============================================
+
+`node.attr.<attribute-name>`::
+      (<<dynamic-cluster-setting,Dynamic>>)
+      A custom attribute that you can assign to a node. For example, you might assign a `rack_id` attribute to each node to ensure that primary and replica shards are not allocated on the same rack. You can specify multiple attributes as a comma-separated list.
+
 [discrete]
 [[other-node-settings]]
 === Other node settings

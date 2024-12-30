@@ -6,7 +6,7 @@ allocates shards from any index. These cluster wide filters are applied in
 conjunction with <<shard-allocation-filtering, per-index allocation filtering>>
 and <<shard-allocation-awareness, allocation awareness>>.
 
-Shard allocation filters can be based on custom node attributes or the built-in
+Shard allocation filters can be based on <<custom-node-attributes,custom node attributes>> or the built-in
 `_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host`, `_id` and `_tier` attributes.
 
 The `cluster.routing.allocation` settings are <<dynamic-cluster-setting,dynamic>>, enabling live indices to

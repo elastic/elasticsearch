@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

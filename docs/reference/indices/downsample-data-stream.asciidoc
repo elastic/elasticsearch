@@ -5,6 +5,12 @@
 <titleabbrev>Downsample</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Aggregates a time series (TSDS) index and stores
 pre-computed statistical summaries (`min`, `max`, `sum`, `value_count` and
 `avg`) for each metric field grouped by a configured time interval. For example,

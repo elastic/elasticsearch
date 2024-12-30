@@ -2,6 +2,12 @@
 [[data-stream-apis]]
 == Data stream APIs
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 The following APIs are available for managing <<data-streams,data streams>>:
 
 * <<indices-create-data-stream>>

@@ -4,7 +4,7 @@
 .New API Reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[CAT APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[Compact and aligned text (CAT) APIs].
 --
 
 ["float",id="intro"]

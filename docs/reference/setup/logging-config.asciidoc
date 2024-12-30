@@ -11,7 +11,7 @@ If you run {es} from the command line, {es} prints logs to the standard output
 (`stdout`).
 
 [discrete]
-[[loggin-configuration]]
+[[logging-configuration]]
 === Logging configuration
 
 IMPORTANT: Elastic strongly recommends using the Log4j 2 configuration that is shipped by default.

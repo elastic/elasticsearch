@@ -77,6 +77,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -432,7 +433,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }
 
-    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+    protected void onShardResult(SearchPhaseResult result) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
@@ -457,7 +458,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
-        results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
+        results.consumeResult(result, () -> onShardResultConsumed(result));
     }
 
     static SearchPhase nextPhase(
@@ -540,7 +541,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                 getOriginalIndices(shardIndex),
                                 shardIndex,
                                 routing.getShardId(),
-                                shardIterators[shardIndex].getSearchContextId()
+                                shardRoutings.getSearchContextId()
                             )
                         );
                     } else {
@@ -616,7 +617,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                 @Override
                                 public void handleException(TransportException e) {
                                     for (ShardToQuery shard : request.shards) {
-                                        var shardIt = shardsIts.get(shard.shardIndex);
+                                        var shardIt = shardIterators[shard.shardIndex];
                                         onShardFailure(
                                             shard.shardIndex,
                                             new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
@@ -690,7 +691,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 @Override
                 public void innerOnResponse(SearchPhaseResult result) {
                     try {
-                        onShardResult(result, shardIt);
+                        onShardResult(result);
                     } catch (Exception exc) {
                         onShardFailure(shardIndex, shard, shardIt, exc);
                     }
@@ -739,10 +740,15 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         }
     }
 
+    private final AtomicReference<Throwable> done = new AtomicReference<>(null);
+
     private void finishShardAndMaybePhase(ShardId shardId) {
         boolean removed = outstandingShards.remove(shardId);
         assert removed : "unknown shardId " + shardId;
         if (outstandingShards.isEmpty()) {
+            if (done.compareAndSet(null, new RuntimeException("successful ops " + successfulOps.get())) == false) {
+                throw new AssertionError("failed to finish shard", done.get());
+            }
             executeNextPhase(this.getName(), this::getNextPhase);
         }
     }
@@ -788,6 +794,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
             if (results.hasResult(shardIndex)) {
                 assert failure == null : "shard failed before but shouldn't: " + failure;
+                outstandingShards.add(shardTarget.getShardId());
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
@@ -797,11 +804,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         successfulOps.incrementAndGet();
         skippedOps.incrementAndGet();
         assert iterator.skip();
-        successfulShardExecution(iterator);
-    }
-
-    private void successfulShardExecution(SearchShardIterator shardsIt) {
-        finishShardAndMaybePhase(shardsIt.shardId());
+        finishShardAndMaybePhase(iterator.shardId());
     }
 
     @Override
@@ -931,7 +934,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         return AbstractSearchAsyncAction.isPartOfPIT(namedWriteableRegistry, request, contextId);
     }
 
-    private void onShardResultConsumed(SearchPhaseResult result, SearchShardIterator shardIt) {
+    private void onShardResultConsumed(SearchPhaseResult result) {
         successfulOps.incrementAndGet();
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
         // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
@@ -945,7 +948,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
         // increment all the "future" shards to update the total ops since we some may work and some may not...
         // and when that happens, we break on total ops, so we must maintain them
-        successfulShardExecution(shardIt);
+        finishShardAndMaybePhase(result.getSearchShardTarget().getShardId());
     }
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
@@ -976,7 +979,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     ((CancellableTask) task)::isCancelled,
                     SearchProgressListener.NOOP,
                     request.shards.size(),
-                    e -> {}
+                    e -> logger.error("failed to merge on data node", e)
                 );
                 final Runnable onDone = () -> {
                     if (countDown.countDown()) {

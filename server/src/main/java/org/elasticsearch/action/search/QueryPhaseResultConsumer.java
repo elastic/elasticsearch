@@ -161,6 +161,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult);
+        assert result.getShardIndex() == querySearchResult.getShardIndex();
         consume(querySearchResult, next);
     }
 
@@ -179,8 +180,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    private final AtomicReference<Throwable> reduced = new AtomicReference<>(null);
+
     @Override
     public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
+        if (reduced.compareAndSet(null, new RuntimeException()) == false) {
+            throw new AssertionError();
+        }
         if (hasPendingMerges()) {
             throw new AssertionError("partial reduce in-flight");
         }
@@ -190,7 +196,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         // ensure consistent ordering
-        sortBuffer();
+        buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1);
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
@@ -343,12 +349,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private boolean hasPendingMerges() {
         return queue.isEmpty() == false || runningTask.get() != null;
-    }
-
-    void sortBuffer() {
-        if (buffer.size() > 0) {
-            buffer.sort(RESULT_COMPARATOR);
-        }
     }
 
     private synchronized void addWithoutBreaking(long size) {

@@ -612,7 +612,7 @@ public abstract class TransportBroadcastByNodeAction<
      * which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {
-        public static EmptyResult INSTANCE = new EmptyResult();
+        public static final EmptyResult INSTANCE = new EmptyResult();
 
         private EmptyResult() {}
 

@@ -96,7 +96,7 @@ public class BlobCacheMetrics {
         this.cachePopulationTime = cachePopulationTime;
     }
 
-    public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
+    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     public LongCounter getCacheMissCounter() {
         return cacheMissCounter;

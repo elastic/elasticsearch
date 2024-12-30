@@ -353,7 +353,7 @@ public class BulkByScrollTask extends CancellableTask {
         public static final String THROTTLED_UNTIL_HR_FIELD = "throttled_until";
         public static final String SLICES_FIELD = "slices";
 
-        public static Set<String> FIELDS_SET = new HashSet<>();
+        public static final Set<String> FIELDS_SET = new HashSet<>();
         static {
             FIELDS_SET.add(SLICE_ID_FIELD);
             FIELDS_SET.add(TOTAL_FIELD);
@@ -774,7 +774,7 @@ public class BulkByScrollTask extends CancellableTask {
         private final Status status;
         private final Exception exception;
 
-        public static Set<String> EXPECTED_EXCEPTION_FIELDS = new HashSet<>();
+        public static final Set<String> EXPECTED_EXCEPTION_FIELDS = new HashSet<>();
         static {
             EXPECTED_EXCEPTION_FIELDS.add("type");
             EXPECTED_EXCEPTION_FIELDS.add("reason");

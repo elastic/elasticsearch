@@ -52,7 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @param fieldName The original field name.
  * @param originalValues The original values associated with the field name for indices created before
- *                       {@link IndexVersions#INFERENCE_METADATA_FIELDS}, null otherwise.
+ *                       {@link IndexVersions#INFERENCE_METADATA_FIELDS_BACKPORT}, null otherwise.
  * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
  */

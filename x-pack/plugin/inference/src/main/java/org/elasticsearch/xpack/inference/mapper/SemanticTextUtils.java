@@ -100,7 +100,7 @@ public interface SemanticTextUtils {
             // This should never happen. Throw in case it does for some reason.
             throw new IllegalStateException("extractSuffixMaps returned an empty suffix map list");
         } else if (suffixMaps.size() == 1) {
-            SuffixMap suffixMap = suffixMaps.getFirst();
+            SuffixMap suffixMap = suffixMaps.get(0);
             suffixMap.map().put(suffixMap.suffix(), newValue);
         } else {
             throw new IllegalArgumentException(

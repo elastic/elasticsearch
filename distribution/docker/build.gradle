@@ -28,7 +28,7 @@ repositories {
   // other Docker variants, the need for the main image to be rebuildable by Docker Hub
   // means that the Dockerfile itself has to fetch the binary.
   ivy {
-    url 'https://github.com/'
+    url = 'https://github.com/'
     patternLayout {
       artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[classifier]'
     }
@@ -414,8 +414,8 @@ subprojects { Project subProject ->
     }
 
     artifacts.add('default', file(tarFile)) {
-      type 'tar'
-      name artifactName
+      type = 'tar'
+      name = artifactName
       builtBy exportTaskName
     }
   }

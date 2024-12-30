@@ -9,8 +9,8 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
-  classname 'org.elasticsearch.plugin.mapper.MapperSizePlugin'
+  description = 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
+  classname ='org.elasticsearch.plugin.mapper.MapperSizePlugin'
 }
 
 restResources {

@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
-  name 'x-pack-test-deprecated-query'
-  description 'Deprecated query plugin'
-  classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
+  name = 'x-pack-test-deprecated-query'
+  description = 'Deprecated query plugin'
+  classname ='org.elasticsearch.query.DeprecatedQueryPlugin'
 }
 
 restResources {

@@ -9,8 +9,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds advanced field mappers'
-  classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
+  description = 'Adds advanced field mappers'
+  classname = 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
   hasClientJar = true
 }
 

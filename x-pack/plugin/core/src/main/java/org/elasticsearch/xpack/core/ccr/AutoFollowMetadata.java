@@ -13,12 +13,13 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -149,10 +150,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFieldObjects(PATTERNS_FIELD.getPreferredName(), patterns)
-            .object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs)
-            .object(HEADERS.getPreferredName(), headers);
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentFragmentValuesMap(PATTERNS_FIELD.getPreferredName(), patterns),
+            ChunkedToXContentHelper.map(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs),
+            ChunkedToXContentHelper.map(HEADERS.getPreferredName(), headers)
+        );
     }
 
     @Override
@@ -282,11 +284,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-                this.active = in.readBoolean();
-            } else {
-                this.active = true;
-            }
+            this.active = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 this.leaderIndexExclusionPatterns = in.readStringCollectionAsList();
             } else {
@@ -351,9 +349,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
                 settings.writeTo(out);
             }
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-                out.writeBoolean(active);
-            }
+            out.writeBoolean(active);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }

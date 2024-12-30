@@ -11,7 +11,8 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -34,19 +35,12 @@ public class RestKnnSearchAction extends BaseRestHandler {
 
     public RestKnnSearchAction() {}
 
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_RELEVANCE)
-    // these routes were ".deprecated" in RestApiVersion.V_8 which will require use of REST API compatibility headers to access
-    // this API in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
-    // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
-    // Please review and update the code and tests as needed. The original code remains commented out below for reference.
     @Override
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE)
     public List<Route> routes() {
-
         return List.of(
-            // Route.builder(GET, "{index}/_knn_search").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_8).build(),
-            // Route.builder(POST, "{index}/_knn_search").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_8).build()
-            Route.builder(GET, "{index}/_knn_search").deprecateAndKeep(DEPRECATION_MESSAGE).build(),
-            Route.builder(POST, "{index}/_knn_search").deprecateAndKeep(DEPRECATION_MESSAGE).build()
+            Route.builder(GET, "{index}/_knn_search").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_8).build(),
+            Route.builder(POST, "{index}/_knn_search").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_8).build()
         );
     }
 

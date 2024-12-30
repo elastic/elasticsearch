@@ -19,8 +19,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.junit.ClassRule;
 
@@ -30,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,6 +48,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
+        .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)
         .build();
 
     @Override
@@ -333,23 +339,47 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
-        return inferInternal(endpoint, input, Map.of());
+        return inferInternal(endpoint, input, null, Map.of());
     }
 
-    protected Deque<ServerSentEvent> streamInferOnMockService(String modelId, TaskType taskType, List<String> input) throws Exception {
+    protected Deque<ServerSentEvent> streamInferOnMockService(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
         var endpoint = Strings.format("_inference/%s/%s/_stream", taskType, modelId);
-        return callAsync(endpoint, input);
+        return callAsync(endpoint, input, responseConsumerCallback);
     }
 
-    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input) throws Exception {
-        var responseConsumer = new AsyncInferenceResponseConsumer();
+    protected Deque<ServerSentEvent> unifiedCompletionInferOnMockService(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
+        var endpoint = Strings.format("_inference/%s/%s/_unified", taskType, modelId);
+        return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
+    }
+
+    private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input, @Nullable Consumer<Response> responseConsumerCallback)
+        throws Exception {
         var request = new Request("POST", endpoint);
-        request.setJsonEntity(jsonBody(input));
+        request.setJsonEntity(jsonBody(input, null));
+
+        return execAsyncCall(request, responseConsumerCallback);
+    }
+
+    private Deque<ServerSentEvent> execAsyncCall(Request request, @Nullable Consumer<Response> responseConsumerCallback) throws Exception {
+        var responseConsumer = new AsyncInferenceResponseConsumer();
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
         var latch = new CountDownLatch(1);
         client().performRequestAsync(request, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
+                if (responseConsumerCallback != null) {
+                    responseConsumerCallback.accept(response);
+                }
                 latch.countDown();
             }
 
@@ -362,35 +392,83 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return responseConsumer.events();
     }
 
+    private Deque<ServerSentEvent> callAsyncUnified(
+        String endpoint,
+        List<String> input,
+        String role,
+        @Nullable Consumer<Response> responseConsumerCallback
+    ) throws Exception {
+        var request = new Request("POST", endpoint);
+
+        request.setJsonEntity(createUnifiedJsonBody(input, role));
+        return execAsyncCall(request, responseConsumerCallback);
+    }
+
+    private String createUnifiedJsonBody(List<String> input, String role) throws IOException {
+        var messages = input.stream().map(i -> Map.of("content", i, "role", role)).toList();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        builder.field("messages", messages);
+        builder.endObject();
+        return org.elasticsearch.common.Strings.toString(builder);
+    }
+
     protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return inferInternal(endpoint, input, Map.of());
+        return inferInternal(endpoint, input, null, Map.of());
     }
 
     protected Map<String, Object> infer(String modelId, TaskType taskType, List<String> input, Map<String, String> queryParameters)
         throws IOException {
         var endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
-        return inferInternal(endpoint, input, queryParameters);
+        return inferInternal(endpoint, input, null, queryParameters);
     }
 
-    protected Request createInferenceRequest(String endpoint, List<String> input, Map<String, String> queryParameters) {
+    protected Map<String, Object> infer(
+        String modelId,
+        TaskType taskType,
+        List<String> input,
+        String query,
+        Map<String, String> queryParameters
+    ) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
+        return inferInternal(endpoint, input, query, queryParameters);
+    }
+
+    protected Request createInferenceRequest(
+        String endpoint,
+        List<String> input,
+        @Nullable String query,
+        Map<String, String> queryParameters
+    ) {
         var request = new Request("POST", endpoint);
-        request.setJsonEntity(jsonBody(input));
+        request.setJsonEntity(jsonBody(input, query));
         if (queryParameters.isEmpty() == false) {
             request.addParameters(queryParameters);
         }
         return request;
     }
 
-    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
-        var request = createInferenceRequest(endpoint, input, queryParameters);
+    private Map<String, Object> inferInternal(
+        String endpoint,
+        List<String> input,
+        @Nullable String query,
+        Map<String, String> queryParameters
+    ) throws IOException {
+        var request = createInferenceRequest(endpoint, input, query, queryParameters);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
     }
 
-    private String jsonBody(List<String> input) {
-        var bodyBuilder = new StringBuilder("{\"input\": [");
+    private String jsonBody(List<String> input, @Nullable String query) {
+        final StringBuilder bodyBuilder = new StringBuilder("{");
+
+        if (query != null) {
+            bodyBuilder.append("\"query\":\"").append(query).append("\",");
+        }
+
+        bodyBuilder.append("\"input\": [");
         for (var in : input) {
             bodyBuilder.append('"').append(in).append('"').append(',');
         }

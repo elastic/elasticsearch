@@ -1,3 +1,10 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -6,9 +13,9 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.publish'
 
 esplugin {
-  name 'x-pack-kql'
-  description 'Elasticsearch Expanded Pack Plugin - KQL query'
-  classname 'org.elasticsearch.xpack.kql.KqlPlugin'
+  name = 'x-pack-kql'
+  description = 'Elasticsearch Expanded Pack Plugin - KQL query'
+  classname ='org.elasticsearch.xpack.kql.KqlPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

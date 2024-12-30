@@ -21,6 +21,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
@@ -85,13 +86,14 @@ public class MrjarPlugin implements Plugin<Project> {
             configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME), 21);
             for (int javaVersion : mainVersions) {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
-                SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+                SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion, true);
                 configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                addJar(project, mainSourceSet, javaVersion);
                 mainSourceSets.add(mainSourceSetName);
                 testSourceSets.add(mainSourceSetName);
 
                 String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
-                SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
+                SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion, false);
                 testSourceSets.add(testSourceSetName);
                 createTestTask(project, buildParams, testSourceSet, javaVersion, mainSourceSets);
             }
@@ -119,7 +121,8 @@ public class MrjarPlugin implements Plugin<Project> {
         JavaPluginExtension javaExtension,
         String sourceSetName,
         List<String> parentSourceSets,
-        int javaVersion
+        int javaVersion,
+        boolean isMainSourceSet
     ) {
         SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourceSetName);
         for (String parentSourceSetName : parentSourceSets) {
@@ -133,6 +136,13 @@ public class MrjarPlugin implements Plugin<Project> {
             CompileOptions compileOptions = compileTask.getOptions();
             compileOptions.getRelease().set(javaVersion);
         });
+        if (isMainSourceSet) {
+            project.getTasks().create(sourceSet.getJavadocTaskName(), Javadoc.class, javadocTask -> {
+                javadocTask.getJavadocTool().set(javaToolchains.javadocToolFor(spec -> {
+                    spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion));
+                }));
+            });
+        }
         configurePreviewFeatures(project, sourceSet, javaVersion);
 
         // Since we configure MRJAR sourcesets to allow preview apis, class signatures for those
@@ -145,6 +155,14 @@ public class MrjarPlugin implements Plugin<Project> {
         });
 
         return sourceSet;
+    }
+
+    private void addJar(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getConfigurations().register("java" + javaVersion);
+        TaskProvider<Jar> jarTask = project.getTasks().register("java" + javaVersion + "Jar", Jar.class, task -> {
+            task.from(sourceSet.getOutput());
+        });
+        project.getArtifacts().add("java" + javaVersion, jarTask);
     }
 
     private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {

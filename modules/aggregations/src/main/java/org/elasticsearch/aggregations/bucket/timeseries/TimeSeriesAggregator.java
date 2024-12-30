@@ -83,8 +83,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
                         BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
                         docCount,
-                        null,
-                        keyed
+                        null
                     );
                     bucket.bucketOrd = ordsEnum.ord();
                     buckets.add(bucket);

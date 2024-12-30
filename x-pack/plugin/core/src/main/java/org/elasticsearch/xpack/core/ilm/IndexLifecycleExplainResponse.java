@@ -328,7 +328,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 indexCreationDate = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RETAIN_ILM_STEP_INFO)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 previousStepInfo = in.readOptionalBytesReference();
             } else {
                 previousStepInfo = null;
@@ -379,7 +379,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 out.writeOptionalLong(indexCreationDate);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RETAIN_ILM_STEP_INFO)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalBytesReference(previousStepInfo);
             }
         }

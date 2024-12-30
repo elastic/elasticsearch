@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -41,12 +43,13 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
         this.licenseService = new SyntheticSourceLicenseService(settings);
-        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(settings);
+        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(licenseService, settings);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
+        licenseService.setLicenseService(getLicenseService());
+        licenseService.setLicenseState(getLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
         // The `cluster.logsdb.enabled` setting is registered by this plugin, but its value may be updated by other plugins
         // before this plugin registers its settings update consumer below. This means we might miss updates that occurred earlier.
@@ -64,16 +67,13 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        if (DiscoveryNode.isStateless(settings)) {
-            return List.of(logsdbIndexModeSettingsProvider);
+        if (DiscoveryNode.isStateless(settings) == false) {
+            logsdbIndexModeSettingsProvider.init(
+                parameters.mapperServiceFactory(),
+                () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
+            );
         }
-        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
-            licenseService,
-            parameters.mapperServiceFactory(),
-            logsdbIndexModeSettingsProvider,
-            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
-        );
-        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
+        return List.of(logsdbIndexModeSettingsProvider);
     }
 
     @Override
@@ -87,5 +87,13 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
         actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected LicenseService getLicenseService() {
+        return XPackPlugin.getSharedLicenseService();
     }
 }

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Dat
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -106,7 +106,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -119,6 +118,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -199,11 +199,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
-                return hackLookupMapping(plan);
-            }
-            if (context.indexResolution().isValid() == false) {
-                return plan.unresolvedMessage().equals(context.indexResolution().toString())
+            return resolveIndex(
+                plan,
+                plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution().get(plan.table().index()) : context.indexResolution()
+            );
+        }
+
+        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+            if (indexResolution == null || indexResolution.isValid() == false) {
+                String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
+                return plan.unresolvedMessage().equals(indexResolutionMessage)
                     ? plan
                     : new UnresolvedRelation(
                         plan.source(),
@@ -211,12 +216,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
-                        context.indexResolution().toString(),
+                        indexResolutionMessage,
                         plan.commandName()
                     );
             }
             TableIdentifier table = plan.table();
-            if (context.indexResolution().matches(table.index()) == false) {
+            if (indexResolution.matches(table.index()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new UnresolvedRelation(
                     plan.source(),
@@ -224,31 +229,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
-                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]",
+                    "invalid [" + table + "] resolution to [" + indexResolution + "]",
                     plan.commandName()
                 );
             }
 
-            EsIndex esIndex = context.indexResolution().get();
+            EsIndex esIndex = indexResolution.get();
+
+            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
+                String indexResolutionMessage = null;
+
+                var indexNameWithModes = esIndex.indexNameWithModes();
+                if (indexNameWithModes.size() != 1) {
+                    indexResolutionMessage = "invalid ["
+                        + table
+                        + "] resolution in lookup mode to ["
+                        + indexNameWithModes.size()
+                        + "] indices";
+                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                    indexResolutionMessage = "invalid ["
+                        + table
+                        + "] resolution in lookup mode to an index in ["
+                        + indexNameWithModes.values().iterator().next()
+                        + "] mode";
+                }
+
+                if (indexResolutionMessage != null) {
+                    return new UnresolvedRelation(
+                        plan.source(),
+                        plan.table(),
+                        plan.frozen(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        indexResolutionMessage,
+                        plan.commandName()
+                    );
+                }
+            }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
-        }
-
-        private LogicalPlan hackLookupMapping(UnresolvedRelation plan) {
-            if (plan.table().index().toLowerCase(Locale.ROOT).equals("languages_lookup")) {
-                EsIndex esIndex = new EsIndex(
-                    "languages_lookup",
-                    Map.ofEntries(
-                        Map.entry("language_code", new EsField("language_code", DataType.LONG, Map.of(), true)),
-                        Map.entry("language_name", new EsField("language", DataType.KEYWORD, Map.of(), true))
-                    ),
-                    Map.of("languages_lookup", IndexMode.LOOKUP)
-                );
-                var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
-                return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
-            }
-            return plan;
         }
     }
 
@@ -624,8 +644,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
-            // rewrite the join into a equi-join between the field with the same name between left and right
-            // per SQL standard, the USING columns are placed first in the output, followed by the rest of left, then right
+            // rewrite the join into an equi-join between the field with the same name between left and right
             if (type instanceof UsingJoinType using) {
                 List<Attribute> cols = using.columns();
                 // the lookup cannot be resolved, bail out
@@ -647,17 +666,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // resolve the using columns against the left and the right side then assemble the new join config
                 List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
-                List<Attribute> output = new ArrayList<>(join.left().output());
-                // the order is stable (since the AttributeSet preservers the insertion order)
-                output.addAll(join.right().outputSet().subtract(new AttributeSet(rightKeys)));
 
-                // update the config - pick the left keys as those in the output
-                type = new UsingJoinType(coreJoin, rightKeys);
-                config = new JoinConfig(type, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config, output);
-            }
-            // everything else is unsupported for now
-            else {
+                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config);
+            } else if (type != JoinTypes.LEFT) {
+                // everything else is unsupported for now
+                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
+                // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
@@ -673,18 +688,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (resolvedCol instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
-                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + "in " + side + " side of join"));
+                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
                     resolved.add(resolvedCol);
-                }
-                // columns are expected to be unresolved - if that's not the case return an error
-                else {
-                    return singletonList(
-                        new UnresolvedAttribute(
-                            col.source(),
-                            col.name(),
-                            "Surprised to discover column [ " + col.name() + "] already resolved"
-                        )
+                } else {
+                    throw new IllegalStateException(
+                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
                     );
                 }
             }
@@ -1067,21 +1076,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison, In and GroupingFunction to desired data types.
      * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
-     * date > "2024-08-21"
-     * date in ("2024-08-21", "2024-08-22", "2024-08-23")
-     * date = "2024-08-21" + 3 days
-     * ip == "127.0.0.1"
-     * version != "1.0"
-     * bucket(dateField, "1 month")
-     * date_trunc("1 minute", dateField)
-     *
+     * <ul>
+     * <li>date > "2024-08-21"</li>
+     * <li>date in ("2024-08-21", "2024-08-22", "2024-08-23")</li>
+     * <li>date = "2024-08-21" + 3 days</li>
+     * <li>ip == "127.0.0.1"</li>
+     * <li>version != "1.0"</li>
+     * <li>bucket(dateField, "1 month")</li>
+     * <li>date_trunc("1 minute", dateField)</li>
+     * </ul>
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
      * applicable. For example, implicit casting converts:
-     * Coalesce(Long, Int) to Coalesce(Long, Long)
-     * Coalesce(null, Long, Int) to Coalesce(null, Long, Long)
-     * Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)
-     * Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)
-     *
+     * <ul>
+     * <li>Coalesce(Long, Int) to Coalesce(Long, Long)</li>
+     * <li>Coalesce(null, Long, Int) to Coalesce(null, Long, Long)</li>
+     * <li>Coalesce(Double, Long, Int) to Coalesce(Double, Double, Double)</li>
+     * <li>Coalesce(null, Double, Long, Int) to Coalesce(null, Double, Double, Double)</li>
+     * </ul>
      * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
      */
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
@@ -1262,7 +1273,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
+            return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {

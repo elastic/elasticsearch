@@ -112,7 +112,7 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.RankVectorsFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -206,7 +206,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
         DenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
-        MultiDenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
+        RankVectorsFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
         SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
         NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
@@ -357,7 +357,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList()),
-            List.of()
+            List.of(),
+            indexSettings
         );
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
             .fielddataBuilder(
@@ -465,7 +466,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of());
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), indexSettings);
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
             .when(subContext)
             .getNestedDocuments();
@@ -671,54 +672,49 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 Releasables.close(context);
             }
         }
-
-        try {
-            if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {
-                // sometimes do an incremental reduce
-                int toReduceSize = internalAggs.size();
-                Collections.shuffle(internalAggs, random());
-                int r = randomIntBetween(1, toReduceSize);
-                List<InternalAggregations> toReduce = internalAggs.subList(0, r);
-                AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
-                    bigArraysForReduction,
-                    getMockScriptService(),
-                    () -> false,
-                    builder,
-                    b -> {}
-                );
-                internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
-                internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
-                for (InternalAggregations internalAggregation : internalAggs) {
-                    assertRoundTrip(internalAggregation.copyResults());
-                }
-            }
-
-            // now do the final reduce
-            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
-                maxBucket,
-                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-            );
-            AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+        if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {
+            // sometimes do an incremental reduce
+            int toReduceSize = internalAggs.size();
+            Collections.shuffle(internalAggs, random());
+            int r = randomIntBetween(1, toReduceSize);
+            List<InternalAggregations> toReduce = internalAggs.subList(0, r);
+            AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
                 bigArraysForReduction,
                 getMockScriptService(),
                 () -> false,
                 builder,
-                reduceBucketConsumer
+                b -> {}
             );
-
-            @SuppressWarnings("unchecked")
-            A internalAgg = (A) doInternalAggregationsReduce(internalAggs, reduceContext);
-            assertRoundTrip(internalAgg);
-
-            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
-            assertRoundTrip(internalAgg);
-            if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
-                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
+            internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
+            internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
+            for (InternalAggregations internalAggregation : internalAggs) {
+                assertRoundTrip(internalAggregation.copyResults());
             }
-            return internalAgg;
-        } finally {
-            Releasables.close(breakerService);
         }
+
+        // now do the final reduce
+        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            bigArraysForReduction,
+            getMockScriptService(),
+            () -> false,
+            builder,
+            reduceBucketConsumer
+        );
+
+        @SuppressWarnings("unchecked")
+        A internalAgg = (A) doInternalAggregationsReduce(internalAggs, reduceContext);
+        assertRoundTrip(internalAgg);
+
+        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        assertRoundTrip(internalAgg);
+        if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
+        }
+        return internalAgg;
     }
 
     private InternalAggregation doReduce(List<InternalAggregation> aggregators, AggregationReduceContext reduceContext) {

@@ -20,6 +20,7 @@ public class DataStreamFeatureSetUsageTests extends AbstractWireSerializingTestC
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomNonNegativeLong()
             )
         );

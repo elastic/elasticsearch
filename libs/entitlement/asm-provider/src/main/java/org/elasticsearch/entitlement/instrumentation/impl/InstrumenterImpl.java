@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.objectweb.asm.AnnotationVisitor;
@@ -36,23 +36,36 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public class InstrumenterImpl implements Instrumenter {
+
+    private final String getCheckerClassMethodDescriptor;
+    private final String handleClass;
+
     /**
      * To avoid class name collisions during testing without an agent to replace classes in-place.
      */
     private final String classNameSuffix;
-    private final Map<MethodKey, CheckerMethod> instrumentationMethods;
+    private final Map<MethodKey, CheckMethod> checkMethods;
 
-    public InstrumenterImpl(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
+    InstrumenterImpl(
+        String handleClass,
+        String getCheckerClassMethodDescriptor,
+        String classNameSuffix,
+        Map<MethodKey, CheckMethod> checkMethods
+    ) {
+        this.handleClass = handleClass;
+        this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
-        this.instrumentationMethods = instrumentationMethods;
+        this.checkMethods = checkMethods;
     }
 
-    public ClassFileInfo instrumentClassFile(Class<?> clazz) throws IOException {
-        ClassFileInfo initial = getClassFileInfo(clazz);
-        return new ClassFileInfo(initial.fileName(), instrumentClass(Type.getInternalName(clazz), initial.bytecodes()));
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+        Type checkerClassType = Type.getType(checkerClass);
+        String handleClass = checkerClassType.getInternalName() + "Handle";
+        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }
 
-    public static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
+    static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
         String internalName = Type.getInternalName(clazz);
         String fileName = "/" + internalName + ".class";
         byte[] originalBytecodes;
@@ -138,11 +151,12 @@ public class InstrumenterImpl implements Instrumenter {
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
+                boolean isCtor = "<init>".equals(name);
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
-                var instrumentationMethod = instrumentationMethods.get(key);
+                var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
                     // LOGGER.debug("Will instrument method {}", key);
-                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, descriptor, instrumentationMethod);
+                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
                 } else {
                     // LOGGER.trace("Will not instrument method {}", key);
                 }
@@ -171,21 +185,24 @@ public class InstrumenterImpl implements Instrumenter {
 
     class EntitlementMethodVisitor extends MethodVisitor {
         private final boolean instrumentedMethodIsStatic;
+        private final boolean instrumentedMethodIsCtor;
         private final String instrumentedMethodDescriptor;
-        private final CheckerMethod instrumentationMethod;
+        private final CheckMethod checkMethod;
         private boolean hasCallerSensitiveAnnotation = false;
 
         EntitlementMethodVisitor(
             int api,
             MethodVisitor methodVisitor,
             boolean instrumentedMethodIsStatic,
+            boolean instrumentedMethodIsCtor,
             String instrumentedMethodDescriptor,
-            CheckerMethod instrumentationMethod
+            CheckMethod checkMethod
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
+            this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
-            this.instrumentationMethod = instrumentationMethod;
+            this.checkMethod = checkMethod;
         }
 
         @Override
@@ -244,24 +261,25 @@ public class InstrumenterImpl implements Instrumenter {
 
         private void forwardIncomingArguments() {
             int localVarIndex = 0;
-            if (instrumentedMethodIsStatic == false) {
+            if (instrumentedMethodIsCtor) {
+                localVarIndex++;
+            } else if (instrumentedMethodIsStatic == false) {
                 mv.visitVarInsn(Opcodes.ALOAD, localVarIndex++);
             }
             for (Type type : Type.getArgumentTypes(instrumentedMethodDescriptor)) {
                 mv.visitVarInsn(type.getOpcode(Opcodes.ILOAD), localVarIndex);
                 localVarIndex += type.getSize();
             }
-
         }
 
         private void invokeInstrumentationMethod() {
             mv.visitMethodInsn(
                 INVOKEINTERFACE,
-                instrumentationMethod.className(),
-                instrumentationMethod.methodName(),
+                checkMethod.className(),
+                checkMethod.methodName(),
                 Type.getMethodDescriptor(
                     Type.VOID_TYPE,
-                    instrumentationMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
+                    checkMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
                 ),
                 true
             );
@@ -269,14 +287,8 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(
-            INVOKESTATIC,
-            "org/elasticsearch/entitlement/bridge/EntitlementCheckerHandle",
-            "instance",
-            "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecker;",
-            false
-        );
+        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
     }
 
-    public record ClassFileInfo(String fileName, byte[] bytecodes) {}
+    record ClassFileInfo(String fileName, byte[] bytecodes) {}
 }

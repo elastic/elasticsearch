@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -227,7 +228,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
+        Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().requests()));
         assertThat(sdkRequestCounts.get("AbortMultipartObject"), greaterThan(0L));
         assertThat(sdkRequestCounts.get("DeleteObjects"), greaterThan(0L));
 
@@ -300,7 +303,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 )
             );
             metrics.forEach(metric -> {
-                assertThat(metric.attributes(), allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("operation"), hasKey("purpose")));
+                assertThat(
+                    metric.attributes(),
+                    allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
+                );
                 final S3BlobStore.Operation operation = S3BlobStore.Operation.parse((String) metric.attributes().get("operation"));
                 final S3BlobStore.StatsKey statsKey = new S3BlobStore.StatsKey(
                     operation,
@@ -310,7 +316,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 assertThat(
                     nodeName + "/" + statsKey + " has correct sum",
                     metric.getLong(),
-                    equalTo(statsCollectors.get(statsKey).counter.sum())
+                    equalTo(statsCollectors.get(statsKey).requests.sum())
                 );
                 aggregatedMetrics.compute(statsKey, (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });
@@ -337,7 +343,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
             equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA))
         );
-        final Map<String, Long> initialStats = blobStore.stats();
+        final Map<String, BlobStoreActionStats> initialStats = blobStore.stats();
         assertThat(initialStats.keySet(), equalTo(allOperations));
 
         // Collect more stats with an operation purpose other than the default
@@ -357,12 +363,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA, purpose))
         );
         // The stats report aggregates over different purposes
-        final Map<String, Long> newStats = blobStore.stats();
+        final Map<String, BlobStoreActionStats> newStats = blobStore.stats();
         assertThat(newStats.keySet(), equalTo(allOperations));
         assertThat(newStats, not(equalTo(initialStats)));
 
         // Exercise stats report that keep find grained information
-        final Map<String, Long> fineStats = statsCollectors.statsMap(true);
+        final Map<String, BlobStoreActionStats> fineStats = statsCollectors.statsMap(true);
         assertThat(
             fineStats.keySet(),
             equalTo(
@@ -373,11 +379,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertThat(
             fineStats.entrySet()
                 .stream()
-                .collect(Collectors.groupingBy(entry -> entry.getKey().split("_", 2)[1], Collectors.summingLong(Map.Entry::getValue))),
+                .collect(
+                    Collectors.groupingBy(
+                        entry -> entry.getKey().split("_", 2)[1],
+                        Collectors.reducing(BlobStoreActionStats.ZERO, Map.Entry::getValue, BlobStoreActionStats::add)
+                    )
+                ),
             equalTo(
                 newStats.entrySet()
                     .stream()
-                    .filter(entry -> entry.getValue() != 0L)
+                    .filter(entry -> entry.getValue().isZero() == false)
                     .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
             )
         );
@@ -390,7 +401,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         newStats.forEach((k, v) -> {
             if (operationsSeenForTheNewPurpose.contains(k)) {
-                assertThat(newStats.get(k), greaterThan(initialStats.get(k)));
+                assertThat(newStats.get(k).requests(), greaterThan(initialStats.get(k).requests()));
+                assertThat(newStats.get(k).operations(), greaterThan(initialStats.get(k).operations()));
             } else {
                 assertThat(newStats.get(k), equalTo(initialStats.get(k)));
             }

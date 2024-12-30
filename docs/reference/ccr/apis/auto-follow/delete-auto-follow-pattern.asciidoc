@@ -8,7 +8,7 @@
 .New API Reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[CCR APIs].
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
 --
 
 Delete {ccr} <<ccr-auto-follow,auto-follow patterns>>.

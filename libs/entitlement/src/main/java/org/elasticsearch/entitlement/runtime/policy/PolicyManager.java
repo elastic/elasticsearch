@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,7 +33,7 @@ import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
 
 public class PolicyManager {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
+    private static final Logger logger = LogManager.getLogger(PolicyManager.class);
 
     static class ModuleEntitlements {
         public static final ModuleEntitlements NONE = new ModuleEntitlements(List.of());
@@ -264,6 +263,9 @@ public class PolicyManager {
     }
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
+        }
         if (requestingModule == null) {
             logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;

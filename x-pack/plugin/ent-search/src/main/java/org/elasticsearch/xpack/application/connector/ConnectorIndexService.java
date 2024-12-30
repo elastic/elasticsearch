@@ -195,7 +195,8 @@ public class ConnectorIndexService {
      * Gets the {@link Connector} from the underlying index.
      *
      * @param connectorId The id of the connector object.
-     * @param isDeleted   If set to true, it returns only soft-deleted connector; otherwise, it returns non-deleted connector.
+     * @param isDeleted   If false, returns only the non-deleted connector with the matching ID;
+     *                    otherwise, returns the connector with the matching ID.
      * @param listener    The action listener to invoke on response/failure.
      */
     public void getConnector(String connectorId, boolean isDeleted, ActionListener<ConnectorSearchResult> listener) {
@@ -214,7 +215,9 @@ public class ConnectorIndexService {
                         .setResultMap(getResponse.getSourceAsMap())
                         .build();
 
-                    if (isDeleted == false && getIsDeletedFromSearchResult(connector)) {
+                    boolean connectorIsSoftDeleted = isDeleted == false && isConnectorDeleted(connector);
+
+                    if (connectorIsSoftDeleted) {
                         l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
@@ -274,7 +277,7 @@ public class ConnectorIndexService {
      * @param connectorNames Filter connectors by connector names, if provided.
      * @param serviceTypes Filter connectors by service types, if provided.
      * @param searchQuery Apply a wildcard search on index name, connector name, and description, if provided.
-     * @param isDeleted  If set to true, it returns only soft-deleted connectors; otherwise, it returns non-deleted connectors.
+     * @param isDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
      * @param listener Invoked with search results or upon failure.
      */
     public void listConnectors(
@@ -326,6 +329,7 @@ public class ConnectorIndexService {
      * @param connectorNames List of connector names for filtering, or null/empty to skip.
      * @param serviceTypes List of connector service types for filtering, or null/empty to skip.
      * @param searchQuery Search query for wildcard filtering on index name, connector name, and description, or null/empty to skip.
+     * @param isDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
      * @return A {@link QueryBuilder} customized based on provided filters.
      */
     private QueryBuilder buildListQuery(
@@ -1159,7 +1163,7 @@ public class ConnectorIndexService {
         return (Map<String, Object>) searchResult.getResultMap().get(Connector.CONFIGURATION_FIELD.getPreferredName());
     }
 
-    private boolean getIsDeletedFromSearchResult(ConnectorSearchResult searchResult) {
+    private boolean isConnectorDeleted(ConnectorSearchResult searchResult) {
         Boolean isDeletedFlag = (Boolean) searchResult.getResultMap().get(Connector.IS_DELETED_FIELD.getPreferredName());
         return Boolean.TRUE.equals(isDeletedFlag);
     }
@@ -1182,7 +1186,7 @@ public class ConnectorIndexService {
     }
 
     /**
-     * This method determines if any records in the connector index have the same index name as the one specified,
+     * This method determines if any documents in the connector index have the same index name as the one specified,
      * excluding the docs marked as deleted (soft-deleted) and document with the given _id if it is provided.
      *
      * @param indexName    The name of the index to check for existence in the connector index.

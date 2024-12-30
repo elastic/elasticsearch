@@ -4,6 +4,12 @@
 <titleabbrev>cat aliases</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[Compact and aligned text (CAT) APIs]..
+--
+
 [IMPORTANT]
 ====
 cat APIs are only intended for human consumption using the command line or the 

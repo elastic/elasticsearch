@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package fixture.s3;
+package fixture.aws;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
@@ -18,10 +18,9 @@ import java.util.Set;
 /**
  * Allows dynamic creation of access-key/session-token credentials for accessing AWS services such as S3. Typically there's one service
  * (e.g. IMDS or STS) which creates credentials dynamically and registers them here using {@link #addValidCredentials}, and then the
- * {@link S3HttpFixture} uses {@link #isAuthorized} to validate the credentials it receives corresponds with some previously-generated
- * credentials.
+ * fixture uses {@link #isAuthorized} to validate the credentials it receives corresponds with some previously-generated credentials.
  */
-public class DynamicS3Credentials {
+public class DynamicAwsCredentials {
     private final Map<String, Set<String>> validCredentialsMap = ConcurrentCollections.newConcurrentMap();
 
     public boolean isAuthorized(String authorizationHeader, String sessionTokenHeader) {

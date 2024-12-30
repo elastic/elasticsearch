@@ -4,6 +4,12 @@
 <titleabbrev>Explain Data Stream Lifecycle</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Retrieves the current <<data-stream-lifecycle,data stream lifecycle>> status for one or more data stream backing indices.
 
 [[explain-lifecycle-api-prereqs]]

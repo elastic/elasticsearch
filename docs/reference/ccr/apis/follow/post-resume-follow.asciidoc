@@ -5,6 +5,12 @@
 <titleabbrev>Resume follower</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
 Resumes a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-post-resume-follow-request]]

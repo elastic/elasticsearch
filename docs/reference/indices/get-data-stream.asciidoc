@@ -5,6 +5,12 @@
 <titleabbrev>Get data stream</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Retrieves information about one or more <<data-streams,data streams>>.
 See <<get-info-about-data-stream>>.
 

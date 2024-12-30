@@ -4,6 +4,12 @@
 <titleabbrev>Shrink index</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Shrinks an existing index into a new index with fewer primary shards.
 
 

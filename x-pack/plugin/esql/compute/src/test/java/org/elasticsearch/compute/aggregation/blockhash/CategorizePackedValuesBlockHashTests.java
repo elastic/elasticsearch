@@ -70,7 +70,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
     }
 
     public void testCategorize_withDriver() {
-        runWithDriver(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking());
+        runWithDriver(bigArrays);
     }
 
     public void testCategorize_withDriver_withCrankyBreaker() {

@@ -139,7 +139,6 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
                 try {
                     serializedCategorizer = categorizeBlockHash.serializeCategorizer();
                     out.writeBytesRef(serializedCategorizer.bytesRef());
-                    serializedCategorizer = null;
                 } finally {
                     if (serializedCategorizer != null) {
                         blockFactory.breaker().addWithoutBreaking(-serializedCategorizer.preAdjustedBytes());

@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  description 'The S3 repository plugin adds S3 repositories'
-  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+  description = 'The S3 repository plugin adds S3 repositories'
+  classname ='org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
 versions << [

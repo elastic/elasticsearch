@@ -1084,7 +1084,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureComponent().getIndices();
             assertThat(failureIndices.size(), equalTo(2));
         });
 
@@ -1129,7 +1129,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureComponent().getIndices();
             assertThat(failureIndices.size(), equalTo(1));
             assertThat(failureIndices.get(0).getName(), equalTo(secondGenerationIndex));
         });
@@ -1159,7 +1159,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         return getDataStreamResponse.getDataStreams()
             .get(0)
             .getDataStream()
-            .getFailureIndices()
+            .getFailureComponent()
             .getIndices()
             .stream()
             .map(Index::getName)

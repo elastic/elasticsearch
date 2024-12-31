@@ -674,7 +674,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         dataStream.getIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
-        dataStream.getFailureIndices()
+        dataStream.getFailureComponent()
             .getIndices()
             .forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
         builder.put(dataStream);
@@ -718,7 +718,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(
-                dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size() + 1,
+                dataStream.getIndices().size() + dataStream.getFailureComponent().getIndices().size() + 1,
                 rolloverMetadata.indices().size()
             );
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
@@ -726,9 +726,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             var ds = (DataStream) rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size()));
-            assertThat(ds.getFailureIndices().getIndices(), hasSize(dataStream.getFailureIndices().getIndices().size() + 1));
-            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
-            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
+            assertThat(ds.getFailureComponent().getIndices(), hasSize(dataStream.getFailureComponent().getIndices().size() + 1));
+            assertThat(ds.getFailureComponent().getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getFailureComponent().getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(ds.getFailureStoreWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
             RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());

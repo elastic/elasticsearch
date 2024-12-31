@@ -495,11 +495,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return backingIndices.autoShardingEvent;
     }
 
-    public DataStreamIndices getBackingIndices() {
+    public DataStreamIndices getDataComponent() {
         return backingIndices;
     }
 
-    public DataStreamIndices getFailureIndices() {
+    public DataStreamIndices getFailureComponent() {
         return failureIndices;
     }
 

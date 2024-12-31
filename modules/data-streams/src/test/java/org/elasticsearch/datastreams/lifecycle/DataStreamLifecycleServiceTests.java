@@ -236,7 +236,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             .toList();
         assertThat(deleteRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
         assertThat(deleteRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
-        assertThat(deleteRequests.get(2).indices()[0], is(dataStream.getFailureIndices().getIndices().get(0).getName()));
+        assertThat(deleteRequests.get(2).indices()[0], is(dataStream.getFailureComponent().getIndices().get(0).getName()));
 
         // on the second run the rollover and delete requests should not execute anymore
         // i.e. the count should *remain* 1 for rollover and 2 for deletes
@@ -1507,7 +1507,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ).copy().setDataStreamOptions(dataStreamOptions).build(); // failure store is managed even when disabled
         builder.put(dataStream);
         Metadata metadata = builder.build();
-        Set<Index> indicesToExclude = Set.of(dataStream.getIndices().get(0), dataStream.getFailureIndices().getIndices().get(0));
+        Set<Index> indicesToExclude = Set.of(dataStream.getIndices().get(0), dataStream.getFailureComponent().getIndices().get(0));
         List<Index> targetBackingIndicesOnly = DataStreamLifecycleService.getTargetIndices(
             dataStream,
             indicesToExclude,
@@ -1519,7 +1519,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(
             targetIndices,
             equalTo(
-                List.of(dataStream.getIndices().get(1), dataStream.getIndices().get(2), dataStream.getFailureIndices().getIndices().get(1))
+                List.of(
+                    dataStream.getIndices().get(1),
+                    dataStream.getIndices().get(2),
+                    dataStream.getFailureComponent().getIndices().get(1)
+                )
             )
         );
     }
@@ -1553,7 +1557,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(rolloverFailureIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.FAILURES));
         assertThat(
             ((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0],
-            is(dataStream.getFailureIndices().getIndices().get(0).getName())
+            is(dataStream.getFailureComponent().getIndices().get(0).getName())
         );
     }
 

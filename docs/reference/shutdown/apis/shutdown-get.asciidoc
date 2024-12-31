@@ -78,6 +78,7 @@ including the status of shard migration, task migration, and plugin cleanup:
     "nodes": [
         {
             "node_id": "USpTGYaBSIKbgSUJR2Z9lg",
+            "node_ephemeral_id": null,
             "type": "RESTART",
             "reason": "Demonstrating how the node shutdown API works",
             "shutdown_startedmillis": 1624406108685,

@@ -169,9 +169,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
   method: testQueryBuilderBWC {p0=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116989
-- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
-  method: testReindexWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/118040
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
@@ -254,6 +251,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testEsqlTermsAggregationByMethod
   issue: https://github.com/elastic/elasticsearch/issues/119355
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119432
 
 # Examples:
 #

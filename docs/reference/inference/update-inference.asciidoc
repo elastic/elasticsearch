@@ -2,6 +2,12 @@
 [[update-inference-api]]
 === Update inference API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 Updates an {infer} endpoint.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.

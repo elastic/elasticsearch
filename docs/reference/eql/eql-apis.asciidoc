@@ -1,6 +1,12 @@
 [[eql-apis]]
 == EQL APIs
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-eql[EQL APIs].
+--
+
 <<eql,Event Query Language (EQL)>> is a query language for event-based time series data,
 such as logs, metrics, and traces. For an overview of EQL and related tutorials,
 see <<eql>>.

@@ -2,6 +2,12 @@
 [[graph-explore-api]]
 == Graph explore API
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-graph[Graph explore APIs].
+--
+
 The graph explore API enables you to extract and summarize information about
 the documents and terms in an {es} data stream or index.
 

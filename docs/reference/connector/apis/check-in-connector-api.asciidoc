@@ -6,6 +6,12 @@
 
 preview::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Updates the `last_seen` field of a connector with current timestamp.
 
 To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.

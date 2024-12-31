@@ -13,8 +13,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" aggregations to Elasticsearch.'
-  classname 'org.elasticsearch.aggregations.AggregationsPlugin'
+  description = 'Adds "built in" aggregations to Elasticsearch.'
+  classname ='org.elasticsearch.aggregations.AggregationsPlugin'
   extendedPlugins = ['lang-painless']
 }
 

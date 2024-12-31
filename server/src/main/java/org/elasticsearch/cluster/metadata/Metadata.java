@@ -2528,14 +2528,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         private static IndexAbstraction.Alias makeDsAliasAbstraction(Map<String, DataStream> dataStreams, DataStreamAlias alias) {
             Index writeIndexOfWriteDataStream = null;
+            Index writeFailureIndexOfWriteDataStream = null;
             if (alias.getWriteDataStream() != null) {
                 DataStream writeDataStream = dataStreams.get(alias.getWriteDataStream());
                 writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
+                writeFailureIndexOfWriteDataStream = writeDataStream.getFailureStoreWriteIndex();
             }
             return new IndexAbstraction.Alias(
                 alias,
                 alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getIndices().stream()).toList(),
-                writeIndexOfWriteDataStream
+                alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getFailureIndices().stream()).toList(),
+                writeIndexOfWriteDataStream,
+                writeFailureIndexOfWriteDataStream
             );
         }
 

@@ -39,6 +39,13 @@ public interface IndexAbstraction {
     List<Index> getIndices();
 
     /**
+     * @return All {@link Index} of all concrete indices this index abstraction is referring to.
+     */
+    default List<Index> getFailureIndices() {
+        return List.of();
+    }
+
+    /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
      * <p>
      * A write index may also be a regular concrete index of a index abstraction and may therefore also be returned
@@ -49,6 +56,18 @@ public interface IndexAbstraction {
      */
     @Nullable
     Index getWriteIndex();
+
+    /**
+     * A write failure index is a dedicated concrete index, that accepts all the new documents that belong to the failure store of
+     * an index abstraction. Only an index abstraction with true {@link #isDataStreamRelated()} supports a failure store.
+     * <p>
+     * @return the write failure index of this index abstraction or
+     * <code>null</code> if this index abstraction doesn't have a write failure index.
+     */
+    @Nullable
+    default Index getWriteFailureIndex() {
+        return null;
+    }
 
     default Index getWriteIndex(IndexRequest request, Metadata metadata) {
         return getWriteIndex();
@@ -199,6 +218,9 @@ public interface IndexAbstraction {
         private final boolean isHidden;
         private final boolean isSystem;
         private final boolean dataStreamAlias;
+        private final List<Index> referenceFailureIndices;
+        @Nullable
+        private final Index writeFailureIndex;
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indexMetadatas) {
             // note: don't capture a reference to any of these indexMetadatas here
@@ -226,12 +248,23 @@ public interface IndexAbstraction {
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
             this.isSystem = isSystem;
             dataStreamAlias = false;
+            // Failure store is supported only by data streams
+            referenceFailureIndices = List.of();
+            writeFailureIndex = null;
         }
 
-        public Alias(DataStreamAlias dataStreamAlias, List<Index> indicesOfAllDataStreams, Index writeIndexOfWriteDataStream) {
+        public Alias(
+            DataStreamAlias dataStreamAlias,
+            List<Index> indicesOfAllDataStreams,
+            List<Index> failureIndicesOfAllDataStreams,
+            Index writeIndexOfWriteDataStream,
+            Index writeFailureIndexOfWriteDataStream
+        ) {
             this.aliasName = dataStreamAlias.getName();
             this.referenceIndices = indicesOfAllDataStreams;
+            this.referenceFailureIndices = failureIndicesOfAllDataStreams;
             this.writeIndex = writeIndexOfWriteDataStream;
+            this.writeFailureIndex = writeFailureIndexOfWriteDataStream;
             this.isHidden = false;
             this.isSystem = false;
             this.dataStreamAlias = true;
@@ -251,9 +284,20 @@ public interface IndexAbstraction {
             return referenceIndices;
         }
 
+        @Override
+        public List<Index> getFailureIndices() {
+            return referenceFailureIndices;
+        }
+
         @Nullable
         public Index getWriteIndex() {
             return writeIndex;
+        }
+
+        @Nullable
+        @Override
+        public Index getWriteFailureIndex() {
+            return writeFailureIndex;
         }
 
         @Override

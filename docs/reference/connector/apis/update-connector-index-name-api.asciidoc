@@ -6,6 +6,12 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Updates the `index_name` field of a connector, specifying the index where the data ingested by the connector is stored.
 
 To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.

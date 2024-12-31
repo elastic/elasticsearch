@@ -964,6 +964,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                                 sourceNode,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(sourceNode)
+                                    .setNodeEphemeralId(sourceNode)
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                                     .setTargetNodeName(targetNode)
@@ -1359,6 +1360,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                         "node1",
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId("node1")
+                            .setNodeEphemeralId("node1")
                             .setReason("testing")
                             .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                             .setTargetNodeName("node3")

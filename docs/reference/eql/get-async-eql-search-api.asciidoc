@@ -6,6 +6,12 @@
 <titleabbrev>Get async EQL search</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-eql[EQL APIs].
+--
+
 Returns the current status and available results for an <<eql-search-async,async
 EQL search>> or a <<eql-search-store-sync-eql-search,stored synchronous EQL
 search>>.

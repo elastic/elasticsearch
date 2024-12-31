@@ -1,6 +1,12 @@
 [[features-apis]]
 == Features APIs
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-features[Features APIs].
+--
+
 You can use the following APIs to introspect and manage Features provided
 by Elasticsearch and Elasticsearch plugins.
 

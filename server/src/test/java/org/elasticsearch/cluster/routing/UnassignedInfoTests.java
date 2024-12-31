@@ -664,6 +664,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             shutdowns = shutdowns.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
+                    .setNodeEphemeralId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
@@ -684,6 +685,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(lastNodeId)
+                    .setNodeEphemeralId(lastNodeId)
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
@@ -704,6 +706,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(lastNodeId)
+                .setNodeEphemeralId(lastNodeId)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(SingleNodeShutdownMetadata.Type.RESTART)
@@ -726,6 +729,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(lastNodeId)
+                .setNodeEphemeralId(lastNodeId)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(SingleNodeShutdownMetadata.Type.RESTART)
@@ -754,6 +758,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(lastNodeId)
+                .setNodeEphemeralId(lastNodeId)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(SingleNodeShutdownMetadata.Type.RESTART)

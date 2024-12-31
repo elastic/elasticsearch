@@ -6,6 +6,12 @@
 
 preview::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Claims a connector sync job.
 
 The `_claim` endpoint is not intended for direct connector management by users. It is there to support the implementation of services that utilize the https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md[Connector Protocol] to communicate with {es}.

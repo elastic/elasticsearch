@@ -6,6 +6,11 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
 
 Updates the `name` and `description` fields of a connector.
 

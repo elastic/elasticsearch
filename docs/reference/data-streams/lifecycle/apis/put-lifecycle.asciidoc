@@ -4,6 +4,12 @@
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Configures the data stream <<data-stream-lifecycle,lifecycle>> for the targeted <<data-streams,data streams>>.
 
 [[put-lifecycle-api-prereqs]]

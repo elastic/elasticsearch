@@ -4,6 +4,12 @@
 <titleabbrev>Pending cluster tasks</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns cluster-level changes that have not yet been executed.
 
 

@@ -2,6 +2,12 @@
 [[usage-api]]
 == Usage API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-xpack[Usage APIs].
+--
+
 Provides usage information about the installed {xpack} features.
 
 [discrete]
@@ -225,7 +231,8 @@ GET /_xpack/usage
   },
   "eql" : {
     "available" : true,
-    "enabled" : true
+    "enabled" : true,
+    ...
   },
   "esql" : {
     "available" : true,
@@ -523,7 +530,10 @@ GET /_xpack/usage
     "available": true,
     "enabled": false,
     "indices_count": 0,
-    "indices_with_synthetic_source": 0
+    "indices_with_synthetic_source": 0,
+    "num_docs": 0,
+    "size_in_bytes": 0,
+    "has_custom_cutoff_date": false
   }
 }
 ------------------------------------------------------------

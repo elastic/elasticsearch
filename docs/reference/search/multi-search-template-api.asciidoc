@@ -4,6 +4,12 @@
 <titleabbrev>Multi search template</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Runs multiple <<run-multiple-templated-searches,templated searches>> with a single
 request.
 

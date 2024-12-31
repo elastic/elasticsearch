@@ -27,6 +27,12 @@ return score
 [[rrf-api]]
 ==== Reciprocal rank fusion API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 You can use RRF as part of a <<search-search, search>> to combine and rank documents using separate sets of top documents (result sets) from a combination of <<retriever, child retrievers>> using an
 <<rrf-retriever, RRF retriever>>.
 A minimum of *two* child retrievers is required for ranking.

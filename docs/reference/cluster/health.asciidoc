@@ -4,6 +4,12 @@
 <titleabbrev>Cluster health</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns the health status of a cluster.
 
 [[cluster-health-api-request]]

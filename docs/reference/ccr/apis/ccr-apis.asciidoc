@@ -2,6 +2,12 @@
 [[ccr-apis]]
 == {ccr-cap} APIs
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
 You can use the following APIs to perform <<xpack-ccr,{ccr}>> operations.
 
 [discrete]

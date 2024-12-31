@@ -4,6 +4,12 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Clears the caches of one or more indices. For data streams, the API clears the
 caches of the stream's backing indices.
 

@@ -4,6 +4,12 @@
 <titleabbrev>Create or update index template</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Creates or updates an index template. Index templates define
 <<index-modules-settings,settings>>, <<mapping,mappings>>, and <<aliases,aliases>>
 that can be applied automatically to new indices.

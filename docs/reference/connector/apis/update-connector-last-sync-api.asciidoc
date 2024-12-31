@@ -6,6 +6,12 @@
 
 preview::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Updates the fields related to the last sync of a connector.
 
 This action is used for analytics and monitoring.

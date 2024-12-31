@@ -6,6 +6,12 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Removes a connector sync job and its associated data.
 This is a destructive action that is not recoverable.
 

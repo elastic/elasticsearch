@@ -6,6 +6,12 @@
 
 NOTE: {cloud-only}
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Prevalidate node removal.
 
 [[prevalidate-node-removal-api-request]]

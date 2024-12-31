@@ -5,6 +5,12 @@
 <titleabbrev>Fleet multi search</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-fleet[{fleet} APIs].
+--
+
 Executes several <<fleet-search,fleet searches>> with a single API request.
 
 The API follows the same structure as the <<search-multi-search, multi search>> API. However,

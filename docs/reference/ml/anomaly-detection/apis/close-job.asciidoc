@@ -5,6 +5,12 @@
 <titleabbrev>Close jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Closes one or more {anomaly-jobs}.
 
 [[ml-close-job-request]]

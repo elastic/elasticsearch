@@ -533,7 +533,7 @@ public class IndexNameExpressionResolver {
         if (shouldIncludeFailureIndices(context.getOptions())) {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
-                List<Index> failureIndices = dataStream.getFailureComponent().getIndices();
+                List<Index> failureIndices = dataStream.getFailureIndices();
                 for (int i = 0, n = failureIndices.size(); i < n; i++) {
                     Index index = failureIndices.get(i);
                     if (shouldTrackConcreteIndex(context, index)) {
@@ -552,7 +552,7 @@ public class IndexNameExpressionResolver {
             }
         }
         if (shouldIncludeFailureIndices(context.getOptions())) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            Index failureStoreWriteIndex = dataStream.getWriteFailureIndex();
             if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                 if (context.options.allowFailureIndices() == false) {
                     throw new FailureIndexNotSupportedException(failureStoreWriteIndex);
@@ -579,7 +579,7 @@ public class IndexNameExpressionResolver {
                 count += dataStream.getIndices().size();
             }
             if (shouldIncludeFailureIndices(context.getOptions())) {
-                count += dataStream.getFailureComponent().getIndices().size();
+                count += dataStream.getFailureIndices().size();
             }
             return count > 1;
         }
@@ -1522,8 +1522,8 @@ public class IndexNameExpressionResolver {
                 }
                 if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    for (int i = 0, n = dataStream.getFailureComponent().getIndices().size(); i < n; i++) {
-                        Index index = dataStream.getFailureComponent().getIndices().get(i);
+                    for (int i = 0, n = dataStream.getFailureIndices().size(); i < n; i++) {
+                        Index index = dataStream.getFailureIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
                             resources.add(new ResolvedExpression(index.getName()));

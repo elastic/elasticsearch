@@ -60,7 +60,6 @@ public interface IndexAbstraction {
     /**
      * A write failure index is a dedicated concrete index, that accepts all the new documents that belong to the failure store of
      * an index abstraction. Only an index abstraction with true {@link #isDataStreamRelated()} supports a failure store.
-     * <p>
      * @return the write failure index of this index abstraction or
      * <code>null</code> if this index abstraction doesn't have a write failure index.
      */

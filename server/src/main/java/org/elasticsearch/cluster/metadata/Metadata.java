@@ -2519,7 +2519,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (Index i : dataStream.getFailureComponent().getIndices()) {
+                    for (Index i : dataStream.getFailureIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }
@@ -2532,7 +2532,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             if (alias.getWriteDataStream() != null) {
                 DataStream writeDataStream = dataStreams.get(alias.getWriteDataStream());
                 writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
-                writeFailureIndexOfWriteDataStream = writeDataStream.getFailureStoreWriteIndex();
+                writeFailureIndexOfWriteDataStream = writeDataStream.getWriteFailureIndex();
             }
             return new IndexAbstraction.Alias(
                 alias,

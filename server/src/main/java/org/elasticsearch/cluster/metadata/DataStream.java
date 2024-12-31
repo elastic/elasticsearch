@@ -276,8 +276,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     /**
      * @return the write failure index if the failure store is enabled and there is already at least one failure, null otherwise
      */
+    @Override
     @Nullable
-    public Index getFailureStoreWriteIndex() {
+    public Index getWriteFailureIndex() {
         return failureIndices.indices.isEmpty() ? null : failureIndices.getWriteIndex();
     }
 

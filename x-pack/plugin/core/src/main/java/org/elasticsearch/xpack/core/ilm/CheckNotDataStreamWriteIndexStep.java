@@ -60,7 +60,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
+            boolean isFailureStoreWriteIndex = index.equals(dataStream.getWriteFailureIndex());
             if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
                 String errorMessage = Strings.format(
                     "index [%s] is the%s write index for data stream [%s], pausing "

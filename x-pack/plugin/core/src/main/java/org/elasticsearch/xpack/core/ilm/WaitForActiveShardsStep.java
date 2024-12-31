@@ -84,7 +84,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             // Determine which write index we care about right now:
             final Index rolledIndex;
             if (dataStream.isFailureStoreIndex(index.getName())) {
-                rolledIndex = dataStream.getFailureStoreWriteIndex();
+                rolledIndex = dataStream.getWriteFailureIndex();
             } else {
                 rolledIndex = dataStream.getWriteIndex();
             }

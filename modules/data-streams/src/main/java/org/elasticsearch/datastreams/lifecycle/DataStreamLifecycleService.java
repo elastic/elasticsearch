@@ -759,10 +759,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore
-            && DataStream.isFailureStoreFeatureFlagEnabled()
-            && dataStream.getFailureComponent().getIndices().isEmpty() == false) {
-            for (Index index : dataStream.getFailureComponent().getIndices()) {
+        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            for (Index index : dataStream.getFailureIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
                     targetIndices.add(index);
@@ -817,7 +815,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
-        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
         }

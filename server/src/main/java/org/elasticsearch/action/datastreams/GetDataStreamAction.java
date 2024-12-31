@@ -419,7 +419,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
                         dataStream.getFailureComponent().isRolloverOnWrite()
                     );
-                    indicesToXContent(builder, dataStream.getFailureComponent().getIndices());
+                    indicesToXContent(builder, dataStream.getFailureIndices());
                     addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
                     builder.endObject();
                 }

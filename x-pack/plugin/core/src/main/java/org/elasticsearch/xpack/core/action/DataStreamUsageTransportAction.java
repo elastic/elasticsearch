@@ -68,8 +68,8 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
                 if (ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)) {
                     failureStoreEffectivelyEnabledCounter++;
                 }
-                if (ds.getFailureComponent().getIndices().isEmpty() == false) {
-                    failureIndicesCounter += ds.getFailureComponent().getIndices().size();
+                if (ds.getFailureIndices().isEmpty() == false) {
+                    failureIndicesCounter += ds.getFailureIndices().size();
                 }
             }
         }

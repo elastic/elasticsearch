@@ -169,11 +169,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
 
         JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
-        System.out.println("builds = " + builds);
         for (JdkBuild build : builds) {
-            System.out.println("build = " + build);
             if (build.languageVersion().equals(languageVersion)) {
-                System.out.println("build = " + build);
                 return build;
             }
         }

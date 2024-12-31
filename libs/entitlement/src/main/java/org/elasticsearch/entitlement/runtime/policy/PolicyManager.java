@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -110,7 +109,7 @@ public class PolicyManager {
     }
 
     private void neverEntitled(Class<?> callerClass, String operationDescription) {
-        var requestingModule = requestingModule(callerClass);
+        var requestingModule = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
@@ -134,18 +133,18 @@ public class PolicyManager {
     }
 
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
-        var requestingModule = requestingModule(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlementsOrThrow(callerClass, requestingModule);
+        ModuleEntitlements entitlements = getEntitlementsOrThrow(requestingClass);
         if (entitlements.hasEntitlement(entitlementClass)) {
             logger.debug(
                 () -> Strings.format(
                     "Entitled: caller [%s], module [%s], type [%s]",
-                    callerClass,
-                    requestingModule.getName(),
+                    requestingClass,
+                    requestingClass.getName(),
                     entitlementClass.getSimpleName()
                 )
             );
@@ -154,29 +153,30 @@ public class PolicyManager {
         throw new NotEntitledException(
             Strings.format(
                 "Missing entitlement: caller [%s], module [%s], type [%s]",
-                callerClass,
-                requestingModule.getName(),
+                requestingClass,
+                requestingClass.getName(),
                 entitlementClass.getSimpleName()
             )
         );
     }
 
-    ModuleEntitlements getEntitlementsOrThrow(Class<?> callerClass, Module requestingModule) {
+    ModuleEntitlements getEntitlementsOrThrow(Class<?> requestingClass) {
+        Module requestingModule = requestingClass.getModule();
         ModuleEntitlements cachedEntitlement = moduleEntitlementsMap.get(requestingModule);
         if (cachedEntitlement != null) {
             if (cachedEntitlement == ModuleEntitlements.NONE) {
-                throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, requestingModule) + "[CACHED]");
+                throw new NotEntitledException(buildModuleNoPolicyMessage(requestingClass) + "[CACHED]");
             }
             return cachedEntitlement;
         }
 
         if (isServerModule(requestingModule)) {
             var scopeName = requestingModule.getName();
-            return getModuleEntitlementsOrThrow(callerClass, requestingModule, serverEntitlements, scopeName);
+            return getModuleEntitlementsOrThrow(requestingClass, requestingModule, serverEntitlements, scopeName);
         }
 
         // plugins
-        var pluginName = pluginResolver.apply(callerClass);
+        var pluginName = pluginResolver.apply(requestingClass);
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
             if (pluginEntitlements != null) {
@@ -186,7 +186,7 @@ public class PolicyManager {
                 } else {
                     scopeName = requestingModule.getName();
                 }
-                return getModuleEntitlementsOrThrow(callerClass, requestingModule, pluginEntitlements, scopeName);
+                return getModuleEntitlementsOrThrow(requestingClass, requestingModule, pluginEntitlements, scopeName);
             }
         }
 
@@ -196,11 +196,15 @@ public class PolicyManager {
         }
 
         moduleEntitlementsMap.put(requestingModule, ModuleEntitlements.NONE);
-        throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, requestingModule));
+        throw new NotEntitledException(buildModuleNoPolicyMessage(requestingClass));
     }
 
-    private static String buildModuleNoPolicyMessage(Class<?> callerClass, Module requestingModule) {
-        return Strings.format("Missing entitlement policy: caller [%s], module [%s]", callerClass, requestingModule.getName());
+    private static String buildModuleNoPolicyMessage(Class<?> requestingClass) {
+        return Strings.format(
+            "Missing entitlement policy: class [%s], module [%s]",
+            requestingClass,
+            requestingClass.getModule().getName()
+        );
     }
 
     private ModuleEntitlements getModuleEntitlementsOrThrow(
@@ -213,7 +217,7 @@ public class PolicyManager {
         if (entitlements == null) {
             // Module without entitlements - remember we don't have any
             moduleEntitlementsMap.put(module, ModuleEntitlements.NONE);
-            throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass, module));
+            throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass));
         }
         // We have a policy for this module
         var classEntitlements = new ModuleEntitlements(entitlements);
@@ -226,25 +230,22 @@ public class PolicyManager {
     }
 
     /**
-     * Walks the stack to determine which module's entitlements should be checked.
+     * Walks the stack to determine which class should be checked for entitlements.
      *
-     * @param callerClass when non-null will be used if its module is suitable;
+     * @param callerClass when non-null will be returned;
      *                    this is a fast-path check that can avoid the stack walk
      *                    in cases where the caller class is available.
-     * @return the requesting module, or {@code null} if the entire call stack
+     * @return the requesting class, or {@code null} if the entire call stack
      * comes from the entitlement library itself.
      */
-    Module requestingModule(Class<?> callerClass) {
+    Class<?> requestingClass(Class<?> callerClass) {
         if (callerClass != null) {
-            var callerModule = callerClass.getModule();
-            if (callerModule != null && entitlementsModule.equals(callerModule) == false) {
-                // fast path
-                return callerModule;
-            }
+            // fast path
+            return callerClass;
         }
-        Optional<Module> module = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
-            .walk(frames -> findRequestingModule(frames.map(StackFrame::getDeclaringClass)));
-        return module.orElse(null);
+        Optional<Class<?>> result = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+            .walk(frames -> findRequestingClass(frames.map(StackFrame::getDeclaringClass)));
+        return result.orElse(null);
     }
 
     /**
@@ -253,33 +254,26 @@ public class PolicyManager {
      *
      * @throws NullPointerException if the requesting module is {@code null}
      */
-    Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
-        return classes.map(Objects::requireNonNull)
-            .map(PolicyManager::moduleOf)
-            .filter(m -> m != entitlementsModule)  // Ignore the entitlements library itself entirely
-            .skip(1)                            // Skip the sensitive method itself
+    Optional<Class<?>> findRequestingClass(Stream<Class<?>> classes) {
+        return classes
+            .filter(c -> c.getModule() != entitlementsModule)  // Ignore the entitlements library
+            .skip(1)                                           // Skip the sensitive caller method
             .findFirst();
     }
 
-    private static Module moduleOf(Class<?> c) {
-        var result = c.getModule();
-        if (result == null) {
-            throw new NullPointerException("Entitlements system does not support non-modular class [" + c.getName() + "]");
-        } else {
-            return result;
-        }
-    }
-
-    private static boolean isTriviallyAllowed(Module requestingModule) {
+    /**
+     * @return true if permission is granted regardless of the entitlement
+     */
+    private static boolean isTriviallyAllowed(Class<?> requestingClass) {
         if (logger.isTraceEnabled()) {
             logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
         }
-        if (requestingModule == null) {
+        if (requestingClass == null) {
             logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
-        if (systemModules.contains(requestingModule)) {
-            logger.debug("Entitlement trivially allowed from system module [{}]", requestingModule.getName());
+        if (systemModules.contains(requestingClass.getModule())) {
+            logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
         logger.trace("Entitlement not trivially allowed");

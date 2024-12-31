@@ -71,11 +71,11 @@ public class PolicyManagerTests extends ESTestCase {
         var ex = assertThrows(
             "No policy for the unnamed module",
             NotEntitledException.class,
-            () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule)
+            () -> policyManager.getEntitlementsOrThrow(callerClass)
         );
 
         assertEquals(
-            "Missing entitlement policy: caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests], module [null]",
+            "Missing entitlement policy: class [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests], module [null]",
             ex.getMessage()
         );
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
@@ -91,7 +91,7 @@ public class PolicyManagerTests extends ESTestCase {
         var ex = assertThrows(
             "No policy for this plugin",
             NotEntitledException.class,
-            () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule)
+            () -> policyManager.getEntitlementsOrThrow(callerClass)
         );
 
         assertEquals(
@@ -108,11 +108,11 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertThrows(NotEntitledException.class, () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule));
+        assertThrows(NotEntitledException.class, () -> policyManager.getEntitlementsOrThrow(callerClass));
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
 
         // A second time
-        var ex = assertThrows(NotEntitledException.class, () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule));
+        var ex = assertThrows(NotEntitledException.class, () -> policyManager.getEntitlementsOrThrow(callerClass));
 
         assertThat(ex.getMessage(), endsWith("[CACHED]"));
         // Nothing new in the map
@@ -132,7 +132,7 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
+        var entitlements = policyManager.getEntitlementsOrThrow(callerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
     }
 
@@ -149,11 +149,11 @@ public class PolicyManagerTests extends ESTestCase {
         var ex = assertThrows(
             "No policy for this module in server",
             NotEntitledException.class,
-            () -> policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule)
+            () -> policyManager.getEntitlementsOrThrow(mockServerClass)
         );
 
         assertEquals(
-            "Missing entitlement policy: caller [class com.sun.net.httpserver.HttpServer], module [jdk.httpserver]",
+            "Missing entitlement policy: class [class com.sun.net.httpserver.HttpServer], module [jdk.httpserver]",
             ex.getMessage()
         );
         assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
@@ -175,7 +175,7 @@ public class PolicyManagerTests extends ESTestCase {
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule);
+        var entitlements = policyManager.getEntitlementsOrThrow(mockServerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(entitlements.hasEntitlement(ExitVMEntitlement.class), is(true));
     }
@@ -197,7 +197,7 @@ public class PolicyManagerTests extends ESTestCase {
         var mockPluginClass = layer.findLoader("org.example.plugin").loadClass("q.B");
         var requestingModule = mockPluginClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(mockPluginClass, requestingModule);
+        var entitlements = policyManager.getEntitlementsOrThrow(mockPluginClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(
             entitlements.getEntitlements(FileEntitlement.class).toList(),
@@ -216,22 +216,21 @@ public class PolicyManagerTests extends ESTestCase {
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
-        var requestingModule = callerClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
+        var entitlements = policyManager.getEntitlementsOrThrow(callerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         var cachedResult = policyManager.moduleEntitlementsMap.values().stream().findFirst().get();
-        var entitlementsAgain = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
+        var entitlementsAgain = policyManager.getEntitlementsOrThrow(callerClass);
 
         // Nothing new in the map
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         assertThat(entitlementsAgain, sameInstance(cachedResult));
     }
 
-    public void testRequestingModuleFastPath() throws IOException, ClassNotFoundException {
+    public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
         var callerClass = makeClassInItsOwnModule();
-        assertEquals(callerClass.getModule(), policyManagerWithEntitlementsModule(NO_ENTITLEMENTS_MODULE).requestingModule(callerClass));
+        assertEquals(callerClass, policyManagerWithEntitlementsModule(NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
@@ -242,24 +241,22 @@ public class PolicyManagerTests extends ESTestCase {
 
         var policyManager = policyManagerWithEntitlementsModule(entitlementsClass.getModule());
 
-        var requestingModule = requestingClass.getModule();
-
         assertEquals(
             "Skip entitlement library and the instrumented method",
-            requestingModule,
-            policyManager.findRequestingModule(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass))
+            requestingClass,
+            policyManager.findRequestingClass(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass))
                 .orElse(null)
         );
         assertEquals(
             "Skip multiple library frames",
-            requestingModule,
-            policyManager.findRequestingModule(Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass))
+            requestingClass,
+            policyManager.findRequestingClass(Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass))
                 .orElse(null)
         );
         assertThrows(
             "Non-modular caller frames are not supported",
             NullPointerException.class,
-            () -> policyManager.findRequestingModule(Stream.of(entitlementsClass, null))
+            () -> policyManager.findRequestingClass(Stream.of(entitlementsClass, null))
         );
     }
 

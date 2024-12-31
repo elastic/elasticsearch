@@ -4,6 +4,12 @@
 <titleabbrev>Force merge</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
 For data streams, the API forces a merge on the shards of the stream's backing
 indices.

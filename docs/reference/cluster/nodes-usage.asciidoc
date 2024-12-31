@@ -4,8 +4,13 @@
 <titleabbrev>Nodes feature usage</titleabbrev>
 ++++
 
-Returns information on the usage of features.
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
 
+Returns information on the usage of features.
 
 [[cluster-nodes-usage-api-request]]
 ==== {api-request-title}

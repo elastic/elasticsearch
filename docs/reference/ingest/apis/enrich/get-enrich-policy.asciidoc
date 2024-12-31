@@ -5,6 +5,12 @@
 <titleabbrev>Get enrich policy</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-enrich[Enrich APIs].
+--
+
 Returns information about an <<enrich-policy,enrich policy>>.
 
 ////

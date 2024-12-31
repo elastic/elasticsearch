@@ -4,6 +4,12 @@
 <titleabbrev>Modify data streams</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Performs one or more <<data-streams,data stream>> modification actions in a single atomic
 operation.
 

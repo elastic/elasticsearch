@@ -78,12 +78,17 @@ The API returns the following response:
 {
   "inference_id": "my-elser-model",
   "task_type": "sparse_embedding",
-  "service": "elser",
+  "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
-    "num_threads": 1
+    "num_threads": 1,
+    "model_id": ".elser_model_2"
   },
-  "task_settings": {}
+  "chunking_settings": {
+    "strategy": "sentence",
+    "max_chunk_size": 250,
+    "sentence_overlap": 1
+  }
 }
 ------------------------------------------------------------
 // NOTCONSOLE

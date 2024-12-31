@@ -2,7 +2,7 @@
 [[graph-explore-api]]
 == Graph explore API
 
-..New API reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-graph[Graph explore APIs].

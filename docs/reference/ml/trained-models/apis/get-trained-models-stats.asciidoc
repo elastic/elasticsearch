@@ -6,6 +6,12 @@
 <titleabbrev>Get trained models stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Retrieves usage information for trained models.
 
 

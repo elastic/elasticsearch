@@ -1,6 +1,12 @@
 [[infer-service-elasticsearch]]
 === Elasticsearch {infer} service
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
 
 NOTE: If you use the ELSER or the E5 model through the `elasticsearch` service, the API request will automatically download and deploy the model if it isn't downloaded yet.

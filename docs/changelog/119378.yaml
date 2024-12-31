@@ -1,0 +1,6 @@
+pr: 119378
+summary: "Make `EvaluatorMapper.fold()` throw `VerificationException` for folding\
+  \ time errors Option #2"
+area: ES|QL
+type: enhancement
+issues: []

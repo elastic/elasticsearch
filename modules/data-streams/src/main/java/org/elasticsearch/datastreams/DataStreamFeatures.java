@@ -9,7 +9,6 @@
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
@@ -17,7 +16,6 @@ import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthI
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -25,13 +23,7 @@ import java.util.Set;
  */
 public class DataStreamFeatures implements FeatureSpecification {
 
-    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_TSDB_FIX = new NodeFeature("data_stream.failure_store.tsdb_fix");
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(DATA_STREAM_LIFECYCLE, Version.V_8_11_0);
-    }
 
     @Override
     public Set<NodeFeature> getFeatures() {

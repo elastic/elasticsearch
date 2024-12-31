@@ -101,7 +101,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: ["inference test", "another inference test"]
+          inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -120,7 +120,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Numeric query using a sparse embedding model":
@@ -132,7 +131,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: [40, 49.678]
+          inference_field: [ 40, 49.678 ]
         refresh: true
 
   - do:
@@ -146,7 +145,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Boolean query using a sparse embedding model":
@@ -172,7 +170,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a sparse embedding model via a search inference ID":
@@ -217,7 +214,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model":
@@ -229,7 +225,7 @@ setup:
         index: test-dense-index
         id: doc_1
         body:
-          inference_field: ["inference test", "another inference test"]
+          inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -248,7 +244,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Numeric query using a dense embedding model":
@@ -260,7 +255,7 @@ setup:
         index: test-dense-index
         id: doc_1
         body:
-          inference_field: [45.1, 100]
+          inference_field: [ 45.1, 100 ]
         refresh: true
 
   - do:
@@ -274,7 +269,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Boolean query using a dense embedding model":
@@ -300,7 +294,6 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 1 }
 
 ---
 "Query using a dense embedding model that uses byte embeddings":
@@ -361,7 +354,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model via a search inference ID":
@@ -387,7 +379,7 @@ setup:
         index: test-dense-index
         id: doc_1
         body:
-          inference_field: ["inference test", "another inference test"]
+          inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -406,7 +398,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Apply boost and query name":
@@ -418,7 +409,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: ["inference test", "another inference test"]
+          inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -439,8 +430,7 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.783733e19, error: 1e13 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
-  - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 ---
 "Query an index alias":
@@ -452,7 +442,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: ["inference test", "another inference test"]
+          inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -476,7 +466,6 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
-  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query the wrong field type":
@@ -502,6 +491,48 @@ setup:
   - match: { error.type: "search_phase_execution_exception" }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Field [non_inference_field] of type [text] does not support semantic queries" }
+
+---
+"Query the wrong field type with lenient: true":
+  - requires:
+      cluster_features: "search.semantic_match_query_rewrite_interception_supported"
+      reason: lenient introduced in 8.18.0
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "non_inference_field"
+              query: "inference test"
+
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [non_inference_field] of type [text] does not support semantic queries" }
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic:
+              field: "non_inference_field"
+              query: "inference test"
+              lenient: true
+
+  - match: { hits.total.value: 0 }
+
 
 ---
 "Query a missing field":
@@ -783,7 +814,7 @@ setup:
         index: test-dense-index
         id: doc_1
         body:
-          inference_field: ["inference test", "another inference test"]
+          inference_field: [ "inference test", "another inference test" ]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -843,12 +874,12 @@ setup:
 ---
 "Query a field that uses the default ELSER 2 endpoint":
   - requires:
-      reason: "default ELSER 2 inference ID is behind a feature flag"
-      test_runner_features: [capabilities]
+      reason: "default ELSER 2 inference ID is enabled via a capability"
+      test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
           path: /_inference
-          capabilities: [default_elser_2]
+          capabilities: [ default_elser_2 ]
 
   - do:
       indices.create:
@@ -878,3 +909,117 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query using a sparse embedding model with size set to zero":
+  - requires:
+      cluster_features: "semantic_text.zero_size_fix"
+      reason: zero size fix added in 8.16.1 & 8.15.5
+
+  - do:
+      indices.create:
+        index: test-sparse-index-with-agg-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+              agg_id:
+                type: keyword
+
+  - do:
+      index:
+        index: test-sparse-index-with-agg-id
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          agg_id: "doc_1"
+
+  - do:
+      index:
+        index: test-sparse-index-with-agg-id
+        id: doc_2
+        body:
+          non_inference_field: "non-inference test"
+          agg_id: "doc_2"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index-with-agg-id
+        body:
+          size: 0
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+          aggs:
+            agg_ids:
+              terms:
+                field: agg_id
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 0 }
+  - length: { aggregations.agg_ids.buckets: 1 }
+  - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
+  - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }
+
+---
+"Query using a dense embedding model with size set to zero":
+  - requires:
+      cluster_features: "semantic_text.zero_size_fix"
+      reason: zero size fix added in 8.16.1 & 8.15.5
+
+  - do:
+      indices.create:
+        index: test-dense-index-with-agg-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+              agg_id:
+                type: keyword
+
+  - do:
+      index:
+        index: test-dense-index-with-agg-id
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          agg_id: "doc_1"
+
+  - do:
+      index:
+        index: test-dense-index-with-agg-id
+        id: doc_2
+        body:
+          non_inference_field: "non-inference test"
+          agg_id: "doc_2"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-with-agg-id
+        body:
+          size: 0
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+          aggs:
+            agg_ids:
+              terms:
+                field: agg_id
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 0 }
+  - length: { aggregations.agg_ids.buckets: 1 }
+  - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
+  - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }

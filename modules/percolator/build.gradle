@@ -6,13 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.elasticsearch.percolator.PercolatorPlugin'
+  description = 'Percolator module adds capability to index queries and query these queries by specifying documents'
+  classname = 'org.elasticsearch.percolator.PercolatorPlugin'
 }
 
 dependencies {

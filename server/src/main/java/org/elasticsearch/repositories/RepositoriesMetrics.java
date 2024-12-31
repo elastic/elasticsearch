@@ -33,7 +33,7 @@ public record RepositoriesMetrics(
     LongHistogram httpRequestTimeInMillisHistogram
 ) {
 
-    public static RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
+    public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
 
     /**
      * Is incremented for each request sent to the blob store (including retries)
@@ -127,7 +127,16 @@ public record RepositoriesMetrics(
         OperationPurpose purpose,
         String operation
     ) {
-        return Map.of("repo_type", repositoryMetadata.type(), "operation", operation, "purpose", purpose.getKey());
+        return Map.of(
+            "repo_type",
+            repositoryMetadata.type(),
+            "repo_name",
+            repositoryMetadata.name(),
+            "operation",
+            operation,
+            "purpose",
+            purpose.getKey()
+        );
     }
 
 }

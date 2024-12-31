@@ -22,8 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.RETRIEVERS_TELEMETRY_ADDED;
 import static org.elasticsearch.TransportVersions.V_8_12_0;
+import static org.elasticsearch.TransportVersions.V_8_16_0;
 
 /**
  * Holds a snapshot of the search usage statistics.
@@ -71,7 +71,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
         this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
-        this.retrievers = in.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_ADDED) ? in.readMap(StreamInput::readLong) : Map.of();
+        this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
     }
 
     @Override
@@ -83,7 +83,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeMap(rescorers, StreamOutput::writeLong);
         }
-        if (out.getTransportVersion().onOrAfter(RETRIEVERS_TELEMETRY_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(V_8_16_0)) {
             out.writeMap(retrievers, StreamOutput::writeLong);
         }
     }

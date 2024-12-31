@@ -1,4 +1,9 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -6,9 +11,9 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
-  name 'x-pack-test-deprecated-query'
-  description 'Deprecated query plugin'
-  classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
+  name = 'x-pack-test-deprecated-query'
+  description = 'Deprecated query plugin'
+  classname ='org.elasticsearch.query.DeprecatedQueryPlugin'
 }
 
 dependencies {
@@ -28,5 +33,5 @@ testClusters.configureEach {
 
 // Test clusters run with security disabled
 tasks.named("yamlRestTest") {
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

@@ -246,6 +246,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinValidationService = new JoinValidationService(
             settings,
             transportService,
+            namedWriteableRegistry,
             this::getStateForJoinValidationService,
             () -> getLastAcceptedState().metadata(),
             this.onJoinValidators

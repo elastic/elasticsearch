@@ -4,6 +4,12 @@
 <titleabbrev>{esql} async query API</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-esql[ES|QL APIs].
+--
+
 Runs an async <<esql,{esql} query>>.
 
 The async query API lets you asynchronously execute a query request,

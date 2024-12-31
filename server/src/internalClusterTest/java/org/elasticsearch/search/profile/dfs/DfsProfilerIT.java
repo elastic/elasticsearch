@@ -19,6 +19,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -71,6 +72,7 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 new float[] { randomFloat(), randomFloat(), randomFloat() },
                 randomIntBetween(5, 10),
                 50,
+                randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
             if (randomBoolean()) {

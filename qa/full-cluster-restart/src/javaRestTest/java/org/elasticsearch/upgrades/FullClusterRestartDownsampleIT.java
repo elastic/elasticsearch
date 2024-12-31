@@ -18,7 +18,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -264,15 +263,12 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];
         }
-        logger.warn("--> No matching rollup name for path [%s]", endpoint);
+        logger.warn("--> No matching rollup name for path [{}]", endpoint);
         return null;
     }
 
     public void testRollupIndex() throws Exception {
-        assumeTrue(
-            "Downsample got many stability improvements in 8.10.0",
-            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_DOWNSAMPLING_STABLE)
-        );
+        assumeTrue("Downsample got many stability improvements in 8.10.0", oldClusterHasFeature("gte_v8.10.0"));
         if (isRunningAgainstOldCluster()) {
             createIlmPolicy();
             createIndex();

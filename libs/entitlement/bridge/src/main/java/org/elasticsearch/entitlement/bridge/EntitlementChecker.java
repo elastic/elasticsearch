@@ -9,6 +9,32 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.net.URL;
+import java.net.URLStreamHandlerFactory;
+import java.util.List;
+
+@SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
-    void checkSystemExit(Class<?> callerClass, int status);
+
+    // Exit the JVM process
+    void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status);
+
+    void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status);
+
+    // URLClassLoader ctor
+    void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
+
+    void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    // Process creation
+    void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder that);
+
+    void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
+
 }

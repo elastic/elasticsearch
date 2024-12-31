@@ -475,4 +475,12 @@ public interface ActionListener<Response> {
         ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
     }
 
+    /**
+     * Increments ref count and returns a listener that will decrement ref count on listener completion.
+     */
+    static <Response> ActionListener<Response> withRef(ActionListener<Response> listener, RefCounted ref) {
+        ref.mustIncRef();
+        return releaseAfter(listener, ref::decRef);
+    }
+
 }

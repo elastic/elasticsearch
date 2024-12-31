@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -8,18 +6,12 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
-  classname 'org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextPlugin'
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  description = 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
+  classname ='org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextPlugin'
 }
 
 restResources {

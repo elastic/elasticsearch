@@ -220,6 +220,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public static void deleteAll(Path translogLocation) throws IOException {
+        IOUtils.rm(translogLocation);
+    }
+
     /** recover all translog files found on disk */
     private ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
         boolean success = false;
@@ -967,7 +971,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
 
-        public static Location EMPTY = new Location(0, 0, 0);
+        public static final Location EMPTY = new Location(0, 0, 0);
 
         @Override
         public String toString() {

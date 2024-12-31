@@ -23,7 +23,7 @@ import java.util.function.BiFunction;
  * Copies the execution state data from one index to another, typically after a
  * new index has been created. As part of the execution state copy it will set the target index
  * "current step" to the provided target next step {@link org.elasticsearch.xpack.core.ilm.Step.StepKey}.
- *
+ * <p>
  * Useful for actions such as shrink.
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {

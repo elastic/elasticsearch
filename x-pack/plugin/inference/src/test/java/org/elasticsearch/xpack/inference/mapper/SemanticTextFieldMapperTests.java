@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.document.FeatureField;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -30,10 +31,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.Model;
@@ -57,35 +61,30 @@ import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryWrapper;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
@@ -95,22 +94,51 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
+    private final boolean useLegacyFormat;
+
+    public SemanticTextFieldMapperTests(boolean useLegacyFormat) {
+        this.useLegacyFormat = useLegacyFormat;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return singletonList(new InferencePlugin(Settings.EMPTY));
+        return List.of(new InferencePlugin(Settings.EMPTY), new XPackClientPlugin());
+    }
+
+    private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
+        var settings = Settings.builder()
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
+        return createMapperService(settings, mappings);
+    }
+
+    @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(super.getIndexSettings())
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic_text");
-        if (DefaultElserFeatureFlag.isEnabled() == false) {
-            b.field("inference_id", "test_model");
-        }
     }
 
     @Override
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         return "cannot have nested fields when index is in [index.mode=time_series]";
+    }
+
+    @Override
+    protected void metaMapping(XContentBuilder b) throws IOException {
+        super.metaMapping(b);
+        b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
     }
 
     @Override
@@ -155,7 +183,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             null,
             null,
-            IndexVersion.current(),
+            getVersion(),
+            false,
             Map.of()
         );
     }
@@ -170,14 +199,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        final XContentBuilder expectedMapping = fieldMapping(this::metaMapping);
 
-        MapperService mapperService = createMapperService(fieldMapping);
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
         DocumentMapper mapper = mapperService.documentMapper();
-        assertEquals(Strings.toString(fieldMapping), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false);
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
-        }
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
@@ -205,21 +233,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         {
             final XContentBuilder fieldMapping = fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, inferenceId));
-            final MapperService mapperService = createMapperService(fieldMapping);
+            final MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
             assertSerialization.accept(fieldMapping, mapperService);
         }
         {
-            if (DefaultElserFeatureFlag.isEnabled()) {
-                final XContentBuilder fieldMapping = fieldMapping(
-                    b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
-                );
-                final MapperService mapperService = createMapperService(fieldMapping);
-                assertSemanticTextField(mapperService, fieldName, false);
-                assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
-                assertSerialization.accept(fieldMapping, mapperService);
-            }
+            final XContentBuilder fieldMapping = fieldMapping(
+                b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
+            );
+            final XContentBuilder expectedMapping = fieldMapping(
+                b -> b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID)
+                    .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
+            );
+            final MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+            assertSemanticTextField(mapperService, fieldName, false);
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
+            assertSerialization.accept(expectedMapping, mapperService);
         }
         {
             final XContentBuilder fieldMapping = fieldMapping(
@@ -227,7 +258,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .field(INFERENCE_ID_FIELD, inferenceId)
                     .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
-            MapperService mapperService = createMapperService(fieldMapping);
+            MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
             assertSerialization.accept(fieldMapping, mapperService);
@@ -238,7 +269,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         {
             Exception e = expectThrows(
                 MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, (String) null)))
+                () -> createMapperService(
+                    fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, (String) null)),
+                    useLegacyFormat
+                )
             );
             assertThat(
                 e.getMessage(),
@@ -246,26 +280,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
         }
         {
-            final String expectedMessage = DefaultElserFeatureFlag.isEnabled()
-                ? "[inference_id] on mapper [field] of type [semantic_text] must not be empty"
-                : "[inference_id] on mapper [field] of type [semantic_text] must be specified";
             Exception e = expectThrows(
                 MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")))
+                () -> createMapperService(
+                    fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, "")),
+                    useLegacyFormat
+                )
             );
-            assertThat(e.getMessage(), containsString(expectedMessage));
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
         {
-            if (DefaultElserFeatureFlag.isEnabled()) {
-                Exception e = expectThrows(
-                    MapperParsingException.class,
-                    () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")))
-                );
-                assertThat(
-                    e.getMessage(),
-                    containsString("[search_inference_id] on mapper [field] of type [semantic_text] must not be empty")
-                );
-            }
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    fieldMapping(b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, "")),
+                    useLegacyFormat
+                )
+            );
+            assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic_text] must not be empty"));
         }
     }
 
@@ -278,14 +310,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("inference_id", "my_inference_id");
             b.endObject();
             b.endObject();
-        })));
+        }), useLegacyFormat));
         assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
     }
 
     public void testUpdatesToInferenceIdNotSupported() throws IOException {
         String fieldName = randomAlphaOfLengthBetween(5, 15);
         MapperService mapperService = createMapperService(
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject())
+            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
+            useLegacyFormat
         );
         assertSemanticTextField(mapperService, fieldName, false);
         Exception e = expectThrows(
@@ -329,7 +362,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = randomFieldName(depth);
             MapperService mapperService = createMapperService(
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject())
+                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
+                useLegacyFormat
             );
             assertSemanticTextField(mapperService, fieldName, false);
             {
@@ -418,7 +452,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = randomFieldName(depth);
-            MapperService mapperService = createMapperService(buildMapping.apply(fieldName, null));
+            MapperService mapperService = createMapperService(buildMapping.apply(fieldName, null), useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
@@ -474,12 +508,20 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             .get(getChunksFieldName(fieldName));
         assertThat(chunksMapper, equalTo(semanticFieldMapper.fieldType().getChunksField()));
         assertThat(chunksMapper.fullPath(), equalTo(getChunksFieldName(fieldName)));
-        Mapper textMapper = chunksMapper.getMapper(CHUNKED_TEXT_FIELD);
-        assertNotNull(textMapper);
-        assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
-        KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
-        assertFalse(textFieldMapper.fieldType().isIndexed());
-        assertFalse(textFieldMapper.fieldType().hasDocValues());
+
+        Mapper textMapper = chunksMapper.getMapper(TEXT_FIELD);
+        if (semanticTextFieldType.useLegacyFormat()) {
+            assertNotNull(textMapper);
+            assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
+            KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
+            assertFalse(textFieldMapper.fieldType().isIndexed());
+            assertFalse(textFieldMapper.fieldType().hasDocValues());
+        } else {
+            assertNull(textMapper);
+            var offsetMapper = semanticTextFieldType.getOffsetsField();
+            assertThat(offsetMapper, instanceOf(OffsetSourceFieldMapper.class));
+        }
+
         if (expectedModelSettings) {
             assertNotNull(semanticFieldMapper.fieldType().getModelSettings());
             Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD);
@@ -526,7 +568,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);
             });
 
-            MapperService mapperService = createMapperService(mapping);
+            MapperService mapperService = createMapperService(mapping, useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName1, false);
             assertInferenceEndpoints(
                 mapperService,
@@ -546,10 +588,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = documentMapper.parse(
                 source(
                     b -> addSemanticTextInferenceResults(
+                        useLegacyFormat,
                         b,
                         List.of(
-                            randomSemanticText(fieldName1, model1, List.of("a b", "c"), XContentType.JSON),
-                            randomSemanticText(fieldName2, model2, List.of("d e f"), XContentType.JSON)
+                            randomSemanticText(useLegacyFormat, fieldName1, model1, List.of("a b", "c"), XContentType.JSON),
+                            randomSemanticText(useLegacyFormat, fieldName2, model2, List.of("d e f"), XContentType.JSON)
                         )
                     )
                 )
@@ -629,52 +672,64 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testMissingInferenceId() throws IOException {
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        final MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)),
+            useLegacyFormat
+        );
+
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(
-                source(
-                    b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD)
-                        .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
-                        .field(CHUNKS_FIELD, List.of())
-                        .endObject()
-                        .endObject()
+            () -> mapperService.documentMapper()
+                .parse(
+                    semanticTextInferenceSource(
+                        useLegacyFormat,
+                        b -> b.startObject("field")
+                            .startObject(INFERENCE_FIELD)
+                            .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
+                            .field(CHUNKS_FIELD, useLegacyFormat ? List.of() : Map.of())
+                            .endObject()
+                            .endObject()
+                    )
                 )
-            )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [inference_id]"));
     }
 
     public void testMissingModelSettings() throws IOException {
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)), useLegacyFormat);
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(
-                source(b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject())
-            )
+            () -> mapperService.documentMapper()
+                .parse(
+                    semanticTextInferenceSource(
+                        useLegacyFormat,
+                        b -> b.startObject("field").startObject(INFERENCE_FIELD).field(INFERENCE_ID_FIELD, "my_id").endObject().endObject()
+                    )
+                )
         );
         assertThat(ex.getCause().getMessage(), containsString("Required [model_settings, chunks]"));
     }
 
     public void testMissingTaskType() throws IOException {
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)));
+        MapperService mapperService = createMapperService(mapping(b -> addSemanticTextMapping(b, "field", "my_id", null)), useLegacyFormat);
         IllegalArgumentException ex = expectThrows(
             DocumentParsingException.class,
             IllegalArgumentException.class,
-            () -> documentMapper.parse(
-                source(
-                    b -> b.startObject("field")
-                        .startObject(INFERENCE_FIELD)
-                        .field(INFERENCE_ID_FIELD, "my_id")
-                        .startObject(MODEL_SETTINGS_FIELD)
-                        .endObject()
-                        .endObject()
-                        .endObject()
+            () -> mapperService.documentMapper()
+                .parse(
+                    semanticTextInferenceSource(
+                        useLegacyFormat,
+                        b -> b.startObject("field")
+                            .startObject(INFERENCE_FIELD)
+                            .field(INFERENCE_ID_FIELD, "my_id")
+                            .startObject(MODEL_SETTINGS_FIELD)
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                    )
                 )
-            )
         );
         assertThat(ex.getCause().getMessage(), containsString("failed to parse field [model_settings]"));
     }
@@ -734,7 +789,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             mappingParams += ",search_inference_id=" + searchInferenceId;
         }
 
-        MapperService mapperService = createMapperService(mapping(b -> {}));
+        MapperService mapperService = createMapperService(mapping(b -> {}), useLegacyFormat);
         mapperService.merge(
             "_doc",
             new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(fieldName, mappingParams))),
@@ -742,14 +797,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
 
         SemanticTextField semanticTextField = new SemanticTextField(
+            useLegacyFormat,
             fieldName,
             List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, List.of()),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, Map.of()),
             XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        builder.field(semanticTextField.fieldName());
-        builder.value(semanticTextField);
+        if (useLegacyFormat) {
+            builder.field(semanticTextField.fieldName());
+            builder.value(semanticTextField);
+        } else {
+            builder.field(InferenceMetadataFieldsMapper.NAME, Map.of(semanticTextField.fieldName(), semanticTextField));
+        }
         builder.endObject();
 
         SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
@@ -801,266 +861,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
     }
 
-    public void testInsertValueMapTraversal() throws IOException {
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
-
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-            SemanticTextFieldMapper.insertValue("test", map, "value2");
-            assertThat(getMapValue(map, "test"), equalTo("value2"));
-            SemanticTextFieldMapper.insertValue("something.else", map, "something_else_value");
-            assertThat(getMapValue(map, "something\\.else"), equalTo("something_else_value"));
-        }
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            builder.startObject("path1").startObject("path2").field("test", "value").endObject().endObject();
-            builder.endObject();
-
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-            SemanticTextFieldMapper.insertValue("path1.path2.test", map, "value2");
-            assertThat(getMapValue(map, "path1.path2.test"), equalTo("value2"));
-            SemanticTextFieldMapper.insertValue("path1.path2.test_me", map, "test_me_value");
-            assertThat(getMapValue(map, "path1.path2.test_me"), equalTo("test_me_value"));
-            SemanticTextFieldMapper.insertValue("path1.non_path2.test", map, "test_value");
-            assertThat(getMapValue(map, "path1.non_path2\\.test"), equalTo("test_value"));
-
-            SemanticTextFieldMapper.insertValue("path1.path2", map, Map.of("path3", "bar"));
-            assertThat(getMapValue(map, "path1.path2"), equalTo(Map.of("path3", "bar")));
-
-            SemanticTextFieldMapper.insertValue("path1", map, "baz");
-            assertThat(getMapValue(map, "path1"), equalTo("baz"));
-
-            SemanticTextFieldMapper.insertValue("path3.path4", map, Map.of("test", "foo"));
-            assertThat(getMapValue(map, "path3\\.path4"), equalTo(Map.of("test", "foo")));
-        }
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            builder.startObject("path1").array("test", "value1", "value2").endObject();
-            builder.endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-
-            SemanticTextFieldMapper.insertValue("path1.test", map, List.of("value3", "value4", "value5"));
-            assertThat(getMapValue(map, "path1.test"), equalTo(List.of("value3", "value4", "value5")));
-
-            SemanticTextFieldMapper.insertValue("path2.test", map, List.of("value6", "value7", "value8"));
-            assertThat(getMapValue(map, "path2\\.test"), equalTo(List.of("value6", "value7", "value8")));
-        }
-    }
-
-    public void testInsertValueListTraversal() throws IOException {
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            {
-                builder.startObject("path1");
-                {
-                    builder.startArray("path2");
-                    builder.startObject().field("test", "value1").endObject();
-                    builder.endArray();
-                }
-                builder.endObject();
-            }
-            {
-                builder.startObject("path3");
-                {
-                    builder.startArray("path4");
-                    builder.startObject().field("test", "value1").endObject();
-                    builder.endArray();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-
-            SemanticTextFieldMapper.insertValue("path1.path2.test", map, "value2");
-            assertThat(getMapValue(map, "path1.path2.test"), equalTo("value2"));
-            SemanticTextFieldMapper.insertValue("path1.path2.test2", map, "value3");
-            assertThat(getMapValue(map, "path1.path2.test2"), equalTo("value3"));
-            assertThat(getMapValue(map, "path1.path2"), equalTo(List.of(Map.of("test", "value2", "test2", "value3"))));
-
-            SemanticTextFieldMapper.insertValue("path3.path4.test", map, "value4");
-            assertThat(getMapValue(map, "path3.path4.test"), equalTo("value4"));
-        }
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            {
-                builder.startObject("path1");
-                {
-                    builder.startArray("path2");
-                    builder.startArray();
-                    builder.startObject().field("test", "value1").endObject();
-                    builder.endArray();
-                    builder.endArray();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-
-            SemanticTextFieldMapper.insertValue("path1.path2.test", map, "value2");
-            assertThat(getMapValue(map, "path1.path2.test"), equalTo("value2"));
-            SemanticTextFieldMapper.insertValue("path1.path2.test2", map, "value3");
-            assertThat(getMapValue(map, "path1.path2.test2"), equalTo("value3"));
-            assertThat(getMapValue(map, "path1.path2"), equalTo(List.of(List.of(Map.of("test", "value2", "test2", "value3")))));
-        }
-    }
-
-    public void testInsertValueFieldsWithDots() throws IOException {
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value1").endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-
-            SemanticTextFieldMapper.insertValue("xxx.yyy", map, "value2");
-            assertThat(getMapValue(map, "xxx\\.yyy"), equalTo("value2"));
-
-            SemanticTextFieldMapper.insertValue("xxx", map, "value3");
-            assertThat(getMapValue(map, "xxx"), equalTo("value3"));
-        }
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            {
-                builder.startObject("path1.path2");
-                {
-                    builder.startObject("path3.path4");
-                    builder.field("test", "value1");
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-
-            SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test", map, "value2");
-            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test"), equalTo("value2"));
-
-            SemanticTextFieldMapper.insertValue("path1.path2.path3.path4.test2", map, "value3");
-            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test2"), equalTo("value3"));
-            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4"), equalTo(Map.of("test", "value2", "test2", "value3")));
-        }
-    }
-
-    public void testInsertValueAmbiguousPath() throws IOException {
-        // Mixed dotted object notation
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            {
-                builder.startObject("path1.path2");
-                {
-                    builder.startObject("path3");
-                    builder.field("test1", "value1");
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            {
-                builder.startObject("path1");
-                {
-                    builder.startObject("path2.path3");
-                    builder.field("test2", "value2");
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-            final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
-
-            IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test1", map, "value3")
-            );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [path1.path2.path3.test1] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
-
-            ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test3", map, "value4")
-            );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [path1.path2.path3.test3] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
-
-            assertThat(map, equalTo(originalMap));
-        }
-
-        // traversal through lists
-        {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            {
-                builder.startObject("path1.path2");
-                {
-                    builder.startArray("path3");
-                    builder.startObject().field("test1", "value1").endObject();
-                    builder.endArray();
-                }
-                builder.endObject();
-            }
-            {
-                builder.startObject("path1");
-                {
-                    builder.startArray("path2.path3");
-                    builder.startObject().field("test2", "value2").endObject();
-                    builder.endArray();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            Map<String, Object> map = toSourceMap(Strings.toString(builder));
-            final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
-
-            IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test1", map, "value3")
-            );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [path1.path2.path3.test1] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
-
-            ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SemanticTextFieldMapper.insertValue("path1.path2.path3.test3", map, "value4")
-            );
-            assertThat(
-                ex.getMessage(),
-                equalTo("Path [path1.path2.path3.test3] could be inserted in 2 distinct ways, it is ambiguous which one to use")
-            );
-
-            assertThat(map, equalTo(originalMap));
-        }
-    }
-
-    public void testInsertValueCannotTraversePath() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        {
-            builder.startObject("path1");
-            {
-                builder.startArray("path2");
-                builder.startArray();
-                builder.startObject().field("test", "value1").endObject();
-                builder.endArray();
-                builder.endArray();
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-        Map<String, Object> map = toSourceMap(Strings.toString(builder));
-        final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
-
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
-            () -> SemanticTextFieldMapper.insertValue("path1.path2.test.test2", map, "value2")
-        );
-        assertThat(
-            ex.getMessage(),
-            equalTo("Path [path1.path2.test] has value [value1] of type [String], which cannot be traversed into further")
-        );
-
-        assertThat(map, equalTo(originalMap));
-    }
-
     @Override
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         // Until a doc is indexed, the query is rewritten as match no docs
@@ -1082,11 +882,23 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         mappingBuilder.endObject();
     }
 
-    private static void addSemanticTextInferenceResults(XContentBuilder sourceBuilder, List<SemanticTextField> semanticTextInferenceResults)
-        throws IOException {
-        for (var field : semanticTextInferenceResults) {
-            sourceBuilder.field(field.fieldName());
-            sourceBuilder.value(field);
+    private static void addSemanticTextInferenceResults(
+        boolean useLegacyFormat,
+        XContentBuilder sourceBuilder,
+        List<SemanticTextField> semanticTextInferenceResults
+    ) throws IOException {
+        if (useLegacyFormat) {
+            for (var field : semanticTextInferenceResults) {
+                sourceBuilder.field(field.fieldName());
+                sourceBuilder.value(field);
+            }
+        } else {
+            // Use a linked hash map to maintain insertion-order iteration over the inference fields
+            Map<String, Object> inferenceMetadataFields = new LinkedHashMap<>();
+            for (var field : semanticTextInferenceResults) {
+                inferenceMetadataFields.put(field.fieldName(), field);
+            }
+            sourceBuilder.field(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
         }
     }
 
@@ -1114,7 +926,25 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
         queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
 
-        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, null);
+        return new ESToParentBlockJoinQuery(
+            new SparseVectorQueryWrapper(fieldName, queryBuilder.build()),
+            parentFilter,
+            ScoreMode.Total,
+            null
+        );
+    }
+
+    private static SourceToParse semanticTextInferenceSource(boolean useLegacyFormat, CheckedConsumer<XContentBuilder, IOException> build)
+        throws IOException {
+        return source(b -> {
+            if (useLegacyFormat == false) {
+                b.startObject(InferenceMetadataFieldsMapper.NAME);
+            }
+            build.accept(b);
+            if (useLegacyFormat == false) {
+                b.endObject();
+            }
+        });
     }
 
     private static void assertChildLeafNestedDocument(
@@ -1134,75 +964,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void assertSparseFeatures(LuceneDocument doc, String fieldName, int expectedCount) {
         int count = 0;
         for (IndexableField field : doc.getFields()) {
-            if (field instanceof FeatureField featureField) {
+            if (field instanceof XFeatureField featureField) {
                 assertThat(featureField.name(), equalTo(fieldName));
                 ++count;
             }
         }
         assertThat(count, equalTo(expectedCount));
-    }
-
-    private Map<String, Object> toSourceMap(String source) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            return parser.map();
-        }
-    }
-
-    private static Object getMapValue(Map<String, Object> map, String key) {
-        // Split the path on unescaped "." chars and then unescape the escaped "." chars
-        final String[] pathElements = Arrays.stream(key.split("(?<!\\\\)\\.")).map(k -> k.replace("\\.", ".")).toArray(String[]::new);
-
-        Object value = null;
-        Object nextLayer = map;
-        for (int i = 0; i < pathElements.length; i++) {
-            if (nextLayer instanceof Map<?, ?> nextMap) {
-                value = nextMap.get(pathElements[i]);
-            } else if (nextLayer instanceof List<?> nextList) {
-                final String pathElement = pathElements[i];
-                List<?> values = nextList.stream().flatMap(v -> {
-                    Stream.Builder<Object> streamBuilder = Stream.builder();
-                    if (v instanceof List<?> innerList) {
-                        traverseList(innerList, streamBuilder);
-                    } else {
-                        streamBuilder.add(v);
-                    }
-                    return streamBuilder.build();
-                }).filter(v -> v instanceof Map<?, ?>).map(v -> ((Map<?, ?>) v).get(pathElement)).filter(Objects::nonNull).toList();
-
-                if (values.isEmpty()) {
-                    return null;
-                } else if (values.size() > 1) {
-                    throw new AssertionError("List " + nextList + " contains multiple values for [" + pathElement + "]");
-                } else {
-                    value = values.getFirst();
-                }
-            } else if (nextLayer == null) {
-                break;
-            } else {
-                throw new AssertionError(
-                    "Path ["
-                        + String.join(".", Arrays.copyOfRange(pathElements, 0, i))
-                        + "] has value ["
-                        + value
-                        + "] of type ["
-                        + value.getClass().getSimpleName()
-                        + "], which cannot be traversed into further"
-                );
-            }
-
-            nextLayer = value;
-        }
-
-        return value;
-    }
-
-    private static void traverseList(List<?> list, Stream.Builder<Object> streamBuilder) {
-        for (Object value : list) {
-            if (value instanceof List<?> innerList) {
-                traverseList(innerList, streamBuilder);
-            } else {
-                streamBuilder.add(value);
-            }
-        }
     }
 }

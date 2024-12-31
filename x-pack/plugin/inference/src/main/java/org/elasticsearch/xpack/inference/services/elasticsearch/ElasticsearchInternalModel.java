@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -15,8 +18,10 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 
@@ -79,10 +84,38 @@ public abstract class ElasticsearchInternalModel extends Model {
         return startRequest;
     }
 
-    public abstract ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
+    public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
         Model model,
         ActionListener<Boolean> listener
-    );
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(CreateTrainedModelAssignmentAction.Response response) {
+                listener.onResponse(Boolean.TRUE);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                var cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof ResourceNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(modelNotFoundErrorMessage(internalServiceSettings.modelId())));
+                    return;
+                } else if (cause instanceof ElasticsearchStatusException statusException) {
+                    if (statusException.status() == RestStatus.CONFLICT
+                        && statusException.getRootCause() instanceof ResourceAlreadyExistsException) {
+                        // Deployment is already started
+                        listener.onResponse(Boolean.TRUE);
+                    }
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        };
+    }
+
+    protected String modelNotFoundErrorMessage(String modelId) {
+        return "Could not deploy model [" + modelId + "] as the model cannot be found.";
+    }
 
     public boolean usesExistingDeployment() {
         return internalServiceSettings.getDeploymentId() != null;

@@ -91,7 +91,7 @@ public class SemanticInferenceMetadataFieldMapperTests extends MapperServiceTest
             return IndexVersionUtils.randomVersionBetween(
                 random(),
                 IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT,
-                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
             );
         }
     }

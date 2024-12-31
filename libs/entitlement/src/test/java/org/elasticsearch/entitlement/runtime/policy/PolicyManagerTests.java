@@ -66,11 +66,7 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(
-            "No policy for the unnamed module",
-            ModuleEntitlements.NONE,
-            policyManager.getEntitlements(callerClass)
-        );
+        assertEquals("No policy for the unnamed module", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
 
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
@@ -82,11 +78,7 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(
-            "No policy for this plugin",
-            ModuleEntitlements.NONE,
-            policyManager.getEntitlements(callerClass)
-        );
+        assertEquals("No policy for this plugin", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
 
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
@@ -134,11 +126,7 @@ public class PolicyManagerTests extends ESTestCase {
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
-        assertEquals(
-            "No policy for this module in server",
-            ModuleEntitlements.NONE,
-            policyManager.getEntitlements(mockServerClass)
-        );
+        assertEquals("No policy for this module in server", ModuleEntitlements.NONE, policyManager.getEntitlements(mockServerClass));
 
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
@@ -228,8 +216,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(
             "Skip entitlement library and the instrumented method",
             requestingClass,
-            policyManager.findRequestingClass(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass))
-                .orElse(null)
+            policyManager.findRequestingClass(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass)).orElse(null)
         );
         assertEquals(
             "Skip multiple library frames",

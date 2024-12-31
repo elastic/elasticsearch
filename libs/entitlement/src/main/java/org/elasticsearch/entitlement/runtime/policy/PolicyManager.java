@@ -235,8 +235,7 @@ public class PolicyManager {
      * @throws NullPointerException if the requesting module is {@code null}
      */
     Optional<Class<?>> findRequestingClass(Stream<Class<?>> classes) {
-        return classes
-            .filter(c -> c.getModule() != entitlementsModule)  // Ignore the entitlements library
+        return classes.filter(c -> c.getModule() != entitlementsModule)  // Ignore the entitlements library
             .skip(1)                                           // Skip the sensitive caller method
             .findFirst();
     }

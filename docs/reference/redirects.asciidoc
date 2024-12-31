@@ -160,6 +160,12 @@ https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memor
 improvements in heap memory usage].
 // end::frozen-removal-explanation[]
 
+[role="exclude",id="unfreeze-index-api"]
+=== Unfreeze index API
+
+The unfreeze index API was removed in 9.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
 [role="exclude",id="ilm-freeze"]
 === Freeze {ilm-init} action
 
@@ -1749,6 +1755,11 @@ See <<search-terms-enum>>.
 === Frozen indices
 
 // tag::frozen-index-redirect[]
+
+// TODO(pete): Figure out what to do here. I don't think anything links here from main. But I guess users could get here
+// from link in old versions. Linking from here to the thing saying that the API isn't much use. Maybe we need a
+// sentence about what the feature was? And maybe the other places which currently point to unfreeze-index-api should
+// point here instead?
 
 For API documentation, see <<unfreeze-index-api>>.
 // end::frozen-index-redirect[]

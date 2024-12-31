@@ -45,6 +45,8 @@ For more information on managing indices, refer to <<indices, Index APIs>>.
 Badges indicate if an index is a <<ccr-put-follow,follower index>>, a
 <<rollup-get-rollup-index-caps,rollup index>>, or <<unfreeze-index-api,frozen>>.
 
+// TODO(pete): Figure out whether it's okay for this to point to the 'deleted pages' entry.
+
 * To drill down into the index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and statistics,
 click an index name. From this view, you can navigate to *Discover* to

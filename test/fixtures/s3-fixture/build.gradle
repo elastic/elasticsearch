@@ -16,4 +16,5 @@ dependencies {
     transitive = false
   }
   implementation project(':test:framework')
+  implementation project(':test:fixtures:aws-fixture-utils')
 }

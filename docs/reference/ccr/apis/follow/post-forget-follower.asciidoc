@@ -5,6 +5,12 @@
 <titleabbrev>Forget follower</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
 Removes the <<xpack-ccr,{ccr}>> follower retention leases from the leader.
 
 [[ccr-post-forget-follower-request]]

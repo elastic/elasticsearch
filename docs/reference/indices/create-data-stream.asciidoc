@@ -5,6 +5,12 @@
 <titleabbrev>Create data stream</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Creates a new <<data-streams,data stream>>.
 
 ////

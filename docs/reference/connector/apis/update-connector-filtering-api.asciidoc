@@ -6,6 +6,12 @@
 
 beta::[]
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering draft is activated once validated by the running Elastic connector service.
 
 The filtering property is used to configure sync rules (both basic and advanced) for a connector. Learn more in the <<es-sync-rules>>.

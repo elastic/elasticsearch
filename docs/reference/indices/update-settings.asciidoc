@@ -4,6 +4,12 @@
 <titleabbrev>Update index settings</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Changes a <<index-modules-settings,dynamic index setting>> in real time.
 
 For data streams, index setting changes are applied to all backing indices by

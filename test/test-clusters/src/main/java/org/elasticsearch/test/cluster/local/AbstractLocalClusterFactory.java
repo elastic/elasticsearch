@@ -215,6 +215,14 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return readPortsFile(portsFile).get(0);
         }
 
+        public List<String> getAvailableTransportEndpoints() {
+            Path portsFile = workingDir.resolve("logs").resolve("transport.ports");
+            if (Files.notExists(portsFile)) {
+                return List.of();
+            }
+            return readPortsFile(portsFile);
+        }
+
         public String getRemoteClusterServerEndpoint() {
             if (spec.isRemoteClusterServerEnabled()) {
                 Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");

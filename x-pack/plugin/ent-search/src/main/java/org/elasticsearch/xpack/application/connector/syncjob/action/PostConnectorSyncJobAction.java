@@ -32,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class PostConnectorSyncJobAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/sync_job/post";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/post";
     public static final ActionType<PostConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private PostConnectorSyncJobAction() {/* no instances */}

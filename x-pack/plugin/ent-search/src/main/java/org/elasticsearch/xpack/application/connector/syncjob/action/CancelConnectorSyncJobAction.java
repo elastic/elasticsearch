@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyn
 
 public class CancelConnectorSyncJobAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/sync_job/cancel";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/cancel";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<ConnectorUpdateActionResponse>(NAME);
 
     private CancelConnectorSyncJobAction() {/* no instances */}

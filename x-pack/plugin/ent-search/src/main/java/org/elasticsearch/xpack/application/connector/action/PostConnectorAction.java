@@ -25,7 +25,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class PostConnectorAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/post";
+    public static final String NAME = "cluster:admin/xpack/connector/post";
     public static final ActionType<ConnectorCreateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private PostConnectorAction() {/* no instances */}

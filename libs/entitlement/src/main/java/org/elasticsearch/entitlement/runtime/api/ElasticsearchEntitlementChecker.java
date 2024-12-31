@@ -29,12 +29,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$$exit(Class<?> callerClass, Runtime runtime, int status) {
+    public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
     }
 
     @Override
-    public void check$$halt(Class<?> callerClass, Runtime runtime, int status) {
+    public void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
     }
 
@@ -70,12 +70,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$$start(Class<?> callerClass, ProcessBuilder processBuilder, ProcessBuilder.Redirect[] redirects) {
+    public void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder processBuilder) {
         policyManager.checkStartProcess(callerClass);
     }
 
     @Override
-    public void check$java_lang_ProcessBuilder$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
+    public void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
         policyManager.checkStartProcess(callerClass);
     }
 }

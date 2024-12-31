@@ -9,6 +9,12 @@ beta::[]
 
 ---
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
+--
+
 Use the following APIs to manage tasks and resources related to <<behavioral-analytics-overview,Behavioral Analytics>>:
 
 * <<put-analytics-collection>>

@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'x-pack-analytics'
-  description 'Elasticsearch Expanded Pack Plugin - Analytics'
-  classname 'org.elasticsearch.xpack.analytics.AnalyticsPlugin'
+  name = 'x-pack-analytics'
+  description = 'Elasticsearch Expanded Pack Plugin - Analytics'
+  classname ='org.elasticsearch.xpack.analytics.AnalyticsPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer {
-    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.0";
+    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.1";
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private final ProvisioningId provisioningId;
     private Path krb5ConfFile;

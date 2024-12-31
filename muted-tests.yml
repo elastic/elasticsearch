@@ -295,6 +295,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
   method: getJavaToolChainSpec is cached anc concurrently accessible
   issue: https://github.com/elastic/elasticsearch/issues/119173
+- class: org.elasticsearch.ingest.common.DateProcessorTests
+  method: testJavaPatternDefaultYear
+  issue: https://github.com/elastic/elasticsearch/issues/119391
 
 # Examples:
 #

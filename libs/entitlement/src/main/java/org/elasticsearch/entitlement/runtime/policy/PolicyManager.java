@@ -17,11 +17,11 @@ import org.elasticsearch.logging.Logger;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,7 +53,7 @@ public class PolicyManager {
         }
     }
 
-    final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new HashMap<>();
+    final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
     protected final Map<String, List<Entitlement>> serverEntitlements;
     protected final List<Entitlement> agentEntitlements;
@@ -136,7 +136,7 @@ public class PolicyManager {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlementsOrThrow(requestingClass);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.hasEntitlement(entitlementClass)) {
             logger.debug(
                 () -> Strings.format(
@@ -158,19 +158,14 @@ public class PolicyManager {
         );
     }
 
-    ModuleEntitlements getEntitlementsOrThrow(Class<?> requestingClass) {
-        Module requestingModule = requestingClass.getModule();
-        ModuleEntitlements cachedEntitlement = moduleEntitlementsMap.get(requestingModule);
-        if (cachedEntitlement != null) {
-            if (cachedEntitlement == ModuleEntitlements.NONE) {
-                throw new NotEntitledException(buildModuleNoPolicyMessage(requestingClass) + "[CACHED]");
-            }
-            return cachedEntitlement;
-        }
+    ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+        return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));
+    }
 
+    private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
+        Module requestingModule = requestingClass.getModule();
         if (isServerModule(requestingModule)) {
-            var scopeName = requestingModule.getName();
-            return getModuleEntitlementsOrThrow(requestingClass, requestingModule, serverEntitlements, scopeName);
+            return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName());
         }
 
         // plugins
@@ -184,7 +179,7 @@ public class PolicyManager {
                 } else {
                     scopeName = requestingModule.getName();
                 }
-                return getModuleEntitlementsOrThrow(requestingClass, requestingModule, pluginEntitlements, scopeName);
+                return getModuleScopeEntitlements(requestingClass, pluginEntitlements, scopeName);
             }
         }
 
@@ -193,34 +188,21 @@ public class PolicyManager {
             return ModuleEntitlements.from(agentEntitlements);
         }
 
-        moduleEntitlementsMap.put(requestingModule, ModuleEntitlements.NONE);
-        throw new NotEntitledException(buildModuleNoPolicyMessage(requestingClass));
+        logger.warn("No applicable entitlement policy for class [{}]", requestingClass.getName());
+        return ModuleEntitlements.NONE;
     }
 
-    private static String buildModuleNoPolicyMessage(Class<?> requestingClass) {
-        return Strings.format(
-            "Missing entitlement policy: class [%s], module [%s]",
-            requestingClass,
-            requestingClass.getModule().getName()
-        );
-    }
-
-    private ModuleEntitlements getModuleEntitlementsOrThrow(
+    private ModuleEntitlements getModuleScopeEntitlements(
         Class<?> callerClass,
-        Module module,
         Map<String, List<Entitlement>> scopeEntitlements,
         String moduleName
     ) {
         var entitlements = scopeEntitlements.get(moduleName);
         if (entitlements == null) {
-            // Module without entitlements - remember we don't have any
-            moduleEntitlementsMap.put(module, ModuleEntitlements.NONE);
-            throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass));
+            logger.warn("No applicable entitlement policy for module [{}], class [{}]", moduleName, callerClass);
+            return ModuleEntitlements.NONE;
         }
-        // We have a policy for this module
-        var classEntitlements = ModuleEntitlements.from(entitlements);
-        moduleEntitlementsMap.put(module, classEntitlements);
-        return classEntitlements;
+        return ModuleEntitlements.from(entitlements);
     }
 
     private static boolean isServerModule(Module requestingModule) {

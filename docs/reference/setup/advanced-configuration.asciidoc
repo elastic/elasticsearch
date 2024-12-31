@@ -1,6 +1,7 @@
 [[advanced-configuration]]
 === Set JVM options
 
+[[set-jvm-options]]
 If needed, you can override the default JVM options by adding custom options
 files (preferred) or setting the `ES_JAVA_OPTS` environment variable.
 

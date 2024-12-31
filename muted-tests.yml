@@ -251,6 +251,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testEsqlTermsAggregationByMethod
   issue: https://github.com/elastic/elasticsearch/issues/119355
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119432
 
 # Examples:
 #

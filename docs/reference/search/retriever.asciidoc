@@ -14,6 +14,12 @@ Refer to <<retrievers-overview>> for a high level overview of the retrievers abs
 Refer to <<retrievers-examples, Retrievers examples>> for additional examples.
 ====
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 The following retrievers are available:
 
 `standard`::

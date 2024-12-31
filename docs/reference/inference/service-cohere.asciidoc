@@ -1,6 +1,12 @@
 [[infer-service-cohere]]
 === Cohere {infer} service
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 Creates an {infer} endpoint to perform an {infer} task with the `cohere` service.
 
 

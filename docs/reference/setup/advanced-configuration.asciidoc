@@ -1,5 +1,5 @@
 [[set-jvm-options]]
-==== Set JVM options
+=== Set JVM options
 
 If needed, you can override the default JVM options by adding custom options
 files (preferred) or setting the `ES_JAVA_OPTS` environment variable.
@@ -21,7 +21,7 @@ is recommended in most circumstances.
 NOTE: Do not modify the root `jvm.options` file. Use files in `jvm.options.d/` instead.
 
 [[jvm-options-syntax]]
-===== JVM options syntax
+==== JVM options syntax
 
 A JVM options file contains a line-delimited list of JVM arguments.
 Arguments are preceded by a dash (`-`).
@@ -63,7 +63,7 @@ and ignored. Lines that aren't commented out and aren't recognized
 as valid JVM arguments are rejected and {es} will fail to start.
 
 [[jvm-options-env]]
-===== Use environment variables to set JVM options
+==== Use environment variables to set JVM options
 
 In production, use JVM options files to override the
 default settings. In testing and development environments,
@@ -153,10 +153,10 @@ NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.
 
 [[heap-dump-path]]
-include::important-settings/heap-dump-path.asciidoc[]
+include::important-settings/heap-dump-path.asciidoc[leveloffset=-1]
 
 [[gc-logging]]
-include::important-settings/gc-logging.asciidoc[]
+include::important-settings/gc-logging.asciidoc[leveloffset=-1]
 
 [[error-file-path]]
-include::important-settings/error-file.asciidoc[]
+include::important-settings/error-file.asciidoc[leveloffset=-1]

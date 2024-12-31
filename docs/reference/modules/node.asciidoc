@@ -25,6 +25,10 @@ include::{es-ref-dir}/setup/important-settings/node-name.asciidoc[]
 
 [[node-roles]]
 ==== Node role settings
+[[ml-node]]
+[[master-node]]
+[[data-node]]
+[[transform-node]]
 
 You define a node's roles by setting `node.roles` in `elasticsearch.yml`. If you
 set `node.roles`, the node is only assigned the roles you specify. If you don't

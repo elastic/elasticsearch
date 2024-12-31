@@ -103,18 +103,18 @@ excess data that prevents a node from starting.
 
 The following is a list of the roles that a node can perform in a cluster. A node can have one or more roles.
 
-* <<master-node,Master-eligible node>> (`master`): A node that is eligible to be
+* <<master-node-role,Master-eligible node>> (`master`): A node that is eligible to be
 <<modules-discovery,elected as the _master_ node>>, which controls the cluster.
 
-* <<data-node,Data node>> (`data`, `data_content`, `data_hot`, `data_warm`, `data_cold`, `data_frozen`): A node that has one of several data roles. Data nodes hold data and perform data related operations such as CRUD, search, and aggregations. You might use multiple data roles in a cluster so you can implement <<data-tiers,data tiers>>.
+* <<data-node-role,Data node>> (`data`, `data_content`, `data_hot`, `data_warm`, `data_cold`, `data_frozen`): A node that has one of several data roles. Data nodes hold data and perform data related operations such as CRUD, search, and aggregations. You might use multiple data roles in a cluster so you can implement <<data-tiers,data tiers>>.
 
 * <<node-ingest-node,Ingest node>> (`ingest`): Ingest nodes are able to apply an <<ingest,ingest pipeline>> to a document in order to transform and enrich the document before indexing. With a heavy ingest load, it makes sense to use dedicated ingest nodes and to not include the `ingest` role from nodes that have the `master` or `data` roles.
 
 * <<remote-node,Remote-eligible node>> (`remote_cluster_client`): A node that is eligible to act as a remote client.
 
-* <<ml-node,Machine learning node>> (`ml`): A node that can run {ml-features}. If you want to use {ml-features}, there must be at least one {ml} node in your cluster. For more information, see <<ml-settings>> and {ml-docs}/index.html[Machine learning in the {stack}].
+* <<ml-node-role,Machine learning node>> (`ml`): A node that can run {ml-features}. If you want to use {ml-features}, there must be at least one {ml} node in your cluster. For more information, see <<ml-settings>> and {ml-docs}/index.html[Machine learning in the {stack}].
 
-* <<transform-node,{transform-cap} node>> (`transform`): A node that can perform {transforms}. If you want to use {transforms}, there must be at least one {transform} node in your cluster. For more information, see <<transform-settings>> and <<transforms>>.
+* <<transform-node-role,{transform-cap} node>> (`transform`): A node that can perform {transforms}. If you want to use {transforms}, there must be at least one {transform} node in your cluster. For more information, see <<transform-settings>> and <<transforms>>.
 
 [NOTE]
 [[coordinating-node]]
@@ -141,7 +141,7 @@ memory and CPU in order to deal with the gather phase.
 
 [discrete]
 
-[[master-node]]
+[[master-node-role]]
 ==== Master-eligible node
 
 The master node is responsible for lightweight cluster-wide actions such as
@@ -244,7 +244,7 @@ therefore ensure that the storage and networking available to the nodes in your
 cluster are good enough to meet your performance goals.
 
 [discrete]
-[[data-node]]
+[[data-node-role]]
 ==== Data nodes
 
 Data nodes hold the shards that contain the documents you have indexed. Data
@@ -401,7 +401,7 @@ node.roles: [ remote_cluster_client ]
 ----
 
 [discrete]
-[[ml-node]]
+[[ml-node-role]]
 ==== [xpack]#Machine learning node#
 
 {ml-cap} nodes run jobs and handle {ml} API requests. For more information, see
@@ -420,7 +420,7 @@ your {anomaly-jobs}, the `remote_cluster_client` role is also required on all
 master-eligible nodes. Otherwise, the {dfeed} cannot start. See <<remote-node>>.
 
 [discrete]
-[[transform-node]]
+[[transform-node-role]]
 ==== [xpack]#{transform-cap} node#
 
 {transform-cap} nodes run {transforms} and handle {transform} API requests. For

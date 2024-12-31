@@ -11,7 +11,7 @@
 
 To use {transforms}, you must have:
 
-* at least one <<transform-node,{transform} node>>,
+* at least one <<transform-node-role,{transform} node>>,
 * management features visible in the {kib} space, and
 * security privileges that:
 +

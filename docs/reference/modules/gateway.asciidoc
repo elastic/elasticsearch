@@ -4,7 +4,7 @@
 The local gateway stores the cluster state and shard data across full
 cluster restarts.
 
-The following _static_ settings, which must be set on every <<master-node,master-eligible node>>,
+The following _static_ settings, which must be set on every <<master-node-role,master-eligible node>>,
 control how long a freshly elected master should wait before it tries to
 recover the <<cluster-state,cluster state>> and the cluster's data.
 

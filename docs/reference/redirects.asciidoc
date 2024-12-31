@@ -1947,3 +1947,8 @@ Refer to <<delete-ip-location-database-api>>.
 === Delete _knn_search API
 
 Refer to <<search-api-knn>>.
+
+[role="exclude",id="advanced-configuration"]
+=== Advanced configuration
+
+Refer to <<set-jvm-options>>.

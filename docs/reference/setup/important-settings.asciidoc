@@ -31,6 +31,8 @@ To learn about this setting, and how to migrate away from it, refer to <<multipl
 include::important-settings/cluster-name.asciidoc[]
 
 [[node-name]]
+[discrete]
+==== Node name setting
 include::important-settings/node-name.asciidoc[]
 
 include::important-settings/network-host.asciidoc[]

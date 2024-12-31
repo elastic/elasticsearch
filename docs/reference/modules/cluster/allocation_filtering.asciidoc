@@ -59,9 +59,9 @@ The cluster allocation settings support the following built-in attributes:
 
 NOTE: `_tier` filtering is based on <<modules-node, node>> roles. Only
 a subset of roles are <<data-tiers, data tier>> roles, and the generic
-<<data-node, data role>> will match any tier filtering.
+<<data-node-role, data role>> will match any tier filtering.
 a subset of roles that are <<data-tiers, data tier>> roles, but the generic
-<<data-node, data role>> will match any tier filtering.
+<<data-node-role, data role>> will match any tier filtering.
 
 
 You can use wildcards when specifying attribute values, for example:

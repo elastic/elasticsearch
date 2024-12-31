@@ -189,7 +189,7 @@ tier].
 [[configure-data-tiers-on-premise]]
 ==== Self-managed deployments
 
-For self-managed deployments, each node's <<data-node,data role>> is configured
+For self-managed deployments, each node's <<data-node-role,data role>> is configured
 in `elasticsearch.yml`. For example, the highest-performance nodes in a cluster
 might be assigned to both the hot and content tiers:
 

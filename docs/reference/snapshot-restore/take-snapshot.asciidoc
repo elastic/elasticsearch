@@ -46,7 +46,7 @@ taking snapshots at different time intervals.
 include::register-repository.asciidoc[tag=kib-snapshot-prereqs]
 
 * You can only take a snapshot from a running cluster with an elected
-<<master-node,master node>>.
+<<master-node-role,master node>>.
 
 * A snapshot repository must be <<snapshots-register-repository,registered>> and
 available to the cluster.

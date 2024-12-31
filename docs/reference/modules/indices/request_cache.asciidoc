@@ -17,9 +17,9 @@ To learn more about the shard request cache, see <<shard-request-cache>>.
 [discrete]
 ==== Cache settings
 
-indices.requests.cache.size::
+`indices.requests.cache.size`::
 (<<static-cluster-setting,Static>>) The maximum size of the cache, as a percentage of the heap. Default: `1%`.
 
-indices.requests.cache.expire::
+`indices.requests.cache.expire`::
 (<<static-cluster-setting,Static>>) The TTL for cached results. Stale results are automatically invalidated when the index is refreshed, so you shouldn't need to use this setting.
 

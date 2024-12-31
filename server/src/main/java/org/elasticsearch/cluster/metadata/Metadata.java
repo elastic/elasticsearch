@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -105,25 +106,25 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     /**
      * Indicates that this custom metadata will be returned as part of an API call but will not be persisted
      */
-    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+    public static final EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and will be persisted between
      * node restarts, but will not be a part of a snapshot global state
      */
-    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+    public static final EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and stored as a part of
      * a snapshot global state, but will not be persisted between node restarts
      */
-    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+    public static final EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call, stored as a part of
      * a snapshot global state, and will be persisted between node restarts
      */
-    public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
+    public static final EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
     public interface MetadataCustom<T> extends NamedDiffable<T>, ChunkedToXContent {
 
@@ -626,64 +627,86 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        XContentContext context = XContentContext.from(params);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
+        XContentContext context = XContentContext.from(p);
+        final Iterator<? extends ToXContent> start = context == XContentContext.API
+            ? ChunkedToXContentHelper.startObject("metadata")
+            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
 
-        var builder = ChunkedToXContent.builder(params)
-            .append(
-                context == XContentContext.API
-                    ? (b, p) -> b.startObject("metadata")
-                    : (b, p) -> b.startObject("meta-data").field("version", version())
-            )
-            .append((b, p) -> {
-                b.field("cluster_uuid", clusterUUID);
-                b.field("cluster_uuid_committed", clusterUUIDCommitted);
-                b.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(b, p);
-                return b.endObject();
+        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
+            ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
             })
-            .execute(xb -> {
-                if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
-                    xb.append((b, p) -> {
-                        b.startObject("settings");
-                        persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                        return b.endObject();
-                    });
-                }
-            });
+            : Collections.emptyIterator();
 
         // use a tree map so the order is deterministic
         Map<String, ReservedStateMetadata> clusterReservedState = new TreeMap<>(reservedStateMetadata);
 
         @FixForMultiProject
         // Need to revisit whether this should be a param or something else.
-        boolean multiProject = params.paramAsBoolean("multi-project", false);
+        final boolean multiProject = p.paramAsBoolean("multi-project", false);
         if (multiProject) {
-            builder.array(
-                "projects",
-                projectMetadata.entrySet().iterator(),
-                (b, e) -> b.object(ob -> ob.field("id", e.getKey()).append(e.getValue()))
+            return Iterators.concat(start, Iterators.single((builder, params) -> {
+                builder.field("cluster_uuid", clusterUUID);
+                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+                builder.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(builder, params);
+                return builder.endObject();
+            }),
+                persistentSettings,
+                ChunkedToXContentHelper.array(
+                    "projects",
+                    Iterators.flatMap(
+                        projectMetadata.entrySet().iterator(),
+                        e -> Iterators.concat(
+                            ChunkedToXContentHelper.startObject(),
+                            Iterators.single((builder, params) -> builder.field("id", e.getKey())),
+                            e.getValue().toXContentChunked(p),
+                            ChunkedToXContentHelper.endObject()
+                        )
+                    )
+                ),
+                Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    entry -> entry.getValue().context().contains(context)
+                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        : Collections.emptyIterator()
+                ),
+                ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+                ChunkedToXContentHelper.endObject()
             );
         } else {
-            if (projectMetadata.size() == 1) {
-                // Need to rethink what to do here. This might be right, but maybe not...
-                @FixForMultiProject
-                final ProjectMetadata project = projectMetadata.values().iterator().next();
-
-                // need to combine reserved state together into a single block so we don't get duplicate keys
-                // and not include it in the project xcontent output (through the lack of multi-project params)
-                clusterReservedState.putAll(project.reservedStateMetadata());
-                builder.append(project);
-            } else {
+            if (projectMetadata.size() != 1) {
                 throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
             }
-        }
+            // Need to rethink what to do here. This might be right, but maybe not...
+            @FixForMultiProject
+            final ProjectMetadata project = projectMetadata.values().iterator().next();
 
-        return builder.forEach(customs.entrySet().iterator(), (b, e) -> {
-            if (e.getValue().context().contains(context)) {
-                b.xContentObject(e.getKey(), e.getValue());
-            }
-        }).xContentObject("reserved_state", clusterReservedState.values().iterator()).append((b, p) -> b.endObject());
+            // need to combine reserved state together into a single block so we don't get duplicate keys
+            // and not include it in the project xcontent output (through the lack of multi-project params)
+            clusterReservedState.putAll(project.reservedStateMetadata());
+            return Iterators.concat(start, Iterators.single((builder, params) -> {
+                builder.field("cluster_uuid", clusterUUID);
+                builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+                builder.startObject("cluster_coordination");
+                coordinationMetadata().toXContent(builder, params);
+                return builder.endObject();
+            }),
+                persistentSettings,
+                project.toXContentChunked(p),
+                Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    entry -> entry.getValue().context().contains(context)
+                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        : Collections.emptyIterator()
+                ),
+                ChunkedToXContentHelper.wrapWithObject("reserved_state", clusterReservedState.values().iterator()),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
     }
 
     private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(

@@ -85,9 +85,7 @@ public class InstrumenterTests extends ESTestCase {
      * This is a placeholder for real class library methods.
      * Without the java agent, we can't instrument the real methods, so we instrument this instead.
      * <p>
-     * Methods of this class must have the same signature and the same static/virtual condition as the corresponding real method.
-     * They should assert that the arguments came through correctly.
-     * They must not throw {@link TestException}.
+     * The instrumented copy of this class will not extend this class, but it will implement {@link Testable}.
      */
     public static class TestClassToInstrument implements Testable {
 
@@ -108,31 +106,36 @@ public class InstrumenterTests extends ESTestCase {
 
     /**
      * Interface to test specific, "synthetic" cases (e.g. overloaded methods, overloaded constructors, etc.) that
-     * may be not present/may be difficult to find or not clear in the production EntitlementChecker interface
+     * may be not present/may be difficult to find or not clear in the production EntitlementChecker interface.
+     * <p>
+     * This interface isn't subject to the {@code check$} method naming conventions because it doesn't
+     * participate in the automated scan that configures the instrumenter based on the method names;
+     * instead, we configure the instrumenter minimally as needed for each test.
      */
     public interface MockEntitlementChecker {
-        void checkSomeStaticMethod(Class<?> clazz, int arg);
+        void checkSomeStaticMethod(Class<?> callerClass, int arg);
 
-        void checkSomeStaticMethodOverload(Class<?> clazz, int arg, String anotherArg);
+        void checkSomeStaticMethodOverload(Class<?> callerClass, int arg, String anotherArg);
 
-        void checkAnotherStaticMethod(Class<?> clazz, int arg);
+        void checkAnotherStaticMethod(Class<?> callerClass, int arg);
 
-        void checkSomeInstanceMethod(Class<?> clazz, Testable that, int arg, String anotherArg);
+        void checkSomeInstanceMethod(Class<?> callerClass, Testable that, int arg, String anotherArg);
 
-        void checkCtor(Class<?> clazz);
+        void checkCtor(Class<?> callerClass);
 
-        void checkCtorOverload(Class<?> clazz, int arg);
+        void checkCtorOverload(Class<?> callerClass, int arg);
+
     }
 
     public static class TestEntitlementCheckerHolder {
-        static TestEntitlementChecker checkerInstance = new TestEntitlementChecker();
+        static MockEntitlementCheckerImpl checkerInstance = new MockEntitlementCheckerImpl();
 
         public static MockEntitlementChecker instance() {
             return checkerInstance;
         }
     }
 
-    public static class TestEntitlementChecker implements MockEntitlementChecker {
+    public static class MockEntitlementCheckerImpl implements MockEntitlementChecker {
         /**
          * This allows us to test that the instrumentation is correct in both cases:
          * if the check throws, and if it doesn't.
@@ -206,7 +209,7 @@ public class InstrumenterTests extends ESTestCase {
 
     @Before
     public void resetInstance() {
-        TestEntitlementCheckerHolder.checkerInstance = new TestEntitlementChecker();
+        TestEntitlementCheckerHolder.checkerInstance = new MockEntitlementCheckerImpl();
     }
 
     public void testStaticMethod() throws Exception {
@@ -285,18 +288,16 @@ public class InstrumenterTests extends ESTestCase {
         assertEquals(1, TestEntitlementCheckerHolder.checkerInstance.checkCtorIntCallCount);
     }
 
-    /** This test doesn't replace classToInstrument in-place but instead loads a separate
-     * class with the same class name plus a "_NEW" suffix (classToInstrument.class.getName() + "_NEW")
-     * that contains the instrumentation. Because of this, we need to configure the Transformer to use a
-     * MethodKey and instrumentationMethod with slightly different signatures (using the common interface
-     * Testable) which is not what would happen when it's run by the agent.
+    /**
+     * These tests don't replace classToInstrument in-place but instead load a separate class with the same class name.
+     * This requires a configuration slightly different from what we'd use in production.
      */
     private static InstrumenterImpl createInstrumenter(Map<String, Executable> methods) throws NoSuchMethodException {
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>();
         for (var entry : methods.entrySet()) {
             checkMethods.put(getMethodKey(entry.getValue()), getCheckMethod(entry.getKey(), entry.getValue()));
         }
-        String checkerClass = Type.getInternalName(InstrumenterTests.MockEntitlementChecker.class);
+        String checkerClass = Type.getInternalName(MockEntitlementChecker.class);
         String handleClass = Type.getInternalName(InstrumenterTests.TestEntitlementCheckerHolder.class);
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
 

@@ -5,6 +5,12 @@
 <titleabbrev>Delete calendars</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes a calendar.
 
 [[ml-delete-calendar-request]]

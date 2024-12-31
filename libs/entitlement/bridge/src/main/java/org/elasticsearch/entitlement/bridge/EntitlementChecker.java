@@ -13,12 +13,13 @@ import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 import java.util.List;
 
+@SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
     // Exit the JVM process
-    void check$$exit(Class<?> callerClass, Runtime runtime, int status);
+    void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status);
 
-    void check$$halt(Class<?> callerClass, Runtime runtime, int status);
+    void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status);
 
     // ClassLoader ctor
     void check$java_lang_ClassLoader$(Class<?> callerClass);
@@ -46,8 +47,8 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
     // Process creation
-    void check$$start(Class<?> callerClass, ProcessBuilder that, ProcessBuilder.Redirect[] redirects);
+    void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder that);
 
-    void check$java_lang_ProcessBuilder$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
+    void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
 
 }

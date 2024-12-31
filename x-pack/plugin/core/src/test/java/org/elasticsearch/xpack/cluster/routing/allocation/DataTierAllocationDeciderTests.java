@@ -762,27 +762,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.REPLACE,
             SingleNodeShutdownMetadata.Type.REMOVE
         );
+        var builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId(nodeId)
+            .setNodeEphemeralId(nodeId)
+            .setType(type)
+            .setReason(this.getTestName());
         return switch (type) {
-            case REMOVE -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
-            case REPLACE -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setTargetNodeName(randomAlphaOfLength(10))
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
-            case SIGTERM -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setGracePeriod(randomTimeValue())
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
+            case REMOVE -> builder.setStartedAtMillis(randomNonNegativeLong()).build();
+            case REPLACE -> builder.setTargetNodeName(randomAlphaOfLength(10)).setStartedAtMillis(randomNonNegativeLong()).build();
+            case SIGTERM -> builder.setGracePeriod(randomTimeValue()).setStartedAtMillis(randomNonNegativeLong()).build();
             case RESTART -> throw new AssertionError("bad randomization, this method only generates removal type shutdowns");
         };
     }
@@ -1030,6 +1018,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 nodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(nodeId)
+                    .setNodeEphemeralId(nodeId)
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())

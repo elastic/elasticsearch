@@ -2258,6 +2258,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         it -> it.nodeId,
                         it -> SingleNodeShutdownMetadata.builder()
                             .setNodeId(it.nodeId)
+                            .setNodeEphemeralId(it.nodeId)
                             .setType(it.type)
                             .setReason("test")
                             .setNodeSeen(true)

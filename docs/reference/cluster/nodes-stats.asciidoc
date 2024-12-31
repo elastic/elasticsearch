@@ -5,6 +5,12 @@
 <titleabbrev>Nodes stats</titleabbrev>
 ++++
 
+..New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns cluster nodes statistics.
 
 [[cluster-nodes-stats-api-request]]

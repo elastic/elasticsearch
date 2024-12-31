@@ -14,9 +14,9 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  name 'logsdb'
-  description 'A plugin for logsdb related functionality'
-  classname 'org.elasticsearch.xpack.logsdb.LogsDBPlugin'
+  name = 'logsdb'
+  description = 'A plugin for logsdb related functionality'
+  classname ='org.elasticsearch.xpack.logsdb.LogsDBPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

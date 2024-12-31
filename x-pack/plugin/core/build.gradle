@@ -17,11 +17,11 @@ base {
 }
 
 esplugin {
-  name 'x-pack-core'
-  description 'Elasticsearch Expanded Pack Plugin - Core'
-  classname 'org.elasticsearch.xpack.core.XPackPlugin'
-  hasNativeController false
-  requiresKeystore false
+  name = 'x-pack-core'
+  description = 'Elasticsearch Expanded Pack Plugin - Core'
+  classname ='org.elasticsearch.xpack.core.XPackPlugin'
+  hasNativeController =false
+  requiresKeystore =false
 }
 
 tasks.named("dependencyLicenses").configure {

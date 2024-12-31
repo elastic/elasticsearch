@@ -25,26 +25,22 @@ include::{es-ref-dir}/setup/important-settings/node-name.asciidoc[]
 
 [[node-roles]]
 ==== Node role settings
-[[ml-node]]
-[[master-node]]
-[[data-node]]
-[[transform-node]]
 
 You define a node's roles by setting `node.roles` in `elasticsearch.yml`. If you
 set `node.roles`, the node is only assigned the roles you specify. If you don't
 set `node.roles`, the node is assigned the following roles:
 
-* `master`
-* `data`
+* [[master-node]]`master`
+* [[data-node]]`data`
 * `data_content`
 * `data_hot`
 * `data_warm`
 * `data_cold`
 * `data_frozen`
 * `ingest`
-* `ml`
+* [[ml-node]]`ml`
 * `remote_cluster_client`
-* `transform`
+* [[transform-node]]`transform`
 
 The following additional roles are available:
 

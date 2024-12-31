@@ -1,4 +1,4 @@
-[[set-jvm-options]]
+[[advanced-configuration]]
 === Set JVM options
 
 If needed, you can override the default JVM options by adding custom options

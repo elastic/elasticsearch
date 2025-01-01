@@ -5,6 +5,12 @@
 <titleabbrev>Move to step</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Triggers execution of a specific step in the <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-move-to-step-request]]

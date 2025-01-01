@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -54,8 +55,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -296,14 +295,24 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {
-        var indexDocIdsByIndexId = new LinkedHashMap<Integer, Collection<Integer>>();
+        var currentIndex = -1;
+        List<Integer> currentList = null;
         DocVector vector = docBlock.asVector();
         for (int i = 0; i < docBlock.getPositionCount(); i++) {
             int indexId = vector.shards().getInt(i);
-            indexDocIdsByIndexId.computeIfAbsent(indexId, k -> new ArrayList<>()).add(i);
+            if (indexId != currentIndex) {
+                consumeIndexDoc(indexDocConsumer, vector, currentList);
+                currentList = new ArrayList<>();
+                currentIndex = indexId;
+            }
+            currentList.add(i);
         }
-        for (var indexDocIds : indexDocIdsByIndexId.values()) {
-            try (DocVector indexDocVector = vector.filter(indexDocIds.stream().mapToInt(Integer::intValue).toArray())) {
+        consumeIndexDoc(indexDocConsumer, vector, currentList);
+    }
+
+    private static void consumeIndexDoc(Consumer<DocBlock> indexDocConsumer, DocVector vector, @Nullable List<Integer> currentList) {
+        if (currentList != null) {
+            try (DocVector indexDocVector = vector.filter(currentList.stream().mapToInt(Integer::intValue).toArray())) {
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
         }

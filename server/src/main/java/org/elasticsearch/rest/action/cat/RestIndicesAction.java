@@ -304,13 +304,13 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.indexing.index_failed", "default:false;text-align:right;desc:number of failed indexing ops");
         table.addCell(
-                "indexing.index_failed_due_to_version_conflict",
-                "sibling:pri;alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
-                        + "desc:number of failed indexing ops due to version conflict"
+            "indexing.index_failed_due_to_version_conflict",
+            "sibling:pri;alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
         );
         table.addCell(
-                "pri.indexing.index_failed_due_to_version_conflict",
-                "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
+            "pri.indexing.index_failed_due_to_version_conflict",
+            "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
         );
 
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");

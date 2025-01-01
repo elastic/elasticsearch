@@ -231,9 +231,9 @@ public class RestNodesAction extends AbstractCatAction {
             "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
         );
         table.addCell(
-                "indexing.index_failed_due_to_version_conflict",
-                "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
-                        + "desc:number of failed indexing ops due to version conflict"
+            "indexing.index_failed_due_to_version_conflict",
+            "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
         );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");

@@ -5,6 +5,12 @@
 <titleabbrev>Invalidate token</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Invalidates one or more access tokens or refresh tokens.
 
 [[security-api-invalidate-token-request]]

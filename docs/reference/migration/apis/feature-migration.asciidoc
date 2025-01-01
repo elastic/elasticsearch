@@ -5,6 +5,12 @@
 <titleabbrev>Feature migration</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-migration[Migration APIs].
+--
+
 include::{es-ref-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
 
 Version upgrades sometimes require changes to how features store configuration

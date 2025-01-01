@@ -1,6 +1,12 @@
 [[infer-service-watsonx-ai]]
 === Watsonx {infer} service
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 Creates an {infer} endpoint to perform an {infer} task with the `watsonxai` service.
 
 You need an https://cloud.ibm.com/docs/databases-for-elasticsearch?topic=databases-for-elasticsearch-provisioning&interface=api[IBM Cloud® Databases for Elasticsearch deployment] to use the `watsonxai` {infer} service.

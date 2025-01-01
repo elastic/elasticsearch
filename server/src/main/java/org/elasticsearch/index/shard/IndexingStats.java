@@ -34,7 +34,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long indexTimeInMillis;
         private long indexCurrent;
         private long indexFailedCount;
-        private long indexFailedWithVersionConflictCount;
+        private long indexFailedDueToVersionConflictCount;
         private long deleteCount;
         private long deleteTimeInMillis;
         private long deleteCurrent;
@@ -51,8 +51,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
             indexFailedCount = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_WITH_VERSION_CONFLICT_METRICS)) {
-                indexFailedWithVersionConflictCount = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRICS)) {
+                indexFailedDueToVersionConflictCount = in.readVLong();
             }
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
@@ -71,7 +71,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long indexTimeInMillis,
             long indexCurrent,
             long indexFailedCount,
-            long indexFailedWithVersionConflictCount,
+            long indexFailedDueToVersionConflictCount,
             long deleteCount,
             long deleteTimeInMillis,
             long deleteCurrent,
@@ -85,7 +85,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
             this.indexFailedCount = indexFailedCount;
-            this.indexFailedWithVersionConflictCount = indexFailedWithVersionConflictCount;
+            this.indexFailedDueToVersionConflictCount = indexFailedDueToVersionConflictCount;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
@@ -102,7 +102,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis += stats.indexTimeInMillis;
             indexCurrent += stats.indexCurrent;
             indexFailedCount += stats.indexFailedCount;
-            indexFailedWithVersionConflictCount += stats.indexFailedWithVersionConflictCount;
+            indexFailedDueToVersionConflictCount += stats.indexFailedDueToVersionConflictCount;
 
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
@@ -134,8 +134,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         /**
          * The number of indexing operations that failed because of a version conflict (a subset of all index failed operations)
          */
-        public long getIndexFailedWithVersionConflictCount() {
-            return indexFailedWithVersionConflictCount;
+        public long getIndexFailedDueToVersionConflictCount() {
+            return indexFailedDueToVersionConflictCount;
         }
 
         /**
@@ -205,8 +205,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
             out.writeVLong(indexFailedCount);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_WITH_VERSION_CONFLICT_METRICS)) {
-                out.writeVLong(indexFailedWithVersionConflictCount);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRICS)) {
+                out.writeVLong(indexFailedDueToVersionConflictCount);
             }
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
@@ -226,7 +226,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, getIndexTime());
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
             builder.field(Fields.INDEX_FAILED, indexFailedCount);
-            builder.field(Fields.INDEX_FAILED_WITH_VERSION_CONFLICT, indexFailedWithVersionConflictCount);
+            builder.field(Fields.INDEX_FAILED_DUE_TO_VERSION_CONFLICT, indexFailedDueToVersionConflictCount);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.humanReadableField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, getDeleteTime());
@@ -250,7 +250,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 && indexTimeInMillis == that.indexTimeInMillis
                 && indexCurrent == that.indexCurrent
                 && indexFailedCount == that.indexFailedCount
-                && indexFailedWithVersionConflictCount == that.indexFailedWithVersionConflictCount
+                && indexFailedDueToVersionConflictCount == that.indexFailedDueToVersionConflictCount
                 && deleteCount == that.deleteCount
                 && deleteTimeInMillis == that.deleteTimeInMillis
                 && deleteCurrent == that.deleteCurrent
@@ -268,7 +268,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 indexTimeInMillis,
                 indexCurrent,
                 indexFailedCount,
-                indexFailedWithVersionConflictCount,
+                    indexFailedDueToVersionConflictCount,
                 deleteCount,
                 deleteTimeInMillis,
                 deleteCurrent,
@@ -343,13 +343,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     static final class Fields {
         static final String INDEXING = "indexing";
-        static final String TYPES = "types";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
         static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";
         static final String INDEX_CURRENT = "index_current";
         static final String INDEX_FAILED = "index_failed";
-        static final String INDEX_FAILED_WITH_VERSION_CONFLICT = "index_failed_with_version_conflict";
+        static final String INDEX_FAILED_DUE_TO_VERSION_CONFLICT = "index_failed_due_to_version_conflict";
         static final String DELETE_TOTAL = "delete_total";
         static final String DELETE_TIME = "delete_time";
         static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";

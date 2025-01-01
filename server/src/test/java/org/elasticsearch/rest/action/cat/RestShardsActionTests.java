@@ -115,7 +115,7 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(33).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexTime()));
             assertThat(row.get(34).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCount()));
             assertThat(row.get(35).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedCount()));
-            assertThat(row.get(36).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedWithVersionConflictCount()));
+            assertThat(row.get(36).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()));
         }
     }
 

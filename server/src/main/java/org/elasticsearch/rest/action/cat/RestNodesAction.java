@@ -471,7 +471,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
-            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedWithVersionConflictCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedDueToVersionConflictCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());

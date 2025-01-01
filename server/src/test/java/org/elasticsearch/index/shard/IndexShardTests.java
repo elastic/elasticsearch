@@ -1756,7 +1756,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         }
         assertThat(shard.indexingStats().getTotal().getIndexFailedCount(), equalTo(nbFailed.get()));
-        assertThat(shard.indexingStats().getTotal().getIndexFailedWithVersionConflictCount(), equalTo(0L));
+        assertThat(shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(), equalTo(0L));
         assertThat(shard.indexingStats().getTotal().getIndexCount(), equalTo(nbIndexedDocs - nbFailed.get()));
         closeShards(shard);
     }
@@ -1789,7 +1789,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertThat(shard.indexingStats().getTotal().getIndexCount(), equalTo(0L));
         assertThat(shard.indexingStats().getTotal().getIndexFailedCount(), equalTo(nbIndexedDocs));
-        assertThat(shard.indexingStats().getTotal().getIndexFailedWithVersionConflictCount(), equalTo(nbIndexedDocs - nbFailed.get()));
+        assertThat(shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(), equalTo(nbIndexedDocs - nbFailed.get()));
         closeShards(shard);
     }
 

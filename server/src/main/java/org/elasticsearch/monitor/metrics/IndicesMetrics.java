@@ -159,7 +159,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                             Map.of("es.indices." + name + ".indexing.failure.cause", "any")
                         ).get(),
                         diffGauge(
-                            () -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedWithVersionConflictCount(),
+                            () -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToVersionConflictCount(),
                             Map.of("es.indices." + name + ".indexing.failure.cause", "version_conflict")
                         ).get()
                     )

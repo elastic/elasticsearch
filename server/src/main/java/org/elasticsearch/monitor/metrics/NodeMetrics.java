@@ -369,7 +369,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                             .map(o -> o.getIndices())
                             .map(o -> o.getIndexing())
                             .map(o -> o.getTotal())
-                            .map(o -> o.getIndexFailedWithVersionConflictCount())
+                            .map(o -> o.getIndexFailedDueToVersionConflictCount())
                             .orElse(0L),
                         Map.of("es.indexing.indexing.failed.cause", "version_conflict")
                     )

@@ -81,7 +81,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
             totalStats.indexCurrent.dec();
             totalStats.indexFailed.inc();
             if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
-                totalStats.indexFailedWithVersionConflicts.inc();
+                totalStats.indexFailedDueToVersionConflicts.inc();
             }
         }
     }
@@ -129,7 +129,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
-        private final CounterMetric indexFailedWithVersionConflicts = new CounterMetric();
+        private final CounterMetric indexFailedDueToVersionConflicts = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
@@ -146,7 +146,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
                 indexCurrent.count(),
                 indexFailed.count(),
-                indexFailedWithVersionConflicts.count(),
+                indexFailedDueToVersionConflicts.count(),
                 deleteMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
                 deleteCurrent.count(),

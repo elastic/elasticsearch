@@ -680,10 +680,10 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());
 
             table.addCell(
-                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedWithVersionConflictCount()
+                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
             );
             table.addCell(
-                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedWithVersionConflictCount()
+                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
             );
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());

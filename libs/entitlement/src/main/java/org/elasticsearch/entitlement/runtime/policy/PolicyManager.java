@@ -134,6 +134,10 @@ public class PolicyManager {
         checkEntitlementPresent(callerClass, SetHttpsConnectionPropertiesEntitlement.class);
     }
 
+    public void checkSetGlobalHttpsConnectionProperties(Class<?> callerClass) {
+        neverEntitled(callerClass, "set global https connection properties");
+    }
+
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {

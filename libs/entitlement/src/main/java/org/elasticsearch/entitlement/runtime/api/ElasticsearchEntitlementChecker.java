@@ -95,20 +95,16 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
-        throw alwaysDeny();
+        policyManager.checkSetGlobalHttpsConnectionProperties(callerClass);
     }
 
     @Override
     public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
-        throw alwaysDeny();
+        policyManager.checkSetGlobalHttpsConnectionProperties(callerClass);
     }
 
     @Override
     public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
-        throw alwaysDeny();
-    }
-
-    private static NotEntitledException alwaysDeny() {
-        return new NotEntitledException("This action is always denied");
+        policyManager.checkSetGlobalHttpsConnectionProperties(callerClass);
     }
 }

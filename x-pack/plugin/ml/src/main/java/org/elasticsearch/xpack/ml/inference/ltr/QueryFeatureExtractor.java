@@ -42,7 +42,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
 
     @Override
     public void setNextReader(LeafReaderContext segmentContext) throws IOException {
-        DisiPriorityQueue disiPriorityQueue = new DisiPriorityQueue(weights.size());
+        List<DisiWrapper> wrappers = new ArrayList<>(weights.size());
         scorers.clear();
         for (Weight weight : weights) {
             if (weight == null) {
@@ -51,13 +51,11 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             }
             Scorer scorer = weight.scorer(segmentContext);
             if (scorer != null) {
-                disiPriorityQueue.add(new DisiWrapper(scorer, false));
+                wrappers.add(new DisiWrapper(scorer, false));
             }
             scorers.add(scorer);
         }
-        var list = new ArrayList<DisiWrapper>();
-        disiPriorityQueue.iterator().forEachRemaining(list::add);
-        rankerIterator = new DisjunctionDISIApproximation(list, Long.MAX_VALUE);
+        rankerIterator = new DisjunctionDISIApproximation(wrappers, Long.MAX_VALUE);
     }
 
     @Override

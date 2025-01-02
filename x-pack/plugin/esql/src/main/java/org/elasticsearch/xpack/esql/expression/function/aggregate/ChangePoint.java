@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangePointDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ChangePointIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ChangePointLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -102,7 +104,8 @@ public class ChangePoint extends AggregateFunction implements OptionalArgument, 
         final DataType type = field().dataType();
         return switch (type) {
             case LONG -> new ChangePointLongAggregatorFunctionSupplier(inputChannels);
-            // TODO: support other types
+            case INTEGER -> new ChangePointIntAggregatorFunctionSupplier(inputChannels);
+            case DOUBLE -> new ChangePointDoubleAggregatorFunctionSupplier(inputChannels);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

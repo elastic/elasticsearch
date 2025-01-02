@@ -58,6 +58,14 @@ public class ChangePointStates {
             values.set(count - 1, value);
         }
 
+        void add(LongBlock timestamps, DoubleBlock values) {
+            int start = values.getFirstValueIndex(0);
+            int end = start + values.getValueCount(0);
+            for (int i = start; i < end; i++) {
+                add(timestamps.getLong(i), values.getDouble(i));
+            }
+        }
+
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toTimestampsBlock(timestamps, driverContext.blockFactory());
             blocks[offset + 1] = toValuesBlock(values, driverContext.blockFactory());

@@ -198,7 +198,7 @@ final class AggregateMapper {
         } else if (CountDistinct.class.isAssignableFrom(clazz)) {
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
         } else if (ChangePoint.class.isAssignableFrom(clazz)) {
-            types = List.of("Long");  // TODO: add Int, Double
+            types = List.of("Int", "Long", "Double");
         } else {
             assert false : "unknown aggregate type " + clazz;
             throw new IllegalArgumentException("unknown aggregate type " + clazz);

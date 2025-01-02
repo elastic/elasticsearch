@@ -20,8 +20,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Change point detection for series of long values.
+ * This class is generated. Edit @{code X-ChangePointAggregator.java.st} instead
+ * of this file.
  */
-// TODO: make .java.st from this to support different types
 @Aggregator(
     includeTimestamps = true,
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
@@ -41,11 +42,7 @@ class ChangePointLongAggregator {
     }
 
     public static void combineIntermediate(SingleState state, LongBlock timestamps, DoubleBlock values) {
-        int start = values.getFirstValueIndex(0);
-        int end = start + values.getValueCount(0);
-        for (int i = start; i < end; i++) {
-            state.add(timestamps.getLong(i), values.getDouble(i));
-        }
+        state.add(timestamps, values);
     }
 
     public static Block evaluateFinal(SingleState state, DriverContext driverContext) {

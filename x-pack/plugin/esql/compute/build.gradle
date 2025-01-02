@@ -669,6 +669,28 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/TopIpAggregator.java"
   }
 
+  File changePointAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ChangePointAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = changePointAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangePointIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = changePointAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangePointLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = changePointAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangePointFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = changePointAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangePointDoubleAggregator.java"
+  }
+
   File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/mvdedupe/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties

@@ -6,6 +6,12 @@
 <titleabbrev>Get {transforms}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-transform[{transform-cap} APIs].
+--
+
 Retrieves configuration information for {transforms}.
 
 [[get-transform-request]]

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -58,7 +57,7 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
         docs.add(client().prepareIndex("fail").setSource("foo", 0));
         indexRandom(true, docs);
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> run("FROM fail,ok | LIMIT 100").close());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run("FROM fail,ok | LIMIT 100").close());
         assertThat(e.getMessage(), equalTo("Accessing failing field"));
     }
 }

@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name = 'x-pack-write-load-forecaster'
-  description 'x'
+  description = 'x'
   classname = 'org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin'
   extendedPlugins = ['x-pack-core']
 }

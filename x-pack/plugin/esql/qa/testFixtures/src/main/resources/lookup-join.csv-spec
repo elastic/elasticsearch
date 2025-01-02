@@ -1190,3 +1190,19 @@ ignoreOrder:true
 2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | QA              | null
 2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA              | null
 ;
+
+lookupIndexInFromRepeatedRowBug
+required_capability: join_lookup_v10
+FROM languages_lookup_non_unique_key
+| WHERE language_code == 1
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP language_code, language_name, country
+| SORT language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:text
+1                     | English                     | Canada
+1                     | English                     | United Kingdom
+1                     | English                     | United States of America
+1                     | English                     | null
+;

@@ -115,6 +115,20 @@ setup:
   - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
 
 ---
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=1 should SUCCEED":
+
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
+      reason: max_analyzed_offset query param added in 7.12.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 1}}
+  - match: { hits.hits.0.highlight: null }
+
+---
 "Plain highlighter with max_analyzed_offset < -1 should FAIL":
 
   - requires:

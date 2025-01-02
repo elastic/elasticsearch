@@ -338,11 +338,7 @@ public record SemanticTextField(
 
     static {
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
-        SEMANTIC_TEXT_FIELD_PARSER.declareObject(
-            constructorArg(),
-            (p, c) -> INFERENCE_RESULT_PARSER.parse(p, c),
-            new ParseField(INFERENCE_FIELD)
-        );
+        SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(

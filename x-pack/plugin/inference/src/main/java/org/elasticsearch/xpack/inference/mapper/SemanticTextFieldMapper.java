@@ -384,6 +384,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper = this;
         }
 
+        if (mapper.fieldType().getModelSettings() == null) {
+            for (var chunkList : field.inference().chunks().values()) {
+                if (chunkList.isEmpty() == false) {
+                    throw new IllegalStateException(
+                        "model settings must be set for field [" + fullFieldName + "] when chunks are provided"
+                    );
+                }
+            }
+        }
+
         var chunksField = mapper.fieldType().getChunksField();
         var embeddingsField = mapper.fieldType().getEmbeddingsField();
         var offsetsField = mapper.fieldType().getOffsetsField();

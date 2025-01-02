@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
  # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  # or more contributor license agreements. Licensed under the "Elastic License
@@ -12,8 +12,7 @@ set -e
 # KDC installation steps and considerations based on https://web.mit.edu/kerberos/krb5-latest/doc/admin/install_kdc.html
 # and helpful input from https://help.ubuntu.com/community/Kerberos
 
-VDIR=/fixture
-RESOURCES=$VDIR/src/main/resources
+RESOURCES=/fixture
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties
 LOCALSTATEDIR=/etc
@@ -53,7 +52,7 @@ touch $LOGDIR/krb5lib.log
 kdb5_util create -s -r $REALM_NAME -P zyxwvutsrpqonmlk9876
 
 # Set up admin acls
-cat << EOF > /etc/krb5kdc/kadm5.acl
+cat << EOF > /var/lib/krb5kdc/kadm5.acl
 */admin@$REALM_NAME	*
 */*@$REALM_NAME		i
 EOF

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
  # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  # or more contributor license agreements. Licensed under the "Elastic License
@@ -24,7 +24,7 @@ PASSWD="$2"
 USER=$(echo $PRINC | tr "/" "_")
 
 VDIR=/fixture
-RESOURCES=$VDIR/src/main/resources
+RESOURCES=$VDIR
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties
 BUILD_DIR=$VDIR/build

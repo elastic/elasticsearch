@@ -39,14 +39,14 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
     public enum ProvisioningId {
         HDFS(
             "hdfs",
-            "/fixture/src/main/resources/provision/hdfs.sh",
+            "/fixture/provision/hdfs.sh",
             "/fixture/build/keytabs/hdfs_hdfs.build.elastic.co.keytab",
             "/fixture/build/keytabs/elasticsearch.keytab",
             "hdfs/hdfs.build.elastic.co@BUILD.ELASTIC.CO"
         ),
         PEPPA(
             "peppa",
-            "/fixture/src/main/resources/provision/peppa.sh",
+            "/fixture/provision/peppa.sh",
             "/fixture/build/keytabs/peppa.keytab",
             "/fixture/build/keytabs/HTTP_localhost.keytab",
             "peppa@BUILD.ELASTIC.CO"
@@ -94,7 +94,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         withNetworkAliases("kerberos.build.elastic.co", "build.elastic.co");
         withCopyFileToContainer(MountableFile.forHostPath("/dev/urandom"), "/dev/random");
         withExtraHost("kerberos.build.elastic.co", "127.0.0.1");
-        withCommand("bash", provisioningId.scriptPath);
+        withCommand("sh", provisioningId.scriptPath);
     }
 
     @Override

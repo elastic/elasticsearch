@@ -10,7 +10,7 @@
     }
   },
   "_meta": {
-    "description": "default policy for the logs index template installed by x-pack",
+    "description": "default policy for the traces index template installed by x-pack",
     "managed": true
   },
   "deprecated": ${xpack.stack.template.deprecated}

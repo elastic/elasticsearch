@@ -239,7 +239,6 @@ public abstract class AsyncOperator<Result> implements Operator {
     }
 
     protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        // NOCOMMIT this is wrong - completedPages is the number of results, not pages.
         return new Status(receivedPages, completedPages, totalTimeInMillis);
     }
 

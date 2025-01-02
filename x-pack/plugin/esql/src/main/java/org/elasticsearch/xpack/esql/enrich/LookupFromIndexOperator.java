@@ -89,6 +89,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final Source source;
     private long totalTerms = 0L;
     /**
+     * Total number of pages emitted by this {@link Operator}.
+     */
+    private long emittedPages = 0L;
+    /**
      * The ongoing join or {@code null} none is ongoing at the moment.
      */
     private OngoingJoin ongoing = null;
@@ -131,7 +135,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             loadFields,
             source
         );
-        // NOCOMMIT join pages with the operator dude
         lookupService.lookupAsync(
             request,
             parentTask,
@@ -152,6 +155,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         if (ongoing.itr.hasNext()) {
             // There's more to do in the ongoing join.
             Page right = ongoing.itr.next();
+            emittedPages++;
             try {
                 return ongoing.join.join(right);
             } finally {
@@ -162,7 +166,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         Optional<Page> remaining = ongoing.join.noMoreRightHandPages();
         ongoing.close();
         ongoing = null;
-        return remaining.orElse(null);
+        if (remaining.isEmpty()) {
+            return null;
+        }
+        emittedPages++;
+        return remaining.get();
     }
 
     @Override
@@ -207,8 +215,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        // NOCOMMIT this is wrong - completedPages is the number of results, not pages.
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms, emittedPages);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -218,22 +225,29 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
-        final long totalTerms;
+        private final long totalTerms;
+        /**
+         * Total number of pages emitted by this {@link Operator}.
+         */
+        private final long emittedPages;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms) {
+        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms, long emittedPages) {
             super(receivedPages, completedPages, totalTimeInMillis);
             this.totalTerms = totalTerms;
+            this.emittedPages = emittedPages;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
             this.totalTerms = in.readVLong();
+            this.emittedPages = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(totalTerms);
+            out.writeVLong(emittedPages);
         }
 
         @Override
@@ -241,11 +255,20 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return ENTRY.name;
         }
 
+        public long emittedPages() {
+            return emittedPages;
+        }
+
+        public long totalTerms() {
+            return totalTerms;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            innerToXContent(builder);
-            builder.field("total_terms", totalTerms);
+            super.innerToXContent(builder);
+            builder.field("emitted_pages", emittedPages());
+            builder.field("total_terms", totalTerms());
             return builder.endObject();
         }
 
@@ -258,7 +281,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 return false;
             }
             Status status = (Status) o;
-            return totalTerms == status.totalTerms;
+            return totalTerms == status.totalTerms && emittedPages == status.emittedPages;
         }
 
         @Override

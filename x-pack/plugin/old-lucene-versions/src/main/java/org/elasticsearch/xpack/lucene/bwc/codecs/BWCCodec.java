@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
+import org.apache.lucene.backward_codecs.lucene80.Lucene80Codec;
 import org.apache.lucene.backward_codecs.lucene86.Lucene86Codec;
 import org.apache.lucene.backward_codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.Codec;
@@ -28,6 +29,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec;
 
@@ -125,7 +127,9 @@ public abstract class BWCCodec extends Codec {
         // special handling for Lucene87Codec (which is currently bundled with Lucene)
         // Use BWCLucene87Codec instead as that one extends BWCCodec (similar to all other older codecs)
         Codec codec = segmentInfo.getCodec();
-        if (codec instanceof Lucene86Codec) {
+        if (codec instanceof Lucene80Codec) {
+            codec = new BWCLucene80Codec();
+        } else if (codec instanceof Lucene86Codec) {
             codec = new BWCLucene86Codec();
         } else if (codec instanceof Lucene87Codec) {
             codec = new BWCLucene87Codec();

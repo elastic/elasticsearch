@@ -30,7 +30,7 @@ public class TestRerunTaskExtension {
     /**
      * The name of the extension added to each test task.
      */
-    public static String NAME = "rerun";
+    public static final String NAME = "rerun";
 
     private final Property<Integer> maxReruns;
 

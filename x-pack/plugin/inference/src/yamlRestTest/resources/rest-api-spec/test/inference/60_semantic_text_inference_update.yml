@@ -870,6 +870,10 @@ setup:
 
 ---
 "Explicit nulls clear inference results on bulk update operation":
+  - requires:
+      cluster_features: "semantic_text.inference_metadata_fields.explicit_null_fixes"
+      reason: Fixes explicit null handling when using the _inference_fields metafield
+
   - skip:
       features: [ "headers" ]
 

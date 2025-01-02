@@ -90,9 +90,6 @@ import java.util.Objects;
 
 public class Lucene {
 
-    // Support for reading N-2
-    public static final int MIN_SUPPORTED_MAJOR = Version.LATEST.major - 2;
-
     public static final String LATEST_CODEC = "Lucene101";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
@@ -157,7 +154,7 @@ public class Lucene {
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        return SegmentInfos.readCommit(directory, segmentsFileName, MIN_SUPPORTED_MAJOR);
+        return SegmentInfos.readCommit(directory, segmentsFileName, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
     }
 
     /**

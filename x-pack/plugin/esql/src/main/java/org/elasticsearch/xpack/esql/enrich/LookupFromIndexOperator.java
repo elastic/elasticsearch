@@ -120,7 +120,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        System.err.println("AAAAAA input " + inputPage);
         final Block inputBlock = inputPage.getBlock(inputChannel);
         totalTerms += inputBlock.getTotalValueCount();
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
@@ -143,20 +142,16 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     @Override
     public Page getOutput() {
         if (ongoing == null) {
-            System.err.println("AAAAAA starting");
             // No ongoing join, start a new one if we can.
             ongoing = getResultFromBuffer();
             if (ongoing == null) {
                 // Buffer empty, wait for the next time we're called.
-                System.err.println("AAAAAA nothing");
                 return null;
             }
-            System.err.println("AAAAAA started");
         }
         if (ongoing.itr.hasNext()) {
             // There's more to do in the ongoing join.
             Page right = ongoing.itr.next();
-            System.err.println("AAAAAA joining " + right);
             try {
                 return ongoing.join.join(right);
             } finally {
@@ -164,9 +159,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             }
         }
         // Current join is all done. Emit any trailing unmatched rows.
-        System.err.println("AAAAAA finishing");
         Optional<Page> remaining = ongoing.join.noMoreRightHandPages();
-        remaining.ifPresent(page -> System.err.println("AAAAAA remaining " + page.getPositionCount()));
         ongoing.close();
         ongoing = null;
         return remaining.orElse(null);

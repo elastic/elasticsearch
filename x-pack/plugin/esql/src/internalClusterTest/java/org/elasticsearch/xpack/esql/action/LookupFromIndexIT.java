@@ -106,7 +106,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             for (int i = 0; i < docCount; i++) {
                 String data = lookupData[i % lookupData.length];
                 docs.add(client().prepareIndex("source").setSource(Map.of("data", data)));
-                for (Integer match: matches.get(data)) {
+                for (Integer match : matches.get(data)) {
                     expected.add(data + ":" + match);
                 }
             }
@@ -230,7 +230,6 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
                     new PageConsumerOperator(page -> {
                         try {
-                            System.err.println(docCount + " ADSFADFDAFADSF " + page);
                             BytesRefVector dataBlock = page.<BytesRefBlock>getBlock(1).asVector();
                             LongVector loadedBlock = page.<LongBlock>getBlock(2).asVector();
                             for (int p = 0; p < page.getPositionCount(); p++) {

@@ -220,20 +220,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
+        // The freeze action is a noop action with only noop steps and should pass through to complete the phase asap.
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
-        assertBusy(
-            () -> assertThat(
-                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
-                explainIndex(client(), backingIndexName).get("step"),
-                is(CheckNotDataStreamWriteIndexStep.NAME)
-            ),
-            30,
-            TimeUnit.SECONDS
-        );
-
-        // Manual rollover the original index such that it's not the write index in the data stream anymore
-        rolloverMaxOneDocCondition(client(), dataStream);
-
         assertBusy(
             () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
             30,

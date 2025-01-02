@@ -2651,7 +2651,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ).get();
         refresh();
 
-        logger.info("--> highlighting and searching on field1");
         // Specific for this test: by passing "-1" as "maxAnalyzedOffset", the index highlight setting above will be used.
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "sentence"))
             .highlighter(highlight().field("field1").order("score").maxAnalyzedOffset(-1));

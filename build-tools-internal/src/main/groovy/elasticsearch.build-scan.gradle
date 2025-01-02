@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
-
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
 
@@ -37,8 +37,8 @@ develocity {
       publishing.onlyIf { false }
     }
 
-    def fips = buildParams.inFipsJvm
-    def gitRevision = buildParams.gitRevision
+    def fips = BuildParams.inFipsJvm
+    def gitRevision = BuildParams.gitRevision
 
     background {
       tag OS.current().name()

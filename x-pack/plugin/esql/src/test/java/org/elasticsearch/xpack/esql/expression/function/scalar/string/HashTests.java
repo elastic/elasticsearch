@@ -87,20 +87,14 @@ public class HashTests extends AbstractScalarFunctionTestCase {
         });
     }
 
-    static List<TestCaseSupplier> createHashFunctionTestCases(String algorithm) {
-        return List.of(createHashFunctionTestCase(algorithm, DataType.KEYWORD), createHashFunctionTestCase(algorithm, DataType.TEXT));
-    }
-
-    private static TestCaseSupplier createHashFunctionTestCase(String algorithm, DataType inputType) {
-        return new TestCaseSupplier(algorithm + " with " + inputType, List.of(inputType), () -> {
-            var input = randomFrom(TestCaseSupplier.stringCases(inputType)).get();
-            return new TestCaseSupplier.TestCase(
-                List.of(input),
-                "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(HashTests.hash(algorithm, BytesRefs.toString(input.data()))))
-            );
-        });
+    static void addHashFunctionTestCases(List<TestCaseSupplier> cases, String algorithm) {
+        TestCaseSupplier.forUnaryStrings(
+            cases,
+            "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
+            DataType.KEYWORD,
+            input -> new BytesRef(HashTests.hash(algorithm, BytesRefs.toString(input))),
+            List.of()
+        );
     }
 
     private static TestCaseSupplier.TypedData createTypedData(String value, boolean forceLiteral, DataType type, String name) {

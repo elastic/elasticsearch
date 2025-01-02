@@ -28,7 +28,7 @@ public class Md5Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(HashTests.createHashFunctionTestCases("MD5"));
+        HashTests.addHashFunctionTestCases(cases, "MD5");
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
     }
 

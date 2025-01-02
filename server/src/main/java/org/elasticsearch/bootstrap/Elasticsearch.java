@@ -204,7 +204,6 @@ class Elasticsearch {
         // load the plugin Java modules and layers now for use in entitlements
         var pluginsLoader = PluginsLoader.createPluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
         bootstrap.setPluginsLoader(pluginsLoader);
-        var pluginsResolver = PluginsResolver.create(pluginsLoader);
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
@@ -217,6 +216,8 @@ class Elasticsearch {
                     .stream()
                     .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
+
+            var pluginsResolver = PluginsResolver.create(pluginsLoader);
 
             EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
         } else {

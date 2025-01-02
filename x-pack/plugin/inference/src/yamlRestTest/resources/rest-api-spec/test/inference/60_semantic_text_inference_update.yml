@@ -870,6 +870,9 @@ setup:
 
 ---
 "Explicit nulls clear inference results on bulk update operation":
+  - skip:
+      features: [ "headers" ]
+
   - do:
       indices.create:
         index: test-copy-to-index
@@ -909,6 +912,9 @@ setup:
         refresh: true
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
       search:
         index: test-copy-to-index
         body:
@@ -926,6 +932,7 @@ setup:
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
   - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
   - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - set: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings: sparse_source_field_embeddings }
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 18 }
 
@@ -936,6 +943,7 @@ setup:
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
   - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
   - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - set: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings: dense_source_field_embeddings }
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 17 }
 
@@ -956,6 +964,9 @@ setup:
   - match: { items.0.update.result: "updated" }
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
       search:
         index: test-copy-to-index
         body:
@@ -968,13 +979,13 @@ setup:
 
   - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
   - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
-  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings: $sparse_source_field_embeddings }
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 18 }
 
   - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
   - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
-  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings: $dense_source_field_embeddings }
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
   - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 17 }
 

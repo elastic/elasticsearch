@@ -1,11 +1,8 @@
 FROM ubuntu:24.04
 
 ADD . /fixture
-# Update the package listing
-RUN apt-get update
+RUN apt-get update && apt-get install -y --no-install-recommends python3 krb5-kdc krb5-admin-server && apt-get clean &&  rm -rf /var/lib/apt/lists/*
 
-# Install sudo
-RUN apt-get install -y sudo python3
 RUN echo kerberos.build.elastic.co > /etc/hostname
 RUN bash /fixture/src/main/resources/provision/installkdc.sh
 

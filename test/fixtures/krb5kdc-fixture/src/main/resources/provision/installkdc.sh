@@ -49,28 +49,6 @@ touch $LOGDIR/kadmin.log
 touch $LOGDIR/krb5kdc.log
 touch $LOGDIR/krb5lib.log
 
-# Update package manager
-apt-get update -qqy
-
-# Installation asks a bunch of questions via debconf. Set the answers ahead of time
-debconf-set-selections <<< "krb5-config krb5-config/read_conf boolean true"
-debconf-set-selections <<< "krb5-config krb5-config/kerberos_servers string $KDC_NAME"
-debconf-set-selections <<< "krb5-config krb5-config/add_servers boolean true"
-debconf-set-selections <<< "krb5-config krb5-config/admin_server string $KDC_NAME"
-debconf-set-selections <<< "krb5-config krb5-config/add_servers_realm string $REALM_NAME"
-debconf-set-selections <<< "krb5-config krb5-config/default_realm string $REALM_NAME"
-debconf-set-selections <<< "krb5-admin-server krb5-admin-server/kadmind boolean true"
-debconf-set-selections <<< "krb5-admin-server krb5-admin-server/newrealm note"
-debconf-set-selections <<< "krb5-kdc krb5-kdc/debconf boolean true"
-debconf-set-selections <<< "krb5-kdc krb5-kdc/purge_data_too boolean false"
-
-# Install krb5 packages
-apt-get install -qqy krb5-{admin-server,kdc}
-
-# /dev/random produces output very slowly on Ubuntu VM's. Install haveged to increase entropy.
-apt-get install -qqy haveged
-haveged
-
 # Create kerberos database with stash file and garbage password
 kdb5_util create -s -r $REALM_NAME -P zyxwvutsrpqonmlk9876
 

@@ -702,122 +702,62 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(expectedJsonFalse, jsonStringFalse);
     }
 
-    // 9. Serialization with Missing Required Fields
-    // Test with missing required fields to ensure appropriate exceptions are thrown.
-    public void testSerializationWithMissingRequiredFields() {
-        // Create a message with missing content (required field)
+    // 9. a test without the content field to show that the content field is optional
+    public void testSerializationWithoutContentField() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            null, // missing content
-            OpenAiUnifiedChatCompletionRequestEntity.USER_FIELD,
             null,
-            null,
-            null
+            "assistant",
+            "name\nwith\nnewlines",
+            "tool_call_id\twith\ttabs",
+            Collections.singletonList(
+                new UnifiedCompletionRequest.ToolCall(
+                    "id\\with\\backslashes",
+                    new UnifiedCompletionRequest.ToolCall.FunctionField("arguments\"with\"quotes", "function_name/with/slashes"),
+                    "type"
+                )
+            )
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
-        // Create the unified request
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
-            messageList,
-            null, // model
-            null, // maxCompletionTokens
-            null, // stop
-            null, // temperature
-            null, // toolChoice
-            null, // tools
-            null  // topP
-        );
+        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
-
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Attempt to serialize to XContent and expect an exception
-        try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            fail("Expected an exception due to missing required fields");
-        } catch (NullPointerException | IOException e) {
-            // Expected exception
-        }
-    }
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-    // 10. Serialization with Mixed Valid and Invalid Data
-    // Test with a mix of valid and invalid data to ensure the serializer handles it gracefully.
-    public void testSerializationWithMixedValidAndInvalidData() throws IOException {
-        // Create a valid message
-        UnifiedCompletionRequest.Message validMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Valid content"),
-            OpenAiUnifiedChatCompletionRequestEntity.USER_FIELD,
-            "validName",
-            "validToolCallId",
-            Collections.singletonList(
-                new UnifiedCompletionRequest.ToolCall(
-                    "validId",
-                    new UnifiedCompletionRequest.ToolCall.FunctionField("validArguments", "validFunctionName"),
-                    "validType"
-                )
-            )
-        );
-
-        // Create an invalid message with null content
-        UnifiedCompletionRequest.Message invalidMessage = new UnifiedCompletionRequest.Message(
-            null, // invalid content
-            OpenAiUnifiedChatCompletionRequestEntity.USER_FIELD,
-            "invalidName",
-            "invalidToolCallId",
-            Collections.singletonList(
-                new UnifiedCompletionRequest.ToolCall(
-                    "invalidId",
-                    new UnifiedCompletionRequest.ToolCall.FunctionField("invalidArguments", "invalidFunctionName"),
-                    "invalidType"
-                )
-            )
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
-        messageList.add(validMessage);
-        messageList.add(invalidMessage);
-        // Create the unified request with both valid and invalid messages
-        UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
-            messageList,
-            "model-name",
-            100L, // maxCompletionTokens
-            Collections.singletonList("stop"),
-            0.9f, // temperature
-            new UnifiedCompletionRequest.ToolChoiceString("tool_choice"),
-            Collections.singletonList(
-                new UnifiedCompletionRequest.Tool(
-                    "type",
-                    new UnifiedCompletionRequest.Tool.FunctionField(
-                        "Fetches the weather in the given location",
-                        "get_weather",
-                        createParameters(),
-                        true
-                    )
-                )
-            ),
-            0.8f // topP
-        );
-
-        // Create the unified chat input
-        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
-
-        // Create the entity
-        OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
-
-        // Serialize to XContent and verify
-        try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            fail("Expected an exception due to invalid data");
-        } catch (NullPointerException | IOException e) {
-            // Expected exception
-        }
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "name": "name\\nwith\\nnewlines",
+                        "tool_call_id": "tool_call_id\\twith\\ttabs",
+                        "tool_calls": [
+                            {
+                                "id": "id\\\\with\\\\backslashes",
+                                "function": {
+                                    "arguments": "arguments\\"with\\"quotes",
+                                    "name": "function_name/with/slashes"
+                                },
+                                "type": "type"
+                            }
+                        ]
+                   }
+                ],
+                "model": "test-endpoint",
+                "n": 1,
+                "stream": true,
+                "stream_options": {
+                    "include_usage": true
+                }
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
     }
 
     public static Map<String, Object> createParameters() {

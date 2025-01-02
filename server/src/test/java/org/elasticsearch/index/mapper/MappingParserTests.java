@@ -107,7 +107,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, null);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));
@@ -322,7 +322,11 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     public void testBlankFieldNameBefore8_6_0() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_5_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.V_8_5_0
+        );
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.MINIMUM_COMPATIBLE,

@@ -16,7 +16,12 @@ import java.util.List;
  */
 public class KnownIndexVersions {
     /**
-     * A sorted list of all known transport versions
+     * A sorted list of all known index versions
      */
     public static final List<IndexVersion> ALL_VERSIONS = List.copyOf(IndexVersions.getAllVersions());
+
+    /**
+     * A sorted list of all known index versions that can be written to
+     */
+    public static final List<IndexVersion> ALL_WRITE_VERSIONS = List.copyOf(IndexVersions.getAllWriteVersions());
 }

@@ -4,6 +4,12 @@
 <titleabbrev>Enroll node</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Allows a new node to join an existing cluster with security features enabled.
 
 [[security-api-node-enrollment-api-request]]

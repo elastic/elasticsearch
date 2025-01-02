@@ -88,7 +88,6 @@ public final class FieldPermissions implements Accountable, CacheKey {
         // XPackPlugin
         DataTierFieldMapper.NAME
     );
-    private static final Automaton METADATA_FIELDS_ALLOWLIST_AUTOMATON = Automatons.patterns(METADATA_FIELDS_ALLOWLIST);
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));

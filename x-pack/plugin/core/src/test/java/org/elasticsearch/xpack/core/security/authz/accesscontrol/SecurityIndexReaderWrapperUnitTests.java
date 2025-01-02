@@ -28,10 +28,14 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -71,7 +75,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
-    public void testDefaultMetaFields() throws Exception {
+    public void testDefaultMetaFields() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -85,27 +89,24 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
         FieldSubsetReader.FieldSubsetDirectoryReader result = (FieldSubsetReader.FieldSubsetDirectoryReader) securityIndexReaderWrapper
             .apply(esIn);
+
         for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
-            assertThat(result.getFilter().run(field), is(true));
+            assertThat(FieldSubsetReader.filter(Map.of(field, "value"), result.getFilter(), 0), hasKey(field));
         }
 
-        // legacy fields and fields that simply start with _ are not allowed
-        assertThat(result.getFilter().run("_uid"), is(false));
-        assertThat(result.getFilter().run("_type"), is(false));
-        assertThat(result.getFilter().run("_timestamp"), is(false));
-        assertThat(result.getFilter().run("_ttl"), is(false));
-        assertThat(result.getFilter().run("_some_random_meta_field"), is(false));
-        assertThat(result.getFilter().run("some_random_regular_field"), is(false));
+        for (String notAllowed : List.of("_uid", "_type", "_timestamp", "_ttl", "_some_random_meta_field", "some_random_regular_field")) {
+            assertThat(FieldSubsetReader.filter(Map.of(notAllowed, "value"), result.getFilter(), 0), is(anEmptyMap()));
+        }
     }
 
-    public void testWrapReaderWhenFeatureDisabled() throws Exception {
+    public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
-    public void testWildcards() throws Exception {
+    public void testWildcards() {
         Set<String> expected = new HashSet<>(FieldPermissions.METADATA_FIELDS_ALLOWLIST);
         expected.add("field1_a");
         expected.add("field1_b");
@@ -113,7 +114,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] { "field1*" }, null)), expected, "field", "field2");
     }
 
-    public void testDotNotion() throws Exception {
+    public void testDotNotion() {
         Set<String> expected = new HashSet<>(FieldPermissions.METADATA_FIELDS_ALLOWLIST);
         expected.add("foo.bar");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] { "foo.bar" }, null)), expected, "foo", "foo.baz", "bar.foo");
@@ -132,7 +133,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         }
     }
 
-    public void testFieldPermissionsWithFieldExceptions() throws Exception {
+    public void testFieldPermissionsWithFieldExceptions() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null);
         String[] grantedFields = new String[] {};
         String[] deniedFields;

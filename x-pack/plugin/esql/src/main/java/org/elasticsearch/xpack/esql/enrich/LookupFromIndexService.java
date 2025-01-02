@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.lookup.QueryList;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -232,9 +231,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Override
         protected void innerRelease() {
             if (pages != null) {
-                Releasables.closeExpectNoException(
-                    Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks))
-                );
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks)));
             }
         }
 

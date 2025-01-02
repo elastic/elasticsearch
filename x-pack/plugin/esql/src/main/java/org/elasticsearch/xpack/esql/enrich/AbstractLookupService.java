@@ -306,8 +306,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
         Block inputBlock = request.inputPage.getBlock(0);
         if (inputBlock.areAllValuesNull()) {
-            List<Page> nullResponse = mergePages ?
-                List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+            List<Page> nullResponse = mergePages
+                ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                 : List.of();
             listener.onResponse(nullResponse);
             return;

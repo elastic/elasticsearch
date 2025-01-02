@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,7 +20,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
@@ -115,9 +113,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 return;
             }
             List<Page> pages = orig.takePages();
-            Releasables.closeExpectNoException(
-                Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks))
-            );
+            Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks)));
             assertThat(factory.breaker().getUsed(), equalTo(0L));
             assertThat(orig.takePages(), nullValue());
         } finally {
@@ -125,7 +121,6 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         }
         assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
-
 
     private BlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(4 /* more than we need*/))

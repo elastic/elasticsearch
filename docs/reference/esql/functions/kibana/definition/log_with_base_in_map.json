@@ -15,7 +15,7 @@
         {
           "name" : "map",
           "type" : "map",
-          "mapParamHint" : "{base : [double, integer, long, unsigned_long]}",
+          "mapParams" : "{name='base', values=[2, 2.0], description=''}",
           "optional" : true,
           "description" : "Input value. The input is a valid constant map expression."
         }
@@ -34,7 +34,7 @@
         {
           "name" : "map",
           "type" : "map",
-          "mapParamHint" : "{base : [double, integer, long, unsigned_long]}",
+          "mapParams" : "{name='base', values=[2, 2.0], description=''}",
           "optional" : true,
           "description" : "Input value. The input is a valid constant map expression."
         }
@@ -53,7 +53,7 @@
         {
           "name" : "map",
           "type" : "map",
-          "mapParamHint" : "{base : [double, integer, long, unsigned_long]}",
+          "mapParams" : "{name='base', values=[2, 2.0], description=''}",
           "optional" : true,
           "description" : "Input value. The input is a valid constant map expression."
         }

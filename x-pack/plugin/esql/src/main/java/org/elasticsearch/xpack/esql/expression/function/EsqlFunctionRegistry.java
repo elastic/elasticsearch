@@ -472,20 +472,19 @@ public class EsqlFunctionRegistry {
         String description,
         boolean optional,
         DataType targetDataType,
-        boolean mapExpression,
-        Map<String, String> hint
+        Map<String, MapArgSignature> mapParams
     ) {
 
         public ArgSignature(String name, String[] type, String description, boolean optional) {
-            this(name, type, description, optional, UNSUPPORTED, false, Map.of());
+            this(name, type, description, optional, UNSUPPORTED, Map.of());
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
-            this(name, type, description, optional, targetDataType, false, Map.of());
+            this(name, type, description, optional, targetDataType, Map.of());
         }
 
-        public ArgSignature(String name, String[] type, String description, boolean optional, Map<String, String> hint) {
-            this(name, type, description, optional, UNSUPPORTED, true, hint);
+        public ArgSignature(String name, String[] type, String description, boolean optional, Map<String, MapArgSignature> mapParams) {
+            this(name, type, description, optional, UNSUPPORTED, mapParams);
         }
 
         @Override
@@ -501,11 +500,13 @@ public class EsqlFunctionRegistry {
                 + optional
                 + ", targetDataType="
                 + targetDataType
-                + ", map="
-                + mapExpression
-                + ", mapParamHint={"
-                + hint.entrySet().stream().map(e -> "{" + e.getKey() + " : " + e.getValue() + "}").collect(Collectors.joining(", "))
+                + ", mapParams={"
+                + mapParams.values().stream().map(mapArg -> "{" + mapArg + "}").collect(Collectors.joining(", "))
                 + "}}";
+        }
+
+        public boolean mapParam() {
+            return type.length == 1 && type[0].equalsIgnoreCase("map");
         }
     }
 
@@ -529,6 +530,13 @@ public class EsqlFunctionRegistry {
          */
         public List<String> argDescriptions() {
             return args.stream().map(ArgSignature::description).toList();
+        }
+    }
+
+    public record MapArgSignature(String name, String values, String description) {
+        @Override
+        public String toString() {
+            return "name='" + name + "', values=" + values + ", description='" + description + "'";
         }
     }
 
@@ -590,14 +598,17 @@ public class EsqlFunctionRegistry {
         return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), targetDataType);
     }
 
-    public static ArgSignature mapParam(MapParam param) {
-        String desc = param.description().replace('\n', ' ');
-        Map<String, String> hints = new HashMap<>(param.paramHint().length);
-        for (MapParam.MapEntry hint : param.paramHint()) {
-            String hintVale = hint.value().length <= 1 ? Arrays.toString(hint.value()) : "[" + String.join(", ", hint.value()) + "]";
-            hints.put(hint.key(), hintVale);
+    public static ArgSignature mapParam(MapParam mapParam) {
+        String desc = mapParam.description().replace('\n', ' ');
+        Map<String, MapArgSignature> params = new HashMap<>(mapParam.params().length);
+        for (MapParam.MapParamEntry param : mapParam.params()) {
+            String value = param.valueHint().length <= 1
+                ? Arrays.toString(param.valueHint())
+                : "[" + String.join(", ", param.valueHint()) + "]";
+            MapArgSignature mapArg = new MapArgSignature(param.name(), value, param.description());
+            params.put(param.name(), mapArg);
         }
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), removeUnderConstruction(param.type()), desc, param.optional(), hints);
+        return new EsqlFunctionRegistry.ArgSignature(mapParam.name(), new String[] { "map" }, desc, mapParam.optional(), params);
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {

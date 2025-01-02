@@ -13,18 +13,20 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Describes function parameters.
+ * Describes a function map argument represented by {@code MapExpression}.
+ * This is added to support search options used by {@code FullTextFunction}, and can be invoked like:
+ * FUNCTION(a, b, {"stringArg":"value", "intArg":1, "doubleArg":2.0, "boolArg":true, "arrayArg":["a", "b"]})
+ *
+ * Using {@code Match} function as an example, the {@code Match} function takes two required arguments,
+ * field name and query text, it creates a {@code MatchQuery} under the cover, and the rest of the {@code MatchQuery}
+ * options are be grouped together and provided to the {@code Match} function as an optional argument in a map format.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
 public @interface MapParam {
     String name();
 
-    // AbstractFunctionTestCase validate if the type match the one used in the testcase.
-    // map is not a supported data type in ES|QL yet, mark it as unsupported both here and in the AbstractFunctionTestCase.
-    String[] type() default "map";
-
-    MapEntry[] paramHint() default {};
+    MapParamEntry[] params() default {};
 
     String description() default "";
 
@@ -32,9 +34,12 @@ public @interface MapParam {
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
-    @interface MapEntry {
-        String key() default "";
+    @interface MapParamEntry {
+        String name() default "";
 
-        String[] value() default {};
+        // A list of valid values/hints of this parameter, it can be a numeric, boolean, string value or an array of these values.
+        String[] valueHint() default {};
+
+        String description() default "";
     }
 }

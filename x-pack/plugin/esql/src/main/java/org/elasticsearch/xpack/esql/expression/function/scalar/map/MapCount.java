@@ -34,7 +34,9 @@ public class MapCount extends ScalarFunction {
         Source source,
         @MapParam(
             name = "map",
-            paramHint = { @MapParam.MapEntry(key = "option1", value = "value1"), @MapParam.MapEntry(key = "option2", value = "value2") },
+            params = {
+                @MapParam.MapParamEntry(name = "option1", valueHint = "value1"),
+                @MapParam.MapParamEntry(name = "option2", valueHint = "value2") },
             description = "Input value. The input is a valid constant map expression."
         ) Expression v
     ) {

@@ -64,7 +64,7 @@ configurations {
 tasks.named("bundlePlugin").configure {
   dependsOn configurations.nativeBundle
   from {
-    project.zipTree(configurations.nativeBundle.singleFile)
+    configurations.nativeBundle.files.collect { zipTree(it) }
   }
 
   // We don't ship the individual nativeBundle licenses - instead
@@ -105,7 +105,7 @@ tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
   into "${buildDir}/extractedNativeLicenses"
   from {
-    project.zipTree(configurations.nativeBundle.singleFile)
+    configurations.nativeBundle.files.collect { zipTree(it) }
   }
   include 'platform/licenses/**'
 }

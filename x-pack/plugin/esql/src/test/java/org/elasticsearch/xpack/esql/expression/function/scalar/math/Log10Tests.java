@@ -124,7 +124,9 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true, suppliers, (v, p) -> "numeric"
+        );
     }
 
     @Override

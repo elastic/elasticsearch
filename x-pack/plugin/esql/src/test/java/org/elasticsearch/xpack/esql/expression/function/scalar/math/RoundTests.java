@@ -128,7 +128,11 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier(0, 0, 0));
         suppliers.add(supplier(123, 2, 123));
         suppliers.add(supplier(123, -1, 120));
-        return parameterSuppliersFromTypedData(suppliers);
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true, suppliers,
+            (v, p) -> p == 0 ? "numeric" : "integer"
+        );
     }
 
     private static TestCaseSupplier supplier(double v, double expected) {

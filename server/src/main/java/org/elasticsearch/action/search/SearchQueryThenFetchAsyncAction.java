@@ -702,10 +702,13 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         onShardResult(result);
                     } catch (Exception exc) {
                         logger.error(
-                            "--> failure for shard [{}][{}][{}]",
-                            shard.getShardId(),
-                            shardIndex,
-                            System.identityHashCode(SearchQueryThenFetchAsyncAction.this),
+                            "--> failure for shard ["
+                                + shard.getShardId()
+                                + "]["
+                                + shardIndex
+                                + "]["
+                                + System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
+                                + "]",
                             exc
                         );
                         onShardFailure(shardIndex, shard, shardIt, exc);

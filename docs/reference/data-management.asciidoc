@@ -43,13 +43,13 @@ Data older than this period can be deleted by {es} at a later time.
 
 **Elastic Curator** is a tool that allows you to manage your indices and snapshots using user-defined filters and predefined actions. If ILM provides the functionality to manage your index lifecycle, and you have at least a Basic license, consider using ILM in place of Curator. Many stack components make use of ILM by default. {curator-ref-current}/ilm.html[Learn more].
 
-NOTE: <<xpack-rollup,data rollup>> is a deprecated Elasticsearch feature that allows you to manage the amount of data that is stored in your cluster, similar to the downsampling functionality of {ilm-init} and data stream lifecycle. This feature should not be used for new deployments.
+NOTE: <<xpack-rollup,Data rollup>> is a deprecated {es} feature that allows you to manage the amount of data that is stored in your cluster, similar to the downsampling functionality of {ilm-init} and data stream lifecycle. This feature should not be used for new deployments.
 
 [TIP]
 ====
 {ilm-init} is not available on {es-serverless}.
 
-In an {cloud} or self-managed environment, ILM lets you automatically transition indices through data tiers according to your performance needs and retention requirements. This allows you to balance hardware costs with performance. {es-serverless} eliminates this complexity by optimizing your cluster performance for you.
+In an {ecloud} or self-managed environment, ILM lets you automatically transition indices through data tiers according to your performance needs and retention requirements. This allows you to balance hardware costs with performance. {es-serverless} eliminates this complexity by optimizing your cluster performance for you.
 
 Data stream lifecycle is an optimized lifecycle tool that lets you focus on the most common lifecycle management needs, without unnecessary hardware-centric concepts like data tiers.
 ====

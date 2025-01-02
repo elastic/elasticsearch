@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -118,6 +122,62 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         );
     }
 
+    @Override
+    protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {
+        switch (queryBuilder) {
+            case KnnVectorQueryBuilder knnVectorQueryBuilder -> {
+                return super.createSubQueryForIndices(indices, addIndexFilterToKnnVectorQuery(indices, knnVectorQueryBuilder));
+            }
+            case NestedQueryBuilder nestedQueryBuilder -> {
+                return super.createSubQueryForIndices(
+                    indices,
+                    new NestedQueryBuilder(
+                        nestedQueryBuilder.path(),
+                        addIndexFilterToKnnVectorQuery(indices, nestedQueryBuilder.query()),
+                        nestedQueryBuilder.scoreMode()
+                    )
+                );
+            }
+            case BoolQueryBuilder boolQueryBuilder -> {
+                BoolQueryBuilder newBoolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must().forEach(q -> newBoolQueryBuilder.must(createSubQueryForIndices(indices, q)));
+                boolQueryBuilder.should().forEach(q -> newBoolQueryBuilder.should(createSubQueryForIndices(indices, q)));
+                boolQueryBuilder.mustNot().forEach(q -> newBoolQueryBuilder.mustNot(createSubQueryForIndices(indices, q)));
+                return newBoolQueryBuilder;
+            }
+            case null, default -> {
+                return super.createSubQueryForIndices(indices, queryBuilder);
+            }
+        }
+    }
+
+    private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, QueryBuilder queryBuilder) {
+        assert queryBuilder instanceof KnnVectorQueryBuilder;
+        KnnVectorQueryBuilder original = (KnnVectorQueryBuilder) queryBuilder;
+        KnnVectorQueryBuilder copy;
+        if (original.queryVectorBuilder() != null) {
+            copy = new KnnVectorQueryBuilder(
+                original.getFieldName(),
+                original.queryVectorBuilder(),
+                original.k(),
+                original.numCands(),
+                original.getVectorSimilarity()
+            );
+        } else {
+            copy = new KnnVectorQueryBuilder(
+                original.getFieldName(),
+                original.queryVector(),
+                original.k(),
+                original.numCands(),
+                original.rescoreVectorBuilder(),
+                original.getVectorSimilarity()
+            );
+        }
+
+        copy.addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
+        return copy;
+    }
+
     private TextEmbeddingQueryVectorBuilder getTextEmbeddingQueryBuilderFromQuery(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
@@ -126,7 +186,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             return null;
         }
         assert (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder);
-        return (TextEmbeddingQueryVectorBuilder) knnVectorQueryBuilder.queryVectorBuilder();
+        return (TextEmbeddingQueryVectorBuilder) queryVectorBuilder;
     }
 
     private KnnVectorQueryBuilder buildNewKnnVectorQuery(

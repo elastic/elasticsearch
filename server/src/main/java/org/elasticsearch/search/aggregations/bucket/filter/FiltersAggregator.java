@@ -40,7 +40,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -329,7 +328,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     hasOtherBucket
                 );
             }
-            return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
+            if (usesCompetitiveIterator) {
+                return new MultiFilterCompetitiveLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+            } else {
+                return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+            }
         }
     }
 
@@ -401,20 +404,19 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
     }
 
-    private class MultiFilterLeafCollector extends AbstractLeafCollector {
+    private final class MultiFilterLeafCollector extends AbstractLeafCollector {
 
         // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
-        final DisiPriorityQueue filterIterators;
+        DisiPriorityQueue filterIterators;
 
         MultiFilterLeafCollector(
             LeafBucketCollector sub,
             List<FilterMatchingDisiWrapper> filterWrappers,
             int numFilters,
             int totalNumKeys,
-            boolean usesCompetitiveIterator,
             boolean hasOtherBucket
         ) {
-            super(sub, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
+            super(sub, numFilters, totalNumKeys, false, hasOtherBucket);
             filterIterators = filterWrappers.isEmpty() ? null : new DisiPriorityQueue(filterWrappers.size());
             for (FilterMatchingDisiWrapper wrapper : filterWrappers) {
                 filterIterators.add(wrapper);
@@ -424,7 +426,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public void collect(int doc, long bucket) throws IOException {
             boolean matched = false;
             if (filterIterators != null) {
-                // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
+                // Advance filters if necessary.
                 DisiWrapper top = filterIterators.top();
                 while (top.doc < doc) {
                     top.doc = top.approximation.advance(doc);
@@ -449,15 +451,48 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public DocIdSetIterator competitiveIterator() throws IOException {
-            if (usesCompetitiveIterator) {
-                // A DocIdSetIterator view of the filterIterators heap
-                assert filterIterators != null;
-                Collection<DisiWrapper> actualList = new ArrayList<>();
-                filterIterators.iterator().forEachRemaining(actualList::add);
-                return DisjunctionDISIApproximation.of(actualList, Long.MAX_VALUE);
-            }
+        public DocIdSetIterator competitiveIterator() {
             return null;
+        }
+    }
+
+    private final class MultiFilterCompetitiveLeafCollector extends AbstractLeafCollector {
+
+        private final DisjunctionDISIApproximation disjunctionDisi;
+
+        MultiFilterCompetitiveLeafCollector(
+            LeafBucketCollector sub,
+            List<FilterMatchingDisiWrapper> filterWrappers,
+            int numFilters,
+            int totalNumKeys,
+            boolean hasOtherBucket
+        ) {
+            super(sub, numFilters, totalNumKeys, true, hasOtherBucket);
+            assert filterWrappers.isEmpty() == false;
+            disjunctionDisi = DisjunctionDISIApproximation.of(List.copyOf(filterWrappers), Long.MAX_VALUE);
+        }
+
+        public void collect(int doc, long bucket) throws IOException {
+            boolean matched = false;
+            var top = disjunctionDisi.topList();
+            if (top.doc == doc) {
+                for (DisiWrapper w = disjunctionDisi.topList(); w != null; w = w.next) {
+                    FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
+                    if (topMatch.checkDocForMatch(doc)) {
+                        collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
+                        matched = true;
+                    }
+                }
+            }
+
+            if (hasOtherBucket && false == matched) {
+                collectBucket(sub, doc, bucketOrd(bucket, numFilters));
+            }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() {
+            return disjunctionDisi;
         }
     }
 

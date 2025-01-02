@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
 import org.apache.lucene.search.DisjunctionDISIApproximation;
 import org.apache.lucene.search.Scorer;

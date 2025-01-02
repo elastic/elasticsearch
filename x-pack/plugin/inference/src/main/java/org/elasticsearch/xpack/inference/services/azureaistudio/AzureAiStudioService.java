@@ -15,8 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiSt
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
@@ -80,6 +81,16 @@ public class AzureAiStudioService extends SenderService {
 
     public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
     @Override
@@ -107,9 +118,8 @@ public class AzureAiStudioService extends SenderService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());

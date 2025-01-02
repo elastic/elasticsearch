@@ -22,7 +22,7 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
     private final UkrainianMorfologikAnalyzer analyzer;
 
     public UkrainianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new UkrainianMorfologikAnalyzer(
             Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopwords()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

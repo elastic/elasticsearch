@@ -47,8 +47,8 @@ repositories {
 
 dependencies {
   compileOnly(project(':libs:core'))
-  implementation 'org.ow2.asm:asm:9.7'
-  implementation 'org.ow2.asm:asm-util:9.7'
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-util:9.7.1'
   implementation(project(':libs:entitlement:tools:common'))
 }
 

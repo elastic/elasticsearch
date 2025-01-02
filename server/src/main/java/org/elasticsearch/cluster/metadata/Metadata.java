@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -24,12 +23,12 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -118,25 +118,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     /**
      * Indicates that this custom metadata will be returned as part of an API call but will not be persisted
      */
-    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+    public static final EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and will be persisted between
      * node restarts, but will not be a part of a snapshot global state
      */
-    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+    public static final EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and stored as a part of
      * a snapshot global state, but will not be persisted between node restarts
      */
-    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+    public static final EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call, stored as a part of
      * a snapshot global state, and will be persisted between node restarts
      */
-    public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
+    public static final EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
     /**
      * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
@@ -1495,10 +1495,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public static Diff<Metadata> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(MetadataDiff.NOOP_METADATA_DIFF_VERSION) && in.readBoolean()) {
-            return SimpleDiffable.empty();
-        }
-        return new MetadataDiff(in);
+        return in.readBoolean() ? SimpleDiffable.empty() : new MetadataDiff(in);
     }
 
     public static Metadata fromXContent(XContentParser parser) throws IOException {
@@ -1506,44 +1503,49 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
+        XContentContext context = XContentContext.valueOf(p.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        final Iterator<? extends ToXContent> start = context == XContentContext.API
+            ? ChunkedToXContentHelper.startObject("metadata")
+            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
 
-        return ChunkedToXContent.builder(params)
-            .append(
-                context == XContentContext.API
-                    ? (b, p) -> b.startObject("metadata")
-                    : (b, p) -> b.startObject("meta-data").field("version", version())
-            )
-            .append((b, p) -> {
-                b.field("cluster_uuid", clusterUUID);
-                b.field("cluster_uuid_committed", clusterUUIDCommitted);
-                b.startObject("cluster_coordination");
-                coordinationMetadata().toXContent(b, p);
-                return b.endObject();
+        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
+            ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
             })
-            .execute(xb -> {
-                if (context != XContentContext.API && persistentSettings().isEmpty() == false) {
-                    xb.append((b, p) -> {
-                        b.startObject("settings");
-                        persistentSettings().toXContent(b, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-                        return b.endObject();
-                    });
-                }
-            })
-            .object("templates", templates().values().iterator(), t -> (b, p) -> IndexTemplateMetadata.Builder.toXContentWithTypes(t, b, p))
-            .execute(xb -> {
-                if (context == XContentContext.API) {
-                    xb.xContentObject("indices", indices().values().iterator());
-                }
-            })
-            .forEach(customs.entrySet().iterator(), (b, e) -> {
-                if (e.getValue().context().contains(context)) {
-                    b.xContentObject(e.getKey(), e.getValue());
-                }
-            })
-            .xContentObject("reserved_state", reservedStateMetadata().values().iterator())
-            .append((b, p) -> b.endObject());
+            : Collections.emptyIterator();
+
+        final Iterator<? extends ToXContent> indices = context == XContentContext.API
+            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            : Collections.emptyIterator();
+
+        return Iterators.concat(start, Iterators.single((builder, params) -> {
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+            builder.startObject("cluster_coordination");
+            coordinationMetadata().toXContent(builder, params);
+            return builder.endObject();
+        }),
+            persistentSettings,
+            ChunkedToXContentHelper.wrapWithObject(
+                "templates",
+                Iterators.map(
+                    templates().values().iterator(),
+                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
+                )
+            ),
+            indices,
+            Iterators.flatMap(
+                customs.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
+            ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public Map<String, MappingMetadata> getMappingsByHash() {
@@ -1551,10 +1553,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     private static class MetadataDiff implements Diff<Metadata> {
-
-        private static final TransportVersion NOOP_METADATA_DIFF_VERSION = TransportVersions.V_8_5_0;
-        private static final TransportVersion NOOP_METADATA_DIFF_SAFE_VERSION =
-            PublicationTransportHandler.INCLUDES_LAST_COMMITTED_DATA_VERSION;
 
         private final long version;
         private final String clusterUUID;
@@ -1620,36 +1618,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
-            } else {
-                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
-            }
+            hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                reservedStateMetadata = DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    RESERVED_DIFF_VALUE_READER
-                );
-            } else {
-                reservedStateMetadata = DiffableUtils.emptyDiff();
-            }
+            reservedStateMetadata = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), RESERVED_DIFF_VALUE_READER);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(NOOP_METADATA_DIFF_SAFE_VERSION)) {
-                out.writeBoolean(empty);
-                if (empty) {
-                    // noop diff
-                    return;
-                }
-            } else if (out.getTransportVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
-                // noops are not safe with these versions, see #92259
-                out.writeBoolean(false);
+            out.writeBoolean(empty);
+            if (empty) {
+                // noop diff
+                return;
             }
             out.writeString(clusterUUID);
             out.writeBoolean(clusterUUIDCommitted);
@@ -1657,15 +1638,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             coordinationMetadata.writeTo(out);
             transientSettings.writeTo(out);
             persistentSettings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                hashesOfConsistentSettings.writeTo(out);
-            }
+            hashesOfConsistentSettings.writeTo(out);
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                reservedStateMetadata.writeTo(out);
-            }
+            reservedStateMetadata.writeTo(out);
         }
 
         @Override
@@ -1696,8 +1673,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
     }
 
-    public static final TransportVersion MAPPINGS_AS_HASH_VERSION = TransportVersions.V_8_1_0;
-
     public static Metadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         builder.version = in.readLong();
@@ -1706,17 +1681,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
-        }
+        builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         final Function<String, MappingMetadata> mappingLookup;
-        if (in.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
-            if (mappingMetadataMap.size() > 0) {
-                mappingLookup = mappingMetadataMap::get;
-            } else {
-                mappingLookup = null;
-            }
+        final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+        if (mappingMetadataMap.isEmpty() == false) {
+            mappingLookup = mappingMetadataMap::get;
         } else {
             mappingLookup = null;
         }
@@ -1733,11 +1702,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            int reservedStateSize = in.readVInt();
-            for (int i = 0; i < reservedStateSize; i++) {
-                builder.put(ReservedStateMetadata.readFrom(in));
-            }
+        int reservedStateSize = in.readVInt();
+        for (int i = 0; i < reservedStateSize; i++) {
+            builder.put(ReservedStateMetadata.readFrom(in));
         }
         return builder.build();
     }
@@ -1750,24 +1717,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         coordinationMetadata.writeTo(out);
         transientSettings.writeTo(out);
         persistentSettings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            hashesOfConsistentSettings.writeTo(out);
-        }
-        // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
-        // we avoid writing duplicate mappings twice
-        if (out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeMapValues(mappingsByHash);
-        }
+        hashesOfConsistentSettings.writeTo(out);
+        out.writeMapValues(mappingsByHash);
         out.writeVInt(indices.size());
-        final boolean writeMappingsHash = out.getTransportVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
         for (IndexMetadata indexMetadata : this) {
-            indexMetadata.writeTo(out, writeMappingsHash);
+            indexMetadata.writeTo(out, true);
         }
         out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeCollection(reservedStateMetadata.values());
-        }
+        out.writeCollection(reservedStateMetadata.values());
     }
 
     public static Builder builder() {
@@ -2535,7 +2493,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.isFailureStoreEnabled()
                     && parent.getFailureIndices()
                         .getIndices()
                         .stream()
@@ -2561,7 +2518,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     for (Index i : dataStream.getFailureIndices().getIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }

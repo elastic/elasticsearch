@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -19,14 +22,16 @@ import org.elasticsearch.index.IndexVersions;
 import java.util.List;
 
 public class DocumentMapper {
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
     private final MapperMetrics mapperMetrics;
     private final IndexVersion indexVersion;
-
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+    private final Logger logger;
+    private final String indexName;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -44,7 +49,9 @@ public class DocumentMapper {
             mapping,
             mapping.toCompressedXContent(),
             IndexVersion.current(),
-            mapperService.getMapperMetrics()
+            mapperService.getIndexSettings(),
+            mapperService.getMapperMetrics(),
+            mapperService.index().getName()
         );
     }
 
@@ -53,17 +60,29 @@ public class DocumentMapper {
         Mapping mapping,
         CompressedXContent source,
         IndexVersion version,
-        MapperMetrics mapperMetrics
+        IndexSettings indexSettings,
+        MapperMetrics mapperMetrics,
+        String indexName
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexSettings);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;
+        this.logger = Loggers.getLogger(getClass(), indexName);
+        this.indexName = indexName;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+    }
+
+    private void maybeLog(Exception ex) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
+        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
+            logger.info("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
+        }
     }
 
     /**
@@ -110,7 +129,12 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws DocumentParsingException {
-        return documentParser.parseDocument(source, mappingLookup);
+        try {
+            return documentParser.parseDocument(source, mappingLookup);
+        } catch (Exception e) {
+            maybeLog(e);
+            throw e;
+        }
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {
@@ -134,7 +158,7 @@ public class DocumentMapper {
          * with the source loading strategy declared on the source field mapper.
          */
         try {
-            sourceMapper().newSourceLoader(mapping(), mapperMetrics.sourceFieldMetrics());
+            mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
         } catch (IllegalArgumentException e) {
             mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
             throw e;
@@ -156,18 +180,16 @@ public class DocumentMapper {
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
-            for (String match : mappingLookup.getMatchingFieldNames(path)) {
-                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+            if (settings.getMode() == IndexMode.TIME_SERIES) {
+                for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                    mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+                }
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
                 // object type is not allowed in the routing paths
                 if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
-                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
-                            + "or flattened fields with a list of dimensions in [time_series_dimensions] "
-                            + "and without the [script] parameter. ["
-                            + objectName
-                            + "] was [object]."
+                        "All fields that match routing_path must be flattened fields. [" + objectName + "] was [object]."
                     );
                 }
             }

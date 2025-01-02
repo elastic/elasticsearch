@@ -36,7 +36,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     implements
         Range {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable implements Range.Bucket {
 
         private final transient DocValueFormat format;
         private final String key;

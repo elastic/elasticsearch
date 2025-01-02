@@ -8,33 +8,31 @@
  */
 package fixture.aws.imds;
 
-import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.junit.rules.ExternalResource;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
-import java.util.Set;
 
 public class Ec2ImdsHttpFixture extends ExternalResource {
 
+    public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME = "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride";
+
+    private final Ec2ImdsServiceBuilder ec2ImdsServiceBuilder;
     private HttpServer server;
 
-    private final String accessKey;
-    private final String sessionToken;
-    private final Set<String> alternativeCredentialsEndpoints;
-
-    public Ec2ImdsHttpFixture(String accessKey, String sessionToken, Set<String> alternativeCredentialsEndpoints) {
-        this.accessKey = accessKey;
-        this.sessionToken = sessionToken;
-        this.alternativeCredentialsEndpoints = alternativeCredentialsEndpoints;
-    }
-
-    protected HttpHandler createHandler() {
-        return new Ec2ImdsHttpHandler(accessKey, sessionToken, alternativeCredentialsEndpoints);
+    public Ec2ImdsHttpFixture(Ec2ImdsServiceBuilder ec2ImdsServiceBuilder) {
+        this.ec2ImdsServiceBuilder = ec2ImdsServiceBuilder;
     }
 
     public String getAddress() {
@@ -47,7 +45,7 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         server = HttpServer.create(resolveAddress(), 0);
-        server.createContext("/", Objects.requireNonNull(createHandler()));
+        server.createContext("/", Objects.requireNonNull(ec2ImdsServiceBuilder.buildHandler()));
         server.start();
     }
 
@@ -63,4 +61,32 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
             throw new RuntimeException(e);
         }
     }
+
+    @SuppressForbidden(reason = "deliberately adjusting system property for endpoint override for use in internal-cluster tests")
+    public static Releasable withEc2MetadataServiceEndpointOverride(String endpointOverride) {
+        final PrivilegedAction<String> resetProperty = System.getProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME) instanceof String originalValue
+            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME, originalValue)
+            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME);
+        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME, endpointOverride));
+        return () -> doPrivileged(resetProperty);
+    }
+
+    private static void doPrivileged(PrivilegedAction<?> privilegedAction) {
+        AccessController.doPrivileged(privilegedAction);
+    }
+
+    public static void runWithFixture(Ec2ImdsServiceBuilder ec2ImdsServiceBuilder, CheckedConsumer<Ec2ImdsHttpFixture, Exception> action) {
+        final var imdsFixture = new Ec2ImdsHttpFixture(ec2ImdsServiceBuilder);
+        try {
+            imdsFixture.apply(new Statement() {
+                @Override
+                public void evaluate() throws Exception {
+                    action.accept(imdsFixture);
+                }
+            }, Description.EMPTY).evaluate();
+        } catch (Throwable e) {
+            throw new AssertionError(e);
+        }
+    }
+
 }

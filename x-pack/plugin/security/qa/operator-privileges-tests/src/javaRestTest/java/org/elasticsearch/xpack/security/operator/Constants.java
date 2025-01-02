@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.util.FeatureFlag;
+
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -112,6 +115,7 @@ public class Constants {
         "cluster:admin/transform/schedule_now",
         "cluster:admin/transform/update",
         "cluster:admin/transform/upgrade",
+        "cluster:admin/transform/upgrade_mode",
         "cluster:admin/transform/validate",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",
@@ -384,6 +388,7 @@ public class Constants {
         "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/inference",
         "cluster:monitor/xpack/inference/get",
+        "cluster:monitor/xpack/inference/unified",
         "cluster:monitor/xpack/inference/diagnostics/get",
         "cluster:monitor/xpack/inference/services/get",
         "cluster:monitor/xpack/info",
@@ -491,7 +496,6 @@ public class Constants {
         "indices:admin/block/add[s]",
         "indices:admin/cache/clear",
         "indices:admin/data_stream/lazy_rollover",
-        "indices:admin/data_stream/reindex",
         "indices:internal/admin/ccr/restore/file_chunk/get",
         "indices:internal/admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/put",
@@ -508,9 +512,9 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
-        "indices:admin/data_stream/options/delete",
-        "indices:admin/data_stream/options/get",
-        "indices:admin/data_stream/options/put",
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/delete" : null,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/get" : null,
+        DataStream.isFailureStoreFeatureFlagEnabled() ? "indices:admin/data_stream/options/put" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -634,6 +638,11 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/index/reindex" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex_cancel" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/create_from_source" : null,
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

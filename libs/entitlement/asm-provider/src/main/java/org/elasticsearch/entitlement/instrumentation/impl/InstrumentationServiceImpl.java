@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -20,38 +20,22 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
 
     @Override
-    public Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
-        return new InstrumenterImpl(classNameSuffix, instrumentationMethods);
-    }
-
-    /**
-     * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
-     */
-    public MethodKey methodKeyForTarget(Method targetMethod) {
-        Type actualType = Type.getMethodType(Type.getMethodDescriptor(targetMethod));
-        return new MethodKey(
-            Type.getInternalName(targetMethod.getDeclaringClass()),
-            targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
-        );
+    public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods) {
+        return InstrumenterImpl.create(clazz, methods);
     }
 
     @Override
-    public Map<MethodKey, CheckerMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
-        IOException {
-        var methodsToInstrument = new HashMap<MethodKey, CheckerMethod>();
-        var checkerClass = Class.forName(entitlementCheckerClassName);
+    public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws IOException {
+        var methodsToInstrument = new HashMap<MethodKey, CheckMethod>();
         var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
         ClassReader reader = new ClassReader(classFileInfo.bytecodes());
         ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
@@ -69,9 +53,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
 
                 var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                var checkerMethod = new CheckerMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
+                var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
 
-                methodsToInstrument.put(methodToInstrument, checkerMethod);
+                methodsToInstrument.put(methodToInstrument, checkMethod);
 
                 return mv;
             }
@@ -83,27 +67,42 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     private static final Type CLASS_TYPE = Type.getType(Class.class);
 
     static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
-        var classNameStartIndex = checkerMethodName.indexOf('$');
-        var classNameEndIndex = checkerMethodName.lastIndexOf('$');
+        boolean targetMethodIsStatic;
+        int classNameEndIndex = checkerMethodName.lastIndexOf("$$");
+        int methodNameStartIndex;
+        if (classNameEndIndex == -1) {
+            targetMethodIsStatic = false;
+            classNameEndIndex = checkerMethodName.lastIndexOf('$');
+            methodNameStartIndex = classNameEndIndex + 1;
+        } else {
+            targetMethodIsStatic = true;
+            methodNameStartIndex = classNameEndIndex + 2;
+        }
 
+        var classNameStartIndex = checkerMethodName.indexOf('$');
         if (classNameStartIndex == -1 || classNameStartIndex >= classNameEndIndex) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
                     "Checker method %s has incorrect name format. "
-                        + "It should be either check$$methodName (instance) or check$package_ClassName$methodName (static)",
+                        + "It should be either check$$methodName (instance), check$package_ClassName$methodName (static) or "
+                        + "check$package_ClassName$ (ctor)",
                     checkerMethodName
                 )
             );
         }
 
-        // No "className" (check$$methodName) -> method is static, and we'll get the class from the actual typed argument
-        final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
-        final String targetMethodName = checkerMethodName.substring(classNameEndIndex + 1);
+        // No "methodName" (check$package_ClassName$) -> method is ctor
+        final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();
+        final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(methodNameStartIndex);
 
-        final String targetClassName;
+        final String targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
+        if (targetClassName.isBlank()) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Checker method %s has no class name", checkerMethodName));
+        }
+
         final List<String> targetParameterTypes;
-        if (targetMethodIsStatic) {
+        if (targetMethodIsStatic || targetMethodIsCtor) {
             if (checkerMethodArgumentTypes.length < 1 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -114,7 +113,6 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 );
             }
 
-            targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(1).map(Type::getInternalName).toList();
         } else {
             if (checkerMethodArgumentTypes.length < 2
@@ -130,10 +128,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                     )
                 );
             }
-            var targetClassType = checkerMethodArgumentTypes[1];
-            targetClassName = targetClassType.getInternalName();
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
+        boolean hasReceiver = (targetMethodIsStatic || targetMethodIsCtor) == false;
         return new MethodKey(targetClassName, targetMethodName, targetParameterTypes);
     }
 }

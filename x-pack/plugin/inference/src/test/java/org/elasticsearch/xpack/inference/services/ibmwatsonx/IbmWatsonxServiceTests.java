@@ -18,8 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -36,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -51,6 +50,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -684,25 +684,16 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 apiKey,
                 getUrl(webServer)
             );
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
 
             // first result
             {
-                assertThat(results.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding()));
@@ -710,8 +701,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
             // second result
             {
-                assertThat(results.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0456f, -0.0456f }, floatResult.chunks().get(0).embedding()));
@@ -927,6 +918,56 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = IbmWatsonxEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                URI.create(randomAlphaOfLength(10)),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomNonNegativeInt(),
+                similarityMeasure
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
 

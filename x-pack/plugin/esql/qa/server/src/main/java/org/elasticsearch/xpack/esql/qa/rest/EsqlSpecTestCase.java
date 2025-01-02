@@ -135,8 +135,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             createInferenceEndpoint(client());
         }
 
-        if (indexExists(availableDatasetsForEs(client()).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client());
+        if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsIndexModeLookup());
         }
     }
 
@@ -172,7 +172,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")
+            || testCase.requiredCapabilities.contains("semantic_text_aggregations")) {
             assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -181,12 +182,30 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
         throws IOException {
-        if (testCase.requiredCapabilities.isEmpty()) {
+        if (hasCapabilities(client, testCase.requiredCapabilities)) {
             return;
         }
+
+        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
+
+        for (String feature : testCase.requiredCapabilities) {
+            var esqlFeature = "esql." + feature;
+            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
+        }
+    }
+
+    protected static boolean hasCapabilities(List<String> requiredCapabilities) throws IOException {
+        return hasCapabilities(adminClient(), requiredCapabilities);
+    }
+
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+        if (requiredCapabilities.isEmpty()) {
+            return true;
+        }
         try {
-            if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
-                return;
+            if (clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false)) {
+                return true;
             }
             LOGGER.info("capabilities API returned false, we might be in a mixed version cluster so falling back to cluster features");
         } catch (ResponseException e) {
@@ -205,17 +224,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-
-        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
-
-        for (String feature : testCase.requiredCapabilities) {
-            var esqlFeature = "esql." + feature;
-            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
-        }
+        return false;
     }
 
     protected boolean supportsInferenceTestService() {
+        return true;
+    }
+
+    protected boolean supportsIndexModeLookup() throws IOException {
         return true;
     }
 

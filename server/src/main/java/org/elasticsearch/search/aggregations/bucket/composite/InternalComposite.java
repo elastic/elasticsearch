@@ -320,7 +320,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls), Arrays.hashCode(missingOrders));
     }
 
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements CompositeAggregation.Bucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucketWritable
+        implements
+            CompositeAggregation.Bucket {
 
         private final CompositeKey key;
         private final long docCount;

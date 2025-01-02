@@ -341,7 +341,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 final String finalRoleName = roleName;
                 logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", finalRoleName, path), e);
             } else {
-                logger.error((Supplier<?>) () -> "invalid role definition in roles file [" + path + "]. skipping role...", e);
+                logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", segment, path), e);
             }
         }
         return null;

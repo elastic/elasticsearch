@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
 import org.apache.lucene.backward_codecs.lucene80.Lucene80Codec;
+import org.apache.lucene.backward_codecs.lucene84.Lucene84Codec;
 import org.apache.lucene.backward_codecs.lucene86.Lucene86Codec;
 import org.apache.lucene.backward_codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.Codec;
@@ -29,7 +30,9 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec;
 
@@ -124,23 +127,14 @@ public abstract class BWCCodec extends Codec {
     }
 
     public static SegmentInfo wrap(SegmentInfo segmentInfo) {
-        // special handling for Lucene87Codec (which is currently bundled with Lucene)
-        // Use BWCLucene87Codec instead as that one extends BWCCodec (similar to all other older codecs)
-        Codec codec = segmentInfo.getCodec();
-        if (codec instanceof Lucene80Codec) {
-            codec = new BWCLucene80Codec();
-        } else if (codec instanceof Lucene86Codec) {
-            codec = new BWCLucene86Codec();
-        } else if (codec instanceof Lucene87Codec) {
-            codec = new BWCLucene87Codec();
-        }
+        Codec codec = getBackwardCompatibleCodec(segmentInfo.getCodec());
 
         final SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
             // TODO: perhaps store the original version information in attributes so that we can retrieve it later when needed?
-            org.apache.lucene.util.Version.LATEST,
-            org.apache.lucene.util.Version.LATEST,
+            Version.LATEST,
+            Version.LATEST,
             segmentInfo.name,
             segmentInfo.maxDoc(),
             segmentInfo.getUseCompoundFile(),
@@ -153,6 +147,21 @@ public abstract class BWCCodec extends Codec {
         );
         segmentInfo1.setFiles(segmentInfo.files());
         return segmentInfo1;
+    }
+
+    // special handling for Lucene8xCodecs (which are currently bundled with Lucene)
+    // Use BWCLucene8xCodec instead as that one extends BWCCodec (similar to all other older codecs)
+    private static Codec getBackwardCompatibleCodec(Codec codec) {
+        if (codec instanceof Lucene80Codec) {
+            codec = new BWCLucene80Codec();
+        } else if (codec instanceof Lucene84Codec) {
+            codec = new BWCLucene84Codec();
+        } else if (codec instanceof Lucene86Codec) {
+            codec = new BWCLucene86Codec();
+        } else if (codec instanceof Lucene87Codec) {
+            codec = new BWCLucene87Codec();
+        }
+        return codec;
     }
 
     /**

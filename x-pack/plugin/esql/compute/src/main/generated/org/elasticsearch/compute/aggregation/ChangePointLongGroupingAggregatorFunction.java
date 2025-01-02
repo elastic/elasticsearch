@@ -10,6 +10,7 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -25,16 +26,16 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class ChangePointLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.LONG)  );
+      new IntermediateStateDesc("values", ElementType.DOUBLE)  );
 
-  private final ChangePointLongAggregator.GroupingState state;
+  private final ChangePointStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public ChangePointLongGroupingAggregatorFunction(List<Integer> channels,
-      ChangePointLongAggregator.GroupingState state, DriverContext driverContext) {
+      ChangePointStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -181,7 +182,7 @@ public final class ChangePointLongGroupingAggregatorFunction implements Grouping
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    LongBlock values = (LongBlock) valuesUncast;
+    DoubleBlock values = (DoubleBlock) valuesUncast;
     assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
@@ -194,7 +195,7 @@ public final class ChangePointLongGroupingAggregatorFunction implements Grouping
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    ChangePointLongAggregator.GroupingState inState = ((ChangePointLongGroupingAggregatorFunction) input).state;
+    ChangePointStates.GroupingState inState = ((ChangePointLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     ChangePointLongAggregator.combineStates(state, groupId, inState, position);
   }

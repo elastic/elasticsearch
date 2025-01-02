@@ -11,6 +11,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -24,16 +25,16 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class ChangePointLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.LONG)  );
+      new IntermediateStateDesc("values", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
-  private final ChangePointLongAggregator.SingleState state;
+  private final ChangePointStates.SingleState state;
 
   private final List<Integer> channels;
 
   public ChangePointLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ChangePointLongAggregator.SingleState state) {
+      ChangePointStates.SingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -142,7 +143,7 @@ public final class ChangePointLongAggregatorFunction implements AggregatorFuncti
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    LongBlock values = (LongBlock) valuesUncast;
+    DoubleBlock values = (DoubleBlock) valuesUncast;
     assert values.getPositionCount() == 1;
     ChangePointLongAggregator.combineIntermediate(state, timestamps, values);
   }

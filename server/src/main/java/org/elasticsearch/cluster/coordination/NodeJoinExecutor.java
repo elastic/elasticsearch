@@ -422,7 +422,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         + maxSupportedVersion.toReleaseVersion()
                 );
             }
-
             if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
                 boolean isReadOnlySupported = isReadOnlySupportedVersion(idxMetadata, minSupportedVersion, minReadOnlySupportedVersion);
                 if (isReadOnlySupported == false) {

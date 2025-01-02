@@ -405,7 +405,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(context, originalSource, contentType);
+        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -434,7 +434,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(
-        @Nullable DocumentParserContext context,
+        @Nullable MappingLookup mappingLookup,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType
     ) throws IOException {
@@ -442,9 +442,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return null;
         }
         var modSourceFilter = sourceFilter;
-        if (context != null
-            && InferenceMetadataFieldsMapper.isEnabled(context.mappingLookup())
-            && context.mappingLookup().inferenceFields().isEmpty() == false) {
+        if (mappingLookup != null
+            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false) {
             /**
              * Removes {@link InferenceMetadataFieldsMapper} content from _source.
              * This content is re-generated at query time (if requested) using stored fields and doc values.

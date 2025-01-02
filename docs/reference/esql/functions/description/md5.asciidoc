@@ -2,4 +2,4 @@
 
 *Description*
 
-Computes MD5 hash of the input.
+Computes the MD5 hash of the input.

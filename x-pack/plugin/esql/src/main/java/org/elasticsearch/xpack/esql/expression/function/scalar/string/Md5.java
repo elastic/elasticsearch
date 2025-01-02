@@ -25,7 +25,7 @@ public class Md5 extends AbstractHashFunction {
 
     private static final HashFunction MD5 = HashFunction.create("MD5");
 
-    @FunctionInfo(returnType = "keyword", description = "Computes MD5 hash of the input.")
+    @FunctionInfo(returnType = "keyword", description = "Computes the MD5 hash of the input.")
     public Md5(Source source, @Param(name = "input", type = { "keyword", "text" }, description = "Input to hash.") Expression input) {
         super(source, input);
     }
@@ -46,7 +46,7 @@ public class Md5 extends AbstractHashFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Md5(source(), field);
+        return new Md5(source(), newChildren.get(0));
     }
 
     @Override

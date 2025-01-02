@@ -41,7 +41,7 @@ public class GetDatabaseConfigurationActionResponseTests extends AbstractWireSer
     }
 
     private ClusterName getTestClusterName() {
-        return new ClusterName(randomAlphanumericOfLength(30));
+        return new ClusterName(randomAlphaOfLength(30));
     }
 
     private List<GetDatabaseConfigurationAction.NodeResponse> getTestNodeResponses() {
@@ -53,9 +53,9 @@ public class GetDatabaseConfigurationActionResponseTests extends AbstractWireSer
             0,
             5,
             () -> new FailedNodeException(
-                randomAlphanumericOfLength(10),
-                randomAlphanumericOfLength(20),
-                new ElasticsearchException(randomAlphanumericOfLength(10))
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(20),
+                new ElasticsearchException(randomAlphaOfLength(10))
             )
         );
     }

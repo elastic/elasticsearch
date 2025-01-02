@@ -565,6 +565,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      */
     @SuppressWarnings("unchecked")
     public HB maxAnalyzedOffset(Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null && maxAnalyzedOffset < -1) {
+            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD + "] must be an integer >= -1");
+        }
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         return (HB) this;
     }

@@ -115,7 +115,7 @@ setup:
   - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
 
 ---
-"Plain highlighter with max_analyzed_offset < 0 should FAIL":
+"Plain highlighter with max_analyzed_offset < -1 should FAIL":
 
   - requires:
       cluster_features: ["gte_v7.12.0"]
@@ -130,4 +130,4 @@ setup:
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "x_content_parse_exception" }
   - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer" }
+  - match: { error.caused_by.reason: "[max_analyzed_offset] must be an integer >= -1" }

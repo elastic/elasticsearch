@@ -34,7 +34,7 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
 
     @Override
     protected boolean isResetMode(ClusterState clusterState) {
-        return TransformMetadata.getTransformMetadata(clusterState).isResetMode();
+        return TransformMetadata.getTransformMetadata(clusterState).resetMode();
     }
 
     @Override
@@ -50,7 +50,7 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
             newState.metadata(Metadata.builder(oldState.getMetadata()).removeCustom(TransformMetadata.TYPE).build());
         } else {
             TransformMetadata.Builder builder = TransformMetadata.Builder.from(oldState.metadata().custom(TransformMetadata.TYPE))
-                .isResetMode(request.isEnabled());
+                .resetMode(request.isEnabled());
             newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(TransformMetadata.TYPE, builder.build()).build());
         }
         return newState.build();

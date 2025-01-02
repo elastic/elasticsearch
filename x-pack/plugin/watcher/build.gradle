@@ -1,11 +1,11 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-watcher'
-  description 'Elasticsearch Expanded Pack Plugin - Watcher'
-  classname 'org.elasticsearch.xpack.watcher.Watcher'
-  hasNativeController false
-  requiresKeystore false
+  name = 'x-pack-watcher'
+  description = 'Elasticsearch Expanded Pack Plugin - Watcher'
+  classname ='org.elasticsearch.xpack.watcher.Watcher'
+  hasNativeController =false
+  requiresKeystore =false
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 

@@ -4,6 +4,12 @@
 <titleabbrev>Count</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Gets the number of matches for a search query.
 
 [source,console]

@@ -3,6 +3,12 @@
 
 Suggests similar looking terms based on a provided text by using a suggester. 
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 [source,console]
 --------------------------------------------------
 POST my-index-000001/_search

@@ -29,7 +29,8 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
 
     @Override
     protected FreezeAction mutateInstance(FreezeAction instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // This class is a singleton
+        return null;
     }
 
     @Override
@@ -52,14 +53,13 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         StepKey expectedSecondStepKey = new StepKey(phase, FreezeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey expectedThirdStepKey = new StepKey(phase, FreezeAction.NAME, FreezeAction.FREEZE_STEP_NAME);
 
-        BranchingStep firstStep = (BranchingStep) steps.get(0);
-        CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
-        NoopStep thirdStep = (NoopStep) steps.get(2);
-
+        NoopStep firstStep = (NoopStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
-
+        assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
+        NoopStep secondStep = (NoopStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
-        assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
+        assertEquals(nextStepKey, secondStep.getNextStepKey());
+        NoopStep thirdStep = (NoopStep) steps.get(2);
         assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(nextStepKey, thirdStep.getNextStepKey());
     }

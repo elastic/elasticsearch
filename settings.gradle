@@ -18,6 +18,8 @@ plugins {
   id 'elasticsearch.java-toolchain'
 }
 
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
+
 rootProject.name = "elasticsearch"
 
 dependencyResolutionManagement {

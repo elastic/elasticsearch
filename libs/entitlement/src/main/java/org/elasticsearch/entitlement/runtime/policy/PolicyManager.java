@@ -10,11 +10,11 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.util.ArrayList;
@@ -29,8 +29,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
+import static java.util.Objects.requireNonNull;
+
 public class PolicyManager {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
+    private static final Logger logger = LogManager.getLogger(PolicyManager.class);
 
     static class ModuleEntitlements {
         public static final ModuleEntitlements NONE = new ModuleEntitlements(List.of());
@@ -69,7 +72,6 @@ public class PolicyManager {
             .stream()
             .map(ModuleReference::descriptor)
             .collect(Collectors.toUnmodifiableSet());
-
         return ModuleLayer.boot()
             .modules()
             .stream()
@@ -77,17 +79,47 @@ public class PolicyManager {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
-        this.serverEntitlements = buildScopeEntitlementsMap(Objects.requireNonNull(defaultPolicy));
-        this.pluginsEntitlements = Objects.requireNonNull(pluginPolicies)
-            .entrySet()
+    /**
+     * Frames originating from this module are ignored in the permission logic.
+     */
+    private final Module entitlementsModule;
+
+    public PolicyManager(
+        Policy defaultPolicy,
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Module entitlementsModule
+    ) {
+        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(defaultPolicy));
+        this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
+        this.entitlementsModule = entitlementsModule;
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
         return policy.scopes.stream().collect(Collectors.toUnmodifiableMap(scope -> scope.name, scope -> scope.entitlements));
+    }
+
+    public void checkStartProcess(Class<?> callerClass) {
+        neverEntitled(callerClass, "start process");
+    }
+
+    private void neverEntitled(Class<?> callerClass, String operationDescription) {
+        var requestingModule = requestingModule(callerClass);
+        if (isTriviallyAllowed(requestingModule)) {
+            return;
+        }
+
+        throw new NotEntitledException(
+            Strings.format(
+                "Not entitled: caller [%s], module [%s], operation [%s]",
+                callerClass,
+                requestingModule.getName(),
+                operationDescription
+            )
+        );
     }
 
     public void checkExitVM(Class<?> callerClass) {
@@ -185,32 +217,61 @@ public class PolicyManager {
         return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
     }
 
-    private static Module requestingModule(Class<?> callerClass) {
+    /**
+     * Walks the stack to determine which module's entitlements should be checked.
+     *
+     * @param callerClass when non-null will be used if its module is suitable;
+     *                    this is a fast-path check that can avoid the stack walk
+     *                    in cases where the caller class is available.
+     * @return the requesting module, or {@code null} if the entire call stack
+     * comes from the entitlement library itself.
+     */
+    Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
-            Module callerModule = callerClass.getModule();
-            if (systemModules.contains(callerModule) == false) {
+            var callerModule = callerClass.getModule();
+            if (callerModule != null && entitlementsModule.equals(callerModule) == false) {
                 // fast path
                 return callerModule;
             }
         }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
-            + 1  // the instrumented method
-        ;
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(
-                s -> s.skip(framesToSkip)
-                    .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> systemModules.contains(m) == false)
-                    .findFirst()
-            );
+        Optional<Module> module = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+            .walk(frames -> findRequestingModule(frames.map(StackFrame::getDeclaringClass)));
         return module.orElse(null);
     }
 
+    /**
+     * Given a stream of classes corresponding to the frames from a {@link StackWalker},
+     * returns the module whose entitlements should be checked.
+     *
+     * @throws NullPointerException if the requesting module is {@code null}
+     */
+    Optional<Module> findRequestingModule(Stream<Class<?>> classes) {
+        return classes.map(Objects::requireNonNull)
+            .map(PolicyManager::moduleOf)
+            .filter(m -> m != entitlementsModule)  // Ignore the entitlements library itself entirely
+            .skip(1)                            // Skip the sensitive method itself
+            .findFirst();
+    }
+
+    private static Module moduleOf(Class<?> c) {
+        var result = c.getModule();
+        if (result == null) {
+            throw new NullPointerException("Entitlements system does not support non-modular class [" + c.getName() + "]");
+        } else {
+            return result;
+        }
+    }
+
     private static boolean isTriviallyAllowed(Module requestingModule) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
+        }
         if (requestingModule == null) {
-            logger.debug("Entitlement trivially allowed: entire call stack is in composed of classes in system modules");
+            logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            return true;
+        }
+        if (systemModules.contains(requestingModule)) {
+            logger.debug("Entitlement trivially allowed from system module [{}]", requestingModule.getName());
             return true;
         }
         logger.trace("Entitlement not trivially allowed");

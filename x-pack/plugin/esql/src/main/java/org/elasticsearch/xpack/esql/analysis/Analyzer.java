@@ -235,6 +235,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = indexResolution.get();
+
+            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
+                String indexResolutionMessage = null;
+
+                var indexNameWithModes = esIndex.indexNameWithModes();
+                if (indexNameWithModes.size() != 1) {
+                    indexResolutionMessage = "invalid ["
+                        + table
+                        + "] resolution in lookup mode to ["
+                        + indexNameWithModes.size()
+                        + "] indices";
+                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                    indexResolutionMessage = "invalid ["
+                        + table
+                        + "] resolution in lookup mode to an index in ["
+                        + indexNameWithModes.values().iterator().next()
+                        + "] mode";
+                }
+
+                if (indexResolutionMessage != null) {
+                    return new UnresolvedRelation(
+                        plan.source(),
+                        plan.table(),
+                        plan.frozen(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        indexResolutionMessage,
+                        plan.commandName()
+                    );
+                }
+            }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
@@ -660,15 +691,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
                     resolved.add(resolvedCol);
-                }
-                // columns are expected to be unresolved - if that's not the case return an error
-                else {
-                    return singletonList(
-                        new UnresolvedAttribute(
-                            col.source(),
-                            col.name(),
-                            "Surprised to discover column [ " + col.name() + "] already resolved"
-                        )
+                } else {
+                    throw new IllegalStateException(
+                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
                     );
                 }
             }

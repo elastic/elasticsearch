@@ -381,6 +381,11 @@ public class EsqlCapabilities {
         DATE_NANOS_AGGREGATIONS(),
 
         /**
+         * DATE_PARSE supports reading timezones
+         */
+        DATE_PARSE_TZ(),
+
+        /**
          * Support for datetime in least and greatest functions
          */
         LEAST_GREATEST_FOR_DATES,
@@ -448,6 +453,11 @@ public class EsqlCapabilities {
          * KQL function
          */
         KQL_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Hash function
+         */
+        HASH_FUNCTION,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -550,7 +560,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V7(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V9(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

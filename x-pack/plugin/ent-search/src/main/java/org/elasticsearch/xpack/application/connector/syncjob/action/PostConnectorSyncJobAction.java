@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.Connector;
-import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTriggerMethod;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
@@ -139,14 +138,6 @@ public class PostConnectorSyncJobAction {
         @Override
         public int hashCode() {
             return Objects.hash(id, jobType, triggerMethod);
-        }
-
-        @Override
-        public String[] indices() {
-            // Creating a new sync job requires reading from connector index
-            return new String[] {
-                ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN,
-                ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN };
         }
     }
 

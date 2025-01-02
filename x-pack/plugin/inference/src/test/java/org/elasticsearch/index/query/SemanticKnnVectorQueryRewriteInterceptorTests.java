@@ -60,21 +60,8 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY);
-        QueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
-        QueryBuilder rewritten = original.rewrite(context);
-        assertTrue(
-            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
-            rewritten instanceof InterceptedQueryBuilderWrapper
-        );
-        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
-        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
-        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
-        QueryBuilder innerQuery = nestedQueryBuilder.query();
-        assertTrue(innerQuery instanceof KnnVectorQueryBuilder);
-        KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) innerQuery;
-        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), knnVectorQueryBuilder.getFieldName());
-        assertEquals(queryVectorBuilder, knnVectorQueryBuilder.queryVectorBuilder());
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        testRewrittenInferenceQuery(context, original);
     }
 
     public void testKnnWithQueryBuilderWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
@@ -84,7 +71,11 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        QueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        testRewrittenInferenceQuery(context, original);
+    }
+
+    private void testRewrittenInferenceQuery(QueryRewriteContext context, KnnVectorQueryBuilder original) throws IOException {
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",

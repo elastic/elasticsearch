@@ -24,6 +24,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
@@ -112,6 +113,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
         var settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                SemanticInferenceMetadataFieldMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+            )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
         return createMapperService(settings, mappings);

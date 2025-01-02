@@ -1,5 +1,5 @@
 {
-  "esql.async_query_get": {
+  "esql.async_query_stop": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-stop-api.html",
       "description": "Stops a previously submitted async query request given its ID and collects the results."

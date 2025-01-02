@@ -51,80 +51,71 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final SingularTestDataset EMPLOYEES = new SingularTestDataset("employees", "mapping-default.json", "employees.csv")
-        .noSubfields();
-    private static final SingularTestDataset EMPLOYEES_INCOMPATIBLE = new SingularTestDataset(
+    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestsDataset EMPLOYEES_INCOMPATIBLE = new TestsDataset(
         "employees_incompatible",
         "mapping-default-incompatible.json",
         "employees_incompatible.csv"
     ).noSubfields();
-    private static final SingularTestDataset HOSTS = new SingularTestDataset("hosts");
-    private static final SingularTestDataset APPS = new SingularTestDataset("apps");
-    private static final SingularTestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
-    private static final SingularTestDataset LANGUAGES = new SingularTestDataset("languages");
-    private static final SingularTestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
+    private static final TestsDataset HOSTS = new TestsDataset("hosts");
+    private static final TestsDataset APPS = new TestsDataset("apps");
+    private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestsDataset LANGUAGES = new TestsDataset("languages");
+    private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
         .withSetting("languages_lookup-settings.json");
-    private static final SingularTestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
+    private static final TestsDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
-    private static final SingularTestDataset LANGUAGES_NESTED_FIELDS = new SingularTestDataset(
+    private static final TestsDataset LANGUAGES_NESTED_FIELDS = new TestsDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
         "languages_nested_fields.csv"
     ).withSetting("languages_lookup-settings.json");
-    private static final SingularTestDataset ALERTS = new SingularTestDataset("alerts");
-    private static final SingularTestDataset UL_LOGS = new SingularTestDataset("ul_logs");
-    private static final SingularTestDataset SAMPLE_DATA = new SingularTestDataset("sample_data");
-    private static final SingularTestDataset MV_SAMPLE_DATA = new SingularTestDataset("mv_sample_data");
-    private static final SingularTestDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
+    private static final TestsDataset ALERTS = new TestsDataset("alerts");
+    private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
+    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
+    private static final TestsDataset MV_SAMPLE_DATA = new TestsDataset("mv_sample_data");
+    private static final TestsDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
-    private static final SingularTestDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
+    private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
-    private static final SingularTestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+    private static final TestsDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
-    private static final SingularTestDataset MISSING_IP_SAMPLE_DATA = new SingularTestDataset("missing_ip_sample_data");
-    private static final SingularTestDataset CLIENT_IPS = new SingularTestDataset("clientips");
-    private static final SingularTestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
+    private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
+    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
+    private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
         .withSetting("clientips_lookup-settings.json");
-    private static final SingularTestDataset MESSAGE_TYPES = new SingularTestDataset("message_types");
-    private static final SingularTestDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+    private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
+    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
         .withSetting("message_types_lookup-settings.json");
-    private static final SingularTestDataset CLIENT_CIDR = new SingularTestDataset("client_cidr");
-    private static final SingularTestDataset AGES = new SingularTestDataset("ages");
-    private static final SingularTestDataset HEIGHTS = new SingularTestDataset("heights");
-    private static final SingularTestDataset DECADES = new SingularTestDataset("decades");
-    private static final SingularTestDataset AIRPORTS = new SingularTestDataset("airports");
-    private static final SingularTestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
-    private static final SingularTestDataset AIRPORTS_NO_DOC_VALUES = new SingularTestDataset("airports_no_doc_values").withData(
-        "airports.csv"
-    );
-    private static final SingularTestDataset AIRPORTS_NOT_INDEXED = new SingularTestDataset("airports_not_indexed").withData(
-        "airports.csv"
-    );
-    private static final SingularTestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new SingularTestDataset(
-        "airports_not_indexed_nor_doc_values"
-    ).withData("airports.csv");
-    private static final SingularTestDataset AIRPORTS_WEB = new SingularTestDataset("airports_web");
-    private static final SingularTestDataset DATE_NANOS = new SingularTestDataset("date_nanos");
-    private static final SingularTestDataset COUNTRIES_BBOX = new SingularTestDataset("countries_bbox");
-    private static final SingularTestDataset COUNTRIES_BBOX_WEB = new SingularTestDataset("countries_bbox_web");
-    private static final SingularTestDataset AIRPORT_CITY_BOUNDARIES = new SingularTestDataset("airport_city_boundaries");
-    private static final SingularTestDataset CARTESIAN_MULTIPOLYGONS = new SingularTestDataset("cartesian_multipolygons");
-    private static final SingularTestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new SingularTestDataset(
-        "cartesian_multipolygons_no_doc_values"
-    ).withData("cartesian_multipolygons.csv");
-    private static final SingularTestDataset MULTIVALUE_GEOMETRIES = new SingularTestDataset("multivalue_geometries");
-    private static final SingularTestDataset MULTIVALUE_POINTS = new SingularTestDataset("multivalue_points");
-    private static final SingularTestDataset DISTANCES = new SingularTestDataset("distances");
-    private static final SingularTestDataset K8S = new SingularTestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting(
-        "k8s-settings.json"
-    );
-    private static final SingularTestDataset ADDRESSES = new SingularTestDataset("addresses");
-    private static final SingularTestDataset BOOKS = new SingularTestDataset("books").withSetting("books-settings.json");
-    private static final SingularTestDataset SEMANTIC_TEXT = new SingularTestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
+    private static final TestsDataset AGES = new TestsDataset("ages");
+    private static final TestsDataset HEIGHTS = new TestsDataset("heights");
+    private static final TestsDataset DECADES = new TestsDataset("decades");
+    private static final TestsDataset AIRPORTS = new TestsDataset("airports");
+    private static final TestsDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestsDataset AIRPORTS_NO_DOC_VALUES = new TestsDataset("airports_no_doc_values").withData("airports.csv");
+    private static final TestsDataset AIRPORTS_NOT_INDEXED = new TestsDataset("airports_not_indexed").withData("airports.csv");
+    private static final TestsDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestsDataset("airports_not_indexed_nor_doc_values")
+        .withData("airports.csv");
+    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web");
+    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos");
+    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset("countries_bbox");
+    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset("countries_bbox_web");
+    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset("airport_city_boundaries");
+    private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset("cartesian_multipolygons");
+    private static final TestsDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestsDataset("cartesian_multipolygons_no_doc_values")
+        .withData("cartesian_multipolygons.csv");
+    private static final TestsDataset MULTIVALUE_GEOMETRIES = new TestsDataset("multivalue_geometries");
+    private static final TestsDataset MULTIVALUE_POINTS = new TestsDataset("multivalue_points");
+    private static final TestsDataset DISTANCES = new TestsDataset("distances");
+    private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
+    private static final TestsDataset BOOKS = new TestsDataset("books").withSetting("books-settings.json");
+    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
-    public static final Map<String, SingularTestDataset> CSV_DATASET_MAP = Map.ofEntries(
+    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
         Map.entry(HOSTS.indexName, HOSTS),
@@ -275,12 +266,12 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static Set<SingularTestDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
+    public static Set<TestsDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
-        Set<SingularTestDataset> testDataSets = new HashSet<>();
+        Set<TestsDataset> testDataSets = new HashSet<>();
 
-        for (SingularTestDataset dataset : CSV_DATASET_MAP.values()) {
+        for (TestsDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)) {
                 testDataSets.add(dataset);
@@ -290,7 +281,7 @@ public class CsvTestsDataLoader {
         return testDataSets;
     }
 
-    public static boolean isLookupDataset(SingularTestDataset dataset) throws IOException {
+    public static boolean isLookupDataset(TestsDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
@@ -372,7 +363,7 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(RestClient client, SingularTestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+    private static void load(RestClient client, TestsDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
         final String mappingName = "/" + dataset.mappingFileName;
         URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
         if (mapping == null) {
@@ -613,14 +604,14 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record TestDatasets(String indexPattern, List<SingularTestDataset> datasets) {
-        public static TestDatasets of(SingularTestDataset testsDataset) {
-            return new TestDatasets(testsDataset.indexName, List.of(testsDataset));
+    public record MultiIndexTestDataset(String indexPattern, List<TestsDataset> datasets) {
+        public static MultiIndexTestDataset of(TestsDataset testsDataset) {
+            return new MultiIndexTestDataset(testsDataset.indexName, List.of(testsDataset));
         }
 
     }
 
-    public record SingularTestDataset(
+    public record TestsDataset(
         String indexName,
         String mappingFileName,
         String dataFileName,
@@ -629,16 +620,16 @@ public class CsvTestsDataLoader {
         @Nullable Map<String, String> typeMapping,
         boolean requiresInferenceEndpoint
     ) {
-        public SingularTestDataset(String indexName, String mappingFileName, String dataFileName) {
+        public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
             this(indexName, mappingFileName, dataFileName, null, true, null, false);
         }
 
-        public SingularTestDataset(String indexName) {
+        public TestsDataset(String indexName) {
             this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
         }
 
-        public SingularTestDataset withIndex(String indexName) {
-            return new SingularTestDataset(
+        public TestsDataset withIndex(String indexName) {
+            return new TestsDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -649,8 +640,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public SingularTestDataset withData(String dataFileName) {
-            return new SingularTestDataset(
+        public TestsDataset withData(String dataFileName) {
+            return new TestsDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -661,8 +652,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public SingularTestDataset withSetting(String settingFileName) {
-            return new SingularTestDataset(
+        public TestsDataset withSetting(String settingFileName) {
+            return new TestsDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -673,8 +664,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public SingularTestDataset noSubfields() {
-            return new SingularTestDataset(
+        public TestsDataset noSubfields() {
+            return new TestsDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -685,8 +676,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public SingularTestDataset withTypeMapping(Map<String, String> typeMapping) {
-            return new SingularTestDataset(
+        public TestsDataset withTypeMapping(Map<String, String> typeMapping) {
+            return new TestsDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -697,16 +688,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public SingularTestDataset withInferenceEndpoint(boolean needsInference) {
-            return new SingularTestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                needsInference
-            );
+        public TestsDataset withInferenceEndpoint(boolean needsInference) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
         }
 
         private Settings readSettingsFile() throws IOException {

@@ -149,7 +149,7 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
          */
         @Override
         public int hashCode() {
-            return Objects.hash(databases, equalsHashCodeFailures(), getNodes(), equalsHashCodeNodesMap());
+            return Objects.hash(databases, getClusterName(), equalsHashCodeFailures(), getNodes(), equalsHashCodeNodesMap());
         }
 
         /*

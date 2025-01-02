@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -37,7 +38,14 @@ import java.util.Map;
 
 public class ChangePointStates {
 
-    public static class SingleState implements Releasable {
+    record TimeAndValue(long timestamp, double value) implements Comparable<TimeAndValue> {
+        @Override
+        public int compareTo(TimeAndValue other) {
+            return Long.compare(timestamp, other.timestamp);
+        }
+    }
+
+    static class SingleState implements Releasable {
         private final BigArrays bigArrays;
         private int count;
         private LongArray timestamps;
@@ -59,53 +67,63 @@ public class ChangePointStates {
         }
 
         void add(LongBlock timestamps, DoubleBlock values) {
-            int start = values.getFirstValueIndex(0);
-            int end = start + values.getValueCount(0);
-            for (int i = start; i < end; i++) {
-                add(timestamps.getLong(i), values.getDouble(i));
+            add(timestamps, values, 0);
+        }
+
+        void add(LongBlock timestamps, DoubleBlock values, int otherPosition) {
+            final int valueCount = timestamps.getValueCount(otherPosition);
+            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
+            for (int i = 0; i < valueCount; i++) {
+                add(timestamps.getLong(firstIndex + i), values.getDouble(firstIndex + i));
             }
         }
 
         void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toTimestampsBlock(timestamps, driverContext.blockFactory());
-            blocks[offset + 1] = toValuesBlock(values, driverContext.blockFactory());
+            blocks[offset] = buildTimestampsBlock(driverContext.blockFactory());
+            blocks[offset + 1] = buildValuesBlock(driverContext.blockFactory());
         }
 
-        Block toTimestampsBlock(LongArray arr, BlockFactory blockFactory) {
-            if (arr.size() == 0) {
+        // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
+        Block toBlock(BlockFactory blockFactory) {
+            return blockFactory.newConstantBytesRefBlockWith(getChangePoint(), 1);
+        }
+
+        private Block buildTimestampsBlock(BlockFactory blockFactory) {
+            if (timestamps.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
             if (values.size() == 1) {
-                return blockFactory.newConstantLongBlockWith(arr.get(0), 1);
+                return blockFactory.newConstantLongBlockWith(timestamps.get(0), 1);
             }
-            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder((int) arr.size())) {
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder((int) timestamps.size())) {
                 builder.beginPositionEntry();
                 for (int id = 0; id < count; id++) {
-                    builder.appendLong(arr.get(id));
+                    builder.appendLong(timestamps.get(id));
                 }
                 builder.endPositionEntry();
                 return builder.build();
             }
         }
 
-        Block toValuesBlock(DoubleArray arr, BlockFactory blockFactory) {
-            if (arr.size() == 0) {
+        private Block buildValuesBlock(BlockFactory blockFactory) {
+            if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(1);
             }
             if (values.size() == 1) {
-                return blockFactory.newConstantDoubleBlockWith(arr.get(0), 1);
+                return blockFactory.newConstantDoubleBlockWith(values.get(0), 1);
             }
-            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder((int) arr.size())) {
+            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();
                 for (int id = 0; id < count; id++) {
-                    builder.appendDouble(arr.get(id));
+                    builder.appendDouble(values.get(id));
                 }
                 builder.endPositionEntry();
                 return builder.build();
             }
         }
 
-        BytesRef toBytesRef() {
+        // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
+        private BytesRef getChangePoint() {
             // TODO: this copying doesn't account for memory
             List<TimeAndValue> list = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
@@ -129,34 +147,13 @@ public class ChangePointStates {
             }
         }
 
-        void add(LongBlock timestamps, DoubleBlock values, int otherPosition) {
-            final int valueCount = timestamps.getValueCount(otherPosition);
-            final int firstIndex = timestamps.getFirstValueIndex(otherPosition);
-            for (int i = 0; i < valueCount; i++) {
-                add(timestamps.getLong(firstIndex + i), values.getDouble(firstIndex + i));
-            }
-        }
-
-        Block toBlock(BlockFactory blockFactory) {
-            // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
-            return blockFactory.newConstantBytesRefBlockWith(toBytesRef(), 1);
-        }
-
-        record TimeAndValue(long timestamp, double value) implements Comparable<TimeAndValue> {
-            @Override
-            public int compareTo(TimeAndValue other) {
-                return Long.compare(timestamp, other.timestamp);
-            }
-        }
-
         @Override
         public void close() {
-            timestamps.close();
-            values.close();
+            Releasables.close(timestamps, values);
         }
     }
 
-    public static class GroupingState implements Releasable {
+    static class GroupingState implements Releasable {
         private final BigArrays bigArrays;
         private final Map<Integer, SingleState> states;
 
@@ -190,21 +187,21 @@ public class ChangePointStates {
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toTimestampsBlock(driverContext.blockFactory(), selected);
-            blocks[offset + 1] = toValuesBlock(driverContext.blockFactory(), selected);
+            blocks[offset] = buildTimestampsBlock(driverContext.blockFactory(), selected);
+            blocks[offset + 1] = buildValuesBlock(driverContext.blockFactory(), selected);
         }
 
+        // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
         Block evaluateFinal(IntVector selected, BlockFactory blockFactory) {
-            // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    builder.appendBytesRef(states.get(selected.getInt(s)).toBytesRef());
+                    builder.appendBytesRef(states.get(selected.getInt(s)).getChangePoint());
                 }
                 return builder.build();
             }
         }
 
-        Block toTimestampsBlock(BlockFactory blockFactory, IntVector selected) {
+        private Block buildTimestampsBlock(BlockFactory blockFactory, IntVector selected) {
             if (states.isEmpty()) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
@@ -237,7 +234,7 @@ public class ChangePointStates {
             }
         }
 
-        Block toValuesBlock(BlockFactory blockFactory, IntVector selected) {
+        private Block buildValuesBlock(BlockFactory blockFactory, IntVector selected) {
             if (states.isEmpty()) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
@@ -274,9 +271,7 @@ public class ChangePointStates {
 
         @Override
         public void close() {
-            for (SingleState state : states.values()) {
-                state.close();
-            }
+            Releasables.close(states.values());
         }
     }
 }

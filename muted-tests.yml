@@ -384,12 +384,6 @@ tests:
 - class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
   method: testHealthNode {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/118158
-- class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
-  method: testNonExistentDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/118275
-- class: org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportActionIT
-  method: testAlreadyUpToDateDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/118276
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/118184
@@ -398,9 +392,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116694
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118548
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=migrate/10_reindex/Test Reindex With Existing Data Stream}
-  issue: https://github.com/elastic/elasticsearch/issues/118575
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=migrate/20_reindex_status/Test Reindex With Existing Data Stream}
   issue: https://github.com/elastic/elasticsearch/issues/118576

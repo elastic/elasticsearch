@@ -10,6 +10,12 @@ trained models. However, if you do not plan to use the {infer} APIs to use these
 models or if you want to use non-NLP models, use the
 <<ml-df-trained-models-apis>>.
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 The {infer} APIs enable you to create {infer} endpoints and use {ml} models of
 different providers - such as Amazon Bedrock, Anthropic, Azure AI Studio,
 Cohere, Google AI, Mistral, OpenAI, or HuggingFace - as a service. Use

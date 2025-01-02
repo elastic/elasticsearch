@@ -5,6 +5,12 @@
 <titleabbrev>Ack watch</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 <<actions-ack-throttle,Acknowledging a watch>> enables you
 to manually throttle execution of the watch's actions.
 

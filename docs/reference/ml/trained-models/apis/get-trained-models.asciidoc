@@ -6,8 +6,13 @@
 <titleabbrev>Get trained models</titleabbrev>
 ++++
 
-Retrieves configuration information for a trained model.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
 
+Retrieves configuration information for a trained model.
 
 [[ml-get-trained-models-request]]
 == {api-request-title}

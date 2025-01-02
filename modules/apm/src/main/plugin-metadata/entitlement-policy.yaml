@@ -1,0 +1,2 @@
+elastic.apm.agent:
+  - set_https_connection_properties

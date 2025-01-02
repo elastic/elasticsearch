@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.internal.conventions.info.GitInfoValueSource;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -35,9 +34,17 @@ public abstract class GitInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File rootDir = Util.locateElasticsearchWorkspace(project.getGradle());
+        File rootDir = getGitRootDir(project);
         getGitInfo().convention(factory.of(GitInfoValueSource.class, spec -> { spec.getParameters().getPath().set(rootDir); }));
         revision = getGitInfo().map(info -> info.getRevision() == null ? info.getRevision() : "main");
+    }
+
+    private static File getGitRootDir(Project project) {
+        File rootDir = project.getRootDir();
+        if (new File(rootDir, ".git").exists()) {
+            return rootDir;
+        }
+        return Util.locateElasticsearchWorkspace(project.getGradle());
     }
 
     public abstract Property<GitInfo> getGitInfo();

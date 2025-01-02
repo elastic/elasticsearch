@@ -66,3 +66,4 @@ As of 8.17, {esql} also supports <<esql-search-functions,full-text search>> func
 
 .Advanced Topics
 * https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables[Practical BM25: Part 2 - The BM25 Algorithm and its Variables]
+* <<recipes,Search relevance optimization recipes>>

@@ -17,6 +17,10 @@
         }
       ]
     },
-    "params": {}
+    "params": {},
+    "body": {
+      "description":"The X509Certificate chain.",
+      "required":true
+    }
   }
 }

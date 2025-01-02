@@ -1396,7 +1396,7 @@ as a human-readable string.
 
 
 `_search`:::
-(object) Contains the information about the <<modules-cross-cluster-search, {ccs}>> usage.
+(object) Contains information about <<modules-cross-cluster-search, {ccs}>> usage.
 +
 .Properties of `_search`
 [%collapsible%open]

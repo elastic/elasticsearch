@@ -24,12 +24,40 @@ cp:keyword
 ;
 
 
-change point spike
+change point spike (long)
 # required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
   | EVAL count = count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0)
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""spike"":{""p_value"":0.0,""change_point"":9}}}"
+;
+
+
+change point spike (int)
+# required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | EVAL count = TO_INTEGER(count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0))
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""spike"":{""p_value"":0.0,""change_point"":9}}}"
+;
+
+
+change point spike (double)
+# required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | EVAL count = TO_DOUBLE(count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0))
   | STATS cp=CHANGE_POINT(count, timestamp)
 ;
 

@@ -197,6 +197,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.SetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -2646,12 +2647,57 @@ public class ReservedRolesStoreTests extends ESTestCase {
         RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
+
+        final String applicationName = "kibana-.kibana";
+
+        final Set<String> applicationPrivilegeNames = Set.of(
+            "feature_discover.minimal_read",
+            "feature_discover.generate_report",
+            "feature_dashboard.minimal_read",
+            "feature_dashboard.generate_report",
+            "feature_dashboard.download_csv_report",
+            "feature_canvas.minimal_read",
+            "feature_canvas.generate_report",
+            "feature_visualize.minimal_read",
+            "feature_visualize.generate_report"
+        );
+
+        final Set<String> allowedApplicationActionPatterns = Set.of(
+            "login:",
+            "app:discover",
+            "app:canvas",
+            "app:kibana",
+            "ui:catalogue/canvas",
+            "ui:navLinks/canvas",
+            "ui:catalogue/discover",
+            "ui:navLinks/discover",
+            "ui:navLinks/kibana",
+            "saved_object:index-pattern/*",
+            "saved_object:search/*",
+            "saved_object:query/*",
+            "saved_object:config/*",
+            "saved_object:config/get",
+            "saved_object:config/find",
+            "saved_object:config-global/*",
+            "saved_object:telemetry/*",
+            "saved_object:canvas-workpad/*",
+            "saved_object:canvas-element/*",
+            "saved_object:url/*",
+            "ui:discover/show"
+        );
+
+        final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = new ArrayList<>();
+        for (String appPrivilegeName : applicationPrivilegeNames) {
+            applicationPrivilegeDescriptors.add(
+                new ApplicationPrivilegeDescriptor(applicationName, appPrivilegeName, allowedApplicationActionPatterns, Map.of())
+            );
+        }
 
         Role reportingUserRole = Role.buildFromRoleDescriptor(
             roleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            applicationPrivilegeDescriptors
         );
         assertThat(reportingUserRole.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(reportingUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
@@ -2723,6 +2769,33 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(reportingUserRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(reportingUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
+
+        applicationPrivilegeNames.forEach(appPrivilege -> {
+            assertThat(
+                reportingUserRole.application()
+                    .grants(
+                        ApplicationPrivilegeTests.createPrivilege(
+                            applicationName,
+                            appPrivilege,
+                            allowedApplicationActionPatterns.toArray(new String[0])
+                        ),
+                        "*"
+                    ),
+                is(true)
+            );
+        });
+        assertThat(
+            reportingUserRole.application()
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(
+                        "kibana-.*",
+                        "feature_random.minimal_read",
+                        allowedApplicationActionPatterns.toArray(new String[0])
+                    ),
+                    "*"
+                ),
+            is(false)
+        );
     }
 
     public void testSuperuserRole() {
@@ -3379,6 +3452,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(true));
+            assertThat(role.cluster().check(SetTransformUpgradeModeAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
             assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
@@ -3468,6 +3542,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(SetTransformUpgradeModeAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));

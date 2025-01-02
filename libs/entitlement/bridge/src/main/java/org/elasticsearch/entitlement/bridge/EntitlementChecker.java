@@ -11,14 +11,20 @@ package org.elasticsearch.entitlement.bridge;
 
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
+import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
+@SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
-    void check$java_lang_System$exit(Class<?> callerClass, int status);
+
+    // Exit the JVM process
+    void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status);
+
+    void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status);
 
     // URLClassLoader constructors
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
@@ -32,11 +38,17 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
     // "setFactory" methods
-    void check$$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection conn, SSLSocketFactory sf);
+    void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection conn, SSLSocketFactory sf);
 
-    void check$javax_net_ssl_HttpsURLConnection$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf);
+    void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf);
 
-    void check$javax_net_ssl_HttpsURLConnection$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv);
+    void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv);
 
-    void check$javax_net_ssl_SSLContext$setDefault(Class<?> callerClass, SSLContext context);
+    void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context);
+
+    // Process creation
+    void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder that);
+
+    void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
+
 }

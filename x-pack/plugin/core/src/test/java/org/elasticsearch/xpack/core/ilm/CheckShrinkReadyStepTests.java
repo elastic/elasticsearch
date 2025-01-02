@@ -29,9 +29,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
@@ -340,7 +340,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
      */
     public void testExecuteReplicasNotAllocatedOnSingleNode() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap("_id", "node1");
+        Map<String, String> requires = Map.of("_id", "node1");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -376,7 +376,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
     public void testExecuteReplicasButCopiesNotPresent() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap("_id", "node1");
+        Map<String, String> requires = Map.of("_id", "node1");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -458,13 +458,14 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                         .putCustom(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
-                                Collections.singletonMap(
+                                Map.of(
                                     "node1",
                                     SingleNodeShutdownMetadata.builder()
                                         .setType(type)
                                         .setStartedAtMillis(randomNonNegativeLong())
                                         .setReason("test")
                                         .setNodeId("node1")
+                                        .setNodeEphemeralId("node1")
                                         .setTargetNodeName(targetNodeName)
                                         .setGracePeriod(grace)
                                         .build()
@@ -537,13 +538,14 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                         .putCustom(
                             NodesShutdownMetadata.TYPE,
                             new NodesShutdownMetadata(
-                                Collections.singletonMap(
+                                Map.of(
                                     "node1",
                                     SingleNodeShutdownMetadata.builder()
                                         .setType(type)
                                         .setStartedAtMillis(randomNonNegativeLong())
                                         .setReason("test")
                                         .setNodeId("node1")
+                                        .setNodeEphemeralId("node1")
                                         .setTargetNodeName(targetNodeName)
                                         .setGracePeriod(grace)
                                         .build()
@@ -649,7 +651,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             System.currentTimeMillis(),
             delayed,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             lastAllocatedNodeId
         );
     }

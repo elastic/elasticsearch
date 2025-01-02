@@ -9,8 +9,14 @@
 
 package org.elasticsearch.features;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -69,6 +75,12 @@ public class FeatureServiceTests extends ESTestCase {
         );
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("node1"))
+                    .add(DiscoveryNodeUtils.create("node2"))
+                    .add(DiscoveryNodeUtils.create("node3"))
+            )
             .nodeFeatures(
                 Map.of("node1", Set.of("f1", "f2", "nf1"), "node2", Set.of("f1", "f2", "nf2"), "node3", Set.of("f1", "f2", "nf1"))
             )
@@ -80,5 +92,34 @@ public class FeatureServiceTests extends ESTestCase {
         assertFalse(service.clusterHasFeature(state, new NodeFeature("nf1")));
         assertFalse(service.clusterHasFeature(state, new NodeFeature("nf2")));
         assertFalse(service.clusterHasFeature(state, new NodeFeature("nf3")));
+    }
+
+    private static Version nextMajor() {
+        return Version.fromId((Version.CURRENT.major + 1) * 1_000_000 + 99);
+    }
+
+    public void testStateHasAssumedFeatures() {
+        List<FeatureSpecification> specs = List.of(
+            new TestFeatureSpecification(Set.of(new NodeFeature("f1"), new NodeFeature("f2"), new NodeFeature("af1", true)))
+        );
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("node1"))
+                    .add(DiscoveryNodeUtils.create("node2"))
+                    .add(
+                        DiscoveryNodeUtils.builder("node3")
+                            .version(new VersionInformation(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()))
+                            .build()
+                    )
+            )
+            .nodeFeatures(Map.of("node1", Set.of("f1", "af1"), "node2", Set.of("f1", "f2", "af1"), "node3", Set.of("f1", "f2")))
+            .build();
+
+        FeatureService service = new FeatureService(specs);
+        assertTrue(service.clusterHasFeature(state, new NodeFeature("f1")));
+        assertFalse(service.clusterHasFeature(state, new NodeFeature("f2")));
+        assertTrue(service.clusterHasFeature(state, new NodeFeature("af1", true)));
     }
 }

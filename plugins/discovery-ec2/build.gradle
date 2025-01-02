@@ -7,10 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
+  description = 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
+  classname ='org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
 dependencies {
@@ -29,6 +30,8 @@ dependencies {
 
   javaRestTestImplementation project(':plugins:discovery-ec2')
   javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+
+  internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -82,7 +85,7 @@ tasks.register("writeTestJavaPolicy") {
   }
 }
 
-tasks.named("test").configure {
+tasks.withType(Test).configureEach {
   dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name

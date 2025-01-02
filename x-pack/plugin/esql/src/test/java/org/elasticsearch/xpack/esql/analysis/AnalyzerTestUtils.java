@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -45,6 +46,10 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
+    public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution) {
+        return analyzer(indexResolution, lookupResolution, TEST_VERIFIER);
+    }
+
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return new Analyzer(
             new AnalyzerContext(
@@ -52,6 +57,19 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 defaultLookupResolution(),
+                defaultEnrichResolution()
+            ),
+            verifier
+        );
+    }
+
+    public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution, Verifier verifier) {
+        return new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                lookupResolution,
                 defaultEnrichResolution()
             ),
             verifier
@@ -104,8 +122,13 @@ public final class AnalyzerTestUtils {
         return analyzer.analyze(plan);
     }
 
+    public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode));
+        return IndexResolution.valid(test);
+    }
+
     public static IndexResolution loadMapping(String resource, String indexName) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
+        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, IndexMode.STANDARD));
         return IndexResolution.valid(test);
     }
 
@@ -117,8 +140,8 @@ public final class AnalyzerTestUtils {
         return loadMapping("mapping-default.json", "test");
     }
 
-    public static IndexResolution defaultLookupResolution() {
-        return loadMapping("mapping-languages.json", "languages_lookup");
+    public static Map<String, IndexResolution> defaultLookupResolution() {
+        return Map.of("languages_lookup", loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP));
     }
 
     public static EnrichResolution defaultEnrichResolution() {

@@ -28,7 +28,7 @@ import java.io.IOException;
  */
 public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
-    public static GeoShapeValues EMPTY = new GeoShapeValues() {
+    public static final GeoShapeValues EMPTY = new GeoShapeValues() {
         private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
 
         @Override

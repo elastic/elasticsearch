@@ -4,6 +4,12 @@
 <titleabbrev>Delete snapshot repository</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Unregisters one or more <<snapshots-register-repository,snapshot repositories>>.
 
 When a repository is unregistered, {es} only removes the reference to the

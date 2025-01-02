@@ -5,6 +5,12 @@
 <titleabbrev>Migrate indices, ILM policies, and legacy, composable and component templates to data tiers routing</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Switches the indices, ILM policies, and legacy, composable and component templates from using custom node attributes and
 <<shard-allocation-filtering, attribute-based allocation filters>> to using <<data-tiers, data tiers>>, and
 optionally deletes one legacy index template.

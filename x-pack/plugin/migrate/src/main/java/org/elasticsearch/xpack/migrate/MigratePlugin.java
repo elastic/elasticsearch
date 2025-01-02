@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -57,6 +58,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor.MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING;
 
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -150,5 +152,12 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         } else {
             return List.of();
         }
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> pluginSettings = new ArrayList<>();
+        pluginSettings.add(MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING);
+        return pluginSettings;
     }
 }

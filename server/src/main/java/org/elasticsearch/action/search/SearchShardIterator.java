@@ -103,14 +103,12 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return clusterAlias;
     }
 
-    public SearchShardTarget current;
-
     SearchShardTarget nextOrNull() {
         final String nodeId = targetNodesIterator.nextOrNull();
         if (nodeId != null) {
-            return current = new SearchShardTarget(nodeId, shardId, clusterAlias);
+            return new SearchShardTarget(nodeId, shardId, clusterAlias);
         }
-        return current = null;
+        return null;
     }
 
     int remaining() {

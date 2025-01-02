@@ -21,3 +21,4 @@ public class Lucene70Codec extends BWCLucene70Codec {
         super("Lucene70");
     }
 }
+

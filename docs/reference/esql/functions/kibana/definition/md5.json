@@ -29,6 +29,9 @@
       "returnType" : "keyword"
     }
   ],
+  "examples" : [
+    "FROM sample_data \n| WHERE message != \"Connection error\"\n| EVAL md5 = md5(message)\n| KEEP message, md5;"
+  ],
   "preview" : false,
   "snapshot_only" : false
 }

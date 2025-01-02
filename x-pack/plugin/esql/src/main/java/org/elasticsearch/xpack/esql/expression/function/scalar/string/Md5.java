@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash.HashFunction;
@@ -25,7 +26,11 @@ public class Md5 extends AbstractHashFunction {
 
     private static final HashFunction MD5 = HashFunction.create("MD5");
 
-    @FunctionInfo(returnType = "keyword", description = "Computes the MD5 hash of the input.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Computes the MD5 hash of the input.",
+        examples = { @Example(file = "hash", tag = "md5") }
+    )
     public Md5(Source source, @Param(name = "input", type = { "keyword", "text" }, description = "Input to hash.") Expression input) {
         super(source, input);
     }

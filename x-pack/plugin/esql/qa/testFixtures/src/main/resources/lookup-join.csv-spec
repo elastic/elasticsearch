@@ -136,17 +136,21 @@ FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | WHERE emp_no > 10090 AND emp_no < 10096
-| SORT emp_no
-| EVAL country = MV_SORT(country)
+| SORT emp_no, country
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword       | country:keyword
-10091          | 1                     | [English, English, English] | [Canada, United Kingdom, United States of America]
-10092          | 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
-10093          | 3                     | null                        | null
-10094          | 4                     | Quenya                      | null
-10095          | 5                     | null                        | Atlantis
+emp_no:integer | language_code:integer | language_name:keyword | country:text
+    10091      | 1                     | English               | Canada
+    10091      | 1                     | null                  | United Kingdom
+    10091      | 1                     | English               | United States of America
+    10091      | 1                     | English               | null
+    10092      | 2                     | German                | [Germany, Austria]
+    10092      | 2                     | German                | Switzerland
+    10092      | 2                     | German                | null
+    10093      | 3                     | null                  | null
+    10094      | 4                     | Quenya                | null
+    10095      | 5                     | null                  | Atlantis
 ;
 
 nonUniqueRightKeyOnTheCoordinator
@@ -161,12 +165,17 @@ FROM employees
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword       | country:keyword
-10001          | 1                     | [English, English, English] | [Canada, United Kingdom, United States of America]
-10002          | 2                     | [German, German, German]    | [Austria, Germany, Switzerland]
-10003          | 3                     | null                        | null
-10004          | 4                     | Quenya                      | null
-10005          | 5                     | null                        | Atlantis
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
+10001          | 1                     | English               | Canada
+10001          | 1                     | English               | null
+10001          | 1                     | null                  | United Kingdom
+10001          | 1                     | English               | United States of America
+10002          | 2                     | German                | [Austria, Germany]
+10002          | 2                     | German                | Switzerland
+10002          | 2                     | German                | null
+10003          | 3                     | null                  | null
+10004          | 4                     | Quenya                | null
+10005          | 5                     | null                  | Atlantis
 ;
 
 nonUniqueRightKeyFromRow
@@ -178,8 +187,10 @@ ROW language_code = 2
 | EVAL country = MV_SORT(country)
 ;
 
-language_code:integer | language_name:keyword       | country:keyword
-2                     | [German, German, German]    | [Austria, Germany, Switzerland]
+language_code:integer | language_name:keyword | country:keyword
+2                     | German                | [Austria, Germany]
+2                     | German                | Switzerland
+2                     | German                | null
 ;
 
 repeatedIndexOnFrom
@@ -406,8 +417,13 @@ FROM employees
 ;
 
 emp_no:integer | language_code:integer | language_name:keyword
-10001          | 1                     | [English, English, English]
-10002          | 2                     | [German, German, German]
+10001          | 1                     | English
+10001          | 1                     | English
+10001          | 1                     | English
+10001          | 1                     | null
+10002          | 2                     | German
+10002          | 2                     | German
+10002          | 2                     | German
 10003          | null                  | null
 ;
 
@@ -418,7 +434,7 @@ FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
-| SORT emp_no
+| SORT emp_no, language_name
 | KEEP emp_no, language_code, language_name
 ;
 
@@ -426,7 +442,8 @@ emp_no:integer | language_code:integer | language_name:keyword
 10004          | 4                     | Quenya
 10005          | 5                     | null
 10006          | 6                     | Mv-Lang
-10007          | 7                     | [Mv-Lang, Mv-Lang2]
+10007          | 7                     | Mv-Lang
+10007          | 7                     | Mv-Lang2
 ;
 
 mvJoinKeyFromRow
@@ -438,8 +455,11 @@ ROW language_code = [4, 5, 6, 7]
 | KEEP language_code, language_name, country
 ;
 
-language_code:integer | language_name:keyword       | country:keyword
-[4, 5, 6, 7]          | [Mv-Lang, Mv-Lang2, Quenya] | [Atlantis, Mv-Land, Mv-Land2]
+language_code:integer | language_name:keyword | country:keyword
+[4, 5, 6, 7]          | Quenya                | null
+[4, 5, 6, 7]          | null                  | Atlantis
+[4, 5, 6, 7]          | Mv-Lang               | Mv-Land
+[4, 5, 6, 7]          | Mv-Lang2              | Mv-Land2
 ;
 
 mvJoinKeyFromRowExpanded
@@ -448,16 +468,17 @@ required_capability: join_lookup_v10
 ROW language_code = [4, 5, 6, 7, 8]
 | MV_EXPAND language_code
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
-| EVAL language_name = MV_SORT(language_name), country = MV_SORT(country)
 | KEEP language_code, language_name, country
+| SORT language_code, language_name, country
 ;
 
-language_code:integer | language_name:keyword       | country:keyword
-4                     | Quenya                      | null
-5                     | null                        | Atlantis
-6                     | Mv-Lang                     | Mv-Land
-7                     | [Mv-Lang, Mv-Lang2]         | [Mv-Land, Mv-Land2]
-8                     | Mv-Lang2                    | Mv-Land2
+language_code:integer | language_name:keyword | country:text
+4                     | Quenya                | null
+5                     | null                  | Atlantis
+6                     | Mv-Lang               | Mv-Land
+7                     | Mv-Lang               | Mv-Land
+7                     | Mv-Lang2              | Mv-Land2
+8                     | Mv-Lang2              | Mv-Land2
 ;
 
 ###########################################################################

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -194,15 +195,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
-    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+    protected static class LookupResponse extends AbstractLookupService.LookupResponse {
         private List<Page> pages;
 
-        private LookupResponse(List<Page> pages, BlockFactory blockFactory) {
+        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
             super(blockFactory);
             this.pages = pages;
         }
 
-        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.pages = bsi.readCollectionAsList(Page::new);
@@ -212,7 +213,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             long bytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
-            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup response");
             reservedBytes += bytes;
             out.writeCollection(pages);
         }
@@ -224,11 +225,36 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             return p;
         }
 
+        List<Page> pages() {
+            return pages;
+        }
+
         @Override
         protected void innerRelease() {
             if (pages != null) {
-                Releasables.closeExpectNoException(() -> Iterators.map(pages.iterator(), page -> (Releasable) page::releaseBlocks));
+                Releasables.closeExpectNoException(
+                    Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks))
+                );
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            LookupResponse that = (LookupResponse) o;
+            return Objects.equals(pages, that.pages);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(pages);
+        }
+
+        @Override
+        public String toString() {
+            return "LookupResponse{pages=" + pages + '}';
         }
     }
 }

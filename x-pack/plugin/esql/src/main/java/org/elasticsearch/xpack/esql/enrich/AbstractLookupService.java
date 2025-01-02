@@ -306,7 +306,10 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
         Block inputBlock = request.inputPage.getBlock(0);
         if (inputBlock.areAllValuesNull()) {
-            listener.onResponse(List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields)));
+            List<Page> nullResponse = mergePages ?
+                List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                : List.of();
+            listener.onResponse(nullResponse);
             return;
         }
         final List<Releasable> releasables = new ArrayList<>(6);
@@ -393,7 +396,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             var threadContext = transportService.getThreadPool().getThreadContext();
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
                 List<Page> out = collectedPages;
-                if (out.isEmpty()) {
+                if (mergePages && out.isEmpty()) {
                     out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                 }
                 return out;

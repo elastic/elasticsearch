@@ -326,6 +326,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
             assertThat(
                 localCluster.getStatus(),
+                // this depends on timing - the local data may be or not be finished by the time stop arrives
                 oneOf(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, EsqlExecutionInfo.Cluster.Status.PARTIAL)
             );
             assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));

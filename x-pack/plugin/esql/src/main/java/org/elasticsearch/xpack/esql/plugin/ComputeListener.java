@@ -235,6 +235,9 @@ final class ComputeListener implements Releasable {
                 TimeValue tookTime = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
                 esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
                     EsqlExecutionInfo.Cluster.Status resultStatus = v.getStatus();
+                    // If we've got remote result after execution has been marked as partial, we declare it partial.
+                    // This may not be exactly correct, since we don't know whether the remote made it to the end of the data,
+                    // but for now this is the best way we have to mark partial remote results.
                     if (esqlExecutionInfo.isPartial()) {
                         resultStatus = EsqlExecutionInfo.Cluster.Status.PARTIAL;
                     }

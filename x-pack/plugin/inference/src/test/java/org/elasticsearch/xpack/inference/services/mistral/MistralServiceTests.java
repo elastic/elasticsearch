@@ -753,7 +753,6 @@ public class MistralServiceTests extends ESTestCase {
                        "task_types": ["text_embedding"],
                        "configurations": {
                            "api_key": {
-                               "default_value": null,
                                "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
                                "required": true,
@@ -762,7 +761,6 @@ public class MistralServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "model": {
-                               "default_value": null,
                                "description": "Refer to the Mistral models documentation for the list of available text embedding models.",
                                "label": "Model",
                                "required": true,
@@ -771,7 +769,6 @@ public class MistralServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
                                "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
                                "required": false,
@@ -780,7 +777,6 @@ public class MistralServiceTests extends ESTestCase {
                                "type": "int"
                            },
                            "max_input_tokens": {
-                               "default_value": null,
                                "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
                                "required": false,

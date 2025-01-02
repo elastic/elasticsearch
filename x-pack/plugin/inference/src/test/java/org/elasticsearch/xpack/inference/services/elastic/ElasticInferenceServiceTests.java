@@ -501,7 +501,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                        "task_types": ["sparse_embedding"],
                        "configurations": {
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
                                "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
                                "required": false,
@@ -510,7 +509,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "type": "int"
                            },
                            "model_id": {
-                               "default_value": null,
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
                                "required": true,
@@ -519,7 +517,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "max_input_tokens": {
-                               "default_value": null,
                                "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
                                "required": false,

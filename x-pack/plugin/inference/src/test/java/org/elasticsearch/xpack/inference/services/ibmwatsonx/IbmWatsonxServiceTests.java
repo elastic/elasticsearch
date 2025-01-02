@@ -980,7 +980,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                        "task_types": ["text_embedding"],
                        "configurations": {
                            "project_id": {
-                               "default_value": null,
                                "description": "",
                                "label": "Project ID",
                                "required": true,
@@ -989,7 +988,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "model_id": {
-                               "default_value": null,
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
                                "required": true,
@@ -998,7 +996,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "api_version": {
-                               "default_value": null,
                                "description": "The IBM Watsonx API version ID to use.",
                                "label": "API Version",
                                "required": true,
@@ -1007,7 +1004,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "max_input_tokens": {
-                               "default_value": null,
                                "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
                                "required": false,
@@ -1016,7 +1012,6 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "type": "int"
                            },
                            "url": {
-                               "default_value": null,
                                "description": "",
                                "label": "URL",
                                "required": true,

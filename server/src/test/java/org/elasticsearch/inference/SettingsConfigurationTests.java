@@ -29,7 +29,6 @@ public class SettingsConfigurationTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-               "default_value": null,
                "description": "Wow, this tooltip is useful.",
                "label": "Very important field",
                "required": true,
@@ -52,7 +51,6 @@ public class SettingsConfigurationTests extends ESTestCase {
     public void testToXContent_WithNumericSelectOptions() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-               "default_value": null,
                "description": "Wow, this tooltip is useful.",
                "label": "Very important field",
                "required": true,

@@ -443,7 +443,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                        "task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"],
                        "configurations": {
                          "workspace": {
-                           "default_value": null,
                            "description": "The name of the workspace used for the {infer} task.",
                            "label": "Workspace",
                            "required": true,
@@ -452,7 +451,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "type": "str"
                          },
                          "api_key": {
-                           "default_value": null,
                            "description": "A valid API key for the AlibabaCloud AI Search API.",
                            "label": "API Key",
                            "required": true,
@@ -461,7 +459,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "type": "str"
                          },
                          "service_id": {
-                           "default_value": null,
                            "description": "The name of the model service to use for the {infer} task.",
                            "label": "Project ID",
                            "required": true,
@@ -470,7 +467,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "type": "str"
                          },
                          "host": {
-                           "default_value": null,
                            "description": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
                            "label": "Host",
                            "required": true,
@@ -479,7 +475,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "type": "str"
                          },
                          "rate_limit.requests_per_minute": {
-                           "default_value": null,
                            "description": "Minimize the number of rate limit errors.",
                            "label": "Rate Limit",
                            "required": false,
@@ -488,7 +483,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "type": "int"
                          },
                          "http_schema": {
-                           "default_value": null,
                            "description": "",
                            "label": "HTTP Schema",
                            "required": true,

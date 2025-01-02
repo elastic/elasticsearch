@@ -874,7 +874,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                            "task_types": ["text_embedding", "rerank"],
                            "configurations": {
                                "service_account_json": {
-                                   "default_value": null,
                                    "description": "API Key for the provider you're connecting to.",
                                    "label": "Credentials JSON",
                                    "required": true,
@@ -883,7 +882,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "type": "str"
                                },
                                "project_id": {
-                                   "default_value": null,
                                    "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Project",
                                    "required": true,
@@ -892,7 +890,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "type": "str"
                                },
                                "location": {
-                                   "default_value": null,
                                    "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
                                    "required": true,
@@ -901,7 +898,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "type": "str"
                                },
                                "rate_limit.requests_per_minute": {
-                                   "default_value": null,
                                    "description": "Minimize the number of rate limit errors.",
                                    "label": "Rate Limit",
                                    "required": false,
@@ -910,7 +906,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "type": "int"
                                },
                                "model_id": {
-                                   "default_value": null,
                                    "description": "ID of the LLM you're using.",
                                    "label": "Model ID",
                                    "required": true,

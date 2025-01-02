@@ -1396,7 +1396,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     "task_types": ["text_embedding", "completion"],
                     "configurations": {
                         "endpoint_type": {
-                            "default_value": null,
                             "description": "Specifies the type of endpoint that is used in your model deployment.",
                             "label": "Endpoint Type",
                             "required": true,
@@ -1405,7 +1404,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "type": "str"
                         },
                         "provider": {
-                            "default_value": null,
                             "description": "The model provider for your deployment.",
                             "label": "Provider",
                             "required": true,
@@ -1414,7 +1412,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "type": "str"
                         },
                         "api_key": {
-                            "default_value": null,
                             "description": "API Key for the provider you're connecting to.",
                             "label": "API Key",
                             "required": true,
@@ -1423,7 +1420,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "type": "str"
                         },
                         "rate_limit.requests_per_minute": {
-                            "default_value": null,
                             "description": "Minimize the number of rate limit errors.",
                             "label": "Rate Limit",
                             "required": false,
@@ -1432,7 +1428,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "type": "int"
                         },
                         "target": {
-                            "default_value": null,
                             "description": "The target URL of your Azure AI Studio model deployment.",
                             "label": "Target",
                             "required": true,

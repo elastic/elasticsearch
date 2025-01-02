@@ -1128,7 +1128,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                        "task_types": ["text_embedding", "completion"],
                        "configurations": {
                            "api_key": {
-                               "default_value": null,
                                "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
                                "required": true,
@@ -1137,7 +1136,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
                                "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
                                "required": false,
@@ -1146,7 +1144,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "type": "int"
                            },
                            "model_id": {
-                               "default_value": null,
                                "description": "ID of the LLM you're using.",
                                "label": "Model ID",
                                "required": true,

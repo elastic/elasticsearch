@@ -1465,7 +1465,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                             "task_types": ["text_embedding", "completion"],
                             "configurations": {
                                 "api_key": {
-                                    "default_value": null,
                                     "description": "You must provide either an API key or an Entra ID.",
                                     "label": "API Key",
                                     "required": false,
@@ -1474,7 +1473,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "type": "str"
                                 },
                                 "entra_id": {
-                                    "default_value": null,
                                     "description": "You must provide either an API key or an Entra ID.",
                                     "label": "Entra ID",
                                     "required": false,
@@ -1483,7 +1481,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "type": "str"
                                 },
                                 "rate_limit.requests_per_minute": {
-                                    "default_value": null,
                                     "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
                                     "label": "Rate Limit",
                                     "required": false,
@@ -1492,7 +1489,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "type": "int"
                                 },
                                 "deployment_id": {
-                                    "default_value": null,
                                     "description": "The deployment name of your deployed models.",
                                     "label": "Deployment ID",
                                     "required": true,
@@ -1501,7 +1497,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "type": "str"
                                 },
                                 "resource_name": {
-                                    "default_value": null,
                                     "description": "The name of your Azure OpenAI resource.",
                                     "label": "Resource Name",
                                     "required": true,
@@ -1510,7 +1505,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "type": "str"
                                 },
                                 "api_version": {
-                                    "default_value": null,
                                     "description": "The Azure API version ID to use.",
                                     "label": "API Version",
                                     "required": true,

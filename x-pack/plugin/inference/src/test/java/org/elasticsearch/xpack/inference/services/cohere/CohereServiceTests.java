@@ -1640,7 +1640,6 @@ public class CohereServiceTests extends ESTestCase {
                         "task_types": ["text_embedding", "rerank", "completion"],
                         "configurations": {
                             "api_key": {
-                                "default_value": null,
                                 "description": "API Key for the provider you're connecting to.",
                                 "label": "API Key",
                                 "required": true,
@@ -1649,7 +1648,6 @@ public class CohereServiceTests extends ESTestCase {
                                 "type": "str"
                             },
                             "rate_limit.requests_per_minute": {
-                                "default_value": null,
                                 "description": "Minimize the number of rate limit errors.",
                                 "label": "Rate Limit",
                                 "required": false,

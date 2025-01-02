@@ -33,7 +33,6 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
                "task_types": ["text_embedding", "completion"],
                "configurations": {
                     "text_field_configuration": {
-                        "default_value": null,
                         "description": "Wow, this tooltip is useful.",
                         "label": "Very important field",
                         "required": true,

@@ -145,7 +145,6 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                        "task_types": ["sparse_embedding"],
                        "configurations": {
                            "api_key": {
-                               "default_value": null,
                                "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
                                "required": true,
@@ -154,7 +153,6 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                                "type": "str"
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
                                "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
                                "required": false,
@@ -163,7 +161,6 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                                "type": "int"
                            },
                            "url": {
-                               "default_value": null,
                                "description": "The URL endpoint to use for the requests.",
                                "label": "URL",
                                "required": true,

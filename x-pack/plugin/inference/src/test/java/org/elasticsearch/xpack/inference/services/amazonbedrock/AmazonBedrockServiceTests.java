@@ -161,7 +161,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                      "task_types": ["text_embedding", "completion"],
                      "configurations": {
                          "secret_key": {
-                             "default_value": null,
                              "description": "A valid AWS secret key that is paired with the access_key.",
                              "label": "Secret Key",
                              "required": true,
@@ -170,7 +169,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "type": "str"
                          },
                          "provider": {
-                             "default_value": null,
                              "description": "The model provider for your deployment.",
                              "label": "Provider",
                              "required": true,
@@ -179,7 +177,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "type": "str"
                          },
                          "access_key": {
-                             "default_value": null,
                              "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
                              "label": "Access Key",
                              "required": true,
@@ -188,7 +185,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "type": "str"
                          },
                          "model": {
-                             "default_value": null,
                              "description": "The base model ID or an ARN to a custom model based on a foundational model.",
                              "label": "Model",
                              "required": true,
@@ -197,7 +193,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "type": "str"
                          },
                          "rate_limit.requests_per_minute": {
-                             "default_value": null,
                              "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
                              "label": "Rate Limit",
                              "required": false,
@@ -206,7 +201,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "type": "int"
                          },
                          "region": {
-                             "default_value": null,
                              "description": "The region that your model or ARN is deployed in.",
                              "label": "Region",
                              "required": true,

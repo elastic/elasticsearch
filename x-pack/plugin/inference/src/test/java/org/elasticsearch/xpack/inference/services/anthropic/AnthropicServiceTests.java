@@ -609,7 +609,6 @@ public class AnthropicServiceTests extends ESTestCase {
                       "task_types": ["completion"],
                       "configurations": {
                           "api_key": {
-                              "default_value": null,
                               "description": "API Key for the provider you're connecting to.",
                               "label": "API Key",
                               "required": true,
@@ -618,7 +617,6 @@ public class AnthropicServiceTests extends ESTestCase {
                               "type": "str"
                           },
                           "rate_limit.requests_per_minute": {
-                              "default_value": null,
                               "description": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
                               "label": "Rate Limit",
                               "required": false,
@@ -627,7 +625,6 @@ public class AnthropicServiceTests extends ESTestCase {
                               "type": "int"
                           },
                           "model_id": {
-                              "default_value": null,
                               "description": "The name of the model to use for the inference task.",
                               "label": "Model ID",
                               "required": true,

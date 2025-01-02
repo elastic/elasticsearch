@@ -1666,7 +1666,6 @@ public class OpenAiServiceTests extends ESTestCase {
                             "task_types": ["text_embedding", "completion"],
                             "configurations": {
                                 "api_key": {
-                                    "default_value": null,
                                     "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
                                     "label": "API Key",
                                     "required": true,
@@ -1675,7 +1674,6 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "type": "str"
                                 },
                                 "organization_id": {
-                                    "default_value": null,
                                     "description": "The unique identifier of your organization.",
                                     "label": "Organization ID",
                                     "required": false,
@@ -1684,7 +1682,6 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "type": "str"
                                 },
                                 "rate_limit.requests_per_minute": {
-                                    "default_value": null,
                                     "description": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
                                     "label": "Rate Limit",
                                     "required": false,
@@ -1693,7 +1690,6 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "type": "int"
                                 },
                                 "model_id": {
-                                    "default_value": null,
                                     "description": "The name of the model to use for the inference task.",
                                     "label": "Model ID",
                                     "required": true,

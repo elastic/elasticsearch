@@ -197,7 +197,9 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
+            if (defaultValue != null) {
+                builder.field(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
+            }
             if (description != null) {
                 builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
             }

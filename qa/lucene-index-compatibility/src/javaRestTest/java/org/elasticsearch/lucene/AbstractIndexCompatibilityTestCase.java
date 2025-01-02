@@ -9,11 +9,6 @@
 
 package org.elasticsearch.lucene;
 
-import com.carrotsearch.randomizedtesting.TestMethodAndParams;
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -22,16 +17,18 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
-import java.util.Comparator;
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
@@ -41,24 +38,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Test suite for Lucene indices backward compatibility with N-2 versions. The test suite creates a cluster in N-2 version, then upgrades it
- * to N-1 version and finally upgrades it to the current version. Test methods are executed after each upgrade.
- */
-@TestCaseOrdering(AbstractLuceneIndexCompatibilityTestCase.TestCaseOrdering.class)
-public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTestCase {
+public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase {
 
     protected static final Version VERSION_MINUS_2 = fromString(System.getProperty("tests.minimum.index.compatible"));
     protected static final Version VERSION_MINUS_1 = fromString(System.getProperty("tests.minimum.wire.compatible"));
     protected static final Version VERSION_CURRENT = CURRENT;
 
-    protected static TemporaryFolder REPOSITORY_PATH = new TemporaryFolder();
+    protected static final int NODES = 3;
+
+    private static TemporaryFolder REPOSITORY_PATH = new TemporaryFolder();
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(VERSION_MINUS_2)
-        .nodes(2)
+        .nodes(NODES)
         .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
@@ -71,15 +65,44 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
 
     private static boolean upgradeFailed = false;
 
-    private final Version clusterVersion;
+    @Before
+    public final void maybeUpgradeBeforeTest() throws Exception {
+        // We want to use this test suite for the V9 upgrade, but we are not fully committed to necessarily having N-2 support
+        // in V10, so we add a check here to ensure we'll revisit this decision once V10 exists.
+        assertThat("Explicit check that N-2 version is Elasticsearch 7", VERSION_MINUS_2.getMajor(), equalTo(7));
 
-    public AbstractLuceneIndexCompatibilityTestCase(@Name("cluster") Version clusterVersion) {
-        this.clusterVersion = clusterVersion;
+        if (upgradeFailed == false) {
+            try {
+                maybeUpgrade();
+            } catch (Exception e) {
+                upgradeFailed = true;
+                throw e;
+            }
+        }
+
+        // Skip remaining tests if upgrade failed
+        assumeFalse("Cluster upgrade failed", upgradeFailed);
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        return Stream.of(VERSION_MINUS_2, VERSION_MINUS_1, CURRENT).map(v -> new Object[] { v }).toList();
+    protected abstract void maybeUpgrade() throws Exception;
+
+    @After
+    public final void deleteSnapshotBlobCache() throws IOException {
+        // TODO Having the .snapshot-blob-cache created can block the upgrades. How is it handled today?
+        try {
+            var request = new Request("DELETE", "/.snapshot-blob-cache");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.snapshot-blob-cache], but in a future major version, "
+                        + "direct access to system indices will be prevented by default"
+                )
+            );
+            adminClient().performRequest(request);
+        } catch (IOException e) {
+            if (isNotFoundResponseException(e) == false) {
+                throw e;
+            }
+        }
     }
 
     @Override
@@ -92,26 +115,8 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
         return true;
     }
 
-    @Before
-    public void maybeUpgrade() throws Exception {
-        // We want to use this test suite for the V9 upgrade, but we are not fully committed to necessarily having N-2 support
-        // in V10, so we add a check here to ensure we'll revisit this decision once V10 exists.
-        assertThat("Explicit check that N-2 version is Elasticsearch 7", VERSION_MINUS_2.getMajor(), equalTo(7));
-
-        var currentVersion = clusterVersion();
-        if (currentVersion.before(clusterVersion)) {
-            try {
-                cluster.upgradeToVersion(clusterVersion);
-                closeClients();
-                initClient();
-            } catch (Exception e) {
-                upgradeFailed = true;
-                throw e;
-            }
-        }
-
-        // Skip remaining tests if upgrade failed
-        assumeFalse("Cluster upgrade failed", upgradeFailed);
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     protected String suffix(String name) {
@@ -124,12 +129,18 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
             .build();
     }
 
-    protected static Version clusterVersion() throws Exception {
-        var response = assertOK(client().performRequest(new Request("GET", "/")));
-        var responseBody = createFromResponse(response);
-        var version = Version.fromString(responseBody.evaluate("version.number").toString());
-        assertThat("Failed to retrieve cluster version", version, notNullValue());
-        return version;
+    protected static Map<String, Version> nodesVersions() throws Exception {
+        var nodesInfos = getNodesInfo(adminClient());
+        assertThat(nodesInfos.size(), equalTo(NODES));
+        var versions = new HashMap<String, Version>();
+        for (var nodeInfos : nodesInfos.values()) {
+            versions.put((String) nodeInfos.get("name"), Version.fromString((String) nodeInfos.get("version")));
+        }
+        return versions;
+    }
+
+    protected static boolean isFullyUpgradedTo(Version version) throws Exception {
+        return nodesVersions().values().stream().allMatch(v -> v.equals(version));
     }
 
     protected static Version indexVersion(String indexName) throws Exception {
@@ -180,17 +191,5 @@ public abstract class AbstractLuceneIndexCompatibilityTestCase extends ESRestTes
         var responseBody = createFromResponse(client().performRequest(request));
         assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.failed")));
         assertThat(responseBody.evaluate("snapshot.shards.successful"), equalTo(0));
-    }
-
-    /**
-     * Execute the test suite with the parameters provided by the {@link #parameters()} in version order.
-     */
-    public static class TestCaseOrdering implements Comparator<TestMethodAndParams> {
-        @Override
-        public int compare(TestMethodAndParams o1, TestMethodAndParams o2) {
-            var version1 = (Version) o1.getInstanceArguments().get(0);
-            var version2 = (Version) o2.getInstanceArguments().get(0);
-            return version1.compareTo(version2);
-        }
     }
 }

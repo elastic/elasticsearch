@@ -7,6 +7,12 @@
 <titleabbrev>Get {slm} status</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-slm[{slm-cap} APIs].
+--
+
 Retrieves the status of {slm} ({slm-init}).
 
 [[slm-api-get-status-request]]

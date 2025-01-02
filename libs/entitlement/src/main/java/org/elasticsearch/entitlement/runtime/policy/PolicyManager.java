@@ -17,9 +17,7 @@ import org.elasticsearch.logging.Logger;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,20 +28,20 @@ import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.groupingBy;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(PolicyManager.class);
 
-    static class ModuleEntitlements {
-        public static final ModuleEntitlements NONE = new ModuleEntitlements(List.of());
-        private final IdentityHashMap<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType;
+    record ModuleEntitlements(Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType) {
+        public static final ModuleEntitlements NONE = new ModuleEntitlements(Map.of());
 
-        ModuleEntitlements(List<Entitlement> entitlements) {
-            this.entitlementsByType = entitlements.stream()
-                .collect(Collectors.toMap(Entitlement::getClass, e -> new ArrayList<>(List.of(e)), (a, b) -> {
-                    a.addAll(b);
-                    return a;
-                }, IdentityHashMap::new));
+        ModuleEntitlements {
+            entitlementsByType = Map.copyOf(entitlementsByType);
+        }
+
+        public static ModuleEntitlements from(List<Entitlement> entitlements) {
+            return new ModuleEntitlements(entitlements.stream().collect(groupingBy(Entitlement::getClass)));
         }
 
         public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
@@ -200,7 +198,7 @@ public class PolicyManager {
 
         if (requestingModule.isNamed() == false) {
             // agents are the only thing running non-modular
-            return new ModuleEntitlements(agentEntitlements);
+            return ModuleEntitlements.from(agentEntitlements);
         }
 
         moduleEntitlementsMap.put(requestingModule, ModuleEntitlements.NONE);
@@ -228,7 +226,7 @@ public class PolicyManager {
             throw new NotEntitledException(buildModuleNoPolicyMessage(callerClass));
         }
         // We have a policy for this module
-        var classEntitlements = new ModuleEntitlements(entitlements);
+        var classEntitlements = ModuleEntitlements.from(entitlements);
         moduleEntitlementsMap.put(module, classEntitlements);
         return classEntitlements;
     }

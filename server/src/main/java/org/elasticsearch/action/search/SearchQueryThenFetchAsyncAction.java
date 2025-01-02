@@ -580,7 +580,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
                                 @Override
                                 public void handleResponse(NodeQueryResponse response) {
-                                    int failedShards = 0;
                                     for (int i = 0; i < response.results.length; i++) {
                                         var s = request.shards.get(i);
                                         int shardIdx = s.shardIndex;
@@ -591,7 +590,6 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                                 shardIterators[shardIdx],
                                                 e
                                             );
-                                            failedShards++;
                                         } else if (response.results[i] instanceof QuerySearchResult q) {
                                             q.setShardIndex(shardIdx);
                                             var shardId = s.shardId();
@@ -600,16 +598,20 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                             );
                                         }
                                     }
-                                    final int successfulShards = request.shards.size() - failedShards;
-                                    if (successfulShards > 0) {
-                                        hasShardResponse.set(true);
-                                        for (Object result : response.results) {
-                                            if (result instanceof SearchPhaseResult searchPhaseResult) {
-                                                results.consumeResult(searchPhaseResult, () -> {
-                                                    successfulOps.incrementAndGet();
-                                                    finishShardAndMaybePhase(searchPhaseResult.getSearchShardTarget().getShardId());
-                                                });
-                                            }
+                                    for (Object result : response.results) {
+                                        if (result instanceof SearchPhaseResult searchPhaseResult) {
+                                            hasShardResponse.set(true);
+                                            results.consumeResult(searchPhaseResult, () -> {
+                                                successfulOps.incrementAndGet();
+                                                var shard = searchPhaseResult.getSearchShardTarget().getShardId();
+                                                logger.info(
+                                                    "--> bulk result for shard [{}][{}][{}]",
+                                                    shard,
+                                                    searchPhaseResult.getShardIndex(),
+                                                    System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
+                                                );
+                                                finishShardAndMaybePhase(shard);
+                                            });
                                         }
                                     }
                                 }
@@ -691,8 +693,21 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 @Override
                 public void innerOnResponse(SearchPhaseResult result) {
                     try {
+                        logger.info(
+                            "--> result for shard [{}][{}][{}]",
+                            shard.getShardId(),
+                            shardIndex,
+                            System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
+                        );
                         onShardResult(result);
                     } catch (Exception exc) {
+                        logger.error(
+                            "--> failure for shard [{}][{}][{}]",
+                            shard.getShardId(),
+                            shardIndex,
+                            System.identityHashCode(SearchQueryThenFetchAsyncAction.this),
+                            exc
+                        );
                         onShardFailure(shardIndex, shard, shardIt, exc);
                     }
                 }
@@ -731,12 +746,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 }
             }
             onShardGroupFailure(shardIndex, shard, e);
-        }
-        if (lastShard == false) {
-            performPhaseOnShard(shardIndex, shardIt, nextShard);
+            finishShardAndMaybePhase(shard.getShardId());
         } else {
-            final ShardId shardId = shardIt.shardId();
-            finishShardAndMaybePhase(shardId);
+            performPhaseOnShard(shardIndex, shardIt, nextShard);
         }
     }
 
@@ -746,10 +758,10 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         boolean removed = outstandingShards.remove(shardId);
         assert removed : "unknown shardId " + shardId;
         if (outstandingShards.isEmpty()) {
-            if (done.compareAndSet(null, new RuntimeException("successful ops " + successfulOps.get())) == false) {
-                throw new AssertionError("failed to finish shard", done.get());
+            var doneTrace = new RuntimeException("successful ops " + successfulOps.get());
+            if (done.compareAndSet(null, doneTrace)) {
+                executeNextPhase(this.getName(), this::getNextPhase);
             }
-            executeNextPhase(this.getName(), this::getNextPhase);
         }
     }
 

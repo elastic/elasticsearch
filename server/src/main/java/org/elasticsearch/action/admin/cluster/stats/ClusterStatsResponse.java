@@ -72,8 +72,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             }
         }
         nodes.forEach(node -> {
-            ccsMetrics.add(node.getCcsMetrics());
-            esqlMetrics.add(node.getEsqlMetrics());
+            ccsMetrics.add(node.getSearchCcsMetrics());
+            esqlMetrics.add(node.getEsqlCcsMetrics());
         });
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;

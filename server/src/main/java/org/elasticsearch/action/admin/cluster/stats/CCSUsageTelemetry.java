@@ -108,9 +108,13 @@ public class CCSUsageTelemetry {
     private final Map<String, LongAdder> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
     // Should we calculate separate metrics per MRT?
-    private boolean useMRT = true;
+    private final boolean useMRT;
 
     public CCSUsageTelemetry() {
+        this(true);
+    }
+
+    public CCSUsageTelemetry(boolean useMRT) {
         this.byRemoteCluster = new ConcurrentHashMap<>();
         totalCount = new LongAdder();
         successCount = new LongAdder();
@@ -122,10 +126,6 @@ public class CCSUsageTelemetry {
         skippedRemotes = new LongAdder();
         featureCounts = new ConcurrentHashMap<>();
         clientCounts = new ConcurrentHashMap<>();
-    }
-
-    public CCSUsageTelemetry(boolean useMRT) {
-        this();
         this.useMRT = useMRT;
     }
 

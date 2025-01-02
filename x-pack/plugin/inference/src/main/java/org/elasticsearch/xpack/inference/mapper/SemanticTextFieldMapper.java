@@ -387,8 +387,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (mapper.fieldType().getModelSettings() == null) {
             for (var chunkList : field.inference().chunks().values()) {
                 if (chunkList.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "model settings must be set for field [" + fullFieldName + "] when chunks are provided"
+                    throw new DocumentParsingException(
+                        xContentLocation,
+                        "[" + MODEL_SETTINGS_FIELD + "] must be set for field [" + fullFieldName + "] when chunks are provided"
                     );
                 }
             }

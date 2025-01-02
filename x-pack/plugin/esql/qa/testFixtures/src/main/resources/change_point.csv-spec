@@ -1,5 +1,5 @@
 change point stationary with timestamp argument
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
@@ -12,7 +12,7 @@ cp:keyword
 
 
 change point stationary without timestamp argument
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 minute)
@@ -25,7 +25,7 @@ cp:keyword
 
 
 change point spike (long)
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
@@ -39,7 +39,7 @@ cp:keyword
 
 
 change point spike (int)
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
@@ -53,7 +53,7 @@ cp:keyword
 
 
 change point spike (double)
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
@@ -67,7 +67,7 @@ cp:keyword
 
 
 change point grouping with timestamp argument
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute), cluster
@@ -83,7 +83,7 @@ cp:keyword                                                                      
 
 
 change point grouping without timestamp argument
-# required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 minute), cluster

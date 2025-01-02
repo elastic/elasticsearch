@@ -2,6 +2,9 @@
   "template": {
     "settings": {
       "index": {
+        "lifecycle": {
+          "name": "traces@lifecycle"
+        },
         "codec": "best_compression",
         "mapping": {
           "ignore_malformed": true

@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -137,7 +138,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (filter.run(fi.name)) {
+            if (FieldPermissions.METADATA_FIELDS_ALLOWLIST.contains(fi.name) || filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -189,6 +190,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
+
+            // TODO make sure this correctly handles _source and _ignored_source
+            if (initialState == 0 && FieldPermissions.METADATA_FIELDS_ALLOWLIST.contains(key)) {
+                // If the field is a metadata field, we always include it.
+                filtered.put(key, entry.getValue());
+                continue;
+            }
 
             int state = step(includeAutomaton, key, initialState);
             if (state == -1) {

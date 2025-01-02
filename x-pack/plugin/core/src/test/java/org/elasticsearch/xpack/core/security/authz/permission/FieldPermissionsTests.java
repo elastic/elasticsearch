@@ -282,7 +282,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
                     .automaton()
             ).run("_id"),
-            is(true)
+            is(false)
         );
 
         assertThat(
@@ -290,7 +290,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
                     .automaton()
             ).run("_id"),
-            is(true)
+            is(false)
         );
 
         assertThat(

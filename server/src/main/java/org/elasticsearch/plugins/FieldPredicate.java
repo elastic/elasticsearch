@@ -88,4 +88,36 @@ public interface FieldPredicate extends Accountable, Predicate<String> {
             return first + " then " + second;
         }
     }
+
+    class Or implements FieldPredicate {
+        private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(And.class);
+
+        private final FieldPredicate first;
+        private final FieldPredicate second;
+
+        public Or(FieldPredicate first, FieldPredicate second) {
+            this.first = first;
+            this.second = second;
+        }
+
+        @Override
+        public boolean test(String field) {
+            return first.test(field) || second.test(field);
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return second.modifyHash(first.modifyHash(hash));
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_RAM_BYTES_USED + first.ramBytesUsed() + second.ramBytesUsed();
+        }
+
+        @Override
+        public String toString() {
+            return first + " then " + second;
+        }
+    }
 }

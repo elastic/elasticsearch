@@ -145,7 +145,7 @@ public final class FieldPermissionsCache {
                     return new FieldPermissions(
                         key,
                         new FieldPermissions.AutomatonWithLegacyExceptionFieldsFlag(
-                            Automatons.unionAndDeterminize(automatonList),
+                            Automatons.unionAndMinimize(automatonList),
                             hasLegacyExceptFieldsFinal
                         )
                     );

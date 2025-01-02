@@ -17,10 +17,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -360,7 +362,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         }
     }
 
-    public static class NodeQueryRequest extends TransportRequest {
+    public static class NodeQueryRequest extends TransportRequest implements IndicesRequest {
         private final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
@@ -398,6 +400,16 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             searchRequest.writeTo(out);
             out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
             out.writeVInt(totalShards);
+        }
+
+        @Override
+        public String[] indices() {
+            return shards.stream().map(s -> s.originalIndices().indices()).flatMap(Arrays::stream).distinct().toArray(String[]::new);
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return shards.getFirst().originalIndices.indicesOptions();
         }
     }
 

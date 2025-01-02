@@ -12,7 +12,6 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.text.ParseException;
@@ -25,6 +24,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -58,7 +58,6 @@ public class IndexVersions {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
 
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
@@ -134,11 +133,14 @@ public class IndexVersions {
     public static final IndexVersion V8_DEPRECATE_SOURCE_MODE_MAPPER = def(8_521_00_0, Version.LUCENE_9_12_0);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT = def(8_522_00_0, Version.LUCENE_9_12_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12_1 = def(8_523_00_0, parseUnchecked("9.12.1"));
+    public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_00_0, parseUnchecked("9.12.1"));
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion DEPRECATE_SOURCE_MODE_MAPPER = def(9_003_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_00_0, Version.LUCENE_10_0_0);
+    public static final IndexVersion INFERENCE_METADATA_FIELDS = def(9_005_00_0, Version.LUCENE_10_0_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -244,10 +246,12 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
+    static Collection<IndexVersion> getAllWriteVersions() {
+        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).collect(Collectors.toSet());
+    }
+
     static Collection<IndexVersion> getAllVersions() {
-        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
+        return VERSION_IDS.values();
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());

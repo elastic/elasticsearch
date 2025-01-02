@@ -8,9 +8,9 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-  name 'x-pack-profiling'
-  description 'The profiling plugin adds support for retrieving data from Universal Profiling.'
-  classname 'org.elasticsearch.xpack.profiling.ProfilingPlugin'
+  name = 'x-pack-profiling'
+  description = 'The profiling plugin adds support for retrieving data from Universal Profiling.'
+  classname = 'org.elasticsearch.xpack.profiling.ProfilingPlugin'
   extendedPlugins = ['x-pack-core']
 }
 

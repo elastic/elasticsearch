@@ -80,7 +80,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
         // TODO: consider supporting implicit type conversion as done in ENRICH for some types
-        if (fieldType.typeName().equals(inputDataType.typeName()) == false) {
+        String typeName = fieldType.typeName().equals("text") ? DataType.KEYWORD.typeName() : fieldType.typeName();
+        if (typeName.equals(inputDataType.noText().typeName()) == false) {
             throw new EsqlIllegalArgumentException(
                 "LOOKUP JOIN match and input types are incompatible: match[" + fieldType.typeName() + "], input[" + inputDataType + "]"
             );

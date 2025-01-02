@@ -26,6 +26,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -87,6 +91,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -139,6 +144,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -148,6 +154,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -157,6 +164,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -706,7 +714,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(nativeRolesStore).accept(anySet(), anyActionListener());
         verify(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
 
-        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName));
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, Metadata.DEFAULT_PROJECT_ID));
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
@@ -720,6 +728,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             mock(ApiKeyService.class),
             mock(ServiceAccountService.class),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -767,6 +776,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testNegativeLookupsAreNotCachedWithFailures() {
+        final var projectId = randomProjectIdOrDefault();
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -793,6 +803,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             mock(ApiKeyService.class),
             mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(projectId),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -823,7 +834,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors.set(null);
         }
 
-        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName));
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, projectId));
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, Metadata.DEFAULT_PROJECT_ID));
         verify(reservedRolesStore, times(numberOfTimesToCall + 1)).accept(anySet(), anyActionListener());
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).accept(anySet(), anyActionListener());
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).roleDescriptors(eq(Collections.singleton(roleName)));
@@ -903,6 +915,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
+            null,
             null,
             null
         );
@@ -1581,6 +1594,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             rds -> effectiveRoleDescriptors.set(rds),
             null,
+            null,
             null
         );
 
@@ -1646,6 +1660,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
+            null,
             null,
             null
         );
@@ -1721,7 +1736,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            store -> numInvalidation.incrementAndGet(),
+            (store, project) -> numInvalidation.incrementAndGet(),
+            null,
             null
         );
 
@@ -1780,7 +1796,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            store -> numInvalidation.incrementAndGet(),
+            (store, project) -> numInvalidation.incrementAndGet(),
+            null,
             null
         );
 
@@ -2406,6 +2423,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             apiKeyService,
             mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault()),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -2520,6 +2538,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             apiKeyService,
             mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault()),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -2695,6 +2714,125 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 + "] is deprecated and will be removed in a future version of Elasticsearch."
                 + " Please check the documentation"
         );
+    }
+
+    public void testRoleResolutionIsProjectAware() {
+        final AtomicReference<ProjectId> activeProject = new AtomicReference<>();
+        final ProjectResolver projectResolver = new ProjectResolver() {
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ProjectId getProjectId() {
+                return activeProject.get();
+            }
+        };
+
+        final String roleName = randomAlphaOfLengthBetween(4, 12);
+        final Supplier<RoleDescriptor> descriptor = () -> new RoleDescriptor(
+            roleName,
+            randomSubsetOf(
+                Set.of(
+                    ClusterPrivilegeResolver.ALL,
+                    ClusterPrivilegeResolver.MANAGE_SECURITY,
+                    ClusterPrivilegeResolver.MANAGE,
+                    ClusterPrivilegeResolver.MONITOR
+                )
+            ).stream().map(NamedClusterPrivilege::name).toArray(String[]::new),
+            null,
+            null,
+            null,
+            new String[] { activeProject.get().id() },
+            Map.of("project.id", activeProject.get().id()),
+            Map.of()
+        );
+
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+
+        final Map<ProjectId, Integer> roleRetrievalCount = new HashMap<>();
+        doAnswer((invocationOnMock) -> {
+            Set<String> names = invocationOnMock.getArgument(0);
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> listener = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            if (names.contains(roleName)) {
+                listener.onResponse(RoleRetrievalResult.success(Set.of(descriptor.get())));
+            } else {
+                listener.onResponse(RoleRetrievalResult.success(Set.of()));
+            }
+            roleRetrievalCount.compute(activeProject.get(), (k, v) -> v == null ? 1 : v + 1);
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(anySet(), anyActionListener());
+
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            null,
+            nativeRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            projectResolver
+        );
+
+        final var project1 = randomUniqueProjectId();
+        final var project2 = randomUniqueProjectId();
+        final var project3 = randomUniqueProjectId();
+
+        activeProject.set(project1);
+        final Role role1a = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role1a.checkRunAs(project1.id()), is(true));
+        assertThat(role1a.checkRunAs(project2.id()), is(false));
+        assertThat(role1a.checkRunAs(project3.id()), is(false));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(1));
+
+        activeProject.set(project2);
+        final Role role2a = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role2a.checkRunAs(project1.id()), is(false));
+        assertThat(role2a.checkRunAs(project2.id()), is(true));
+        assertThat(role2a.checkRunAs(project3.id()), is(false));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(2));
+
+        activeProject.set(project1);
+        final Role role1b = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role1b, sameInstance(role1a));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(2));
+
+        activeProject.set(project3);
+        final Role role3a = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role3a.checkRunAs(project1.id()), is(false));
+        assertThat(role3a.checkRunAs(project2.id()), is(false));
+        assertThat(role3a.checkRunAs(project3.id()), is(true));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, hasEntry(project3, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(3));
+
+        final Role role3b = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role3b, sameInstance(role3a));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, hasEntry(project3, 1));
+
+        activeProject.set(project2);
+        final Role role2b = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role2b, sameInstance(role2a));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, hasEntry(project3, 1));
     }
 
     public void testCacheEntryIsReusedForIdenticalApiKeyRoles() {
@@ -3013,21 +3151,29 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
 
-        final Subject subject = mock(Subject.class);
-        when(subject.getRoleReferenceIntersection(any())).thenReturn(
-            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(new String[] { roleName }))
-        );
+        final Subject subject = buildSubjectWithRoles(new String[] { roleName });
         final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
         compositeRolesStore.getRoleDescriptors(subject, future);
         assertThat(future.actionGet(), equalTo(Set.of(expectedRoleDescriptor)));
     }
 
+    private Role getRoleForRoleNames(CompositeRolesStore store, String... roleNames) {
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(store, Set.of(roleNames), future);
+        return future.actionGet();
+    }
+
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
+        final Subject subject = buildSubjectWithRoles(roleNames.toArray(String[]::new));
+        rolesStore.getRole(subject, listener);
+    }
+
+    private Subject buildSubjectWithRoles(String[] roleNames) {
         final Subject subject = mock(Subject.class);
         when(subject.getRoleReferenceIntersection(any())).thenReturn(
-            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(roleNames.toArray(String[]::new)))
+            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(roleNames))
         );
-        rolesStore.getRole(subject, listener);
+        return subject;
     }
 
     private Role getXPackSecurityRole() {
@@ -3090,6 +3236,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             documentSubsetBitsetCache,
             roleConsumer,
             null,
+            null,
             null
         );
     }
@@ -3106,8 +3253,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Nullable ServiceAccountService serviceAccountService,
         @Nullable DocumentSubsetBitsetCache documentSubsetBitsetCache,
         @Nullable Consumer<Collection<RoleDescriptor>> roleConsumer,
-        @Nullable Consumer<CompositeRolesStore> onInvalidation,
-        @Nullable WorkflowService workflowService
+        @Nullable BiConsumer<CompositeRolesStore, ProjectId> onInvalidation,
+        @Nullable WorkflowService workflowService,
+        @Nullable ProjectResolver projectResolver
     ) {
         if (licenseState == null) {
             licenseState = new XPackLicenseState(() -> 0);
@@ -3146,6 +3294,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (workflowService == null) {
             workflowService = mock(WorkflowService.class);
         }
+        if (projectResolver == null) {
+            projectResolver = TestProjectResolvers.singleProject(randomProjectIdOrDefault());
+        }
 
         return new CompositeRolesStore(
             settings,
@@ -3156,6 +3307,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             apiKeyService,
             serviceAccountService,
+            projectResolver,
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
             mockRoleBuildingExecutor,
@@ -3166,7 +3318,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 if (onInvalidation == null) {
                     super.invalidateAll();
                 } else {
-                    onInvalidation.accept(this);
+                    onInvalidation.accept(this, null);
+                }
+            }
+
+            @Override
+            public void invalidateProject(ProjectId projectId) {
+                if (onInvalidation == null) {
+                    super.invalidateProject(projectId);
+                } else {
+                    onInvalidation.accept(this, projectId);
                 }
             }
         };

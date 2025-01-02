@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -242,6 +243,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 fieldPermissionsCache,
                 mock(ApiKeyService.class),
                 mock(ServiceAccountService.class),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -354,7 +356,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
-            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
             final RoleReference.NamedRoleReference namedRoleReference = (RoleReference.NamedRoleReference) i.getArguments()[0];
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
             for (String name : namedRoleReference.getRoleNames()) {
@@ -376,7 +378,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).buildRoleFromRoleReference(any(RoleReference.NamedRoleReference.class), anyActionListener());
+        }).when(rolesStore)
+            .buildRoleFromRoleReference(any(RoleReference.NamedRoleReference.class), any(ProjectId.class), anyActionListener());
 
         doAnswer(i -> {
             User user = ((Subject) i.getArguments()[0]).getUser();

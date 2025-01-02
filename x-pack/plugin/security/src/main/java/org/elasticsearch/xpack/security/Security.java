@@ -1050,6 +1050,7 @@ public class Security extends Plugin
             fieldPermissionsCache,
             apiKeyService,
             serviceAccountService,
+            projectResolver,
             dlsBitsetCache.get(),
             restrictedIndices,
             buildRoleBuildingExecutor(threadPool, settings),

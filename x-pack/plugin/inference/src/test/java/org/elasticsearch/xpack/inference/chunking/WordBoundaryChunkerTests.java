@@ -56,7 +56,7 @@ public class WordBoundaryChunkerTests extends ESTestCase {
             + " خليفہ المومنين يا خليفہ المسلمين يا صحابی يا رضي الله عنه چئي۔ (ب) آنحضور ﷺ جي گھروارين کان علاوه ڪنھن کي ام المومنين "
             + "چئي۔ (ج) آنحضور ﷺ جي خاندان جي اھل بيت کان علاوہڍه ڪنھن کي اھل بيت چئي۔ (د) پنھنجي عبادت گاھ کي مسجد چئي۔" };
 
-    public static int NUM_WORDS_IN_TEST_TEXT;
+    public static final int NUM_WORDS_IN_TEST_TEXT;
     static {
         var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
         wordIterator.setText(TEST_TEXT);

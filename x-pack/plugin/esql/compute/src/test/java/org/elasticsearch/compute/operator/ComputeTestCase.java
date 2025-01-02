@@ -22,6 +22,7 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -74,6 +75,16 @@ public abstract class ComputeTestCase extends ESTestCase {
         BlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
         blockFactories.add(blockFactory);
         return blockFactory;
+    }
+
+    protected final void testWithCrankyBlockFactory(Consumer<BlockFactory> run) {
+        try {
+            run.accept(crankyBlockFactory());
+            logger.info("cranky let us finish!");
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
     }
 
     @After

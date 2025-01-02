@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -1364,6 +1365,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
             Set.of("languages", "languages.*", "language_code", "language_code.*"),
@@ -1372,6 +1374,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoinKeep() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1385,6 +1388,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoinKeepWildcard() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1398,6 +1402,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1410,6 +1415,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBefore() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1423,6 +1429,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBetween() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1447,6 +1454,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfter() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1473,6 +1481,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfterWildcard() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1486,6 +1495,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndex() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1499,6 +1509,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBefore() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1513,6 +1524,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBetween() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1538,6 +1550,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepAfter() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data

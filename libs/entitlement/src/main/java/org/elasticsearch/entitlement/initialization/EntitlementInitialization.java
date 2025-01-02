@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -129,7 +130,15 @@ public class EntitlementInitialization {
         // TODO: should this check actually be part of the parser?
         for (Scope scope : policy.scopes) {
             if (moduleNames.contains(scope.moduleName) == false) {
-                throw new IllegalStateException("policy [" + policyFile + "] contains invalid module [" + scope.moduleName + "]");
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Invalid module name in policy: plugin [%s] does not have module [%s]; available modules [%s]; policy file [%s]",
+                        pluginName,
+                        scope.moduleName,
+                        String.join(", ", moduleNames),
+                        policyFile
+                    )
+                );
             }
         }
         return policy;

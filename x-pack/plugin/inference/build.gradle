@@ -16,9 +16,9 @@ restResources {
 }
 
 esplugin {
-  name 'x-pack-inference'
-  description 'Configuration and evaluation of inference models'
-  classname 'org.elasticsearch.xpack.inference.InferencePlugin'
+  name = 'x-pack-inference'
+  description = 'Configuration and evaluation of inference models'
+  classname ='org.elasticsearch.xpack.inference.InferencePlugin'
   extendedPlugins = ['x-pack-core']
 }
 
@@ -34,6 +34,7 @@ dependencies {
   testImplementation(testArtifact(project(':server')))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':modules:reindex')
+  testImplementation project(':modules:mapper-extras')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
@@ -66,8 +67,8 @@ dependencies {
   api "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
   api "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
   api "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
-  api "org.reactivestreams:reactive-streams:1.0.4"
-  api "org.reactivestreams:reactive-streams-tck:1.0.4"
+  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  api "org.reactivestreams:reactive-streams-tck:${versions.reactive_streams}"
   api "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
   api "software.amazon.awssdk:retries:${versions.awsv2sdk}"
   api "software.amazon.awssdk:auth:${versions.awsv2sdk}"

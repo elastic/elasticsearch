@@ -31,9 +31,7 @@ public class ScriptCacheStatsTests extends ESTestCase {
         var scriptCacheStats = new ScriptCacheStats(stats);
 
         builder.startObject();
-        for (var it = scriptCacheStats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
-            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
+        scriptCacheStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         String expected = """
@@ -63,9 +61,7 @@ public class ScriptCacheStatsTests extends ESTestCase {
         );
 
         builder.startObject();
-        for (var it = scriptCacheStats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
-            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
+        scriptCacheStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         String expected = """

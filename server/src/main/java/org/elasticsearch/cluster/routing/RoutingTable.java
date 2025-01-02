@@ -194,7 +194,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      *
      * @param includeEmpty             if true, a shard iterator will be added for non-assigned shards as well
      */
-    public GroupShardsIterator<ShardIterator> allActiveShardsGrouped(String[] indices, boolean includeEmpty) {
+    public GroupShardsIterator<PlainShardIterator> allActiveShardsGrouped(String[] indices, boolean includeEmpty) {
         return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ShardRouting::active);
     }
 
@@ -203,17 +203,17 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      *
      * @param includeEmpty if true, a shard iterator will be added for non-assigned shards as well
      */
-    public GroupShardsIterator<ShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
+    public GroupShardsIterator<PlainShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
         return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ShardRouting::assignedToNode);
     }
 
-    private GroupShardsIterator<ShardIterator> allSatisfyingPredicateShardsGrouped(
+    private GroupShardsIterator<PlainShardIterator> allSatisfyingPredicateShardsGrouped(
         String[] indices,
         boolean includeEmpty,
         Predicate<ShardRouting> predicate
     ) {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>();
+        ArrayList<PlainShardIterator> set = new ArrayList<>();
         for (String index : indices) {
             IndexRoutingTable indexRoutingTable = index(index);
             if (indexRoutingTable == null) {
@@ -285,9 +285,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @return All the primary shards grouped into a single shard element group each
      * @throws IndexNotFoundException If an index passed does not exists
      */
-    public GroupShardsIterator<ShardIterator> activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) {
+    public GroupShardsIterator<PlainShardIterator> activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>();
+        ArrayList<PlainShardIterator> set = new ArrayList<>();
         for (String index : indices) {
             IndexRoutingTable indexRoutingTable = index(index);
             if (indexRoutingTable == null) {

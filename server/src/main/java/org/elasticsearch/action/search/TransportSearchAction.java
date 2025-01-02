@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -1800,7 +1800,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
                     // be thrown when a search phase attempts to access it.
                     try {
-                        final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                        final PlainShardIterator shards = OperationRouting.getShards(clusterState, shardId);
                         // Prefer executing shard requests on nodes that are part of PIT first.
                         if (clusterState.nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
@@ -1851,7 +1851,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String[] concreteIndices
     ) {
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
-        GroupShardsIterator<ShardIterator> shardRoutings = clusterService.operationRouting()
+        GroupShardsIterator<PlainShardIterator> shardRoutings = clusterService.operationRouting()
             .searchShards(
                 clusterState,
                 concreteIndices,
@@ -1868,7 +1868,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
         SearchShardIterator[] list = new SearchShardIterator[shardRoutings.size()];
         int i = 0;
-        for (ShardIterator shardRouting : shardRoutings) {
+        for (PlainShardIterator shardRouting : shardRoutings) {
             final ShardId shardId = shardRouting.shardId();
             OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;

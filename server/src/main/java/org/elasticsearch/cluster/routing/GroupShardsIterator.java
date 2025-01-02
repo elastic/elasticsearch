@@ -16,9 +16,8 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * This class implements a compilation of {@link ShardIterator}s. Each {@link ShardIterator}
- * iterated by this {@link Iterable} represents a group of shards.
- * ShardsIterators are always returned in ascending order independently of their order at construction
+ * This class implements a compilation of shard iterators. Each shard iterator iterated by this {@link Iterable} represents a group of
+ * shards. ShardsIterators are always returned in ascending order independently of their order at construction
  * time. The incoming iterators are sorted to ensure consistent iteration behavior across Nodes / JVMs.
 */
 public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Countable> implements Iterable<ShardIt> {
@@ -27,7 +26,7 @@ public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Cou
 
     /**
      * Constructs a new sorted GroupShardsIterator from the given list. Items are sorted based on their natural ordering.
-     * @see PlainShardIterator#compareTo(ShardIterator)
+     * @see PlainShardIterator#compareTo(PlainShardIterator)
      */
     public static <ShardIt extends Comparable<ShardIt> & Countable> GroupShardsIterator<ShardIt> sortAndCreate(List<ShardIt> iterators) {
         CollectionUtil.timSort(iterators);

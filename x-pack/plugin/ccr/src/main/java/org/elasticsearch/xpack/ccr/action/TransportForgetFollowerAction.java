@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.PlainShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -141,12 +141,12 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         final ForgetFollowerAction.Request request,
         final String[] concreteIndices
     ) {
-        final GroupShardsIterator<ShardIterator> activePrimaryShards = clusterState.routingTable()
+        final GroupShardsIterator<PlainShardIterator> activePrimaryShards = clusterState.routingTable()
             .activePrimaryShardsGrouped(concreteIndices, false);
         final List<ShardRouting> shardRoutings = new ArrayList<>();
-        final Iterator<ShardIterator> it = activePrimaryShards.iterator();
+        final Iterator<PlainShardIterator> it = activePrimaryShards.iterator();
         while (it.hasNext()) {
-            final ShardIterator shardIterator = it.next();
+            final PlainShardIterator shardIterator = it.next();
             final ShardRouting primaryShard = shardIterator.nextOrNull();
             assert primaryShard != null;
             shardRoutings.add(primaryShard);

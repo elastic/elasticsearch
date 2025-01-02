@@ -62,7 +62,7 @@ public class OperationRoutingTests extends ESTestCase {
                     nodes.add("missing_" + i);
                 }
             }
-            final ShardIterator it = new OperationRouting(
+            final PlainShardIterator it = new OperationRouting(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             ).getShards(clusterService.state(), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
@@ -96,7 +96,7 @@ public class OperationRoutingTests extends ESTestCase {
             final ClusterState state = clusterService.state();
 
             Function<String, List<ShardRouting>> func = prefer -> {
-                final ShardIterator it = new OperationRouting(
+                final PlainShardIterator it = new OperationRouting(
                     Settings.EMPTY,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ).getShards(state, indexName, 0, prefer);
@@ -162,10 +162,10 @@ public class OperationRoutingTests extends ESTestCase {
         for (int i = 0; i < numRepeatedSearches; i++) {
             List<ShardRouting> searchedShards = new ArrayList<>(numShards);
             Set<String> selectedNodes = Sets.newHashSetWithExpectedSize(numShards);
-            final GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
+            final GroupShardsIterator<PlainShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
 
             assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
-            for (ShardIterator shardIterator : groupIterator) {
+            for (PlainShardIterator shardIterator : groupIterator) {
                 assertThat(shardIterator.size(), equalTo(numReplicas + 1));
 
                 ShardRouting firstChoice = shardIterator.nextOrNull();
@@ -193,7 +193,7 @@ public class OperationRoutingTests extends ESTestCase {
     }
 
     // Regression test for the routing logic - implements same hashing logic
-    private ShardIterator duelGetShards(ClusterState clusterState, ShardId shardId, String sessionId) {
+    private PlainShardIterator duelGetShards(ClusterState clusterState, ShardId shardId, String sessionId) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(shardId.getIndexName(), shardId.getId());
         int routingHash = Murmur3HashFunction.hash(sessionId);
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
@@ -224,7 +224,7 @@ public class OperationRoutingTests extends ESTestCase {
                 }
             }
             if (expected.size() > 0) {
-                final ShardIterator it = new OperationRouting(
+                final PlainShardIterator it = new OperationRouting(
                     Settings.EMPTY,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ).getShards(clusterService.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes));
@@ -283,7 +283,7 @@ public class OperationRoutingTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+        GroupShardsIterator<PlainShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
             null,
@@ -369,7 +369,7 @@ public class OperationRoutingTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+        GroupShardsIterator<PlainShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
             null,
@@ -435,7 +435,7 @@ public class OperationRoutingTests extends ESTestCase {
         Map<String, Long> outstandingRequests = new HashMap<>();
 
         // Check that we choose to search over both nodes
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+        GroupShardsIterator<PlainShardIterator> groupIterator = opRouting.searchShards(
             state,
             indexNames,
             null,

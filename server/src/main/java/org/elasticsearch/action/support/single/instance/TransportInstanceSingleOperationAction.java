@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -113,14 +113,14 @@ public abstract class TransportInstanceSingleOperationAction<
     /**
      * Should return an iterator with a single shard!
      */
-    protected abstract ShardIterator shards(ClusterState clusterState, Request request);
+    protected abstract PlainShardIterator shards(ClusterState clusterState, Request request);
 
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
         private final Request request;
         private volatile ClusterStateObserver observer;
-        private ShardIterator shardIt;
+        private PlainShardIterator shardIt;
 
         AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.request = request;

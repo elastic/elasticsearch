@@ -39,7 +39,7 @@ public class GroupShardsIteratorTests extends ESTestCase {
     }
 
     public void testSize() {
-        List<ShardIterator> list = new ArrayList<>();
+        List<PlainShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");
         {
             ShardId shardId = new ShardId(index, 0);
@@ -59,14 +59,14 @@ public class GroupShardsIteratorTests extends ESTestCase {
             ShardId shardId = new ShardId(index, 1);
             list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
         }
-        GroupShardsIterator<ShardIterator> iter = new GroupShardsIterator<>(list);
+        GroupShardsIterator<PlainShardIterator> iter = new GroupShardsIterator<>(list);
         assertEquals(7, iter.totalSizeWith1ForEmpty());
         assertEquals(5, iter.size());
         assertEquals(6, iter.totalSize());
     }
 
     public void testIterate() {
-        List<ShardIterator> list = new ArrayList<>();
+        List<PlainShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");
         {
             ShardId shardId = new ShardId(index, 0);
@@ -97,18 +97,18 @@ public class GroupShardsIteratorTests extends ESTestCase {
 
         Collections.shuffle(list, random());
         {
-            GroupShardsIterator<ShardIterator> unsorted = new GroupShardsIterator<>(list);
-            GroupShardsIterator<ShardIterator> iter = new GroupShardsIterator<>(list);
-            List<ShardIterator> actualIterators = new ArrayList<>();
-            for (ShardIterator shardsIterator : iter) {
+            GroupShardsIterator<PlainShardIterator> unsorted = new GroupShardsIterator<>(list);
+            GroupShardsIterator<PlainShardIterator> iter = new GroupShardsIterator<>(list);
+            List<PlainShardIterator> actualIterators = new ArrayList<>();
+            for (PlainShardIterator shardsIterator : iter) {
                 actualIterators.add(shardsIterator);
             }
             assertEquals(actualIterators, list);
         }
         {
-            GroupShardsIterator<ShardIterator> iter = GroupShardsIterator.sortAndCreate(list);
-            List<ShardIterator> actualIterators = new ArrayList<>();
-            for (ShardIterator shardsIterator : iter) {
+            GroupShardsIterator<PlainShardIterator> iter = GroupShardsIterator.sortAndCreate(list);
+            List<PlainShardIterator> actualIterators = new ArrayList<>();
+            for (PlainShardIterator shardsIterator : iter) {
                 actualIterators.add(shardsIterator);
             }
             CollectionUtil.timSort(actualIterators);

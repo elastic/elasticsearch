@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -135,7 +135,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         protected void resolveRequest(ClusterState state, Request request) {}
 
         @Override
-        protected ShardIterator shards(ClusterState clusterState, Request request) {
+        protected PlainShardIterator shards(ClusterState clusterState, Request request) {
             return clusterState.routingTable().index(request.concreteIndex()).shard(request.shardId.getId()).primaryShardIt();
         }
     }

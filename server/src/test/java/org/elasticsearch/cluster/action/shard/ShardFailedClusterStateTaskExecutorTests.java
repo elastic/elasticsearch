@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -237,8 +237,9 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private List<FailedShardUpdateTask> createExistingShards(ClusterState currentState, String reason) {
         List<ShardRouting> shards = new ArrayList<>();
-        GroupShardsIterator<ShardIterator> shardGroups = currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
-        for (ShardIterator shardIt : shardGroups) {
+        GroupShardsIterator<PlainShardIterator> shardGroups = currentState.routingTable()
+            .allAssignedShardsGrouped(new String[] { INDEX }, true);
+        for (PlainShardIterator shardIt : shardGroups) {
             for (ShardRouting shard : shardIt) {
                 shards.add(shard);
             }

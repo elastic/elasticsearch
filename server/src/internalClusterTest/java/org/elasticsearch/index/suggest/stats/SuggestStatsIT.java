@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -146,9 +146,9 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
     private Set<String> nodeIdsWithIndex(String... indices) {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        GroupShardsIterator<PlainShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
-        for (ShardIterator shardIterator : allAssignedShardsGrouped) {
+        for (PlainShardIterator shardIterator : allAssignedShardsGrouped) {
             for (ShardRouting routing : shardIterator) {
                 if (routing.active()) {
                     nodes.add(routing.currentNodeId());

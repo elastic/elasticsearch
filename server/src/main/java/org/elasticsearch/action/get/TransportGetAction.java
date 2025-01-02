@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -97,8 +96,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ShardIterator iterator = clusterService.operationRouting()
+    protected PlainShardIterator shards(ClusterState state, InternalRequest request) {
+        PlainShardIterator iterator = clusterService.operationRouting()
             .getShards(
                 clusterService.state(),
                 request.concreteIndex(),

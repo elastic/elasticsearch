@@ -474,8 +474,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         public void collect(int doc, long bucket) throws IOException {
             boolean matched = false;
-            var top = disjunctionDisi.topList();
-            if (top.doc == doc) {
+            int target = disjunctionDisi.advance(doc);
+            if (target == doc) {
                 for (DisiWrapper w = disjunctionDisi.topList(); w != null; w = w.next) {
                     FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
                     if (topMatch.checkDocForMatch(doc)) {

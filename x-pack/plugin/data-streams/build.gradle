@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-data-streams'
-  description 'Elasticsearch Expanded Pack Plugin - Data Streams'
-  classname 'org.elasticsearch.xpack.datastreams.DataStreamsPlugin'
+  name = 'x-pack-data-streams'
+  description = 'Elasticsearch Expanded Pack Plugin - Data Streams'
+  classname = 'org.elasticsearch.xpack.datastreams.DataStreamsPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

@@ -10,8 +10,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
-  description 'Ingest processor that uses Apache Tika to extract contents'
-  classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
+  description = 'Ingest processor that uses Apache Tika to extract contents'
+  classname = 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
 versions << [

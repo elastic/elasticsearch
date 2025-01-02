@@ -6,10 +6,10 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
-  name 'x-pack-ml'
-  description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
-  classname 'org.elasticsearch.xpack.ml.MachineLearning'
-  hasNativeController true
+  name = 'x-pack-ml'
+  description = 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+  classname ='org.elasticsearch.xpack.ml.MachineLearning'
+  hasNativeController =true
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
@@ -23,18 +23,18 @@ if (useDra == false) {
       }
       forRepository {
         ivy {
-          name "ml-cpp"
+          name = "ml-cpp"
           metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()
           }
           if (localRepo) {
-            url localRepo
+            url = localRepo
             patternLayout {
               artifact "maven/[orgPath]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"
             }
           } else {
-            url "https://artifacts-snapshot.elastic.co/"
+            url = "https://artifacts-snapshot.elastic.co/"
             patternLayout {
               if (VersionProperties.isElasticsearchSnapshot()) {
                 artifact '/ml-cpp/[revision]/downloads/ml-cpp/[module]-[revision](-[classifier]).[ext]'
@@ -64,7 +64,7 @@ configurations {
 tasks.named("bundlePlugin").configure {
   dependsOn configurations.nativeBundle
   from {
-    project.zipTree(configurations.nativeBundle.singleFile)
+    configurations.nativeBundle.files.collect { zipTree(it) }
   }
 
   // We don't ship the individual nativeBundle licenses - instead
@@ -105,7 +105,7 @@ tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
   into "${buildDir}/extractedNativeLicenses"
   from {
-    project.zipTree(configurations.nativeBundle.singleFile)
+    configurations.nativeBundle.files.collect { zipTree(it) }
   }
   include 'platform/licenses/**'
 }

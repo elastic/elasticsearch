@@ -21,8 +21,8 @@ apply plugin: 'elasticsearch.internal-cluster-test'
    * maybe figure out a way to run all tests from core with netty4/network?
  */
 esplugin {
-  description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.Netty4Plugin'
+  description = 'Netty 4 based transport implementation'
+  classname = 'org.elasticsearch.transport.Netty4Plugin'
   hasClientJar = true
 }
 

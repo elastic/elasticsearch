@@ -233,7 +233,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Observability, etc.
                 // Kibana system user creates these indices; reads / writes to them via the
                 // aliases (see below).
-                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_BACKING_INDEX).privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_BACKING_INDEX, ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED)
+                    .privileges("all")
+                    .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
                 // Kibana system user uses them to read / write alerts.
@@ -245,7 +248,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Kibana system user creates these indices; reads / writes to them via the
                 // aliases (see below).
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS)
+                    .indices(ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX, ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED)
                     .privileges("all")
                     .build(),
                 // Endpoint / Fleet policy responses. Kibana requires read access to send

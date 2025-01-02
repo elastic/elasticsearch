@@ -3,6 +3,12 @@
 
 NOTE: {cloud-only}
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-shutdown[Node lifecycle APIs].
+--
+
 Cancels shutdown preparations or clears a shutdown request
 so a node can resume normal operations.
 

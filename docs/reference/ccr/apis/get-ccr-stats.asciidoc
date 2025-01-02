@@ -6,7 +6,7 @@
 <titleabbrev>Get {ccr-init} stats</titleabbrev>
 ++++
 
-..New API reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].

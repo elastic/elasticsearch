@@ -6645,7 +6645,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (IndexVersion createdVersion : List.of(
             IndexVersion.current(),
             lowestCompatiblePreviousVersion,
-            IndexVersionUtils.getFirstVersion()
+            IndexVersionUtils.getLowestWriteCompatibleVersion()
         )) {
             Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);

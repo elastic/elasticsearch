@@ -13,8 +13,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
-  classname 'org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
+  description = 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
+  classname ='org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }
 
 def localVersions = versions + [

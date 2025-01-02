@@ -7,19 +7,29 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.upgrades.IndexingIT.assertCount;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -164,4 +174,171 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    public void testUpgradeDataStream() throws Exception {
+        String dataStreamName = "reindex_test_data_stream";
+        int numRollovers = randomIntBetween(0, 5);
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createAndRolloverDataStream(dataStreamName, numRollovers);
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            upgradeDataStream(dataStreamName, numRollovers);
+        }
+    }
+
+    private static void createAndRolloverDataStream(String dataStreamName, int numRollovers) throws IOException {
+        // We want to create a data stream and roll it over several times so that we have several indices to upgrade
+        final String template = """
+            {
+                "settings":{
+                    "index": {
+                        "mode": "time_series"
+                    }
+                },
+                "mappings":{
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": "pod.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "k8s": {
+                            "properties": {
+                                "pod": {
+                                    "properties": {
+                                        "name": {
+                                            "type": "keyword"
+                                        },
+                                        "network": {
+                                            "properties": {
+                                                "tx": {
+                                                    "type": "long"
+                                                },
+                                                "rx": {
+                                                    "type": "long"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        final String indexTemplate = """
+            {
+                "index_patterns": ["$PATTERN"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_template");
+        putIndexTemplateRequest.setJsonEntity(indexTemplate.replace("$TEMPLATE", template).replace("$PATTERN", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
+        bulkLoadData(dataStreamName);
+        for (int i = 0; i < numRollovers; i++) {
+            rollover(dataStreamName);
+            bulkLoadData(dataStreamName);
+        }
+    }
+
+    private void upgradeDataStream(String dataStreamName, int numRollovers) throws Exception {
+        Request reindexRequest = new Request("POST", "/_migration/reindex");
+        reindexRequest.setJsonEntity(Strings.format("""
+            {
+              "mode": "upgrade",
+              "source": {
+                "index": "%s"
+              }
+            }""", dataStreamName));
+        Response reindexResponse = client().performRequest(reindexRequest);
+        assertOK(reindexResponse);
+        assertBusy(() -> {
+            Request statusRequest = new Request("GET", "_migration/reindex/" + dataStreamName + "/_status");
+            Response statusResponse = client().performRequest(statusRequest);
+            Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                statusResponse.getEntity().getContent(),
+                false
+            );
+            assertOK(statusResponse);
+            assertThat(statusResponseMap.get("complete"), equalTo(true));
+            /*
+             * total_indices_in_data_stream is determined at the beginning of the reindex, and does not take into account the write
+             * index being rolled over
+             */
+            assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(numRollovers + 1));
+            if (isOriginalClusterSameMajorVersionAsCurrent()) {
+                // If the original cluster was the same as this one, we don't want any indices reindexed:
+                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
+                assertThat(statusResponseMap.get("successes"), equalTo(0));
+            } else {
+                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(numRollovers + 1));
+                assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
+            }
+        }, 60, TimeUnit.SECONDS);
+        Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
+        Response cancelResponse = client().performRequest(cancelRequest);
+        assertOK(cancelResponse);
+    }
+
+    /*
+     * Similar to isOriginalClusterCurrent, but returns true if the major versions of the clusters are the same. So true
+     * for 8.6 and 8.17, but false for 7.17 and 8.18.
+     */
+    private boolean isOriginalClusterSameMajorVersionAsCurrent() {
+        /*
+         * Since data stream reindex is specifically about upgrading a data stream from one major version to the next, it's ok to use the
+         * deprecated Version.fromString here
+         */
+        return Version.fromString(UPGRADE_FROM_VERSION).major == Version.fromString(Build.current().version()).major;
+    }
+
+    private static void bulkLoadData(String dataStreamName) throws IOException {
+        final String bulk = """
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "network": {"tx": 2001818691, "rx": 802133794}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "network": {"tx": 2005177954, "rx": 801479970}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cow", "network": {"tx": 2006223737, "rx": 802337279}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "rat", "network": {"tx": 2012916202, "rx": 803685721}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "network": {"tx": 1434521831, "rx": 530575198}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "tiger", "network": {"tx": 1434577921, "rx": 530600088}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "lion", "network": {"tx": 1434587694, "rx": 530604797}}}}
+            {"create": {}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "network": {"tx": 1434595272, "rx": 530605511}}}}
+            """;
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+        bulkRequest.setJsonEntity(bulk.replace("$now", formatInstant(Instant.now())));
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    private static void rollover(String dataStreamName) throws IOException {
+        Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+        Response rolloverResponse = client().performRequest(rolloverRequest);
+        assertOK(rolloverResponse);
+    }
 }

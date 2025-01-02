@@ -6,6 +6,12 @@
 <titleabbrev>List query rulesets</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-query_rules[Query rules APIs].
+--
+
 Returns information about all stored query rulesets.
 Summary information on the number of rules per ruleset will be returned, and full details can be returned with the <<get-query-ruleset>> command.
 

@@ -2,6 +2,12 @@
 [[indices-reload-analyzers]]
 == Reload search analyzers API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/operation/operation-indices-reload-search-analyzers[Reload search analyzers].
+--
+
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
 For data streams, the API reloads search analyzers and resources for the
 stream's backing indices.

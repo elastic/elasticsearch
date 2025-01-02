@@ -7,6 +7,12 @@
 <titleabbrev>Update {transform}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-transform[{transform-cap} APIs].
+--
+
 Updates certain properties of a {transform}.
 
 [[update-transform-request]]

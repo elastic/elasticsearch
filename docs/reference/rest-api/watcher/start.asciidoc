@@ -5,6 +5,12 @@
 <titleabbrev>Start watch service</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 Starts the {watcher} service if it is not already running.
 
 [[watcher-api-start-request]]

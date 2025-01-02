@@ -163,7 +163,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
 
     dependsOn moduleConfig
     from({ zipTree(moduleConfig.singleFile) }) {
-      includeEmptyDirs false
+      includeEmptyDirs = false
 
       // these are handled separately in the log4j config tasks below
       exclude '*/config/log4j2.properties'

@@ -122,7 +122,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
             .findFirst();
         String hostPortSpec = bindings.get().getHostPortSpec();
         String s = copyFileFromContainer("/fixture/build/krb5.conf.template", i -> IOUtils.toString(i, StandardCharsets.UTF_8));
-        return s.replace("${MAPPED_PORT}", hostPortSpec);
+        return s.replace("#KDC_DOCKER_HOST", "kdc = 127.0.0.1:" + hostPortSpec);
     }
 
     public Path getKeytab() {

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -126,6 +128,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -4924,7 +4927,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPlanSanityCheckWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         var plan = optimizedPlan("""
               FROM test
@@ -5735,6 +5738,78 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperFalse() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), is("first_name"));
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
+        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
+        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(IsNotNull.class));
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var insensitive = as(filter.condition(), InsensitiveEquals.class);
+            as(insensitive.left(), FieldAttribute.class);
+            var bRef = as(insensitive.right().fold(), BytesRef.class);
+            assertThat(bRef.utf8ToString(), is(value));
+            as(filter.child(), EsRelation.class);
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var not = as(filter.condition(), Not.class);
+            var insensitive = as(not.field(), InsensitiveEquals.class);
+            as(insensitive.left(), FieldAttribute.class);
+            var bRef = as(insensitive.right().fold(), BytesRef.class);
+            assertThat(bRef.utf8ToString(), is(value));
+            as(filter.child(), EsRelation.class);
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUnwrap() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var insensitive = as(filter.condition(), InsensitiveEquals.class);
+        var field = as(insensitive.left(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        var bRef = as(insensitive.right().fold(), BytesRef.class);
+        assertThat(bRef.utf8ToString(), is("VALÜ"));
+        as(filter.child(), EsRelation.class);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -5928,7 +6003,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
@@ -5970,7 +6045,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
@@ -6013,7 +6088,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
@@ -6057,7 +6132,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
@@ -6108,7 +6183,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test

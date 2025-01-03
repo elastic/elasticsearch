@@ -17,9 +17,10 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -231,10 +232,13 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams)
-            .xContentObject(DATA_STREAM_ALIASES.getPreferredName(), dataStreamAliases.values().iterator());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams),
+            ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
+            dataStreamAliases.values().iterator(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     @Override

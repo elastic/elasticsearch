@@ -8,7 +8,8 @@ Finds the _k_ nearest vectors to a query vector, as measured by a similarity
 metric. _knn_ query finds nearest vectors through approximate search on indexed
 dense_vectors. The preferred way to do approximate kNN search is through the
 <<knn-search,top level knn section>> of a search request. _knn_ query is reserved for
-expert cases, where there is a need to combine this query with other queries.
+expert cases, where there is a need to combine this query with other queries, or
+perform a kNN search against a <<semantic-text, semantic_text>> field.
 
 [[knn-query-ex-request]]
 ==== Example request
@@ -77,7 +78,8 @@ POST my-image-index/_search
 +
 --
 (Required, string) The name of the vector field to search against. Must be a
-<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>, or a
+<<semantic-text, `semantic_text` field>> with a compatible dense vector inference model.
 --
 
 `query_vector`::
@@ -85,7 +87,8 @@ POST my-image-index/_search
 --
 (Optional, array of floats or string) Query vector. Must have the same number of dimensions
 as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
-Either this or `query_vector_builder` must be provided.
+Either this or `query_vector_builder` must be provided, unless all queried fields are of type <<semantic-text, semantic_text>>,
+in which case the inference ID associated with the `semantic_text` field will be inferred.
 --
 
 `query_vector_builder`::
@@ -275,3 +278,9 @@ Thus, the final results from aggregations contain
 `k * number_of_shards` documents. This is different from
 the <<knn-search,top level knn section>> where aggregations are
 calculated on the global top `k` nearest documents.
+
+[[knn-query-multiple-indices]]
+==== Knn query over multiple indices
+`knn` query calculates the top `k` documents from each index searched.
+Therefore, if `k` is smaller than the query `size`, `k` matching documents
+from each index will be returned.

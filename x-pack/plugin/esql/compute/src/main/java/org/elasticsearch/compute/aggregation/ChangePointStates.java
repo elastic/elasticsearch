@@ -124,7 +124,8 @@ public class ChangePointStates {
 
         // TODO: this needs to output multiple columns or a composite object, not a JSON blob.
         private BytesRef getChangePoint() {
-            // TODO: this copying doesn't account for memory
+            // TODO: probably reuse ES|QL sort/orderBy to get results in order
+            // TODO: this copying/sorting doesn't account for memory
             List<TimeAndValue> list = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 list.add(new TimeAndValue(timestamps.get(i), values.get(i)));

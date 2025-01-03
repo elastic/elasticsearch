@@ -40,7 +40,7 @@ public class ChangePoint extends AggregateFunction implements OptionalArgument, 
         ChangePoint::new
     );
 
-    @FunctionInfo(returnType = { "string" }, description = "...", isAggregation = true)
+    @FunctionInfo(returnType = { "string" }, description = "Detects spikes, dips, and change points in a metric", isAggregation = true)
     public ChangePoint(
         Source source,
         @Param(name = "field", type = { "double", "integer", "long" }, description = "field") Expression field,
@@ -73,12 +73,16 @@ public class ChangePoint extends AggregateFunction implements OptionalArgument, 
 
     @Override
     protected NodeInfo<ChangePoint> info() {
-        return NodeInfo.create(this, ChangePoint::new, field(), timestamp());
+        return NodeInfo.create(this, ChangePoint::new, field(), filter(), timestamp());
     }
 
     @Override
     public ChangePoint replaceChildren(List<Expression> newChildren) {
-        return new ChangePoint(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        if (newChildren.size() == 2) {
+            return new ChangePoint(source(), newChildren.get(0), newChildren.get(1));
+        } else {
+            return new ChangePoint(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        }
     }
 
     // TODO: this needs to output multiple columns or a composite object

@@ -325,7 +325,7 @@ setup:
 
 
 ---
-"knn query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields with smaller k":
+"knn query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields with smaller k returns k for each index":
 
   - do:
       index:
@@ -374,6 +374,6 @@ setup:
                 text_embedding:
                   model_text: test
 
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 4 }
 
 

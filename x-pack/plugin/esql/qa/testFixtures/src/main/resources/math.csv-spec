@@ -771,6 +771,18 @@ ul:ul
 18446744073709551615
 ;
 
+roundBigULWithBigNegativeDecimals
+required_capability: fn_round_ul_fixes
+ROW ul = round(16144415263046370459::unsigned_long, -6144415263046370459::long)
+;
+
+warning:Line 1:10: evaluation of [round(16144415263046370459::unsigned_long, -6144415263046370459::long)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [6144415263046370459] out of [integer] range
+
+ul:ul
+null
+;
+
 mvAvg
 from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 

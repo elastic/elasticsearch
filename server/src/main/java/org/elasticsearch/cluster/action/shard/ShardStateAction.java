@@ -767,7 +767,7 @@ public class ShardStateAction {
                         projectMetadataBuilder.put(
                             IndexMetadata.builder(projectMetadataBuilder.getSafe(index))
                                 .timestampRange(timeRanges.timestampRange())
-                                .eventIngestedRange(timeRanges.eventIngestedRange(), maybeUpdatedState.getMinTransportVersion())
+                                .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();

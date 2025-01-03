@@ -10,13 +10,11 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -90,10 +88,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testLegacyNoopUpdate() throws IOException {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         PutRequest pr = new PutRequest("api", "id");
         pr.patterns(Arrays.asList("foo", "bar"));
         if (randomBoolean()) {
@@ -106,14 +101,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             pr.aliases(Collections.singleton(new Alias("alias")));
         }
         pr.order(randomIntBetween(0, 10));
-        state = MetadataIndexTemplateService.innerPutTemplate(state.projectState(projectId), pr, new IndexTemplateMetadata.Builder("id"));
+        project = MetadataIndexTemplateService.innerPutTemplate(project, pr, new IndexTemplateMetadata.Builder("id"));
 
-        assertNotNull(state.metadata().getProject(projectId).templates().get("id"));
+        assertNotNull(project.templates().get("id"));
 
-        assertThat(
-            MetadataIndexTemplateService.innerPutTemplate(state.projectState(projectId), pr, new IndexTemplateMetadata.Builder("id")),
-            equalTo(state)
-        );
+        assertThat(MetadataIndexTemplateService.innerPutTemplate(project, pr, new IndexTemplateMetadata.Builder("id")), equalTo(project));
     }
 
     public void testIndexTemplateInvalidNumberOfShards() {
@@ -424,28 +416,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testAddComponentTemplate() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         Template template = new Template(Settings.builder().build(), new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"}}}
             """), ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
-        state = metadataIndexTemplateService.addComponentTemplate(state.projectState(projectId), false, "foo", componentTemplate);
+        project = metadataIndexTemplateService.addComponentTemplate(project, false, "foo", componentTemplate);
 
-        assertNotNull(state.metadata().getProject(projectId).componentTemplates().get("foo"));
-        assertThat(state.metadata().getProject(projectId).componentTemplates().get("foo"), equalTo(componentTemplate));
+        assertNotNull(project.componentTemplates().get("foo"));
+        assertThat(project.componentTemplates().get("foo"), equalTo(componentTemplate));
 
-        final ClusterState throwState = ClusterState.builder(state).build();
+        ProjectMetadata throwState = ProjectMetadata.builder(project).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> metadataIndexTemplateService.addComponentTemplate(throwState.projectState(projectId), true, "foo", componentTemplate)
+            () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo", componentTemplate)
         );
         assertThat(e.getMessage(), containsString("component template [foo] already exists"));
 
-        state = metadataIndexTemplateService.addComponentTemplate(state.projectState(projectId), randomBoolean(), "bar", componentTemplate);
-        assertNotNull(state.metadata().getProject(projectId).componentTemplates().get("bar"));
+        project = metadataIndexTemplateService.addComponentTemplate(project, randomBoolean(), "bar", componentTemplate);
+        assertNotNull(project.componentTemplates().get("bar"));
 
         template = new Template(
             Settings.builder().build(),
@@ -455,7 +444,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
             XContentParseException.class,
-            () -> metadataIndexTemplateService.addComponentTemplate(throwState.projectState(projectId), true, "foo2", componentTemplate2)
+            () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2)
         );
 
         template = new Template(
@@ -466,7 +455,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate componentTemplate3 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
             MapperParsingException.class,
-            () -> metadataIndexTemplateService.addComponentTemplate(throwState.projectState(projectId), true, "foo2", componentTemplate3)
+            () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate3)
         );
 
         template = new Template(
@@ -477,20 +466,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
             IllegalArgumentException.class,
-            () -> metadataIndexTemplateService.addComponentTemplate(throwState.projectState(projectId), true, "foo2", componentTemplate4)
+            () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4)
         );
     }
 
     public void testUpdateComponentTemplateWithIndexHiddenSetting() throws Exception {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
-        state = service.addComponentTemplate(state.projectState(projectId), true, "foo", componentTemplate);
-        assertNotNull(state.metadata().getProject(projectId).componentTemplates().get("foo"));
+        project = service.addComponentTemplate(project, true, "foo", componentTemplate);
+        assertNotNull(project.componentTemplates().get("foo"));
 
         ComposableIndexTemplate firstGlobalIndexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("*"))
@@ -498,7 +484,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .componentTemplates(List.of("foo"))
             .priority(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "globalindextemplate1", firstGlobalIndexTemplate);
+        project = service.addIndexTemplateV2(project, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
         ComposableIndexTemplate secondGlobalIndexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("*"))
@@ -506,7 +492,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .componentTemplates(List.of("foo"))
             .priority(2L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "globalindextemplate2", secondGlobalIndexTemplate);
+        project = service.addIndexTemplateV2(project, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
         ComposableIndexTemplate fooPatternIndexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("foo-*"))
@@ -514,7 +500,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .componentTemplates(List.of("foo"))
             .priority(3L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "foopatternindextemplate", fooPatternIndexTemplate);
+        project = service.addIndexTemplateV2(project, true, "foopatternindextemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
         Template templateWithIndexHiddenSetting = new Template(
@@ -524,7 +510,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         ComponentTemplate updatedComponentTemplate = new ComponentTemplate(templateWithIndexHiddenSetting, 2L, new HashMap<>());
         try {
-            service.addComponentTemplate(state.projectState(projectId), false, "foo", updatedComponentTemplate);
+            service.addComponentTemplate(project, false, "foo", updatedComponentTemplate);
             fail(
                 "expecting an exception as updating the component template would yield the global templates to include the index.hidden "
                     + "setting"
@@ -537,14 +523,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAddIndexTemplateV2() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "foo", template);
-        var project = state.metadata().getProject(projectId);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
         assertNotNull(project.templatesV2().get("foo"));
         assertTemplatesEqual(project.templatesV2().get("foo"), template);
@@ -554,26 +536,22 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplateTests::randomInstance
         );
 
-        final ClusterState throwState = ClusterState.builder(state).build();
+        ProjectMetadata throwState = ProjectMetadata.builder(project).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> metadataIndexTemplateService.addIndexTemplateV2(throwState.projectState(projectId), true, "foo", newTemplate)
+            () -> metadataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", newTemplate)
         );
         assertThat(e.getMessage(), containsString("index template [foo] already exists"));
 
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), randomBoolean(), "bar", newTemplate);
-        assertNotNull(state.metadata().getProject(projectId).templatesV2().get("bar"));
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, randomBoolean(), "bar", newTemplate);
+        assertNotNull(project.templatesV2().get("bar"));
     }
 
     public void testUpdateIndexTemplateV2() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "foo", template);
-        var project = state.metadata().getProject(projectId);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
         assertNotNull(project.templatesV2().get("foo"));
         assertTemplatesEqual(project.templatesV2().get("foo"), template);
@@ -581,57 +559,50 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
         template = template.toBuilder().indexPatterns(patterns).build();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "foo", template);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
-        project = state.metadata().getProject(projectId);
         assertNotNull(project.templatesV2().get("foo"));
         assertTemplatesEqual(project.templatesV2().get("foo"), template);
     }
 
     public void testRemoveIndexTemplateV2() throws Exception {
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         IndexTemplateMissingException e = expectThrows(
             IndexTemplateMissingException.class,
-            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(initialState.projectState(projectId), "foo")
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(initialProject, "foo")
         );
         assertThat(e.getMessage(), equalTo("index_template [foo] missing"));
 
-        final ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", template);
-        assertNotNull(state.metadata().getProject(projectId).templatesV2().get("foo"));
-        assertTemplatesEqual(state.metadata().getProject(projectId).templatesV2().get("foo"), template);
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
+        assertNotNull(project.templatesV2().get("foo"));
+        assertTemplatesEqual(project.templatesV2().get("foo"), template);
 
-        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), "foo");
-        assertNull(updatedState.metadata().getProject(projectId).templatesV2().get("foo"));
+        ProjectMetadata updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foo");
+        assertNull(updatedState.templatesV2().get("foo"));
     }
 
     public void testRemoveIndexTemplateV2Wildcards() throws Exception {
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState result = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(initialState.projectState(projectId), "*");
-        assertThat(result, sameInstance(initialState));
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata result = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(initialProject, "*");
+        assertThat(result, sameInstance(initialProject));
 
-        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", template);
-        assertThat(state.metadata().getProject(projectId).templatesV2().get("foo"), notNullValue());
+        ProjectMetadata project = metadataIndexTemplateService.addIndexTemplateV2(initialProject, false, "foo", template);
+        assertThat(project.templatesV2().get("foo"), notNullValue());
 
-        assertTemplatesEqual(state.metadata().getProject(projectId).templatesV2().get("foo"), template);
+        assertTemplatesEqual(project.templatesV2().get("foo"), template);
 
         Exception e = expectThrows(
             IndexTemplateMissingException.class,
-            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), "foob*")
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foob*")
         );
         assertThat(e.getMessage(), equalTo("index_template [foob*] missing"));
 
-        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), "foo*");
-        assertThat(updatedState.metadata().getProject(projectId).templatesV2().get("foo"), nullValue());
+        ProjectMetadata updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foo*");
+        assertThat(updatedState.templatesV2().get("foo"), nullValue());
     }
 
     public void testRemoveMultipleIndexTemplateV2() throws Exception {
@@ -640,14 +611,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", fooTemplate);
-        state = service.addIndexTemplateV2(state.projectState(projectId), false, "bar", barTemplate);
-        state = service.addIndexTemplateV2(state.projectState(projectId), false, "baz", bazTemplate);
-        var project = state.metadata().getProject(projectId);
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", fooTemplate);
+        project = service.addIndexTemplateV2(project, false, "bar", barTemplate);
+        project = service.addIndexTemplateV2(project, false, "baz", bazTemplate);
         assertNotNull(project.templatesV2().get("foo"));
         assertNotNull(project.templatesV2().get("bar"));
         assertNotNull(project.templatesV2().get("baz"));
@@ -655,10 +622,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertTemplatesEqual(project.templatesV2().get("bar"), barTemplate);
         assertTemplatesEqual(project.templatesV2().get("baz"), bazTemplate);
 
-        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), "foo", "baz");
-        assertNull(updatedState.metadata().getProject(projectId).templatesV2().get("foo"));
-        assertNotNull(updatedState.metadata().getProject(projectId).templatesV2().get("bar"));
-        assertNull(updatedState.metadata().getProject(projectId).templatesV2().get("baz"));
+        ProjectMetadata updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foo", "baz");
+        assertNull(updatedState.templatesV2().get("foo"));
+        assertNotNull(updatedState.templatesV2().get("bar"));
+        assertNull(updatedState.templatesV2().get("baz"));
     }
 
     public void testRemoveMultipleIndexTemplateV2Wildcards() throws Exception {
@@ -667,24 +634,20 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final ClusterState state;
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata project;
         {
-            ClusterState cs = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", fooTemplate);
-            cs = service.addIndexTemplateV2(cs.projectState(projectId), false, "bar", barTemplate);
-            state = service.addIndexTemplateV2(cs.projectState(projectId), false, "baz", bazTemplate);
+            ProjectMetadata pm = service.addIndexTemplateV2(initialProject, false, "foo", fooTemplate);
+            pm = service.addIndexTemplateV2(pm, false, "bar", barTemplate);
+            project = service.addIndexTemplateV2(pm, false, "baz", bazTemplate);
         }
 
         Exception e = expectThrows(
             IndexTemplateMissingException.class,
-            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), "foo", "b*", "k*", "*")
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "foo", "b*", "k*", "*")
         );
         assertThat(e.getMessage(), equalTo("index_template [b*,k*,*] missing"));
 
-        var project = state.metadata().getProject(projectId);
         assertNotNull(project.templatesV2().get("foo"));
         assertNotNull(project.templatesV2().get("bar"));
         assertNotNull(project.templatesV2().get("baz"));
@@ -700,15 +663,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(v1Template).build())
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(v1Template).build();
 
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "v2-template", v2Template);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "v2-template", v2Template);
 
         assertCriticalWarnings(
             "index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns "
@@ -716,8 +676,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "take precedence during new index creation"
         );
 
-        assertNotNull(state.metadata().getProject(projectId).templatesV2().get("v2-template"));
-        assertTemplatesEqual(state.metadata().getProject(projectId).templatesV2().get("v2-template"), v2Template);
+        assertNotNull(project.templatesV2().get("v2-template"));
+        assertTemplatesEqual(project.templatesV2().get("v2-template"), v2Template);
     }
 
     public void testPutGlobalV2TemplateWhichResolvesIndexHiddenSetting() throws Exception {
@@ -798,19 +758,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "v2-template", v2Template);
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("*", "baz"));
-        state = MetadataIndexTemplateService.innerPutTemplate(
-            state.projectState(projectId),
-            req,
-            IndexTemplateMetadata.builder("v1-template")
-        );
+        project = MetadataIndexTemplateService.innerPutTemplate(project, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertCriticalWarnings(
             "legacy template [v1-template] has index patterns [*, baz] matching patterns from existing "
@@ -818,8 +771,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "[v1-template] may be ignored in favor of a composable template at index creation time"
         );
 
-        assertNotNull(state.metadata().getProject(projectId).templates().get("v1-template"));
-        assertThat(state.metadata().getProject(projectId).templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
+        assertNotNull(project.templates().get("v1-template"));
+        assertThat(project.templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
     }
 
     /**
@@ -830,21 +783,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "v2-template", v2Template);
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataIndexTemplateService.innerPutTemplate(
-                state.projectState(projectId),
-                req,
-                IndexTemplateMetadata.builder("v1-template")
-            )
+            () -> MetadataIndexTemplateService.innerPutTemplate(project, req, IndexTemplateMetadata.builder("v1-template"))
         );
 
         assertThat(
@@ -856,7 +802,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             )
         );
 
-        assertNull(state.metadata().getProject(projectId).templates().get("v1-template"));
+        assertNull(project.templates().get("v1-template"));
     }
 
     /**
@@ -868,15 +814,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(v1Template).build())
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(v1Template).build();
 
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "v2-template", v2Template);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "v2-template", v2Template);
 
         assertCriticalWarnings(
             "index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns "
@@ -884,18 +827,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "take precedence during new index creation"
         );
 
-        assertNotNull(state.metadata().getProject(projectId).templatesV2().get("v2-template"));
-        assertTemplatesEqual(state.metadata().getProject(projectId).templatesV2().get("v2-template"), v2Template);
+        assertNotNull(project.templatesV2().get("v2-template"));
+        assertTemplatesEqual(project.templatesV2().get("v2-template"), v2Template);
 
         // Now try to update the existing v1-template
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("fo*", "baz"));
-        state = MetadataIndexTemplateService.innerPutTemplate(
-            state.projectState(projectId),
-            req,
-            IndexTemplateMetadata.builder("v1-template")
-        );
+        project = MetadataIndexTemplateService.innerPutTemplate(project, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertCriticalWarnings(
             "legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing "
@@ -903,8 +842,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "[v1-template] may be ignored in favor of a composable template at index creation time"
         );
 
-        assertNotNull(state.metadata().getProject(projectId).templates().get("v1-template"));
-        assertThat(state.metadata().getProject(projectId).templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
+        assertNotNull(project.templates().get("v1-template"));
+        assertThat(project.templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
     }
 
     /**
@@ -915,15 +854,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         IndexTemplateMetadata v1Template = IndexTemplateMetadata.builder("v1-template").patterns(Arrays.asList("fo*", "baz")).build();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(v1Template))
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(v1Template).build();
 
         ComposableIndexTemplate v2Template = ComposableIndexTemplate.builder()
             .indexPatterns(Arrays.asList("foo-bar-*", "eggplant"))
             .build();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "v2-template", v2Template);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "v2-template", v2Template);
 
         assertCriticalWarnings(
             "index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns "
@@ -931,21 +867,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 + "take precedence during new index creation"
         );
 
-        assertNotNull(state.metadata().getProject(projectId).templatesV2().get("v2-template"));
-        assertTemplatesEqual(state.metadata().getProject(projectId).templatesV2().get("v2-template"), v2Template);
+        assertNotNull(project.templatesV2().get("v2-template"));
+        assertTemplatesEqual(project.templatesV2().get("v2-template"), v2Template);
 
         // Now try to update the existing v1-template
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
-        final ClusterState finalState = state;
+        ProjectMetadata finalState = project;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataIndexTemplateService.innerPutTemplate(
-                finalState.projectState(projectId),
-                req,
-                IndexTemplateMetadata.builder("v1-template")
-            )
+            () -> MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template"))
         );
 
         assertThat(
@@ -959,24 +891,22 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testPuttingOverlappingV2Template() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+
         {
             ComposableIndexTemplate template = ComposableIndexTemplate.builder()
                 .indexPatterns(Arrays.asList("egg*", "baz"))
                 .priority(1L)
                 .build();
             MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-            ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", template);
+            ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
             ComposableIndexTemplate newTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Arrays.asList("abc", "baz*"))
                 .priority(1L)
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.addIndexTemplateV2(state.projectState(projectId), false, "foo2", newTemplate)
+                () -> service.addIndexTemplateV2(project, false, "foo2", newTemplate)
             );
             assertThat(
                 e.getMessage(),
@@ -991,14 +921,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         {
             ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(Arrays.asList("egg*", "baz")).build();
             MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-            ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", template);
+            ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
             ComposableIndexTemplate newTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Arrays.asList("abc", "baz*"))
                 .priority(0L)
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.addIndexTemplateV2(state.projectState(projectId), false, "foo2", newTemplate)
+                () -> service.addIndexTemplateV2(project, false, "foo2", newTemplate)
             );
             assertThat(
                 e.getMessage(),
@@ -1012,91 +942,82 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testFindV2Templates() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "index", randomBoolean()));
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(MetadataIndexTemplateService.findV2Template(project, "index", randomBoolean()));
 
         ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct", ct);
+        project = service.addComponentTemplate(project, true, "ct", ct);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .componentTemplates(List.of("ct"))
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
         ComposableIndexTemplate it2 = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("in*"))
             .componentTemplates(List.of("ct"))
             .priority(10L)
             .version(2L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template2", it2);
+        project = service.addIndexTemplateV2(project, true, "my-template2", it2);
 
-        String result = MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "index", randomBoolean());
+        String result = MetadataIndexTemplateService.findV2Template(project, "index", randomBoolean());
 
         assertThat(result, equalTo("my-template2"));
     }
 
     public void testFindV2TemplatesForHiddenIndex() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "index", true));
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(MetadataIndexTemplateService.findV2Template(project, "index", true));
 
         ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct", ct);
+        project = service.addComponentTemplate(project, true, "ct", ct);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .componentTemplates(List.of("ct"))
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
         ComposableIndexTemplate it2 = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("*"))
             .componentTemplates(List.of("ct"))
             .priority(10L)
             .version(2L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template2", it2);
+        project = service.addIndexTemplateV2(project, true, "my-template2", it2);
 
-        String result = MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "index", true);
+        String result = MetadataIndexTemplateService.findV2Template(project, "index", true);
 
         assertThat(result, equalTo("my-template"));
     }
 
     public void testFindV2TemplatesForDateMathIndex() throws Exception {
         String indexName = "<index-{now/d}>";
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), indexName, true));
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(MetadataIndexTemplateService.findV2Template(project, indexName, true));
 
         ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct", ct);
+        project = service.addComponentTemplate(project, true, "ct", ct);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("index-*"))
             .componentTemplates(List.of("ct"))
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
         ComposableIndexTemplate it2 = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("*"))
             .componentTemplates(List.of("ct"))
             .priority(10L)
             .version(2L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template2", it2);
+        project = service.addIndexTemplateV2(project, true, "my-template2", it2);
 
-        String result = MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), indexName, true);
+        String result = MetadataIndexTemplateService.findV2Template(project, indexName, true);
 
         assertThat(result, equalTo("my-template"));
     }
@@ -1133,11 +1054,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveConflictingMappings() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -1155,8 +1073,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     }
                   }
                 }"""), null), null, null);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_high", ct1);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_low", ct2);
+        project = service.addComponentTemplate(project, true, "ct_high", ct1);
+        project = service.addComponentTemplate(project, true, "ct_low", ct2);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .template(new Template(null, new CompressedXContent("""
@@ -1171,13 +1089,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-            state.metadata().getProject(projectId),
-            "my-template",
-            "my-index"
-        );
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -1202,11 +1116,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveMappings() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -1224,8 +1135,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     }
                   }
                 }"""), null), null, null);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_high", ct1);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_low", ct2);
+        project = service.addComponentTemplate(project, true, "ct_high", ct1);
+        project = service.addComponentTemplate(project, true, "ct_low", ct2);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .template(new Template(null, new CompressedXContent("""
@@ -1240,13 +1151,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-            state.metadata().getProject(projectId),
-            "my-template",
-            "my-index"
-        );
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -1265,11 +1172,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testDefinedTimestampMappingIsAddedForDataStreamTemplates() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -1280,7 +1184,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   }
                 }"""), null), null, null);
 
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct1", ct1);
+        project = service.addComponentTemplate(project, true, "ct1", ct1);
 
         {
             ComposableIndexTemplate it = ComposableIndexTemplate.builder()
@@ -1298,10 +1202,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .version(1L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
-            state = service.addIndexTemplateV2(state.projectState(projectId), true, "logs-data-stream-template", it);
+            project = service.addIndexTemplateV2(project, true, "logs-data-stream-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                state.metadata().getProject(projectId),
+                project,
                 "logs-data-stream-template",
                 DataStream.getDefaultBackingIndexName("logs", 1L)
             );
@@ -1352,13 +1256,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(0L)
                 .version(1L)
                 .build();
-            state = service.addIndexTemplateV2(state.projectState(projectId), true, "timeseries-template", it);
+            project = service.addIndexTemplateV2(project, true, "timeseries-template", it);
 
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                state.metadata().getProject(projectId),
-                "timeseries-template",
-                "timeseries"
-            );
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "timeseries-template", "timeseries");
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(2));
@@ -1378,7 +1278,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
             // if the index name matches that of a data stream backing index
             mappings = MetadataIndexTemplateService.collectMappings(
-                state.metadata().getProject(projectId),
+                project,
                 "timeseries-template",
                 DataStream.getDefaultBackingIndexName("timeseries", 1L)
             );
@@ -1401,11 +1301,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUserDefinedMappingTakesPrecedenceOverDefault() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         {
             // user defines a @timestamp mapping as part of a component template
@@ -1418,7 +1315,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                       }
                     }"""), null), null, null);
 
-            state = service.addComponentTemplate(state.projectState(projectId), true, "ct1", ct1);
+            project = service.addComponentTemplate(project, true, "ct1", ct1);
             ComposableIndexTemplate it = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("logs*"))
                 .componentTemplates(List.of("ct1"))
@@ -1426,10 +1323,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .version(1L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
-            state = service.addIndexTemplateV2(state.projectState(projectId), true, "logs-template", it);
+            project = service.addIndexTemplateV2(project, true, "logs-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                state.metadata().getProject(projectId),
+                project,
                 "logs-template",
                 DataStream.getDefaultBackingIndexName("logs", 1L)
             );
@@ -1482,10 +1379,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .version(1L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
-            state = service.addIndexTemplateV2(state.projectState(projectId), true, "timeseries-template", it);
+            project = service.addIndexTemplateV2(project, true, "timeseries-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                state.metadata().getProject(projectId),
+                project,
                 "timeseries-template",
                 DataStream.getDefaultBackingIndexName("timeseries-template", 1L)
             );
@@ -1523,11 +1420,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSettings() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct1 = new ComponentTemplate(
             new Template(Settings.builder().put("number_of_replicas", 2).put("index.blocks.write", true).build(), null, null),
@@ -1539,8 +1433,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null
         );
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_high", ct1);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_low", ct2);
+        project = service.addComponentTemplate(project, true, "ct_high", ct1);
+        project = service.addComponentTemplate(project, true, "ct_low", ct2);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .template(
@@ -1550,9 +1444,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata().getProject(projectId), "my-template");
+        Settings settings = MetadataIndexTemplateService.resolveSettings(project, "my-template");
         assertThat(settings.get("index.number_of_replicas"), equalTo("2"));
         assertThat(settings.get("index.blocks.write"), equalTo("false"));
         assertThat(settings.get("index.blocks.read"), equalTo("true"));
@@ -1560,11 +1454,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveAliases() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         Map<String, AliasMetadata> a1 = new HashMap<>();
         a1.put("foo", AliasMetadata.newAliasMetadataBuilder("foo").build());
@@ -1576,8 +1467,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, null, a1), null, null);
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, a2), null, null);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_high", ct1);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct_low", ct2);
+        project = service.addComponentTemplate(project, true, "ct_high", ct1);
+        project = service.addComponentTemplate(project, true, "ct_low", ct2);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .template(new Template(null, null, a3))
@@ -1585,26 +1476,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
-            state.metadata().getProject(projectId),
-            "my-template"
-        );
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(project, "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
     }
 
     public void testResolveLifecycle() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ClusterState state = ClusterState.EMPTY_STATE;
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         DataStreamLifecycle emptyLifecycle = new DataStreamLifecycle();
 
         DataStreamLifecycle lifecycle30d = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(30)).build();
         String ct30d = "ct_30d";
-        state = addComponentTemplate(service, state, ct30d, lifecycle30d);
+        project = addComponentTemplate(service, project, ct30d, lifecycle30d);
 
         DataStreamLifecycle lifecycle45d = DataStreamLifecycle.newBuilder()
             .dataRetention(TimeValue.timeValueDays(45))
@@ -1620,39 +1508,39 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             )
             .build();
         String ct45d = "ct_45d";
-        state = addComponentTemplate(service, state, ct45d, lifecycle45d);
+        project = addComponentTemplate(service, project, ct45d, lifecycle45d);
 
         DataStreamLifecycle lifecycleNullRetention = new DataStreamLifecycle.Builder().dataRetention(DataStreamLifecycle.Retention.NULL)
             .build();
         String ctNullRetention = "ct_null_retention";
-        state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
+        project = addComponentTemplate(service, project, ctNullRetention, lifecycleNullRetention);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
-        state = addComponentTemplate(service, state, ctEmptyLifecycle, emptyLifecycle);
+        project = addComponentTemplate(service, project, ctEmptyLifecycle, emptyLifecycle);
 
         String ctDisabledLifecycle = "ct_disabled_lifecycle";
-        state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
+        project = addComponentTemplate(service, project, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
 
         String ctNoLifecycle = "ct_no_lifecycle";
-        state = addComponentTemplate(service, state, ctNoLifecycle, (DataStreamLifecycle) null);
+        project = addComponentTemplate(service, project, ctNoLifecycle, (DataStreamLifecycle) null);
 
         // Component A: -
         // Component B: "lifecycle": {"enabled": true}
         // Composable Z: -
         // Result: "lifecycle": {"enabled": true}
-        assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ctEmptyLifecycle), null, emptyLifecycle);
+        assertLifecycleResolution(service, project, List.of(ctNoLifecycle, ctEmptyLifecycle), null, emptyLifecycle);
 
         // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "30d"}
         // Composable Z: -
         // Result: "lifecycle": {"enabled": true, "retention": "30d"}
-        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
+        assertLifecycleResolution(service, project, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"enabled": true}
         // Result: "lifecycle": {"enabled": true, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), emptyLifecycle, lifecycle45d);
+        assertLifecycleResolution(service, project, List.of(ct30d, ct45d), emptyLifecycle, lifecycle45d);
 
         // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
@@ -1660,7 +1548,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Result: "lifecycle": {"enabled": true, "retention": "30d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         assertLifecycleResolution(
             service,
-            state,
+            project,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycle30d,
             DataStreamLifecycle.newBuilder()
@@ -1674,7 +1562,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Composable Z: -
         // Result: "lifecycle": {"enabled": true, "retention": null}, here the result of the composition is with retention explicitly
         // nullified, but effectively this is equivalent to infinite retention.
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
+        assertLifecycleResolution(service, project, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
 
         // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
@@ -1684,7 +1572,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // retention.
         assertLifecycleResolution(
             service,
-            state,
+            project,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycleNullRetention,
             DataStreamLifecycle.newBuilder()
@@ -1699,7 +1587,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Result: "lifecycle": {"enabled": false, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         assertLifecycleResolution(
             service,
-            state,
+            project,
             List.of(ct30d, ct45d),
             DataStreamLifecycle.newBuilder().enabled(false).build(),
             DataStreamLifecycle.newBuilder()
@@ -1715,7 +1603,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Result: "lifecycle": {"enabled": false, "retention": "30d"}
         assertLifecycleResolution(
             service,
-            state,
+            project,
             List.of(ct30d, ctDisabledLifecycle),
             null,
             DataStreamLifecycle.newBuilder().dataRetention(lifecycle30d.getDataRetention()).enabled(false).build()
@@ -1725,42 +1613,47 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component B: "lifecycle": {"enabled": false}
         // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
-        assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
+        assertLifecycleResolution(service, project, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
     }
 
     public void testResolveFailureStore() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ClusterState state = ClusterState.EMPTY_STATE;
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         String ctNoFailureStoreConfig = "no_failure_store";
-        state = addComponentTemplate(service, state, ctNoFailureStoreConfig, (DataStreamOptions.Template) null);
+        project = addComponentTemplate(service, project, ctNoFailureStoreConfig, (DataStreamOptions.Template) null);
 
         String ctFailureStoreEnabled = "ct_failure_store_enabled";
-        state = addComponentTemplate(service, state, ctFailureStoreEnabled, DataStreamTestHelper.createDataStreamOptionsTemplate(true));
+        project = addComponentTemplate(service, project, ctFailureStoreEnabled, DataStreamTestHelper.createDataStreamOptionsTemplate(true));
 
         String ctFailureStoreDisabled = "ct_failure_store_disabled";
-        state = addComponentTemplate(service, state, ctFailureStoreDisabled, DataStreamTestHelper.createDataStreamOptionsTemplate(false));
+        project = addComponentTemplate(
+            service,
+            project,
+            ctFailureStoreDisabled,
+            DataStreamTestHelper.createDataStreamOptionsTemplate(false)
+        );
 
         String ctFailureStoreNullified = "ct_null_failure_store";
         DataStreamOptions.Template nullifiedFailureStore = new DataStreamOptions.Template(ResettableValue.reset());
-        state = addComponentTemplate(service, state, ctFailureStoreNullified, nullifiedFailureStore);
+        project = addComponentTemplate(service, project, ctFailureStoreNullified, nullifiedFailureStore);
 
         // Component A: -
         // Composable Z: -
         // Result: -
-        assertDataStreamOptionsResolution(service, state, List.of(), null, null);
+        assertDataStreamOptionsResolution(service, project, List.of(), null, null);
 
         // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
         // Composable Z: -
         // Result: "data_stream_options": { "failure_store": { "enabled": true}}
-        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), null, DataStreamOptions.FAILURE_STORE_ENABLED);
+        assertDataStreamOptionsResolution(service, project, List.of(ctFailureStoreEnabled), null, DataStreamOptions.FAILURE_STORE_ENABLED);
 
         // Component A: "data_stream_options": { "failure_store": { "enabled": false}}
         // Composable Z: "data_stream_options": {}
         // Result: "data_stream_options": { "failure_store": { "enabled": false}}
         assertDataStreamOptionsResolution(
             service,
-            state,
+            project,
             List.of(ctFailureStoreDisabled),
             DataStreamOptions.Template.EMPTY,
             DataStreamOptions.FAILURE_STORE_DISABLED
@@ -1771,7 +1664,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Result: "data_stream_options": { "failure_store": { "enabled": false}}
         assertDataStreamOptionsResolution(
             service,
-            state,
+            project,
             List.of(ctFailureStoreEnabled),
             DataStreamTestHelper.createDataStreamOptionsTemplate(false),
             DataStreamOptions.FAILURE_STORE_DISABLED
@@ -1782,7 +1675,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Result: "data_stream_options": { "failure_store": { "enabled": false}}
         assertDataStreamOptionsResolution(
             service,
-            state,
+            project,
             List.of(ctFailureStoreNullified),
             DataStreamTestHelper.createDataStreamOptionsTemplate(false),
             DataStreamOptions.FAILURE_STORE_DISABLED
@@ -1791,12 +1684,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component A: "data_stream_options": { "failure_store": null}
         // Composable Z: -
         // Result: "data_stream_options": {}
-        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreNullified), null, DataStreamOptions.EMPTY);
+        assertDataStreamOptionsResolution(service, project, List.of(ctFailureStoreNullified), null, DataStreamOptions.EMPTY);
 
         // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
         // Composable Z: "data_stream_options": { "failure_store": null}
         // Result: "data_stream_options": {}
-        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFailureStore, DataStreamOptions.EMPTY);
+        assertDataStreamOptionsResolution(service, project, List.of(ctFailureStoreEnabled), nullifiedFailureStore, DataStreamOptions.EMPTY);
     }
 
     public void testInvalidNonDataStreamTemplateWithDataStreamOptions() throws Exception {
@@ -1812,7 +1705,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         Exception exception = expectThrows(
             Exception.class,
-            () -> metadataIndexTemplateService.validateIndexTemplateV2(project, TransportVersion.current(), "name", globalIndexTemplate)
+            () -> metadataIndexTemplateService.validateIndexTemplateV2(project, "name", globalIndexTemplate)
         );
         assertThat(
             exception.getMessage(),
@@ -1820,27 +1713,27 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
-    private ClusterState addComponentTemplate(
+    private ProjectMetadata addComponentTemplate(
         MetadataIndexTemplateService service,
-        ClusterState state,
+        ProjectMetadata project,
         String name,
         DataStreamLifecycle lifecycle
     ) throws Exception {
-        return addComponentTemplate(service, state, name, null, lifecycle);
+        return addComponentTemplate(service, project, name, null, lifecycle);
     }
 
-    private ClusterState addComponentTemplate(
+    private ProjectMetadata addComponentTemplate(
         MetadataIndexTemplateService service,
-        ClusterState state,
+        ProjectMetadata project,
         String name,
         DataStreamOptions.Template dataStreamOptions
     ) throws Exception {
-        return addComponentTemplate(service, state, name, dataStreamOptions, null);
+        return addComponentTemplate(service, project, name, dataStreamOptions, null);
     }
 
-    private ClusterState addComponentTemplate(
+    private ProjectMetadata addComponentTemplate(
         MetadataIndexTemplateService service,
-        ClusterState state,
+        ProjectMetadata project,
         String name,
         DataStreamOptions.Template dataStreamOptions,
         DataStreamLifecycle lifecycle
@@ -1850,12 +1743,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null
         );
-        return service.addComponentTemplate(state.projectState(Metadata.DEFAULT_PROJECT_ID), true, name, ct);
+        return service.addComponentTemplate(project, true, name, ct);
     }
 
     private void assertLifecycleResolution(
         MetadataIndexTemplateService service,
-        ClusterState state,
+        ProjectMetadata project,
         List<String> composeOf,
         DataStreamLifecycle lifecycleZ,
         DataStreamLifecycle expected
@@ -1868,15 +1761,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .version(1L)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
-        state = service.addIndexTemplateV2(state.projectState(state.metadata().getProject().id()), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
+        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(project, "my-template");
         assertThat(resolvedLifecycle, equalTo(expected));
     }
 
     private void assertDataStreamOptionsResolution(
         MetadataIndexTemplateService service,
-        ClusterState state,
+        ProjectMetadata project,
         List<String> composeOf,
         DataStreamOptions.Template dataStreamOptionsZ,
         DataStreamOptions expected
@@ -1889,13 +1782,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .version(1L)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
-        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "my-template", it);
+        project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
-            state.metadata().getProject(projectId),
-            "my-template"
-        ).mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(project, "my-template")
+            .mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
         assertThat(resolvedDataStreamOptions, resolvedDataStreamOptions == null ? nullValue() : equalTo(expected));
     }
 
@@ -1953,47 +1843,35 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate bar = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
         ComponentTemplate baz = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ClusterState temp = service.addComponentTemplate(initialState.projectState(projectId), false, "foo", foo);
-        temp = service.addComponentTemplate(temp.projectState(projectId), false, "bar", bar);
-        final ClusterState clusterState = service.addComponentTemplate(temp.projectState(projectId), false, "baz", baz);
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata temp = service.addComponentTemplate(initialProject, false, "foo", foo);
+        temp = service.addComponentTemplate(temp, false, "bar", bar);
+        ProjectMetadata projectMetadata = service.addComponentTemplate(temp, false, "baz", baz);
 
-        ClusterState result = innerRemoveComponentTemplate(clusterState.projectState(projectId), "foo");
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("foo"), nullValue());
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("bar"), equalTo(bar));
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("baz"), equalTo(baz));
+        ProjectMetadata result = innerRemoveComponentTemplate(projectMetadata, "foo");
+        assertThat(result.componentTemplates().get("foo"), nullValue());
+        assertThat(result.componentTemplates().get("bar"), equalTo(bar));
+        assertThat(result.componentTemplates().get("baz"), equalTo(baz));
 
-        result = innerRemoveComponentTemplate(clusterState.projectState(projectId), "bar", "baz");
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("foo"), equalTo(foo));
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("bar"), nullValue());
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("baz"), nullValue());
+        result = innerRemoveComponentTemplate(projectMetadata, "bar", "baz");
+        assertThat(result.componentTemplates().get("foo"), equalTo(foo));
+        assertThat(result.componentTemplates().get("bar"), nullValue());
+        assertThat(result.componentTemplates().get("baz"), nullValue());
 
-        Exception e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> innerRemoveComponentTemplate(clusterState.projectState(projectId), "foobar")
-        );
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(projectMetadata, "foobar"));
         assertThat(e.getMessage(), equalTo("foobar"));
-        e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> innerRemoveComponentTemplate(clusterState.projectState(projectId), "foo", "barbaz", "foobar")
-        );
+        e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(projectMetadata, "foo", "barbaz", "foobar"));
         assertThat(e.getMessage(), equalTo("barbaz,foobar"));
 
-        result = innerRemoveComponentTemplate(clusterState.projectState(projectId), "*");
-        assertThat(result.metadata().getProject(projectId).componentTemplates().size(), equalTo(0));
+        result = innerRemoveComponentTemplate(projectMetadata, "*");
+        assertThat(result.componentTemplates().size(), equalTo(0));
 
-        result = innerRemoveComponentTemplate(clusterState.projectState(projectId), "b*");
-        assertThat(result.metadata().getProject(projectId).componentTemplates().size(), equalTo(1));
-        assertThat(result.metadata().getProject(projectId).componentTemplates().get("foo"), equalTo(foo));
+        result = innerRemoveComponentTemplate(projectMetadata, "b*");
+        assertThat(result.componentTemplates().size(), equalTo(1));
+        assertThat(result.componentTemplates().get("foo"), equalTo(foo));
 
-        e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> innerRemoveComponentTemplate(clusterState.projectState(projectId), "foo", "b*")
-        );
+        e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(projectMetadata, "foo", "b*"));
         assertThat(e.getMessage(), equalTo("b*"));
     }
 
@@ -2004,16 +1882,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ClusterState clusterState = service.addComponentTemplate(initialState.projectState(projectId), false, "ct", ct);
-        clusterState = service.addIndexTemplateV2(clusterState.projectState(projectId), false, "template", template);
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata projectMetadata = service.addComponentTemplate(initialProject, false, "ct", ct);
+        projectMetadata = service.addIndexTemplateV2(projectMetadata, false, "template", template);
 
-        final ClusterState cs = clusterState;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs.projectState(projectId), "c*"));
+        ProjectMetadata pm = projectMetadata;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(pm, "c*"));
         assertThat(
             e.getMessage(),
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]")
@@ -2028,26 +1903,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState clusterState = service.addComponentTemplate(initialState.projectState(projectId), false, "required1", ct);
-        clusterState = service.addComponentTemplate(clusterState.projectState(projectId), false, "required2", ct);
-        clusterState = service.addComponentTemplate(clusterState.projectState(projectId), false, "non-required", ct);
-        clusterState = service.addIndexTemplateV2(
-            clusterState.projectState(projectId),
-            false,
-            "composable-index-template",
-            composableIndexTemplate
-        );
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata clusterState = service.addComponentTemplate(initialProject, false, "required1", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "required2", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "non-required", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "composable-index-template", composableIndexTemplate);
 
-        final ClusterState cs = clusterState;
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> innerRemoveComponentTemplate(cs.projectState(projectId), "required*")
-        );
+        ProjectMetadata cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "required*"));
         assertThat(
             e.getMessage(),
             containsString(
@@ -2057,7 +1921,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         // This removal should succeed
-        innerRemoveComponentTemplate(cs.projectState(projectId), "non-required*");
+        innerRemoveComponentTemplate(cs, "non-required*");
     }
 
     /**
@@ -2065,11 +1929,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * when adding/updating a composable index template
      */
     public void testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -2093,8 +1954,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     }
                   }
                 }"""), null), null, null);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "c1", ct1);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "c2", ct2);
+        project = service.addComponentTemplate(project, true, "c1", ct1);
+        project = service.addComponentTemplate(project, true, "c2", ct2);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .template(new Template(null, new CompressedXContent("""
@@ -2115,10 +1976,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .version(1L)
             .build();
 
-        final ClusterState finalState = state;
+        ProjectMetadata finalState = project;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> service.addIndexTemplateV2(finalState.projectState(projectId), randomBoolean(), "my-template", it)
+            () -> service.addIndexTemplateV2(finalState, randomBoolean(), "my-template", it)
         );
 
         assertThat(
@@ -2141,27 +2002,24 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * create data streams.
      */
     public void testIndexTemplateFailsToAdd() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct = new ComponentTemplate(
             Template.builder().lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999())).build(),
             null,
             null
         );
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct", ct);
+        project = service.addComponentTemplate(project, true, "ct", ct);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .componentTemplates(List.of("ct"))
             .build();
 
-        final ClusterState finalState = state;
+        ProjectMetadata finalState = project;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> service.addIndexTemplateV2(finalState.projectState(projectId), randomBoolean(), "my-template", it)
+            () -> service.addIndexTemplateV2(finalState, randomBoolean(), "my-template", it)
         );
 
         assertThat(
@@ -2177,11 +2035,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * when updating a component template
      */
     public void testUpdateComponentTemplateFailsIfResolvedIndexTemplatesWouldBeInvalid() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -2207,8 +2062,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
               }
             }
             """), null), null, null);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "c1", ct1);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "c2", ct2);
+        project = service.addComponentTemplate(project, true, "c1", ct1);
+        project = service.addComponentTemplate(project, true, "c2", ct2);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("i*"))
             .template(new Template(null, null, null))
@@ -2218,7 +2073,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
 
         // Great, the templates aren't invalid
-        state = service.addIndexTemplateV2(state.projectState(projectId), randomBoolean(), "my-template", it);
+        project = service.addIndexTemplateV2(project, randomBoolean(), "my-template", it);
 
         ComponentTemplate changedCt2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -2235,10 +2090,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }
             """), null), null, null);
 
-        final ClusterState finalState = state;
+        ProjectMetadata finalState = project;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> service.addComponentTemplate(finalState.projectState(projectId), false, "c2", changedCt2)
+            () -> service.addComponentTemplate(finalState, false, "c2", changedCt2)
         );
 
         assertThat(
@@ -2261,51 +2116,33 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testPutExistingComponentTemplateIsNoop() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         ComponentTemplate componentTemplate = ComponentTemplateTests.randomNonDeprecatedInstance();
-        state = metadataIndexTemplateService.addComponentTemplate(state.projectState(projectId), false, "foo", componentTemplate);
+        project = metadataIndexTemplateService.addComponentTemplate(project, false, "foo", componentTemplate);
 
-        assertNotNull(state.metadata().getProject(projectId).componentTemplates().get("foo"));
+        assertNotNull(project.componentTemplates().get("foo"));
 
-        assertThat(
-            metadataIndexTemplateService.addComponentTemplate(state.projectState(projectId), false, "foo", componentTemplate),
-            equalTo(state)
-        );
+        assertThat(metadataIndexTemplateService.addComponentTemplate(project, false, "foo", componentTemplate), equalTo(project));
     }
 
     public void testPutExistingComposableTemplateIsNoop() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
-        state = metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "foo", template);
+        project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template);
 
-        assertNotNull(state.metadata().getProject(projectId).templatesV2().get("foo"));
+        assertNotNull(project.templatesV2().get("foo"));
 
-        assertThat(metadataIndexTemplateService.addIndexTemplateV2(state.projectState(projectId), false, "foo", template), equalTo(state));
+        assertThat(metadataIndexTemplateService.addIndexTemplateV2(project, false, "foo", template), equalTo(project));
     }
 
     public void testUnreferencedDataStreamsWhenAddingTemplate() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(
-                ProjectMetadata.builder(projectId)
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "unreferenced",
-                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
-                    )
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(DataStreamTestHelper.newInstance("unreferenced", Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
+            .put(
+                IndexMetadata.builder(".ds-unreferenced-000001")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
             )
             .build();
 
@@ -2315,21 +2152,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
 
-        state = service.addIndexTemplateV2(state.projectState(projectId), false, "logs", template);
+        project = service.addIndexTemplateV2(project, false, "logs", template);
 
-        ClusterState stateWithDS = ClusterState.builder(state)
-            .putProjectMetadata(
-                ProjectMetadata.builder(state.metadata().getProject(projectId))
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-mysql-default",
-                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
-                    )
+        ProjectMetadata projectWithDS = ProjectMetadata.builder(project)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    "logs-mysql-default",
+                    Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                )
+            )
+            .put(
+                IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
             )
             .build();
 
@@ -2339,7 +2173,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .priority(100L)
                 .build();
-            service.addIndexTemplateV2(stateWithDS.projectState(projectId), false, "logs", nonDSTemplate);
+            service.addIndexTemplateV2(projectWithDS, false, "logs", nonDSTemplate);
         });
 
         assertThat(
@@ -2356,7 +2190,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .indexPatterns(Collections.singletonList("logs-my*-*"))
                 .priority(105L)
                 .build();
-            service.addIndexTemplateV2(stateWithDS.projectState(projectId), false, "logs2", nonDSTemplate);
+            service.addIndexTemplateV2(projectWithDS, false, "logs2", nonDSTemplate);
         });
 
         assertThat(
@@ -2374,7 +2208,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
-            service.addIndexTemplateV2(stateWithDS.projectState(projectId), false, "logs", newTemplate);
+            service.addIndexTemplateV2(projectWithDS, false, "logs", newTemplate);
         });
 
         assertThat(
@@ -2391,37 +2225,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(50L)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
-        ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(
-            stateWithDS.projectState(projectId),
-            false,
-            "logs-mysql",
-            mysqlTemplate
-        );
+        ProjectMetadata projectWithDSAndTemplate = service.addIndexTemplateV2(projectWithDS, false, "logs-mysql", mysqlTemplate);
 
         // We should be able to replace the "logs" template, because we have the "logs-mysql" template that can handle the data stream
         ComposableIndexTemplate nonDSTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(Collections.singletonList("logs-postgres-*"))
             .priority(100L)
             .build();
-        service.addIndexTemplateV2(stateWithDSAndTemplate.projectState(projectId), false, "logs", nonDSTemplate);
+        service.addIndexTemplateV2(projectWithDSAndTemplate, false, "logs", nonDSTemplate);
     }
 
     public void testDataStreamsUsingTemplates() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(
-                ProjectMetadata.builder(projectId)
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "unreferenced",
-                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
-                    )
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(DataStreamTestHelper.newInstance("unreferenced", Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
+            .put(
+                IndexMetadata.builder(".ds-unreferenced-000001")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
             )
             .build();
 
@@ -2431,21 +2251,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
 
-        state = service.addIndexTemplateV2(state.projectState(projectId), false, "logs", template);
+        project = service.addIndexTemplateV2(project, false, "logs", template);
 
-        ClusterState stateWithDS = ClusterState.builder(state)
-            .putProjectMetadata(
-                ProjectMetadata.builder(state.metadata().getProject(projectId))
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-mysql-default",
-                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
-                    )
+        ProjectMetadata projectWithDS = ProjectMetadata.builder(project)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    "logs-mysql-default",
+                    Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                )
+            )
+            .put(
+                IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
             )
             .build();
 
@@ -2455,13 +2272,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
 
-        state = service.addIndexTemplateV2(stateWithDS.projectState(projectId), false, "logs2", fineGrainedLogsTemplate);
+        project = service.addIndexTemplateV2(projectWithDS, false, "logs2", fineGrainedLogsTemplate);
 
         // Test replacing it with a version without the data stream config
-        final ClusterState stateWithTwoTemplates = state;
+        ProjectMetadata projectWithTwoTemplates = project;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates.projectState(projectId), "logs*")
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(projectWithTwoTemplates, "logs*")
         );
 
         assertThat(
@@ -2469,25 +2286,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             containsString("unable to remove composable templates [logs, logs2] as they are in use by a data streams [logs-mysql-default]")
         );
 
-        assertThat(
-            MetadataIndexTemplateService.dataStreamsExclusivelyUsingTemplates(state.metadata().getProject(projectId), Set.of("logs")),
-            equalTo(Set.of())
-        );
-        assertThat(
-            MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "logs-mysql-default", false),
-            equalTo("logs2")
-        );
+        assertThat(MetadataIndexTemplateService.dataStreamsExclusivelyUsingTemplates(project, Set.of("logs")), equalTo(Set.of()));
+        assertThat(MetadataIndexTemplateService.findV2Template(project, "logs-mysql-default", false), equalTo("logs2"));
 
         // The unreferenced template can be removed without an exception
-        MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates.projectState(projectId), "logs");
+        MetadataIndexTemplateService.innerRemoveIndexTemplateV2(projectWithTwoTemplates, "logs");
     }
 
     public void testDataStreamsUsingMatchAllTemplate() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(Collections.singletonList("*"))
@@ -2495,25 +2303,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         final String templateName = "all-data-streams-template";
-        state = service.addIndexTemplateV2(state.projectState(projectId), false, templateName, template);
+        project = service.addIndexTemplateV2(project, false, templateName, template);
         // When creating a data stream, we'll look for templates. The data stream is not hidden
-        assertThat(
-            MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "some-data-stream", false),
-            equalTo(templateName)
-        );
+        assertThat(MetadataIndexTemplateService.findV2Template(project, "some-data-stream", false), equalTo(templateName));
         // The write index for a data stream will be a hidden index. We need to make sure it matches the same template:
-        assertThat(
-            MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "some-data-stream", true),
-            equalTo(templateName)
-        );
+        assertThat(MetadataIndexTemplateService.findV2Template(project, "some-data-stream", true), equalTo(templateName));
     }
 
     public void testRemovingHigherOrderTemplateOfDataStreamWithMultipleTemplates() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(Collections.singletonList("logs-*"))
@@ -2521,21 +2320,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
 
-        state = service.addIndexTemplateV2(state.projectState(projectId), false, "logs", template);
+        project = service.addIndexTemplateV2(project, false, "logs", template);
 
-        ClusterState stateWithDS = ClusterState.builder(state)
-            .putProjectMetadata(
-                ProjectMetadata.builder(state.metadata().getProject(projectId))
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-mysql-default",
-                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
-                        )
-                    )
-                    .put(
-                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
-                    )
+        ProjectMetadata projectWithDS = ProjectMetadata.builder(project)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    "logs-mysql-default",
+                    Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                )
+            )
+            .put(
+                IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
             )
             .build();
 
@@ -2545,41 +2341,33 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
 
-        state = service.addIndexTemplateV2(stateWithDS.projectState(projectId), false, "logs-test", fineGrainedLogsTemplate);
+        project = service.addIndexTemplateV2(projectWithDS, false, "logs-test", fineGrainedLogsTemplate);
 
         // Verify that the data stream now matches to the higher order template
-        var project = state.metadata().getProject(projectId);
         assertThat(MetadataIndexTemplateService.dataStreamsExclusivelyUsingTemplates(project, Set.of("logs")), equalTo(Set.of()));
         assertThat(MetadataIndexTemplateService.findV2Template(project, "logs-mysql-default", false), equalTo("logs-test"));
 
         // Test removing the higher order template
-        state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), "logs-test");
+        project = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, "logs-test");
 
-        assertThat(
-            MetadataIndexTemplateService.findV2Template(state.metadata().getProject(projectId), "logs-mysql-default", false),
-            equalTo("logs")
-        );
+        assertThat(MetadataIndexTemplateService.findV2Template(project, "logs-mysql-default", false), equalTo("logs"));
     }
 
     public void testV2TemplateOverlaps() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         {
             ComposableIndexTemplate template = ComposableIndexTemplate.builder()
                 .indexPatterns(Arrays.asList("egg*", "baz"))
                 .priority(1L)
                 .build();
             MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-            ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", template);
+            ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
             ComposableIndexTemplate newTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Arrays.asList("abc", "baz*"))
                 .priority(1L)
                 .build();
 
             // when validating is false, we return the conflicts instead of throwing an exception
-            var project = state.metadata().getProject(projectId);
             var overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(project, "foo2", newTemplate, false);
 
             assertThat(overlaps, allOf(aMapWithSize(1), hasKey("foo")));
@@ -2610,14 +2398,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         {
             ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(Arrays.asList("egg*", "baz")).build();
             MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-            ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "foo", template);
+            ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, "foo", template);
             ComposableIndexTemplate newTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Arrays.asList("abc", "baz*"))
                 .priority(0L)
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state.metadata().getProject(projectId), "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(project, "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),
@@ -2656,12 +2444,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, indexTemplateName, template);
-        MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata().getProject(projectId), indexTemplateName, template);
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, indexTemplateName, template);
+        MetadataIndexTemplateService.validateV2TemplateRequest(project, indexTemplateName, template);
     }
 
     public void testIgnoreMissingComponentTemplateInvalid() throws Exception {
@@ -2683,21 +2468,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .build();
 
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ClusterState state = service.addIndexTemplateV2(initialState.projectState(projectId), false, indexTemplateName, template);
+        ProjectMetadata project = service.addIndexTemplateV2(initialProject, false, indexTemplateName, template);
 
         // try now the same thing with validation on
         InvalidIndexTemplateException e = expectThrows(
             InvalidIndexTemplateException.class,
-            () -> MetadataIndexTemplateService.validateV2TemplateRequest(
-                state.metadata().getProject(projectId),
-                indexTemplateName,
-                template
-            )
+            () -> MetadataIndexTemplateService.validateV2TemplateRequest(project, indexTemplateName, template)
 
         );
         assertThat(e.getMessage(), containsString("specifies a missing component templates [fail] that does not exist"));
@@ -2767,11 +2545,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testComposableTemplateWithSubobjectsFalse() throws Exception {
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -2789,8 +2564,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }
             """), null), null, null);
 
-        state = service.addComponentTemplate(state.projectState(projectId), true, "subobjects", subobjects);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "field_mapping", fieldMapping);
+        project = service.addComponentTemplate(project, true, "subobjects", subobjects);
+        project = service.addComponentTemplate(project, true, "field_mapping", fieldMapping);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("test-*"))
             .template(new Template(null, null, null))
@@ -2798,13 +2573,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(0L)
             .version(1L)
             .build();
-        state = service.addIndexTemplateV2(state.projectState(projectId), true, "composable-template", it);
+        project = service.addIndexTemplateV2(project, true, "composable-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-            state.metadata().getProject(projectId),
-            "composable-template",
-            "test-index"
-        );
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "composable-template", "test-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(2));
@@ -2826,21 +2597,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {
-        var projectId = randomProjectIdOrDefault();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance(false, true);
-        state = service.addComponentTemplate(state.projectState(projectId), true, "ct", ct);
+        project = service.addComponentTemplate(project, true, "ct", ct);
 
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("test*"))
             .componentTemplates(List.of("ct"))
             .version(1L)
             .build();
-        service.addIndexTemplateV2(state.projectState(projectId), false, "foo", it);
+        service.addIndexTemplateV2(project, false, "foo", it);
 
         assertWarnings("index template [foo] uses deprecated component template [ct]");
     }

@@ -413,7 +413,7 @@ FROM employees
 | EVAL language_code = emp_no % 10, language_code = CASE(language_code == 3, null, language_code)
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | SORT emp_no
-| KEEP emp_no, language_code, language_name
+| KEEP emp_no, language_name
 ;
 
 emp_no:integer | language_code:integer | language_name:keyword

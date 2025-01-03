@@ -150,7 +150,7 @@ setup:
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [ max_analyzed_offset_default ]
+          capabilities: [ highlight_max_analyzed_offset_default ]
       reason: Behavior of max_analyzed_offset query param changed in 8.18.
 
   - do:
@@ -168,7 +168,7 @@ setup:
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [ max_analyzed_offset_default ]
+          capabilities: [ highlight_max_analyzed_offset_default ]
       reason: Behavior of max_analyzed_offset query param changed in 8.18.
 
   - do:

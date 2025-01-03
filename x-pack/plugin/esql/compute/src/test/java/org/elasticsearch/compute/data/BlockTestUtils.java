@@ -39,6 +39,7 @@ public class BlockTestUtils {
             case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
+            case AGGREGATED_DOUBLE_METRIC -> throw new IllegalArgumentException("can't make random values for aggregate double metric");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }

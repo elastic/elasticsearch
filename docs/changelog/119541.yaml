@@ -1,0 +1,5 @@
+pr: 119541
+summary: Fix occassional error when doing Linux package upgrades
+area: Infra/Core
+type: bug
+issues: []

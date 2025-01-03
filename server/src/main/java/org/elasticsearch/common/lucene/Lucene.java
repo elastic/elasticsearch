@@ -70,7 +70,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,10 +88,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.apache.lucene.util.Version.LUCENE_10_0_0;
-
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene100";
+
+    public static final String LATEST_CODEC = "Lucene101";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -156,25 +154,7 @@ public class Lucene {
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        // TODO Use readCommit(Directory directory, String segmentFileName, int minSupportedMajorVersion) once Lucene 10.1 is available
-        // and remove the try-catch block for IndexFormatTooOldException
-        assert IndexVersion.current().luceneVersion().equals(LUCENE_10_0_0) : "remove the try-catch block below";
-        try {
-            return SegmentInfos.readCommit(directory, segmentsFileName);
-        } catch (IndexFormatTooOldException e) {
-            try {
-                // Temporary workaround until Lucene 10.1 is available: try to leverage min. read-only compatibility to read the last commit
-                // and then check if this is the commit we want. This should always work for the case we are interested in (archive and
-                // searchable snapshots indices in N-2 version) as no newer commit should be ever written.
-                var segmentInfos = readSegmentInfos(directory);
-                if (segmentsFileName.equals(segmentInfos.getSegmentsFileName())) {
-                    return segmentInfos;
-                }
-            } catch (Exception suppressed) {
-                e.addSuppressed(suppressed);
-            }
-            throw e;
-        }
+        return SegmentInfos.readCommit(directory, segmentsFileName, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
     }
 
     /**

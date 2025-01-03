@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -23,7 +24,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafSimScorer;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
@@ -214,7 +214,6 @@ public final class SourceConfirmedTextQuery extends Query {
             // No need to ever look at the _source for non-scoring term queries
             return in.createWeight(searcher, scoreMode, boost);
         }
-
         // We use a LinkedHashSet here to preserve the ordering of terms to ensure that
         // later summing of float scores per term is consistent
         final Set<Term> terms = new LinkedHashSet<>();
@@ -267,6 +266,7 @@ public final class SourceConfirmedTextQuery extends Query {
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                NumericDocValues norms = context.reader().getNormValues(field);
                 RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
@@ -277,8 +277,7 @@ public final class SourceConfirmedTextQuery extends Query {
                 }
                 float phraseFreq = scorer.freq();
                 Explanation freqExplanation = Explanation.match(phraseFreq, "phraseFreq=" + phraseFreq);
-                final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
-                Explanation scoreExplanation = leafSimScorer.explain(doc, freqExplanation);
+                Explanation scoreExplanation = simScorer.explain(freqExplanation, getNormValue(norms, doc));
                 return Explanation.match(
                     scoreExplanation.getValue(),
                     "weight(" + getQuery() + " in " + doc + ") [" + searcher.getSimilarity().getClass().getSimpleName() + "], result of:",
@@ -297,9 +296,9 @@ public final class SourceConfirmedTextQuery extends Query {
                     public Scorer get(long leadCost) throws IOException {
                         final Scorer approximationScorer = approximationSupplier.get(leadCost);
                         final DocIdSetIterator approximation = approximationScorer.iterator();
-                        final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
                         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
-                        return new RuntimePhraseScorer(approximation, leafSimScorer, valueFetcher, field, in);
+                        NumericDocValues norms = context.reader().getNormValues(field);
+                        return new RuntimePhraseScorer(approximation, simScorer, norms, valueFetcher, field, in);
                     }
 
                     @Override
@@ -335,12 +334,23 @@ public final class SourceConfirmedTextQuery extends Query {
         };
     }
 
+    private static long getNormValue(NumericDocValues norms, int doc) throws IOException {
+        if (norms != null) {
+            boolean found = norms.advanceExact(doc);
+            assert found;
+            return norms.longValue();
+        } else {
+            return 1L; // default norm
+        }
+    }
+
     private class RuntimePhraseScorer extends Scorer {
-        private final LeafSimScorer scorer;
+        private final SimScorer scorer;
         private final CheckedIntFunction<List<Object>, IOException> valueFetcher;
         private final String field;
         private final Query query;
         private final TwoPhaseIterator twoPhase;
+        private final NumericDocValues norms;
 
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
 
@@ -349,12 +359,14 @@ public final class SourceConfirmedTextQuery extends Query {
 
         private RuntimePhraseScorer(
             DocIdSetIterator approximation,
-            LeafSimScorer scorer,
+            SimScorer scorer,
+            NumericDocValues norms,
             CheckedIntFunction<List<Object>, IOException> valueFetcher,
             String field,
             Query query
         ) {
             this.scorer = scorer;
+            this.norms = norms;
             this.valueFetcher = valueFetcher;
             this.field = field;
             this.query = query;
@@ -386,12 +398,12 @@ public final class SourceConfirmedTextQuery extends Query {
 
         @Override
         public float getMaxScore(int upTo) throws IOException {
-            return scorer.getSimScorer().score(Float.MAX_VALUE, 1L);
+            return scorer.score(Float.MAX_VALUE, 1L);
         }
 
         @Override
         public float score() throws IOException {
-            return scorer.score(docID(), freq());
+            return scorer.score(freq(), getNormValue(norms, doc));
         }
 
         @Override

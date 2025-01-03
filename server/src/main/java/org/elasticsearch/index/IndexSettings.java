@@ -712,7 +712,7 @@ public final class IndexSettings {
     );
 
     public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
-        "index.logsdb.use_default_sort_config",
+        "index.logsdb.sort_on_host_name",
         false,
         Property.IndexScope,
         Property.Final

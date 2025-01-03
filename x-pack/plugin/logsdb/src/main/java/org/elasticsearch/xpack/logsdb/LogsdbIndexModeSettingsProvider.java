@@ -97,10 +97,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             isLogsDB = true;
         }
 
-        MappingData mappingData = getMappingData(indexName, templateIndexMode, settings, combinedTemplateMappings);
+        MappingHints mappingHints = getMappingData(indexName, templateIndexMode, settings, combinedTemplateMappings);
 
         // Inject stored source mode if synthetic source if not available per licence.
-        if (mappingData.hasSyntheticSourceUsage && supportFallbackToStoredSource.get()) {
+        if (mappingHints.hasSyntheticSourceUsage && supportFallbackToStoredSource.get()) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             boolean isTemplateValidation = "validate-index-name".equals(indexName);
@@ -120,7 +120,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
         if (isLogsDB) {
             // Inject sorting on [host.name], in addition to [@timestamp].
-            if (mappingData.sortOnHostName) {
+            if (mappingHints.sortOnHostName) {
                 if (settingsBuilder == null) {
                     settingsBuilder = Settings.builder();
                 }
@@ -171,8 +171,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     }
 
-    record MappingData(boolean hasSyntheticSourceUsage, boolean sortOnHostName) {
-        static MappingData EMPTY = new MappingData(false, false);
+    record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName) {
+        static MappingHints EMPTY = new MappingHints(false, false);
     }
 
     private static boolean matchesLogsPattern(final String name) {
@@ -183,7 +183,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
     }
 
-    MappingData getMappingData(
+    MappingHints getMappingData(
         String indexName,
         IndexMode templateIndexMode,
         Settings indexTemplateAndCreateRequestSettings,
@@ -192,7 +192,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if ("validate-index-name".equals(indexName)) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
-            return MappingData.EMPTY;
+            return MappingHints.EMPTY;
         }
 
         try {
@@ -211,11 +211,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
                 if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false) {
                     // Custom sort config, no point for further checks on [host.name] field.
-                    return new MappingData(hasSyntheticSourceUsage, false);
+                    return new MappingHints(hasSyntheticSourceUsage, false);
                 }
                 if (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)) {
                     // Setting for sorting on [host.name] is already injected, propagate it.
-                    return new MappingData(hasSyntheticSourceUsage, true);
+                    return new MappingHints(hasSyntheticSourceUsage, true);
                 }
             }
 
@@ -226,7 +226,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     combinedTemplateMappings = List.of(new CompressedXContent("{}"));
                 }
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-                return new MappingData(
+                return new MappingHints(
                     hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic(),
                     IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
                         || mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper
@@ -237,7 +237,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             // In that case it is ok to return false here. The index creation will fail anyway later, so no need to fallback to stored
             // source.
             LOGGER.info(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
-            return MappingData.EMPTY;
+            return MappingHints.EMPTY;
         }
     }
 

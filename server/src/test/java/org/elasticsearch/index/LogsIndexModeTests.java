@@ -47,6 +47,54 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
     }
 
+    public void testDefaultHostNameSortWithOrder() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                metadata,
+                Settings.builder()
+                    .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), randomBoolean())
+                    .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
+                    .build()
+            )
+        );
+        assertEquals("index.sort.fields:[] index.sort.order:[desc], size mismatch", exception.getMessage());
+    }
+
+    public void testDefaultHostNameSortWithMode() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                metadata,
+                Settings.builder()
+                    .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), randomBoolean())
+                    .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "MAX")
+                    .build()
+            )
+        );
+        assertEquals("index.sort.fields:[] index.sort.mode:[MAX], size mismatch", exception.getMessage());
+    }
+
+    public void testDefaultHostNameSortWithMissing() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                metadata,
+                Settings.builder()
+                    .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), randomBoolean())
+                    .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_first")
+                    .build()
+            )
+        );
+        assertEquals("index.sort.fields:[] index.sort.missing:[_first], size mismatch", exception.getMessage());
+    }
+
     public void testCustomSortField() {
         final Settings sortSettings = Settings.builder()
             .put(buildSettings())

@@ -56,9 +56,7 @@ public class AcosTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true, suppliers, (v, p) -> "numeric"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "numeric");
     }
 
     @Override

@@ -89,7 +89,6 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-
         // Divide by zero cases - all of these should warn and return null
         TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
             new TestCaseSupplier.NumericTypeTestConfig<>(

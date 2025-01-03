@@ -71,11 +71,7 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            suppliers,
-            (v, p) -> "date_period or string"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_period or string");
     }
 
     @Override

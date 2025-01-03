@@ -70,9 +70,7 @@ public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true, suppliers, (valid, position) -> "time_duration or string"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (valid, position) -> "time_duration or string");
     }
 
     @Override

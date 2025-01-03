@@ -527,7 +527,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         "skipped" : 0,
         "partial" : 0,
         "failed" : 0,
-        "is_partial" : false,
         "details" : {
         "(local)" : {
         "status" : "successful",
@@ -559,24 +558,24 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 4 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
 
         try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize); // is_running
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize); // is_running
         }
     }
 
     public void testChunkResponseSizeRows() {
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 4 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
     }
 

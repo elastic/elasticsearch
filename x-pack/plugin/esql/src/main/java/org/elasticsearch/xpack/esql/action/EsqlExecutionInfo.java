@@ -259,6 +259,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             ChunkedToXContentHelper.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED)),
             ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
             ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
+            ChunkedToXContentHelper.field(IS_PARTIAL_FIELD.getPreferredName(), isPartial),
             // each Cluster object defines its own field object name
             ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
             ChunkedToXContentHelper.endObject()

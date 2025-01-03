@@ -157,7 +157,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                     .withWarning(
-                        "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [-9223372036854775808] out of [integer] range"
+                        "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: "
+                            + "[-9223372036854775808] out of [integer] range"
                     )
             )
         );

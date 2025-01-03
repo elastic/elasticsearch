@@ -308,6 +308,7 @@ class EsqlSessionCCSUtils {
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void checkForCcsLicense(
+        EsqlExecutionInfo executionInfo,
         List<TableInfo> indices,
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState
@@ -326,6 +327,17 @@ class EsqlSessionCCSUtils {
             // check if it is a cross-cluster query
             if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                    // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+                    // so that the CCS telemetry handler can recognize that this error is CCS-related
+                    for (Map.Entry<String, OriginalIndices> entry : groupedIndices.entrySet()) {
+                        executionInfo.swapCluster(
+                            entry.getKey(),
+                            (k, v) -> new EsqlExecutionInfo.Cluster(
+                                entry.getKey(),
+                                Strings.arrayToCommaDelimitedString(entry.getValue().indices())
+                            )
+                        );
+                    }
                     throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }
             }

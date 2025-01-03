@@ -9,8 +9,11 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[
 
 Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
 
-NOTE: If you use the ELSER or the E5 model through the `elasticsearch` service, the API request will automatically download and deploy the model if it isn't downloaded yet.
-
+[NOTE]
+====
+* Your {es} deployment contains <<default-enpoints,preconfigured ELSER and E5 {infer} endpoints>>, you only need to create the enpoints using the API if you want to customize the settings.
+* If you use the ELSER or the E5 model through the `elasticsearch` service, the API request will automatically download and deploy the model if it isn't downloaded yet.
+====
 
 [discrete]
 [[infer-service-elasticsearch-api-request]]

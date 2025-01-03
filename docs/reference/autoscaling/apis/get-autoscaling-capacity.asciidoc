@@ -7,6 +7,12 @@
 
 NOTE: {cloud-only}
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-autoscaling[Autoscaling APIs].
+--
+
 Get {cloud}/ec-autoscaling.html[autoscaling] capacity.
 
 [[autoscaling-get-autoscaling-capacity-request]]

@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -603,13 +604,20 @@ public class CsvTestsDataLoader {
         }
     }
 
+    public record MultiIndexTestDataset(String indexPattern, List<TestsDataset> datasets) {
+        public static MultiIndexTestDataset of(TestsDataset testsDataset) {
+            return new MultiIndexTestDataset(testsDataset.indexName, List.of(testsDataset));
+        }
+
+    }
+
     public record TestsDataset(
         String indexName,
         String mappingFileName,
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        Map<String, String> typeMapping,
+        @Nullable Map<String, String> typeMapping,
         boolean requiresInferenceEndpoint
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {

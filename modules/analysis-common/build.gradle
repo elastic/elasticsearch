@@ -13,8 +13,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" analyzers to Elasticsearch.'
-  classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+  description = 'Adds "built in" analyzers to Elasticsearch.'
+  classname = 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
   extendedPlugins = ['lang-painless']
 }
 

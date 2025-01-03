@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,13 +27,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -111,25 +110,8 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        // TODO: This only works for LEFT join, we still need to support RIGHT join
-        forEachUpWithChildren(plan, node -> {
-            if (node instanceof FragmentExec f) {
-                f.fragment().forEachUp(EsRelation.class, r -> indices.addAll(r.index().concreteIndices()));
-            }
-        }, node -> node instanceof LookupJoinExec join ? List.of(join.left()) : node.children());
+        forEachFromRelation(plan, relation -> indices.addAll(relation.index().concreteIndices()));
         return indices;
-    }
-
-    /**
-     * Similar to {@link Node#forEachUp(Consumer)}, but with a custom callback to get the node children.
-     */
-    private static <T extends Node<T>> void forEachUpWithChildren(
-        T node,
-        Consumer<? super T> action,
-        Function<? super T, Collection<T>> childrenGetter
-    ) {
-        childrenGetter.apply(node).forEach(c -> forEachUpWithChildren(c, action, childrenGetter));
-        action.accept(node);
     }
 
     /**
@@ -140,16 +122,41 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        plan.forEachUp(
-            FragmentExec.class,
-            f -> f.fragment().forEachUp(EsRelation.class, r -> addOriginalIndexIfNotLookup(indices, r.index()))
-        );
+        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.index().name()))));
         return indices.toArray(String[]::new);
     }
 
-    private static void addOriginalIndexIfNotLookup(Set<String> indices, EsIndex index) {
-        if (index.indexNameWithModes().get(index.name()) != IndexMode.LOOKUP) {
-            indices.addAll(asList(Strings.commaDelimitedListToStringArray(index.name())));
+    /**
+     * Iterates over the plan and applies the action to each {@link EsRelation} node.
+     * <p>
+     *     This method ignores the right side of joins.
+     * </p>
+     */
+    private static void forEachFromRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
+        // Take the non-join-side fragments
+        forEachUpWithChildren(plan, FragmentExec.class, fragment -> {
+            // Take the non-join-side relations
+            forEachUpWithChildren(
+                fragment.fragment(),
+                EsRelation.class,
+                action,
+                node -> node instanceof Join join ? List.of(join.left()) : node.children()
+            );
+        }, node -> node instanceof LookupJoinExec join ? List.of(join.left()) : node.children());
+    }
+
+    /**
+     * Similar to {@link Node#forEachUp(Consumer)}, but with a custom callback to get the node children.
+     */
+    private static <T extends Node<T>, E extends T> void forEachUpWithChildren(
+        T node,
+        Class<E> typeToken,
+        Consumer<? super E> action,
+        Function<? super T, Collection<T>> childrenGetter
+    ) {
+        childrenGetter.apply(node).forEach(c -> forEachUpWithChildren(c, typeToken, action, childrenGetter));
+        if (typeToken.isInstance(node)) {
+            action.accept(typeToken.cast(node));
         }
     }
 

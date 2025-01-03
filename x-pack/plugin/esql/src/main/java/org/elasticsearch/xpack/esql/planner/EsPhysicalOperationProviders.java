@@ -13,22 +13,16 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -57,7 +51,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -382,40 +375,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
-    static class TypeConvertingBlockLoader implements BlockLoader {
-        protected final BlockLoader delegate;
-        private final EvalOperator.ExpressionEvaluator convertEvaluator;
+    private static class TypeConvertingBlockLoader implements BlockLoader {
+        private final BlockLoader delegate;
+        private final TypeConverter typeConverter;
 
         protected TypeConvertingBlockLoader(BlockLoader delegate, AbstractConvertFunction convertFunction) {
             this.delegate = delegate;
-            DriverContext driverContext1 = new DriverContext(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                new org.elasticsearch.compute.data.BlockFactory(
-                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                    BigArrays.NON_RECYCLING_INSTANCE
-                )
-            );
-            EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
-                @Override
-                public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
-                    return driverContext -> new EvalOperator.ExpressionEvaluator() {
-                        @Override
-                        public org.elasticsearch.compute.data.Block eval(Page page) {
-                            // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
-                            return page.getBlock(0);
-                        }
-
-                        @Override
-                        public void close() {}
-                    };
-                }
-
-                @Override
-                public FoldContext foldCtx() {
-                    return FoldContext.unbounded() /* TODO remove me */;
-                }
-            };
-            this.convertEvaluator = convertFunction.toEvaluator(toEvaluator).get(driverContext1);
+            this.typeConverter = TypeConverter.fromConvertFunction(convertFunction);
         }
 
         @Override
@@ -426,8 +392,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public Block convert(Block block) {
-            Page page = new Page((org.elasticsearch.compute.data.Block) block);
-            return convertEvaluator.eval(page);
+            return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
         }
 
         @Override
@@ -440,9 +405,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public Block read(BlockFactory factory, Docs docs) throws IOException {
                     Block block = reader.read(factory, docs);
-                    Page page = new Page((org.elasticsearch.compute.data.Block) block);
-                    org.elasticsearch.compute.data.Block converted = convertEvaluator.eval(page);
-                    return converted;
+                    return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
                 }
 
                 @Override
@@ -482,7 +445,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public final String toString() {
-            return "TypeConvertingBlockLoader[delegate=" + delegate + ", convertEvaluator=" + convertEvaluator + "]";
+            return "TypeConvertingBlockLoader[delegate=" + delegate + ", typeConverter=" + typeConverter + "]";
         }
     }
 }

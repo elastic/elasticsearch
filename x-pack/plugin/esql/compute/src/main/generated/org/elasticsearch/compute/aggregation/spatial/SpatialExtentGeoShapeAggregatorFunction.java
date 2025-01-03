@@ -68,24 +68,23 @@ public final class SpatialExtentGeoShapeAggregatorFunction implements Aggregator
       // Entire page masked away
       return;
     }
+    BytesRefBlock block = page.getBlock(channels.get(0));
+    BytesRefVector vector = block.asVector();
     if (mask.allTrue()) {
       // No masking
-      BytesRefBlock block = page.getBlock(channels.get(0));
-      BytesRefVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
         addRawBlock(block);
       }
       return;
-    }
-    // Some positions masked away, others kept
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
     } else {
-      addRawBlock(block, mask);
+      // Some positions masked away, others kept
+      if (vector != null) {
+        addRawVector(vector, mask);
+      } else {
+        addRawBlock(block, mask);
+      }
     }
   }
 

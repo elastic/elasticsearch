@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ChangePoint;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
@@ -71,6 +72,7 @@ final class AggregateMapper {
 
     /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
     private static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
+        ChangePoint.class,
         Count.class,
         CountDistinct.class,
         Max.class,
@@ -195,6 +197,8 @@ final class AggregateMapper {
             types = List.of(""); // no type
         } else if (CountDistinct.class.isAssignableFrom(clazz)) {
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
+        } else if (ChangePoint.class.isAssignableFrom(clazz)) {
+            types = List.of("Int", "Long", "Double");
         } else {
             assert false : "unknown aggregate type " + clazz;
             throw new IllegalArgumentException("unknown aggregate type " + clazz);

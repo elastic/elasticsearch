@@ -1,0 +1,98 @@
+change point stationary with timestamp argument
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""stationary"":{}}}"
+;
+
+
+change point stationary without timestamp argument
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 minute)
+  | STATS cp=CHANGE_POINT(count)
+;
+
+cp:keyword
+"{""type"":{""stationary"":{}}}"
+;
+
+
+change point spike (long)
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | EVAL count = count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0)
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""spike"":{""p_value"":0.0,""change_point"":9}}}"
+;
+
+
+change point spike (int)
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | EVAL count = TO_INTEGER(count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0))
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""spike"":{""p_value"":0.0,""change_point"":9}}}"
+;
+
+
+change point spike (double)
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute)
+  | EVAL count = TO_DOUBLE(count + CASE(timestamp=="2024-05-10T00:09:00.000Z", 1000, 0))
+  | STATS cp=CHANGE_POINT(count, timestamp)
+;
+
+cp:keyword
+"{""type"":{""spike"":{""p_value"":0.0,""change_point"":9}}}"
+;
+
+
+change point grouping with timestamp argument
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY timestamp=BUCKET(@timestamp, 1 minute), cluster
+  | STATS cp=CHANGE_POINT(count, timestamp) BY cluster
+  | SORT cluster
+;
+
+cp:keyword                                                                                                                          | cluster:keyword
+"{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [21]""}}}" | prod
+"{""type"":{""stationary"":{}}}"                                                                                                    | qa
+"{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [18]""}}}" | staging
+;
+
+
+change point grouping without timestamp argument
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 minute), cluster
+  | STATS cp=CHANGE_POINT(count) BY cluster
+  | SORT cluster
+;
+
+cp:keyword                                                                                                                          | cluster:keyword
+"{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [21]""}}}" | prod
+"{""type"":{""stationary"":{}}}"                                                                                                    | qa
+"{""type"":{""indeterminable"":{""reason"":""not enough buckets to calculate change_point. Requires at least [22]; found [18]""}}}" | staging
+;

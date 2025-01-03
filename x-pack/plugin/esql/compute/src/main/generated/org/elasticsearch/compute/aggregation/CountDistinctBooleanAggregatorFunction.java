@@ -58,24 +58,23 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
       // Entire page masked away
       return;
     }
+    BooleanBlock block = page.getBlock(channels.get(0));
+    BooleanVector vector = block.asVector();
     if (mask.allTrue()) {
       // No masking
-      BooleanBlock block = page.getBlock(channels.get(0));
-      BooleanVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
         addRawBlock(block);
       }
       return;
-    }
-    // Some positions masked away, others kept
-    BooleanBlock block = page.getBlock(channels.get(0));
-    BooleanVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
     } else {
-      addRawBlock(block, mask);
+      // Some positions masked away, others kept
+      if (vector != null) {
+        addRawVector(vector, mask);
+      } else {
+        addRawBlock(block, mask);
+      }
     }
   }
 

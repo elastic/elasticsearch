@@ -64,6 +64,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -631,6 +632,40 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
+
+            if (isSyntheticSource) {
+                var reader = new FallbackSyntheticSourceBlockLoader.Reader() {
+                    @Override
+                    public void readValue(Object value, BlockLoader.Builder builder) {
+                        assert value instanceof BytesRef;
+                        // TODO apply ignore_above/normalizer same as sourceValueFetcher()
+                        ((BlockLoader.BytesRefBuilder )builder).appendBytesRef((BytesRef) value);
+                    }
+
+                    @Override
+                    public void parse(XContentParser parser, BlockLoader.Builder builder) throws IOException {
+                        assert parser.currentToken() == XContentParser.Token.START_ARRAY;
+
+                        var bytesRefBuilder = (BlockLoader.BytesRefBuilder ) builder;
+
+                        bytesRefBuilder.beginPositionEntry();
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
+
+                            bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
+                        }
+                        bytesRefBuilder.endPositionEntry();
+                    }
+                };
+
+                return new FallbackSyntheticSourceBlockLoader(blContext, reader, name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.bytesRefs(expectedCount);
+                    }
+                };
+            }
+
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }

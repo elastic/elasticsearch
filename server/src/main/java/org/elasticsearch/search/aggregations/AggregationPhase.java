@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,7 +75,7 @@ public class AggregationPhase {
         if (context.lowLevelCancellation()) {
             // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
             cancellationChecks.add(() -> {
-                final SearchShardTask task = context.getTask();
+                final CancellableTask task = context.getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }

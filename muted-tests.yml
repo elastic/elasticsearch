@@ -163,12 +163,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/117805
-- class: org.elasticsearch.upgrades.QueryBuilderBWCIT
-  method: testQueryBuilderBWC {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
-  method: testQueryBuilderBWC {p0=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/116989
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419

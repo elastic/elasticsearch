@@ -76,13 +76,6 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> {
-            if (p == 0 || p == 1) {
-                return "string";
-            }
-            return "integer";
-        });
-
         // Here follows some non-randomized examples that we want to cover on every run
         suppliers.add(supplier("a tiger", "a t", null, 1));
         suppliers.add(supplier("a tiger", "a", null, 1));
@@ -133,7 +126,7 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("🐱Meow!🐶Woof!", "Meow!🐶Woof!", 0, 2));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "eow!🐶Woof!", 0, 3));
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> p == 2 ? "integer" : "string");
     }
 
     @Override

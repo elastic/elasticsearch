@@ -431,7 +431,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         String typeNameOverflow = dataType.typeName().toLowerCase(Locale.ROOT) + " overflow";
         return new TestCaseSupplier(
             "<" + typeNameOverflow + ">",
-            List.of(dataType),
+            List.of(dataType, dataType),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhsSupplier.get(), dataType, "lhs"),

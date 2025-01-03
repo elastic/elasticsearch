@@ -32,22 +32,20 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
+
         doubles(cases);
 
-        cases = randomizeBytesRefsOffset(cases);
-        cases = anyNullIsNull(
-            cases,
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
             (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL ? DataType.NULL : original.expectedType(),
             (nullPosition, nullData, original) -> {
                 if (nullData.isForceLiteral()) {
                     return equalTo("LiteralsEvaluator[lit=null]");
                 }
                 return nullData.type() == DataType.NULL ? equalTo("LiteralsEvaluator[lit=null]") : original;
-            }
+            },
+            cases,
+            (valid, position) -> "double"
         );
-        cases = errorsForCasesWithoutExamples(cases, (valid, position) -> "double");
-
-        return parameterSuppliersFromTypedData(cases);
     }
 
     @Override

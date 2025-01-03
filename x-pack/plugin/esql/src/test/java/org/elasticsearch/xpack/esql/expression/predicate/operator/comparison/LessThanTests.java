@@ -172,6 +172,7 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(
                 anyNullIsNull(true, suppliers),

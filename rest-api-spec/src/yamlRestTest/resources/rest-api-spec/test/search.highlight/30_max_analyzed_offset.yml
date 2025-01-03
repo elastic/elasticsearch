@@ -146,8 +146,12 @@ setup:
 "Plain highlighter with max_analyzed_offset < -1 should FAIL":
 
   - requires:
-      cluster_features: ["gte_v7.12.0"]
-      reason: max_analyzed_offset query param added in 7.12.0
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ max_analyzed_offset_default ]
+      reason: Behavior of max_analyzed_offset query param changed in 8.18.
 
   - do:
       catch: bad_request

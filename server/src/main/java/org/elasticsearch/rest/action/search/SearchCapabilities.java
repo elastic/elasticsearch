@@ -49,6 +49,8 @@ public final class SearchCapabilities {
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
     private static final String KNN_QUANTIZED_VECTOR_RESCORE = "knn_quantized_vector_rescore";
 
+    private static final String MAX_ANALYZED_OFFSET_DEFAULT = "max_analyzed_offset_default";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -70,6 +72,7 @@ public final class SearchCapabilities {
         if (Build.current().isSnapshot()) {
             capabilities.add(KQL_QUERY_SUPPORTED);
         }
+        capabilities.add(MAX_ANALYZED_OFFSET_DEFAULT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

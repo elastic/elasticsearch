@@ -18,11 +18,11 @@ import java.util.Objects;
  */
 public class Scope {
 
-    public final String name;
+    public final String moduleName;
     public final List<Entitlement> entitlements;
 
-    public Scope(String name, List<Entitlement> entitlements) {
-        this.name = Objects.requireNonNull(name);
+    public Scope(String moduleName, List<Entitlement> entitlements) {
+        this.moduleName = moduleName;
         this.entitlements = Collections.unmodifiableList(Objects.requireNonNull(entitlements));
     }
 
@@ -31,16 +31,16 @@ public class Scope {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Scope scope = (Scope) o;
-        return Objects.equals(name, scope.name) && Objects.equals(entitlements, scope.entitlements);
+        return Objects.equals(moduleName, scope.moduleName) && Objects.equals(entitlements, scope.entitlements);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, entitlements);
+        return Objects.hash(moduleName, entitlements);
     }
 
     @Override
     public String toString() {
-        return "Scope{" + "name='" + name + '\'' + ", entitlements=" + entitlements + '}';
+        return "Scope{" + "name='" + moduleName + '\'' + ", entitlements=" + entitlements + '}';
     }
 }

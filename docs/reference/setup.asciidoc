@@ -83,8 +83,6 @@ include::modules/indices/search-settings.asciidoc[]
 
 include::settings/security-settings.asciidoc[]
 
-include::modules/shard-ops.asciidoc[]
-
 include::modules/indices/request_cache.asciidoc[]
 
 include::settings/snapshot-settings.asciidoc[]

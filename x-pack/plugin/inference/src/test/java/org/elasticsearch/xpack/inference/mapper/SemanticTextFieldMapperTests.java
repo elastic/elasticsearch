@@ -775,6 +775,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
     }
 
+    public void testModelSettingsRequiredWithChunks() throws IOException {
+        // Create inference results where model settings are set to null and chunks are provided
+        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        SemanticTextField randomSemanticText = randomSemanticText(useLegacyFormat, "field", model, List.of("a"), XContentType.JSON);
+        SemanticTextField inferenceResults = new SemanticTextField(
+            randomSemanticText.useLegacyFormat(),
+            randomSemanticText.fieldName(),
+            randomSemanticText.originalValues(),
+            new SemanticTextField.InferenceResult(
+                randomSemanticText.inference().inferenceId(),
+                null,
+                randomSemanticText.inference().chunks()
+            ),
+            randomSemanticText.contentType()
+        );
+
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null)),
+            useLegacyFormat
+        );
+        SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source)
+        );
+        assertThat(ex.getMessage(), containsString("[model_settings] must be set for field [field] when chunks are provided"));
+    }
+
     private MapperService mapperServiceForFieldWithModelSettings(
         String fieldName,
         String inferenceId,

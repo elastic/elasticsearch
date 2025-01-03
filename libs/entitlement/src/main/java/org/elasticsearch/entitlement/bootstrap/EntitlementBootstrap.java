@@ -101,19 +101,49 @@ public class EntitlementBootstrap {
     }
 
     /**
+     * Attempt a few sensitive operations to ensure that some are permitted and some are forbidden.
+     *
      * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
      */
     private static void selfTest() {
-        var pb = new ProcessBuilder(""); // The command doesn't matter; it doesn't even need to exist
+        ensureCannotStartProcess();
+        ensureCanCreateTempFile();
+    }
+
+    private static void ensureCannotStartProcess() {
         try {
-            pb.start();
+            // The command doesn't matter; it doesn't even need to exist
+            new ProcessBuilder("").start();
         } catch (NotEntitledException e) {
-            logger.debug("Success: Entitlement protection correctly prevented disallowed action");
+            logger.debug("Success: Entitlement protection correctly prevented process creation");
             return;
         } catch (IOException e) {
             throw new IllegalStateException("Failed entitlement protection self-test", e);
         }
-        throw new IllegalStateException("Failed entitlement protection self-test");
+        throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+    }
+
+    /**
+     * Originally {@code Security.selfTest}.
+     */
+    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
+    private static void ensureCanCreateTempFile() {
+        try {
+            Path p = Files.createTempFile(null, null);
+            p.toFile().deleteOnExit();
+
+            // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.
+            try {
+                Files.delete(p);
+            } catch (IOException ignored) {
+                // Can be caused by virus scanner
+            }
+        } catch (NotEntitledException e) {
+            throw new IllegalStateException("Entitlement protection self-test was incorrectly forbidden", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to perform entitlement protection self-test", e);
+        }
+        logger.debug("Success: Entitlement protection correctly permitted temp file creation");
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

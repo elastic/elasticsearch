@@ -105,6 +105,7 @@ Event body:
                 service.name: my-service
             attributes:
               event.name: foo
+            event_name: foo
             body:
               structured:
                 foo:
@@ -119,6 +120,7 @@ Event body:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
   - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.properties.foo\.bar.type: "keyword" }
+  - match: { .$datastream-backing-index.mappings.properties.event_name.type: "keyword" }
 ---
 Structured log body:
   - do:

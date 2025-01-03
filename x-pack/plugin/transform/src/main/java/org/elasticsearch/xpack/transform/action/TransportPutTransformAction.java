@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
@@ -102,6 +103,16 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
+        if (TransformMetadata.upgradeMode(clusterState)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot create new Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
+
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
         config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
 
@@ -114,12 +125,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <3> Create the transform
+        // <4> Create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
             (l, unused) -> putTransform(request, l)
         );
 
-        // <2> Validate source and destination indices
+        // <3> Validate source and destination indices
 
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
@@ -132,7 +143,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             )
         );
 
-        // <1> Early check to verify that the user can create the destination index and can read from the source
+        // <2> Early check to verify that the user can create the destination index and can read from the source
         ActionListener<Void> createIndexListener = checkPrivilegesListener.delegateFailureAndWrap((l, r) -> {
             if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 TransformPrivilegeChecker.checkPrivileges(

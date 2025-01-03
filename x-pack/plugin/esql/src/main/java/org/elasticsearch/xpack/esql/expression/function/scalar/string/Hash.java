@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -46,7 +47,8 @@ public class Hash extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512."
+        description = "Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512.",
+        examples = { @Example(file = "hash", tag = "hash") }
     )
     public Hash(
         Source source,
@@ -186,10 +188,18 @@ public class Hash extends EsqlScalarFunction {
 
     public record HashFunction(String algorithm, MessageDigest digest) {
 
+        public static HashFunction create(String algorithm) {
+            try {
+                return new HashFunction(algorithm, MessageDigest.getInstance(algorithm));
+            } catch (NoSuchAlgorithmException e) {
+                assert false : "Expected to create a valid hashing algorithm";
+                throw new IllegalStateException(e);
+            }
+        }
+
         public static HashFunction create(BytesRef literal) throws NoSuchAlgorithmException {
             var algorithm = literal.utf8ToString();
-            var digest = MessageDigest.getInstance(algorithm);
-            return new HashFunction(algorithm, digest);
+            return new HashFunction(algorithm, MessageDigest.getInstance(algorithm));
         }
 
         public HashFunction copy() {

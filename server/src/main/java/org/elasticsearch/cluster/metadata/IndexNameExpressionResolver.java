@@ -88,7 +88,8 @@ public class IndexNameExpressionResolver {
      * This represents a resolved expression in the form of the name of a resource in the cluster and a potential selector
      * which defines which part of the resource the expression is targeting.
      * @param resource the name of a resource that an expression refers to.
-     * @param selector optionally indicates which part of a resource to target during an operation.
+     * @param selector optionally indicates which part of a resource to target during an operation. A null value indicates selectors are
+     *                 unsupported in an API and the default data component of the expression should be used where applicable.
      */
     public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
         public ResolvedExpression(String indexAbstraction) {

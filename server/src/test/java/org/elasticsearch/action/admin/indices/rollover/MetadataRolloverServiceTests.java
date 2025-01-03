@@ -752,7 +752,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 // ensure no replicate data stream
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
-            if (dataStream.isFailureStoreEnabled() && randomBoolean()) {
+            if (dataStream.isFailureStoreExplicitlyEnabled() && randomBoolean()) {
                 sourceIndexName = dataStream.getFailureStoreWriteIndex().getName();
                 isFailureStoreRollover = true;
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(

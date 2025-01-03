@@ -12,6 +12,9 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -122,13 +125,25 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
         assertOK(client().performRequest(otherRequest));
     }
 
-    public void testEnableDisableFailureStore() throws IOException {
+    public void testBehaviorWithEachFailureStoreOptionAndClusterSetting() throws IOException {
         {
+            // Default data stream options
             assertAcknowledged(client().performRequest(new Request("DELETE", "/_data_stream/" + DATA_STREAM_NAME + "/_options")));
-            assertFailureStore(false, 1);
+            setDataStreamFailureStoreClusterSetting(DATA_STREAM_NAME);
             assertDataStreamOptions(null);
+            assertFailureStoreValuesInGetDataStreamResponse(true, 1);
+            assertRedirectsDocWithBadMappingToFailureStore();
+            setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream");
+            assertDataStreamOptions(null);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
+            setDataStreamFailureStoreClusterSetting(null); // should get same behaviour as when we set it to something non-matching
+            assertDataStreamOptions(null);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
         }
         {
+            // Data stream options with failure store enabled
             Request enableRequest = new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME + "/_options");
             enableRequest.setJsonEntity("""
                 {
@@ -137,11 +152,21 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }""");
             assertAcknowledged(client().performRequest(enableRequest));
-            assertFailureStore(true, 1);
+            setDataStreamFailureStoreClusterSetting(DATA_STREAM_NAME);
             assertDataStreamOptions(true);
+            assertFailureStoreValuesInGetDataStreamResponse(true, 1);
+            assertRedirectsDocWithBadMappingToFailureStore();
+            setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream"); // should have no effect as enabled in options
+            assertDataStreamOptions(true);
+            assertFailureStoreValuesInGetDataStreamResponse(true, 1);
+            assertRedirectsDocWithBadMappingToFailureStore();
+            setDataStreamFailureStoreClusterSetting(null); // same as previous
+            assertDataStreamOptions(true);
+            assertFailureStoreValuesInGetDataStreamResponse(true, 1);
+            assertRedirectsDocWithBadMappingToFailureStore();
         }
-
         {
+            // Data stream options with failure store disabled
             Request disableRequest = new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME + "/_options");
             disableRequest.setJsonEntity("""
                 {
@@ -150,13 +175,23 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }""");
             assertAcknowledged(client().performRequest(disableRequest));
-            assertFailureStore(false, 1);
+            setDataStreamFailureStoreClusterSetting(DATA_STREAM_NAME); // should have no effect as disabled in options
             assertDataStreamOptions(false);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
+            setDataStreamFailureStoreClusterSetting("does-not-match-failure-data-stream");
+            assertDataStreamOptions(false);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
+            setDataStreamFailureStoreClusterSetting(null);
+            assertDataStreamOptions(false);
+            assertFailureStoreValuesInGetDataStreamResponse(false, 1);
+            assertFailsDocWithBadMapping();
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void assertFailureStore(boolean failureStoreEnabled, int failureStoreSize) throws IOException {
+    private void assertFailureStoreValuesInGetDataStreamResponse(boolean failureStoreEnabled, int failureStoreSize) throws IOException {
         final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
         List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
         assertThat(dataStreams.size(), is(1));
@@ -197,5 +232,33 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
     private List<String> getIndices(Map<String, Object> response) {
         List<Map<String, String>> indices = (List<Map<String, String>>) response.get("indices");
         return indices.stream().map(index -> index.get("index_name")).toList();
+    }
+
+    private static void setDataStreamFailureStoreClusterSetting(String value) throws IOException {
+        updateClusterSettings(
+            Settings.builder().put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), value).build()
+        );
+    }
+
+    private Response putDocumentWithBadMapping() throws IOException {
+        Request request = new Request("POST", DATA_STREAM_NAME + "/_doc");
+        request.setJsonEntity("""
+            {
+              "@timestamp": "not a timestamp",
+              "foo": "bar"
+            }
+            """);
+        return client().performRequest(request);
+    }
+
+    private void assertRedirectsDocWithBadMappingToFailureStore() throws IOException {
+        Response response = putDocumentWithBadMapping();
+        String failureStoreResponse = (String) entityAsMap(response).get("failure_store");
+        assertThat(failureStoreResponse, is("used"));
+    }
+
+    private void assertFailsDocWithBadMapping() {
+        ResponseException e = assertThrows(ResponseException.class, this::putDocumentWithBadMapping);
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(RestStatus.BAD_REQUEST.getStatus()));
     }
 }

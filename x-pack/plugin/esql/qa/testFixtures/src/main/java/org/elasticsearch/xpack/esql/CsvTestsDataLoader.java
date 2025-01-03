@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -104,6 +105,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset("countries_bbox_web");
     private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset("airport_city_boundaries");
     private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset("cartesian_multipolygons");
+    private static final TestsDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestsDataset("cartesian_multipolygons_no_doc_values")
+        .withData("cartesian_multipolygons.csv");
     private static final TestsDataset MULTIVALUE_GEOMETRIES = new TestsDataset("multivalue_geometries");
     private static final TestsDataset MULTIVALUE_POINTS = new TestsDataset("multivalue_points");
     private static final TestsDataset DISTANCES = new TestsDataset("distances");
@@ -148,6 +151,7 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES.indexName, CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES),
         Map.entry(MULTIVALUE_GEOMETRIES.indexName, MULTIVALUE_GEOMETRIES),
         Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
@@ -600,13 +604,20 @@ public class CsvTestsDataLoader {
         }
     }
 
+    public record MultiIndexTestDataset(String indexPattern, List<TestsDataset> datasets) {
+        public static MultiIndexTestDataset of(TestsDataset testsDataset) {
+            return new MultiIndexTestDataset(testsDataset.indexName, List.of(testsDataset));
+        }
+
+    }
+
     public record TestsDataset(
         String indexName,
         String mappingFileName,
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        Map<String, String> typeMapping,
+        @Nullable Map<String, String> typeMapping,
         boolean requiresInferenceEndpoint
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {

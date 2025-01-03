@@ -18,7 +18,7 @@ Search for exact values::
 Search for <<term-level-queries,exact values or ranges>> of numbers, dates, IPs,
 or strings.
 
-Full-text search::
+<<full-text-search,Full-text search>>::
 Use <<full-text-queries,full text queries>> to query <<analysis,unstructured
 textual data>> and find documents that best match query terms.
 
@@ -43,6 +43,7 @@ DSL, with a simplified user experience. Create search applications based on your
 results directly in the Kibana Search UI.
 
 include::search-api.asciidoc[]
+include::full-text-search.asciidoc[]
 include::../../how-to/recipes.asciidoc[]
 // ☝️ search relevance recipes
 include::retrievers-overview.asciidoc[]

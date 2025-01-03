@@ -260,7 +260,7 @@ Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on examp
 
 *{esql}* is a new piped query language and compute engine which was first added in version *8.11*.
 
-{esql} does not yet support all the features of Query DSL, like full-text search and semantic search.
+{esql} does not yet support all the features of Query DSL.
 Look forward to new {esql} features and functionalities in each release.
 
 Refer to <<search-analyze-query-languages>> for a full overview of the query languages available in {es}.
@@ -280,7 +280,7 @@ The <<search-your-data, `_search` endpoint>> accepts queries written in Query DS
 
 Query DSL support a wide range of search techniques, including the following:
 
-* <<full-text-queries,*Full-text search*>>: Search text that has been analyzed and indexed to support phrase or proximity queries, fuzzy matches, and more.
+* <<full-text-search,*Full-text search*>>: Search text that has been analyzed and indexed to support phrase or proximity queries, fuzzy matches, and more.
 * <<keyword,*Keyword search*>>: Search for exact matches using `keyword` fields.
 * <<semantic-search-semantic-text,*Semantic search*>>: Search `semantic_text` fields using dense or sparse vector search on embeddings generated in your {es} cluster.
 * <<knn-search,*Vector search*>>: Search for similar dense vectors using the kNN algorithm for embeddings generated outside of {es}.
@@ -328,8 +328,7 @@ directly executed within {es} itself.
 
 The <<esql-rest,`_query` endpoint>> accepts queries written in {esql} syntax.
 
-Today, it supports a subset of the features available in Query DSL, like aggregations, filters, and transformations.
-It does not yet support full-text search or semantic search.
+Today, it supports a subset of the features available in Query DSL, but it is rapidly evolving.
 
 It comes with a comprehensive set of <<esql-functions-operators,functions and operators>> for working with data and has robust integration with {kib}'s Discover, dashboards and visualizations.
 

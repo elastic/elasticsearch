@@ -1,6 +1,13 @@
 [[analysis-tokenizers]]
 == Tokenizer reference
 
+[NOTE]
+====
+{es}'s text analysis produces meaningful _linguistic_ tokens (like words and phrases) optimized for search relevance scoring.
+This differs from neural tokenizers, which break text into smaller subword units and numerical vectors for machine learning models.
+For example, "searching" becomes the searchable word token "search" in {es}, while a neural tokenizer might split it into ["sea", "##rch", "##ing"] for model consumption.
+====
+
 A _tokenizer_ receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
 instance, a <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks

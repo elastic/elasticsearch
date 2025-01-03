@@ -67,7 +67,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -709,7 +708,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             iw.close();
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(List.of("fieldA"));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -740,7 +739,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("obj.fieldC", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(List.of("obj.fieldC"));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -772,7 +771,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(Arrays.asList("arr.fieldD", IgnoredSourceFieldMapper.NAME));
+                Automaton automaton = Automatons.patterns(List.of("arr.fieldD"));
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),

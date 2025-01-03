@@ -138,7 +138,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (FieldPermissions.METADATA_FIELDS_ALLOWLIST.contains(fi.name) || filter.run(fi.name)) {
+            if (FieldPermissions.METADATA_FIELDS_ALLOWLIST_PREDICATE.test(fi.name) || filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -191,9 +191,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
 
-            // TODO make sure this correctly handles _source and _ignored_source
-            if (initialState == 0 && FieldPermissions.METADATA_FIELDS_ALLOWLIST.contains(key)) {
-                // If the field is a metadata field, we always include it.
+            // TODO make sure this correctly handles _source and _ignored_sources
+            if (initialState == 0 && FieldPermissions.METADATA_FIELDS_ALLOWLIST_PREDICATE.test(key)) {
+                // If the field is an allowlisted metadata field, we always include it.
                 filtered.put(key, entry.getValue());
                 continue;
             }

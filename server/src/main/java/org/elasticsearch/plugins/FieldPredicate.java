@@ -117,7 +117,7 @@ public interface FieldPredicate extends Accountable, Predicate<String> {
 
         @Override
         public String toString() {
-            return first + " then " + second;
+            return first + " or " + second;
         }
     }
 }

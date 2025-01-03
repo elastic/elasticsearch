@@ -74,6 +74,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         SourceFieldMapper.NAME,
         IgnoredSourceFieldMapper.NAME,
         NestedPathFieldMapper.NAME,
+        NestedPathFieldMapper.NAME_PRE_V8,
         VersionFieldMapper.NAME,
         SeqNoFieldMapper.NAME,
         SeqNoFieldMapper.PRIMARY_TERM_NAME,
@@ -88,6 +89,27 @@ public final class FieldPermissions implements Accountable, CacheKey {
         // XPackPlugin
         DataTierFieldMapper.NAME
     );
+    public static final FieldPredicate METADATA_FIELDS_ALLOWLIST_PREDICATE = new FieldPredicate() {
+        @Override
+        public boolean test(String field) {
+            return METADATA_FIELDS_ALLOWLIST.contains(field);
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return hash + ":metadata_fields_allowlist";
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0; // shared
+        }
+
+        @Override
+        public String toString() {
+            return "metadata fields allowlist";
+        }
+    };
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
@@ -157,25 +179,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
-        // TODO clean up
-        this.fieldPredicate = permittedFieldsAutomatonIsTotal ? FieldPredicate.ACCEPT_ALL : new FieldPredicate.Or(new FieldPredicate() {
-            @Override
-            public boolean test(String field) {
-                return METADATA_FIELDS_ALLOWLIST.contains(field);
-            }
-
-            @Override
-            public String modifyHash(String hash) {
-                // TODO
-                return hash + ":" + METADATA_FIELDS_ALLOWLIST.hashCode();
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                // TODO
-                return 0;
-            }
-        }, new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton));
+        this.fieldPredicate = permittedFieldsAutomatonIsTotal
+            ? FieldPredicate.ACCEPT_ALL
+            : new FieldPredicate.Or(
+                METADATA_FIELDS_ALLOWLIST_PREDICATE,
+                new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton)
+            );
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
         ramBytesUsed += this.fieldPermissionsDefinitions.stream()
@@ -334,7 +343,9 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * fieldName can be a wildcard.
      */
     public boolean grantsAccessTo(String fieldName) {
-        return permittedFieldsAutomatonIsTotal || METADATA_FIELDS_ALLOWLIST.contains(fieldName) || permittedFieldsAutomaton.run(fieldName);
+        return permittedFieldsAutomatonIsTotal
+            || METADATA_FIELDS_ALLOWLIST_PREDICATE.test(fieldName)
+            || permittedFieldsAutomaton.run(fieldName);
     }
 
     public FieldPredicate fieldPredicate() {

@@ -36,7 +36,7 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
     /**
      * Creates an index and a snapshot on N-2, then mounts the snapshot during rolling upgrades.
      */
-    public void testSearchableSnapshot() throws Exception {
+    public void testMountSearchableSnapshot() throws Exception {
         final String repository = suffix("repository");
         final String snapshot = suffix("snapshot");
         final String index = suffix("index-rolling-upgrade");

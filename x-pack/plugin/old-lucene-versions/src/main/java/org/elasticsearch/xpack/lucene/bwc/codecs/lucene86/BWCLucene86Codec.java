@@ -35,7 +35,7 @@ import java.util.Objects;
 
 /**
  * Implements the Lucene 8.6 index format. Loaded via SPI for indices created/written with Lucene 8.6.0-8.6.2
- * (Elasticsearch [7.9.0-v7.9.3]), mounted as archive indices in Elasticsearch 8.x / 9.x.
+ * (Elasticsearch [7.9.0-7.9.3]), mounted as archive indices in Elasticsearch 8.x / 9.x.
  */
 public class BWCLucene86Codec extends BWCCodec {
 

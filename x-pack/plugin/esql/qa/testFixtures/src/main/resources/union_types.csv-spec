@@ -445,6 +445,7 @@ count:long  |  message:keyword
 
 multiIndexMissingIpToString
 required_capability: union_types
+required_capability: metadata_fields
 required_capability: union_types_missing_field
 
 FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
@@ -479,6 +480,7 @@ sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450
 
 multiIndexMissingIpToIp
 required_capability: union_types
+required_capability: metadata_fields
 required_capability: union_types_missing_field
 
 FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
@@ -1373,9 +1375,6 @@ client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keywo
 # Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
 
 multiIndexIndirectUseOfUnionTypesInSort
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
 | LIMIT 1
@@ -1386,8 +1385,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInEval
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | EVAL foo = event_duration > 1232381
@@ -1400,9 +1397,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInRename
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | RENAME message AS event_message
@@ -1415,9 +1409,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInKeep
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | KEEP client_ip, event_duration, message
 | SORT client_ip ASC
@@ -1429,9 +1420,6 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP *
@@ -1444,9 +1432,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep2
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP *e*
@@ -1460,9 +1445,6 @@ FROM sample_data, sample_data_ts_long
 
 
 multiIndexUseOfUnionTypesInKeep
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP @timestamp
@@ -1474,9 +1456,6 @@ null
 ;
 
 multiIndexUseOfUnionTypesInDrop
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | DROP @timestamp
@@ -1489,9 +1468,6 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardDrop
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | DROP *time*
@@ -1504,9 +1480,6 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWhere
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | WHERE message == "Disconnected"
 ;
@@ -1517,9 +1490,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInDissect
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | DISSECT message "%{foo}"
 | SORT client_ip ASC
@@ -1531,9 +1501,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInGrok
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | GROK message "%{WORD:foo}"
 | SORT client_ip ASC
@@ -1545,9 +1512,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInEnrich
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: enrich_load
 FROM sample_data, sample_data_ts_long
 | EVAL client_ip = client_ip::keyword
@@ -1561,9 +1525,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInStats
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | STATS foo = max(event_duration) BY client_ip
 | SORT client_ip ASC
@@ -1577,9 +1538,6 @@ foo:long | client_ip:ip
 ;
 
 multiIndexIndirectUseOfUnionTypesInInlineStats-Ignore
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: inlinestats
 FROM sample_data, sample_data_ts_long
 | INLINESTATS foo = max(event_duration)
@@ -1592,9 +1550,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInLookup-Ignore
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: lookup_v4
 FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
@@ -1608,9 +1563,6 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInMvExpand
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | EVAL foo = MV_APPEND(message, message)
 | SORT client_ip ASC

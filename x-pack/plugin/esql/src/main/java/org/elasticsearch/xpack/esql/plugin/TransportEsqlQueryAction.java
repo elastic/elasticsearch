@@ -13,12 +13,14 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -79,6 +81,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final QueryBuilderResolver queryBuilderResolver;
     private final UsageService usageService;
+    // Listeners for active async queries, key being the async task execution ID
+    private final Map<String, SubscribableListener<EsqlQueryResponse>> asyncListeners = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -167,7 +171,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
-        ActionListener.run(listener, l -> innerExecute(task, request, l));
+        // Since the request is async here, we need to wrap the listener in a SubscribableListener so that we can collect the results from
+        // other endpoints, such as _query/async/stop
+        var subListener = new SubscribableListener<EsqlQueryResponse>();
+        String asyncExecutionId = task.getExecutionId().getEncoded();
+        // TODO: is runBefore correct here?
+        subListener.addListener(ActionListener.runBefore(listener, () -> asyncListeners.remove(asyncExecutionId)));
+        asyncListeners.put(asyncExecutionId, subListener);
+        ActionListener.run(subListener, l -> innerExecute(task, request, l));
+    }
+
+    public SubscribableListener<EsqlQueryResponse> getAsyncListener(String executionId) {
+        return asyncListeners.get(executionId);
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

@@ -568,6 +568,7 @@ public class Constants {
         "indices:data/read/eql/async/get",
         "indices:data/read/esql",
         "indices:data/read/esql/async/get",
+        "indices:data/read/esql/async/stop",
         "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql/search_shards",
         "indices:data/read/explain",

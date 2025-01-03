@@ -1,0 +1,31 @@
+{
+  "esql.async_query_stop": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-stop-api.html",
+      "description": "Stops a previously submitted async query request given its ID and collects the results."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/async/{id}/stop",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async query ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

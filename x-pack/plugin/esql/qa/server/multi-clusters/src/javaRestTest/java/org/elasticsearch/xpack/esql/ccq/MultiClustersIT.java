@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -260,8 +261,8 @@ public class MultiClustersIT extends ESRestTestCase {
     private void assertClusterDetailsMap(Map<String, Object> result, boolean remoteOnly) {
         @SuppressWarnings("unchecked")
         Map<String, Object> clusters = (Map<String, Object>) result.get("_clusters");
-        assertThat(clusters.size(), equalTo(7));
-        assertThat(clusters.keySet(), equalTo(Set.of("total", "successful", "running", "skipped", "partial", "failed", "details")));
+        assertThat(clusters.size(), greaterThanOrEqualTo(7));
+        assertThat(clusters.keySet(), hasItems("total", "successful", "running", "skipped", "partial", "failed", "details"));
         int expectedNumClusters = remoteOnly ? 1 : 2;
         Set<String> expectedClusterAliases = remoteOnly ? Set.of("remote_cluster") : Set.of("remote_cluster", "(local)");
 
@@ -271,6 +272,10 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusters.get("skipped"), equalTo(0));
         assertThat(clusters.get("partial"), equalTo(0));
         assertThat(clusters.get("failed"), equalTo(0));
+        if (clusters.containsKey("is_partial")) {
+            // for some BWC tests, the is_partial key may not be present
+            assertThat(clusters.get("is_partial"), equalTo(false));
+        }
 
         @SuppressWarnings("unchecked")
         Map<String, Object> details = (Map<String, Object>) clusters.get("details");

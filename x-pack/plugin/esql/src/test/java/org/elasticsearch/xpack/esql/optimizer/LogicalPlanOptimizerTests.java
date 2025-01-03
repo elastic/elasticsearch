@@ -6808,4 +6808,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
     }
+
+    public void testWhereNull() {
+        var plan = plan("""
+            from test
+            | sort salary
+            | rename emp_no as e, first_name as f
+            | keep salary, e, f
+            | where null
+            | LIMIT 12
+            """);
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
 }

@@ -237,9 +237,13 @@ public class Verifier {
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter f) {
             Expression condition = f.condition();
-            if (condition.dataType() != BOOLEAN) {
-                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
-            }
+            checkConditionExpressionDataType(condition, localFailures);
+        }
+    }
+
+    private static void checkConditionExpressionDataType(Expression expression, Set<Failure> localFailures) {
+        if (expression.dataType() != NULL && expression.dataType() != BOOLEAN) {
+            localFailures.add(fail(expression, "Condition expression needs to be boolean, found [{}]", expression.dataType()));
         }
     }
 
@@ -432,9 +436,7 @@ public class Verifier {
             }
             Expression f = fe.filter();
             // check the filter has to be a boolean term, similar as checkFilterConditionType
-            if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
-                failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
-            }
+            checkConditionExpressionDataType(f, failures);
             // but that the filter doesn't use grouping or aggregate functions
             fe.filter().forEachDown(c -> {
                 if (c instanceof AggregateFunction af) {

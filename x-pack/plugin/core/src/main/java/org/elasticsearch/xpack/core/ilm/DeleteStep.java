@@ -41,7 +41,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            Index failureStoreWriteIndex = dataStream.getWriteFailureIndex();
             boolean isFailureStoreWriteIndex = failureStoreWriteIndex != null && indexName.equals(failureStoreWriteIndex.getName());
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream

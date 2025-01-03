@@ -222,9 +222,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
         ClusterState newState = replaceSourceIndexStep.performAction(indexToOperateOn.getIndex(), clusterState);
         DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStreamName);
-        DataStream.DataStreamIndices resultIndices = useFailureStore
-            ? updatedDataStream.getFailureIndices()
-            : updatedDataStream.getBackingIndices();
+        DataStream.DataStreamIndices resultIndices = updatedDataStream.getDataStreamIndices(useFailureStore);
         assertThat(resultIndices.getIndices().size(), is(2));
         assertThat(resultIndices.getIndices().get(0), is(targetIndexMetadata.getIndex()));
     }

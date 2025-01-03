@@ -885,12 +885,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
             DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
-            if (dataStream.getFailureIndices().getIndices().size() < 1) {
+            if (dataStream.getFailureIndices().size() < 1) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the target data stream does not have one enabled"
                 );
             }
-            return dataStream.getFailureIndices().getIndices().get(dataStream.getFailureIndices().getIndices().size() - 1);
+            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
         } else {
             // Resolve as normal
             return ia.getWriteIndex(this, metadata);

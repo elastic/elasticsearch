@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
@@ -46,7 +47,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX,
             SEMANTIC_TEXT_HIGHLIGHTER,
             SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
-            SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED
+            SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
+            SemanticInferenceMetadataFieldsMapper.EXPLICIT_NULL_FIXES
         );
     }
 }

@@ -88,7 +88,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
 
     @After
     public final void deleteSnapshotBlobCache() throws IOException {
-        // TODO Having the .snapshot-blob-cache created can block the upgrades. How is it handled today?
+        // TODO ES-10475: The .snapshot-blob-cache created in legacy version can block upgrades, we should probably delete it automatically
         try {
             var request = new Request("DELETE", "/.snapshot-blob-cache");
             request.setOptions(

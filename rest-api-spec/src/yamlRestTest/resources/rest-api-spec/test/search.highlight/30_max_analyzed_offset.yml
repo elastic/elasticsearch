@@ -143,6 +143,24 @@ setup:
   - match: { hits.hits.0.highlight: null }
 
 ---
+"Plain highlighter with max_analyzed_offset = -1 should default to index analyze offset":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ max_analyzed_offset_default ]
+      reason: Behavior of max_analyzed_offset query param changed in 8.18.
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": -1}}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+
+---
 "Plain highlighter with max_analyzed_offset < -1 should FAIL":
 
   - requires:

@@ -551,6 +551,7 @@ subprojects { Project subProject ->
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable = 'docker'
       outputs.file(tarFile)
+      outputs.doNotCacheIf("Build cache is disabled for export tasks") { true }
       args "save",
         "-o",
         tarFile,

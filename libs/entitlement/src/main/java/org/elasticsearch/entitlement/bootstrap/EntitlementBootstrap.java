@@ -112,6 +112,18 @@ public class EntitlementBootstrap {
 
     /**
      * Attempt a few sensitive operations to ensure that some are permitted and some are forbidden.
+     * <p>
+     *
+     * This serves two purposes:
+     *
+     * <ol>
+     *     <li>
+     *         a smoke test to make sure the entitlements system is not completely broken, and
+     *     </li>
+     *     <li>
+     *         an early test of certain important operations so they don't fail later on at an awkward time.
+     *     </li>
+     * </ol>
      *
      * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
      */

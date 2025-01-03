@@ -1784,7 +1784,7 @@ public class MetadataIndexTemplateService {
                     .put(
                         IndexMetadata.builder(temporaryIndexName)
                             // necessary to pass asserts in ClusterState constructor
-                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, state.getMinTransportVersion())
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                             .settings(finalResolvedSettings)
                     )
                     .build()

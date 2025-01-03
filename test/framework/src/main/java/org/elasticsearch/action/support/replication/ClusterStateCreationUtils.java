@@ -10,7 +10,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -151,7 +150,7 @@ public class ClusterStateCreationUtils {
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(timeFieldRange)
-            .eventIngestedRange(timeFieldRange, timeFieldRange == IndexLongFieldRange.UNKNOWN ? null : TransportVersions.V_8_15_0)
+            .eventIngestedRange(timeFieldRange)
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
@@ -284,7 +283,7 @@ public class ClusterStateCreationUtils {
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
-                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, randomFrom(TransportVersions.V_8_0_0, TransportVersions.V_8_15_0))
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -390,7 +389,7 @@ public class ClusterStateCreationUtils {
                     )
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
-                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, null)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                 .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());

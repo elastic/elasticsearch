@@ -100,10 +100,8 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-By default, {es-sql} doesn't search <<unfreeze-index-api,frozen indices>>. To
+By default, {es-sql} doesn't search <<frozen-indices,frozen indices>>. To
 search frozen indices, use one of the following features:
-
-// TODO(pete): Figure out whether it's okay for this to point to the 'deleted pages' entry.
 
 dedicated configuration parameter::
 Set to `true` properties `index_include_frozen` in the <<sql-search-api,SQL search API>> or `index.include.frozen` in the drivers to include frozen indices.

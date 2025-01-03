@@ -76,7 +76,6 @@ public class ModTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), ModTests::modErrorMessageString);
 
         // Divide by zero cases - all of these should warn and return null
         TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
@@ -150,6 +149,9 @@ public class ModTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), ModTests::modErrorMessageString);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
     }
 

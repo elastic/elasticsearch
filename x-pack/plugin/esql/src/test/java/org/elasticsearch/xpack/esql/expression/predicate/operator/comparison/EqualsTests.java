@@ -236,6 +236,7 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(
                 anyNullIsNull(true, suppliers),

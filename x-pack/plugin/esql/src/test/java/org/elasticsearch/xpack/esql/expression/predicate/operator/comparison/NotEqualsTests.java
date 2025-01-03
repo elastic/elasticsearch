@@ -232,6 +232,8 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(
                 anyNullIsNull(true, suppliers),

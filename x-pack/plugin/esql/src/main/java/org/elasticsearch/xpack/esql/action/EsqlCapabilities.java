@@ -86,6 +86,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
+         */
+        FN_ROUND_UL_FIXES,
+
+        /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
          */
         FUNCTIONS_NEVER_EMIT_TEXT,

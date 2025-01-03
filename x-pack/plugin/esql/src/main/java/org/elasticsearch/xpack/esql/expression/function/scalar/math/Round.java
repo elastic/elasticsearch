@@ -126,10 +126,11 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         return Maths.round(val, decimals).longValue();
     }
 
-    @Evaluator(extraName = "UnsignedLong")
+    @Evaluator(extraName = "UnsignedLong", warnExceptions = InvalidArgumentException.class)
     static long processUnsignedLong(long val, long decimals) {
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
+            // May throw InvalidArgumentException if "decimals" is negative and too large
             BigInteger rounded = Maths.round(bi, decimals);
             return bigIntegerToUnsignedLong(rounded);
         } else {

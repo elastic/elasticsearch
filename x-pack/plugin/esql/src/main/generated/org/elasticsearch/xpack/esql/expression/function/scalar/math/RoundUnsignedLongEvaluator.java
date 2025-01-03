@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -52,7 +53,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
         if (decimalsVector == null) {
           return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
+        return eval(page.getPositionCount(), valVector, decimalsVector);
       }
     }
   }
@@ -82,16 +83,26 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        result.appendLong(Round.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        try {
+          result.appendLong(Round.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        } catch (InvalidArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)));
+        try {
+          result.appendLong(Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)));
+        } catch (InvalidArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

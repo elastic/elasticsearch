@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.migrate.task;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -19,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -38,6 +41,19 @@ import java.util.NoSuchElementException;
 import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
 
 public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExecutor<ReindexDataStreamTaskParams> {
+    /*
+     * This setting controls how many indices we reindex concurrently for a single data stream. This is not an overall limit -- if five
+     * data streams are being reindexed, then each of them can have this many indices being reindexed at once. This setting is dynamic,
+     * but changing it does not have an impact if the task is already running (unless the task is restarted or moves to another node).
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING = Setting.intSetting(
+        "migrate.max_concurrent_indices_reindexed_per_data_stream",
+        1,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    private static final Logger logger = LogManager.getLogger(ReindexDataStreamPersistentTaskExecutor.class);
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
     private final Client client;
     private final ClusterService clusterService;
@@ -120,8 +136,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         CountDownActionListener listener = new CountDownActionListener(indicesToBeReindexed.size() + 1, ActionListener.wrap(response1 -> {
             completeSuccessfulPersistentTask(reindexDataStreamTask);
         }, exception -> { completeFailedPersistentTask(reindexDataStreamTask, exception); }));
+        final int maxConcurrentIndices = clusterService.getClusterSettings().get(MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING);
         List<Index> indicesRemaining = Collections.synchronizedList(new ArrayList<>(indicesToBeReindexed));
-        final int maxConcurrentIndices = 1;
+        logger.debug("Reindexing {} indices, with up to {} handled concurrently", indicesRemaining.size(), maxConcurrentIndices);
         for (int i = 0; i < maxConcurrentIndices; i++) {
             maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener, parentTaskId);
         }

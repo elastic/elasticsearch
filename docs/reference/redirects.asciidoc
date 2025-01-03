@@ -156,8 +156,8 @@ See <<restore-entire-cluster>>.
 The freeze index API was removed in 8.0.
 // tag::frozen-removal-explanation[]
 Frozen indices are no longer useful due to
-https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
-improvements in heap memory usage].
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[improvements
+in heap memory usage].
 // end::frozen-removal-explanation[]
 
 [role="exclude",id="unfreeze-index-api"]
@@ -1755,13 +1755,10 @@ See <<search-terms-enum>>.
 === Frozen indices
 
 // tag::frozen-index-redirect[]
-
-// TODO(pete): Figure out what to do here. I don't think anything links here from main. But I guess users could get here
-// from link in old versions. Linking from here to the thing saying that the API isn't much use. Maybe we need a
-// sentence about what the feature was? And maybe the other places which currently point to unfreeze-index-api should
-// point here instead?
-
-For API documentation, see <<unfreeze-index-api>>.
+Older versions of {es} provided the option to reduce the amount of data kept in memory for an index, at the expense of
+increasing search latency. This was known as 'freezing' the index.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+The freeze index API was removed in 8.0, and the unfreeze index API was removed in 9.0.
 // end::frozen-index-redirect[]
 
 [role="exclude",id="best_practices"]

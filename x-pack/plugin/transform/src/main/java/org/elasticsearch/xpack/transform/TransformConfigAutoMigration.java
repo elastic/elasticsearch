@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 public class TransformConfigAutoMigration {
 
     private static final Logger logger = LogManager.getLogger(TransformConfigAutoMigration.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransformConfigAutoMigration.class);
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
     private final TransformMeterRegistry transformMeterRegistry;
@@ -53,13 +57,18 @@ public class TransformConfigAutoMigration {
         if (validationException == null) {
             auditor.info(updatedConfig.getId(), TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION);
             transformMeterRegistry.autoMigrationCount().increment();
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
+                TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION
+            );
             return updatedConfig;
         } else {
             logger.atDebug()
                 .withThrowable(validationException)
                 .log(
                     "Failed to validate auto-migrated Config. Please use the _update API to correct and update "
-                        + "the Transform configuration.  Continuing with old config."
+                        + "the Transform configuration. Continuing with old config."
                 );
             return currentConfig;
         }

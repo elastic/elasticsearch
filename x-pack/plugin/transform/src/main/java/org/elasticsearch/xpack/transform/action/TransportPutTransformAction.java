@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -38,7 +36,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
@@ -60,7 +57,6 @@ import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtil
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransformConfig.class);
 
     private final Settings settings;
     private final Client client;
@@ -190,7 +186,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-        var config = autoMigrateConfig(request);
+        var config = transformConfigAutoMigration.migrate(request.getConfig());
         transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
             var transformId = config.getId();
             logger.info("[{}] created transform", transformId);
@@ -204,17 +200,5 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
             l.onResponse(AcknowledgedResponse.TRUE);
         }));
-    }
-
-    private TransformConfig autoMigrateConfig(Request request) {
-        var config = transformConfigAutoMigration.migrate(request.getConfig());
-        if (config != request.getConfig()) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
-                TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION
-            );
-        }
-        return config;
     }
 }

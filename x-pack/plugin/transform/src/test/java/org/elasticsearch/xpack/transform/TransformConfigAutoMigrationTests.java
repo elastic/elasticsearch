@@ -156,4 +156,25 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
             );
         });
     }
+
+    public void testMigrateWithMaxPageSearchSizeInBothLocations() {
+        var settingsMaxPageSearchSize = 555;
+        var settingsConfig = new SettingsConfig.Builder(SettingsConfig.EMPTY).setMaxPageSearchSize(settingsMaxPageSearchSize).build();
+
+        var pivotConfigMaxPageSearchSize = 1234;
+        var pivotConfig = new PivotConfig(
+            GroupConfigTests.randomGroupConfig(TransformConfigVersion.CURRENT),
+            AggregationConfigTests.randomAggregationConfig(),
+            pivotConfigMaxPageSearchSize
+        );
+
+        var originalConfig = randomTransformConfigWithSettings(settingsConfig, pivotConfig, null);
+
+        var updatedConfig = autoMigration.migrate(originalConfig);
+
+        assertThat(updatedConfig, not(sameInstance(originalConfig)));
+        assertThat(updatedConfig.getPivotConfig().getMaxPageSearchSize(), nullValue());
+        assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(settingsMaxPageSearchSize));
+        verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
+    }
 }

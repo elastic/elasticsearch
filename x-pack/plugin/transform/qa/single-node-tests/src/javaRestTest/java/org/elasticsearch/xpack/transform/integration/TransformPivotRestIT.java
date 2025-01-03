@@ -2763,7 +2763,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         Map<String, Object> transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
-        assertThat(XContentMapValues.extractValue("pivot.max_page_search_size", transform), equalTo(null));
+        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", transform));
         assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(1234));
     }
 

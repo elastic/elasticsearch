@@ -51,4 +51,9 @@ class TypeConverter {
     public Block convert(Block block) {
         return convertEvaluator.eval(new Page(block));
     }
+
+    @Override
+    public String toString() {
+        return evaluatorName;
+    }
 }

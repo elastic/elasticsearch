@@ -401,7 +401,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         try (
             Block.Builder blockBuilder = mapToDocValues
                 ? blockFactory.newLongBlockBuilder(docBlock.getPositionCount())
-                : PlannerUtils.blockBuilder(dataType, docBlock.getPositionCount(), TestBlockFactory.getNonBreakingInstance())
+                : blockBuilder(dataType, docBlock.getPositionCount(), TestBlockFactory.getNonBreakingInstance())
         ) {
             foreachIndexDoc(docBlock, indexDoc -> {
                 TestBlockCopier blockCopier = mapToDocValues
@@ -496,5 +496,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 }
             };
         }
+    }
+
+    private static Block.Builder blockBuilder(DataType dataType, int estimatedSize, BlockFactory blockFactory) {
+        ElementType elementType = switch (dataType) {
+            case SHORT -> ElementType.INT;
+            case FLOAT, HALF_FLOAT, SCALED_FLOAT -> ElementType.DOUBLE;
+            default -> PlannerUtils.toElementType(dataType);
+        };
+        return elementType.newBlockBuilder(estimatedSize, blockFactory);
     }
 }

@@ -366,7 +366,7 @@ private static List<String> generateTags(DockerBase base, Architecture architect
   String image = "elasticsearch${base.suffix}"
 
   String namespace = 'elasticsearch'
-  if (base == base == DockerBase.CLOUD_ESS) {
+  if (base == DockerBase.CLOUD_ESS) {
     namespace += '-ci'
   }
 

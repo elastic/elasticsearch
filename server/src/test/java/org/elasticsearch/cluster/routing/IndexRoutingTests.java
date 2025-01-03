@@ -16,6 +16,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -511,7 +513,7 @@ public class IndexRoutingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> routing.updateShard(randomAlphaOfLength(5), randomBoolean() ? null : randomAlphaOfLength(5))
         );
-        assertThat(e.getMessage(), equalTo("update is not supported because the destination index [test] is in time series mode"));
+        assertThat(e.getMessage(), equalTo("update is not supported because the destination index [test] is in time_series mode"));
     }
 
     public void testRoutingIndexWithRouting() throws IOException {
@@ -525,7 +527,7 @@ public class IndexRoutingTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("specifying routing is not supported because the destination index [test] is in time series mode")
+            equalTo("specifying routing is not supported because the destination index [test] is in time_series mode")
         );
     }
 
@@ -534,7 +536,7 @@ public class IndexRoutingTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> routing.collectSearchShards(randomAlphaOfLength(5), null));
         assertThat(
             e.getMessage(),
-            equalTo("searching with a specified routing is not supported because the destination index [test] is in time series mode")
+            equalTo("searching with a specified routing is not supported because the destination index [test] is in time_series mode")
         );
     }
 
@@ -647,14 +649,42 @@ public class IndexRoutingTests extends ESTestCase {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
         Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, "!@#"));
-        assertThat(e.getMessage(), equalTo("invalid id [!@#] for index [test] in time series mode"));
+        assertThat(e.getMessage(), equalTo("invalid id [!@#] for index [test] in time_series mode"));
     }
 
     public void testRoutingPathReadWithShortString() throws IOException {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
         Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, ""));
-        assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in time series mode"));
+        assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in time_series mode"));
+    }
+
+    public void testRoutingPathLogsdb() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                        .build()
+                )
+                .numberOfShards(shards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        IndexRequest req = new IndexRequest();
+        routing.preProcess(req);
+        assertNull(req.id());
+
+        // Verify that routing uses the field name and value in the routing path.
+        int expectedShard = Math.floorMod(hash(List.of("foo", "A")), shards);
+        BytesReference sourceBytes = source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(null, null, XContentType.JSON, sourceBytes));
+
+        // Verify that the request id gets updated to contain the routing hash.
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.getShard(req.id(), null));
     }
 
     /**
@@ -673,7 +703,11 @@ public class IndexRoutingTests extends ESTestCase {
     private IndexRouting indexRoutingForPath(IndexVersion createdVersion, int shards, String path) {
         return IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
-                .settings(settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path))
+                .settings(
+                    settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .build()
+                )
                 .numberOfShards(shards)
                 .numberOfReplicas(1)
                 .build()

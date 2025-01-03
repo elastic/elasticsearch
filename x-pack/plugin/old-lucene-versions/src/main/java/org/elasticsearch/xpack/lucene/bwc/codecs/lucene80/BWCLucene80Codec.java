@@ -31,7 +31,7 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 
 /**
- * Implements the Lucene 8.0 index format. Loaded via SPI for indices created/written with Lucene 8.0.0 (Elasticsearch [7.0.0,7.6.0) )
+ * Implements the Lucene 8.0 index format. Loaded via SPI for indices created/written with Lucene 8.0.0 (Elasticsearch [7.0.0-7.5.2] )
  * mounted as archive indices in Elasticsearch 8.x / 9.x.
  */
 public class BWCLucene80Codec extends BWCCodec {

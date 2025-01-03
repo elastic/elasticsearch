@@ -1397,6 +1397,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInRename
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | RENAME message AS event_message
 | SORT client_ip ASC
@@ -1408,6 +1409,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInKeep
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP client_ip, event_duration, message
 | SORT client_ip ASC
@@ -1419,6 +1421,7 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP *
 | SORT client_ip ASC
@@ -1430,6 +1433,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep2
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP *e*
 | SORT client_ip ASC
@@ -1442,6 +1446,7 @@ FROM sample_data, sample_data_ts_long
 
 
 multiIndexUseOfUnionTypesInKeep
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP @timestamp
 | LIMIT 1
@@ -1452,6 +1457,7 @@ null
 ;
 
 multiIndexUseOfUnionTypesInDrop
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | DROP @timestamp
 | SORT client_ip ASC
@@ -1463,6 +1469,7 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardDrop
+required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | DROP *time*
 | SORT client_ip ASC

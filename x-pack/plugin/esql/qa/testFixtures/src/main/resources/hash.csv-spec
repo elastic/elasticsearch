@@ -98,6 +98,7 @@ input:integer | md5:keyword                      | sha256:keyword
 
 hashWithStats
 required_capability: hash_function
+required_capability: short_hash_functions
 
 FROM sample_data 
 | EVAL md5="md5"

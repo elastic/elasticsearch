@@ -60,7 +60,7 @@ applying the templates, do one or more of the following:
 
 - Use a non-overlapping index pattern.
 
-- Assign templates with an overlapping pattern a `priority` higher than `200`.
+- Assign templates with an overlapping pattern a `priority` higher than `500`.
 For example, if you don't use {fleet} or {agent} and want to create a template
 for the `logs-*` index pattern, assign your template a priority of `500`. This
 ensures your template is applied instead of the built-in template for

@@ -185,6 +185,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
         IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
         IndexSettings.PREFER_ILM_SETTING,
+        IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
         DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,

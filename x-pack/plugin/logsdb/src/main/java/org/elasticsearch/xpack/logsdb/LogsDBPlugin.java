@@ -67,12 +67,11 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        if (DiscoveryNode.isStateless(settings) == false) {
-            logsdbIndexModeSettingsProvider.init(
-                parameters.mapperServiceFactory(),
-                () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
-            );
-        }
+        logsdbIndexModeSettingsProvider.init(
+            parameters.mapperServiceFactory(),
+            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion(),
+            DiscoveryNode.isStateless(settings) == false
+        );
         return List.of(logsdbIndexModeSettingsProvider);
     }
 

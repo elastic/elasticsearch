@@ -711,6 +711,13 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
+        "index.logsdb.sort_on_host_name",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -833,6 +840,7 @@ public final class IndexSettings {
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
     private final boolean logsdbRouteOnSortFields;
+    private final boolean logsdbSortOnHostName;
 
     private volatile long retentionLeaseMillis;
 
@@ -1043,6 +1051,7 @@ public final class IndexSettings {
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
+        logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);

@@ -140,6 +140,16 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
                 .endObject()
 
                 .endObject();
+        } else {
+            // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
+            builder.startObject("properties")
+
+                .startObject("host.name")
+                .field("type", "keyword")
+                .field("ignore_above", randomIntBetween(1000, 1200))
+                .endObject()
+
+                .endObject();
         }
 
         builder.endObject();

@@ -22,13 +22,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -41,6 +39,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
@@ -87,11 +86,11 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -139,6 +138,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final boolean mergePages;
 
     AbstractLookupService(
         String actionName,
@@ -147,6 +147,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        boolean mergePages,
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
         this.actionName = actionName;
@@ -157,6 +158,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
+        this.mergePages = mergePages;
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -180,6 +182,16 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
      */
     protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
 
+    /**
+     * Read the response from a {@link StreamInput}.
+     */
+    protected abstract LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException;
+
+    /**
+     * Read the response from a {@link StreamInput}.
+     */
+    protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
+
     protected static QueryList termQueryList(
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
@@ -196,9 +208,9 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     /**
      * Perform the actual lookup.
      */
-    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<Page> outListener) {
+    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
+        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
         hasPrivilege(listener.delegateFailureAndWrap((delegate, ignored) -> {
             ClusterState clusterState = clusterService.state();
             GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
@@ -225,8 +237,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        delegate.map(LookupResponse::takePage),
-                        in -> new LookupResponse(in, blockFactory),
+                        delegate.map(LookupResponse::takePages),
+                        in -> readLookupResponse(in, blockFactory),
                         executor
                     )
                 );
@@ -291,10 +303,13 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         );
     }
 
-    private void doLookup(T request, CancellableTask task, ActionListener<Page> listener) {
+    private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
         Block inputBlock = request.inputPage.getBlock(0);
         if (inputBlock.areAllValuesNull()) {
-            listener.onResponse(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+            List<Page> nullResponse = mergePages
+                ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                : List.of();
+            listener.onResponse(nullResponse);
             return;
         }
         final List<Releasable> releasables = new ArrayList<>(6);
@@ -315,31 +330,31 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
             }
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
-            final MergePositionsOperator mergePositionsOperator;
+            final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
-            if (inputBlock instanceof BytesRefBlock bytesRefBlock && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+            if (mergePages  // TODO fix this faster branch with mergePages == false
+                && inputBlock instanceof BytesRefBlock bytesRefBlock
+                && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+
                 inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
                 var selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
-                mergePositionsOperator = new MergePositionsOperator(
-                    1,
-                    mergingChannels,
-                    mergingTypes,
-                    selectedPositions,
-                    driverContext.blockFactory()
-                );
-
+                finishPages = new MergePositionsOperator(1, mergingChannels, mergingTypes, selectedPositions, driverContext.blockFactory());
             } else {
-                try (var selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock()) {
-                    mergePositionsOperator = new MergePositionsOperator(
-                        1,
-                        mergingChannels,
-                        mergingTypes,
-                        selectedPositions,
-                        driverContext.blockFactory()
-                    );
+                if (mergePages) {
+                    try (var selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock()) {
+                        finishPages = new MergePositionsOperator(
+                            1,
+                            mergingChannels,
+                            mergingTypes,
+                            selectedPositions,
+                            driverContext.blockFactory()
+                        );
+                    }
+                } else {
+                    finishPages = dropDocBlockOperator(request.extractFields);
                 }
             }
-            releasables.add(mergePositionsOperator);
+            releasables.add(finishPages);
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             QueryList queryList = queryList(request, searchExecutionContext, inputBlock, request.inputDataType);
             var warnings = Warnings.createWarnings(
@@ -359,8 +374,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             var extractFieldsOperator = extractFieldsOperator(searchContext, driverContext, request.extractFields);
             releasables.add(extractFieldsOperator);
 
-            AtomicReference<Page> result = new AtomicReference<>();
-            OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
+            List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+            OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), collectedPages::add);
             releasables.add(outputOperator);
             Driver driver = new Driver(
                 "enrich-lookup:" + request.sessionId,
@@ -369,7 +384,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 driverContext,
                 request::toString,
                 queryOperator,
-                List.of(extractFieldsOperator, mergePositionsOperator),
+                List.of(extractFieldsOperator, finishPages),
                 outputOperator,
                 Driver.DEFAULT_STATUS_INTERVAL,
                 Releasables.wrap(searchContext, localBreaker)
@@ -380,9 +395,9 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             });
             var threadContext = transportService.getThreadPool().getThreadContext();
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
-                Page out = result.get();
-                if (out == null) {
-                    out = createNullResponse(request.inputPage.getPositionCount(), request.extractFields);
+                List<Page> out = collectedPages;
+                if (mergePages && out.isEmpty()) {
+                    out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                 }
                 return out;
             }));
@@ -434,6 +449,16 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         );
     }
 
+    private Operator dropDocBlockOperator(List<NamedExpression> extractFields) {
+        // Drop just the first block, keeping the remaining
+        int end = extractFields.size() + 1;
+        List<Integer> projection = new ArrayList<>(end);
+        for (int i = 1; i <= end; i++) {
+            projection.add(i);
+        }
+        return new ProjectOperator(projection);
+    }
+
     private Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
         final Block[] blocks = new Block[extractFields.size()];
         try {
@@ -457,7 +482,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 request,
                 (CancellableTask) task,
                 listener.delegateFailureAndWrap(
-                    (l, outPage) -> ActionListener.respondAndRelease(l, new LookupResponse(outPage, blockFactory))
+                    (l, outPage) -> ActionListener.respondAndRelease(l, createLookupResponse(outPage, blockFactory))
                 )
             );
         }
@@ -587,44 +612,23 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         protected abstract String extraDescription();
     }
 
-    private static class LookupResponse extends TransportResponse {
-        private final RefCounted refs = AbstractRefCounted.of(this::releasePage);
-        private final BlockFactory blockFactory;
-        private Page page;
-        private long reservedBytes = 0;
+    abstract static class LookupResponse extends TransportResponse {
+        private final RefCounted refs = AbstractRefCounted.of(this::release);
+        protected final BlockFactory blockFactory;
+        protected long reservedBytes = 0;
 
-        LookupResponse(Page page, BlockFactory blockFactory) {
-            this.page = page;
+        LookupResponse(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
         }
 
-        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.page = new Page(bsi);
-            }
-            this.blockFactory = blockFactory;
-        }
+        protected abstract List<Page> takePages();
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            long bytes = page.ramBytesUsedByBlocks();
-            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
-            reservedBytes += bytes;
-            page.writeTo(out);
-        }
-
-        Page takePage() {
-            var p = page;
-            page = null;
-            return p;
-        }
-
-        private void releasePage() {
+        private void release() {
             blockFactory.breaker().addWithoutBreaking(-reservedBytes);
-            if (page != null) {
-                Releasables.closeExpectNoException(page::releaseBlocks);
-            }
+            innerRelease();
         }
+
+        protected abstract void innerRelease();
 
         @Override
         public void incRef() {

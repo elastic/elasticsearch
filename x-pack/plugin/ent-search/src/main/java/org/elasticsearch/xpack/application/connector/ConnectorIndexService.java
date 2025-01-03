@@ -85,8 +85,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
  */
 public class ConnectorIndexService {
 
-    // The client to perform any operations on user indices (alias, ...).
-    private final Client client;
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
 
@@ -96,7 +94,6 @@ public class ConnectorIndexService {
      * @param client A client for executing actions on the connector index
      */
     public ConnectorIndexService(Client client) {
-        this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
@@ -249,7 +246,10 @@ public class ConnectorIndexService {
                         return;
                     }
                     if (shouldDeleteSyncJobs) {
-                        new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
+                        new ConnectorSyncJobIndexService(clientWithOrigin).deleteAllSyncJobsByConnectorId(
+                            connectorId,
+                            l.map(r -> deleteResponse)
+                        );
                     } else {
                         l.onResponse(deleteResponse);
                     }

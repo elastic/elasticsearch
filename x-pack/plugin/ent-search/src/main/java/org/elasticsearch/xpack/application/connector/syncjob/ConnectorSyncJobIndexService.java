@@ -78,8 +78,6 @@ public class ConnectorSyncJobIndexService {
 
     private static final Long ZERO = 0L;
 
-    // The client to perform any operations on user indices (alias, ...).
-    private final Client client;
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
 
@@ -89,7 +87,6 @@ public class ConnectorSyncJobIndexService {
      * @param client A client for executing actions on the connectors sync jobs index.
      */
     public ConnectorSyncJobIndexService(Client client) {
-        this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 

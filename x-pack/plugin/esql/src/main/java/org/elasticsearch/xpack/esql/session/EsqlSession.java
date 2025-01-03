@@ -113,6 +113,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private final QueryBuilderResolver queryBuilderResolver;
 
     public EsqlSession(
         String sessionId,
@@ -125,7 +126,8 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanningMetrics planningMetrics,
-        IndicesExpressionGrouper indicesExpressionGrouper
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        QueryBuilderResolver queryBuilderResolver
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -139,6 +141,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.queryBuilderResolver = queryBuilderResolver;
     }
 
     public String sessionId() {
@@ -158,7 +161,16 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                    try {
+                        var optimizedPlan = optimizedPlan(analyzedPlan);
+                        queryBuilderResolver.resolveQueryBuilders(
+                            optimizedPlan,
+                            listener,
+                            (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, newPlan, next)
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
             }
         );
@@ -300,7 +312,7 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlSessionCCSUtils.checkForCcsLicense(indices, indicesExpressionGrouper, verifier.licenseState());
+        EsqlSessionCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)

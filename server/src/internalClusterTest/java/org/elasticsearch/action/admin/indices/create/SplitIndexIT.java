@@ -236,9 +236,12 @@ public class SplitIndexIT extends ESIntegTestCase {
             GetResponse getResponse = client().prepareGet("second_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
-        assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
-        assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
-        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertHitCount(
+            numDocs,
+            prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar"))
+        );
         if (useNested) {
             assertNested("source", numDocs);
             assertNested("first_split", numDocs);
@@ -341,8 +344,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         return clusterStateResponse.getState().metadata().index(index);
     }
 
-    public void testCreateSplitIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+    public void testCreateSplitIndex() {
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", version)
         ).get();

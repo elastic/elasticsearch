@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -109,6 +110,46 @@ public class ParsingTests extends ESTestCase {
             query.append(", a = CONCAT(a, a)");
         }
         assertEquals("-1:-1: ESQL statement is too large [1000011 characters > 1000000]", error(query.toString()));
+    }
+
+    public void testJoinOnConstant() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assertEquals(
+            "1:55: JOIN ON clause only supports fields at the moment, found [123]",
+            error("row languages = 1, gender = \"f\" | lookup join test on 123")
+        );
+        assertEquals(
+            "1:55: JOIN ON clause only supports fields at the moment, found [\"abc\"]",
+            error("row languages = 1, gender = \"f\" | lookup join test on \"abc\"")
+        );
+        assertEquals(
+            "1:55: JOIN ON clause only supports fields at the moment, found [false]",
+            error("row languages = 1, gender = \"f\" | lookup join test on false")
+        );
+    }
+
+    public void testJoinOnMultipleFields() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assertEquals(
+            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            error("row languages = 1, gender = \"f\" | lookup join test on gender, languages")
+        );
+    }
+
+    public void testJoinTwiceOnTheSameField() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assertEquals(
+            "1:35: JOIN ON clause only supports one field at the moment, found [2]",
+            error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
+        );
+    }
+
+    public void testJoinTwiceOnTheSameField_TwoLookups() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assertEquals(
+            "1:80: JOIN ON clause only supports one field at the moment, found [2]",
+            error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")
+        );
     }
 
     private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {

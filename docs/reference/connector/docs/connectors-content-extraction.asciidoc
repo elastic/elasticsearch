@@ -8,7 +8,7 @@ The logic for content extraction is defined in {connectors-python}/connectors/ut
 While intended primarily for PDF and Microsoft Office formats, you can use any of the <<es-connectors-content-extraction-supported-file-types, supported formats>>.
 
 Enterprise Search uses an {ref}/ingest.html[Elasticsearch ingest pipeline^] to power the web crawler's binary content extraction.
-The default pipeline, `ent-search-generic-ingestion`, is automatically created when Enterprise Search first starts.
+The default pipeline, `search-default-ingestion`, is automatically created when Enterprise Search first starts.
 
 You can {ref}/ingest.html#create-manage-ingest-pipelines[view^] this pipeline in Kibana.
 Customizing your pipeline usage is also an option.

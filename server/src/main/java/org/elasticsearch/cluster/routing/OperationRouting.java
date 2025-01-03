@@ -59,7 +59,7 @@ public class OperationRouting {
      * Shards to use for a {@code GET} operation.
      * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
      */
-    public ShardIterator getShards(
+    public PlainShardIterator getShards(
         ClusterState clusterState,
         String index,
         String id,
@@ -71,7 +71,7 @@ public class OperationRouting {
         return preferenceActiveShardIterator(shards, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
     }
 
-    public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
+    public PlainShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
         return preferenceActiveShardIterator(
             indexShard,
@@ -83,7 +83,7 @@ public class OperationRouting {
         );
     }
 
-    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
+    public PlainShardIterator useOnlyPromotableShardsForStateless(PlainShardIterator shards) {
         // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
         // implemented for search shards.
         if (isStateless && shards != null) {
@@ -96,7 +96,7 @@ public class OperationRouting {
         }
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public GroupShardsIterator<PlainShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -105,7 +105,7 @@ public class OperationRouting {
         return searchShards(clusterState, concreteIndices, routing, preference, null, null);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public GroupShardsIterator<PlainShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -114,9 +114,9 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
-        final Set<ShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
+        final Set<PlainShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(
+            PlainShardIterator iterator = preferenceActiveShardIterator(
                 shard,
                 clusterState.nodes().getLocalNodeId(),
                 clusterState.nodes(),
@@ -137,7 +137,7 @@ public class OperationRouting {
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
     }
 
-    private static List<ShardRouting> statefulShardsThatHandleSearches(ShardIterator iterator) {
+    private static List<ShardRouting> statefulShardsThatHandleSearches(PlainShardIterator iterator) {
         final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
         for (ShardRouting shardRouting : iterator) {
             if (shardRouting.isSearchable()) {
@@ -147,11 +147,11 @@ public class OperationRouting {
         return shardsThatCanHandleSearches;
     }
 
-    private static List<ShardRouting> statelessShardsThatHandleSearches(ClusterState clusterState, ShardIterator iterator) {
+    private static List<ShardRouting> statelessShardsThatHandleSearches(ClusterState clusterState, PlainShardIterator iterator) {
         return iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
     }
 
-    public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
+    public static PlainShardIterator getShards(ClusterState clusterState, ShardId shardId) {
         final IndexShardRoutingTable shard = clusterState.routingTable().shardRoutingTable(shardId);
         return shard.activeInitializingShardsRandomIt();
     }
@@ -202,7 +202,7 @@ public class OperationRouting {
         }
     }
 
-    private ShardIterator preferenceActiveShardIterator(
+    private PlainShardIterator preferenceActiveShardIterator(
         IndexShardRoutingTable indexShard,
         String localNodeId,
         DiscoveryNodes nodes,
@@ -269,7 +269,7 @@ public class OperationRouting {
         return indexShard.activeInitializingShardsIt(routingHash);
     }
 
-    private ShardIterator shardRoutings(
+    private PlainShardIterator shardRoutings(
         IndexShardRoutingTable indexShard,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts

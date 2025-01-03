@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -161,7 +161,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) {
+    protected PlainShardIterator shards(ClusterState clusterState, UpdateRequest request) {
         if (request.getShardId() != null) {
             return clusterState.routingTable().index(request.concreteIndex()).shard(request.getShardId().getId()).primaryShardIt();
         }

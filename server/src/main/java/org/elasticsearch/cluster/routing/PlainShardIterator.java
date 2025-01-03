@@ -14,10 +14,9 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.List;
 
 /**
- * The {@link PlainShardIterator} is a {@link ShardsIterator} which iterates all
- * shards or a given {@link ShardId shard id}
+ * The {@link PlainShardIterator} iterates shard copies for a given {@link ShardId shard id}
  */
-public class PlainShardIterator extends PlainShardsIterator implements ShardIterator {
+public class PlainShardIterator extends PlainShardsIterator implements Comparable<PlainShardIterator> {
 
     private final ShardId shardId;
 
@@ -33,7 +32,6 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
         this.shardId = shardId;
     }
 
-    @Override
     public ShardId shardId() {
         return this.shardId;
     }
@@ -42,7 +40,7 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ShardIterator that = (ShardIterator) o;
+        PlainShardIterator that = (PlainShardIterator) o;
         return shardId.equals(that.shardId());
     }
 
@@ -52,7 +50,7 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
     }
 
     @Override
-    public int compareTo(ShardIterator o) {
+    public int compareTo(PlainShardIterator o) {
         return shardId.compareTo(o.shardId());
     }
 }

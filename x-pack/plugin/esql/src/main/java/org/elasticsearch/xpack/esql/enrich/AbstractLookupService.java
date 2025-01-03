@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
@@ -201,13 +201,13 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
         hasPrivilege(listener.delegateFailureAndWrap((delegate, ignored) -> {
             ClusterState clusterState = clusterService.state();
-            GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
+            GroupShardsIterator<PlainShardIterator> shardIterators = clusterService.operationRouting()
                 .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
             if (shardIterators.size() != 1) {
                 delegate.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
                 return;
             }
-            ShardIterator shardIt = shardIterators.get(0);
+            PlainShardIterator shardIt = shardIterators.get(0);
             ShardRouting shardRouting = shardIt.nextOrNull();
             ShardId shardId = shardIt.shardId();
             if (shardRouting == null) {

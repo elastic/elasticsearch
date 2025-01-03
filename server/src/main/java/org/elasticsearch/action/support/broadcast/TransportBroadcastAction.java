@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,7 +108,7 @@ public abstract class TransportBroadcastAction<
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
      * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
      */
-    protected abstract GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
+    protected abstract GroupShardsIterator<PlainShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
@@ -121,7 +121,7 @@ public abstract class TransportBroadcastAction<
         final ActionListener<Response> listener;
         final ClusterState clusterState;
         final DiscoveryNodes nodes;
-        final GroupShardsIterator<ShardIterator> shardsIts;
+        final GroupShardsIterator<PlainShardIterator> shardsIts;
         final int expectedOps;
         final AtomicInteger counterOps = new AtomicInteger();
         // ShardResponse or Exception
@@ -161,7 +161,7 @@ public abstract class TransportBroadcastAction<
             }
             // count the local operations, and perform the non local ones
             int shardIndex = -1;
-            for (final ShardIterator shardIt : shardsIts) {
+            for (final PlainShardIterator shardIt : shardsIts) {
                 shardIndex++;
                 final ShardRouting shard = shardIt.nextOrNull();
                 if (shard != null) {
@@ -173,7 +173,7 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        protected void performOperation(final ShardIterator shardIt, final ShardRouting shard, final int shardIndex) {
+        protected void performOperation(final PlainShardIterator shardIt, final ShardRouting shard, final int shardIndex) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
                 onOperation(null, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
@@ -215,7 +215,7 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
+        void onOperation(@Nullable ShardRouting shard, final PlainShardIterator shardIt, int shardIndex, Exception e) {
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, e);
@@ -262,7 +262,7 @@ public abstract class TransportBroadcastAction<
             ActionListener.completeWith(listener, () -> newResponse(request, shardsResponses, clusterState));
         }
 
-        void setFailure(ShardIterator shardIt, int shardIndex, Exception e) {
+        void setFailure(PlainShardIterator shardIt, int shardIndex, Exception e) {
             if ((e instanceof BroadcastShardOperationFailedException) == false) {
                 e = new BroadcastShardOperationFailedException(shardIt.shardId(), e);
             }

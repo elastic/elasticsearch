@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasables;
@@ -172,7 +172,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected PlainShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
             .getShards(
                 clusterService.state(),

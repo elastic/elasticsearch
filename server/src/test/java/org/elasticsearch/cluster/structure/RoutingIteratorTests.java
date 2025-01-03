@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.RotationShardShuffler;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardShuffler;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -51,7 +50,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RoutingIteratorTests extends ESAllocationTestCase {
     public void testEmptyIterator() {
         ShardShuffler shuffler = new RotationShardShuffler(0);
-        ShardIterator shardIterator = new PlainShardIterator(
+        PlainShardIterator shardIterator = new PlainShardIterator(
             new ShardId("test1", "_na_", 0),
             shuffler.shuffle(Collections.<ShardRouting>emptyList())
         );
@@ -91,7 +90,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test1"))
             .build();
 
-        ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
+        PlainShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
         assertThat(shardIterator.size(), equalTo(3));
         ShardRouting shardRouting1 = shardIterator.nextOrNull();
         assertThat(shardRouting1, notNullValue());
@@ -121,7 +120,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test2"))
             .build();
 
-        ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
+        PlainShardIterator shardIterator = routingTable.index("test1").shard(0).shardsIt(0);
         assertThat(shardIterator.size(), equalTo(2));
         ShardRouting shardRouting1 = shardIterator.nextOrNull();
         assertThat(shardRouting1, notNullValue());
@@ -201,7 +200,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test2"))
             .build();
 
-        ShardIterator shardIterator = routingTable.index("test1").shard(0).shardsRandomIt();
+        PlainShardIterator shardIterator = routingTable.index("test1").shard(0).shardsRandomIt();
         ShardRouting shardRouting1 = shardIterator.nextOrNull();
         assertThat(shardRouting1, notNullValue());
         assertThat(shardIterator.nextOrNull(), notNullValue());
@@ -357,7 +356,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
+        GroupShardsIterator<PlainShardIterator> shardIterators = operationRouting.searchShards(
             clusterState,
             new String[] { "test" },
             null,
@@ -388,8 +387,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
         assertThat(shardIterators.size(), equalTo(1));
-        Iterator<ShardIterator> iterator = shardIterators.iterator();
-        final ShardIterator it = iterator.next();
+        Iterator<PlainShardIterator> iterator = shardIterators.iterator();
+        final PlainShardIterator it = iterator.next();
         assertThat(it.shardId().id(), equalTo(0));
         final String firstNodeId = it.nextOrNull().currentNodeId();
         assertThat(firstNodeId, anyOf(equalTo("node1"), equalTo("node2")));

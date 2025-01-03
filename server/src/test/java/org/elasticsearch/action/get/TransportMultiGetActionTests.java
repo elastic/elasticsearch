@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -135,10 +135,10 @@ public class TransportMultiGetActionTests extends ESTestCase {
             )
             .build();
 
-        final ShardIterator index1ShardIterator = mock(ShardIterator.class);
+        final PlainShardIterator index1ShardIterator = mock(PlainShardIterator.class);
         when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
 
-        final ShardIterator index2ShardIterator = mock(ShardIterator.class);
+        final PlainShardIterator index2ShardIterator = mock(PlainShardIterator.class);
         when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
 
         final OperationRouting operationRouting = mock(OperationRouting.class);

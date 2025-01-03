@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
@@ -78,10 +78,12 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ShardIterator shards = clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
-        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
+    protected PlainShardIterator shards(ClusterState state, InternalRequest request) {
+        return clusterService.operationRouting()
+            .useOnlyPromotableShardsForStateless(
+                clusterService.operationRouting()
+                    .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference())
+            );
     }
 
     @Override

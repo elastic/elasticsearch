@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -311,9 +311,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+        GroupShardsIterator<PlainShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
-        for (ShardIterator iterator : shardIterators) {
+        for (PlainShardIterator iterator : shardIterators) {
             ShardRouting routing;
             while ((routing = iterator.nextOrNull()) != null) {
                 if (routing.getId() == shardRouting.getId()) {
@@ -695,10 +695,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         Index test = state.metadata().index("test").getIndex();
-        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+        GroupShardsIterator<PlainShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
-        List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
-        ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
+        List<PlainShardIterator> iterators = iterableAsArrayList(shardIterators);
+        PlainShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
         assertTrue(shardRouting.primary());

@@ -1239,9 +1239,7 @@ public class IndexNameExpressionResolver {
      * @param <T> any object that can contain an index expression in some form or another
      */
     public static <T> boolean isAllIndices(Collection<T> aliasesOrIndices, Function<T, String> resourceGetter) {
-        return aliasesOrIndices == null
-            || aliasesOrIndices.isEmpty()
-            || isExplicitAllPattern(aliasesOrIndices, resourceGetter);
+        return aliasesOrIndices == null || aliasesOrIndices.isEmpty() || isExplicitAllPattern(aliasesOrIndices, resourceGetter);
     }
 
     /**

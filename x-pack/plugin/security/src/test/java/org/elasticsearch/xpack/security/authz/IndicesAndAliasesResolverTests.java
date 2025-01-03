@@ -360,8 +360,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 null,
                 new IndicesPrivileges[] {
                     IndicesPrivileges.builder().indices(dataStreamIndex1.getIndex().getName()).privileges("all").build(),
-                    IndicesPrivileges.builder().indices(dataStreamFailureStore1.getIndex().getName()).privileges("all").build()
-                },
+                    IndicesPrivileges.builder().indices(dataStreamFailureStore1.getIndex().getName()).privileges("all").build() },
                 null
             )
         );

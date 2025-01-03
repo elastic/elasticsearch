@@ -119,11 +119,7 @@ public class DataStreamsActionUtil {
         return results;
     }
 
-    private static void selectDataStreamIndicesNames(
-        DataStream indexAbstraction,
-        boolean failureStore,
-        List<String> accumulator
-    ) {
+    private static void selectDataStreamIndicesNames(DataStream indexAbstraction, boolean failureStore, List<String> accumulator) {
         for (Index index : indexAbstraction.getDataStreamIndices(failureStore).getIndices()) {
             accumulator.add(index.getName());
         }

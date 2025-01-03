@@ -24,14 +24,24 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.function.Function;
+
+import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {}
+    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {
+        public BootstrapArgs {
+            requireNonNull(pluginData);
+            requireNonNull(pluginResolver);
+        }
+    }
 
-    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {}
+    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {
+        public PluginData {
+            requireNonNull(pluginPath);
+        }
+    }
 
     private static BootstrapArgs bootstrapArgs;
 
@@ -51,7 +61,7 @@ public class EntitlementBootstrap {
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(Objects.requireNonNull(pluginData), Objects.requireNonNull(pluginResolver));
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginData, pluginResolver);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();

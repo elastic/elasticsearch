@@ -44,6 +44,7 @@ import static java.util.Map.entry;
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
     /** "Security Solutions" only legacy signals index */
     public static final String ALERTS_LEGACY_INDEX = ".siem-signals*";
+    public static final String ALERTS_LEGACY_INDEX_REINDEXED_V8 = ".reindexed-v8-siem-signals*";
 
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
@@ -61,9 +62,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     /** "Security Solutions" only lists index for value lists for detections */
     public static final String LISTS_INDEX = ".lists-*";
+    public static final String LISTS_INDEX_REINDEXED_V8 = ".reindexed-v8-lists-*";
 
     /** "Security Solutions" only lists index for value list items for detections */
     public static final String LISTS_ITEMS_INDEX = ".items-*";
+    public static final String LISTS_ITEMS_INDEX_REINDEXED_V8 = ".reindexed-v8-items-*";
 
     /** Index pattern for Universal Profiling */
     public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
@@ -877,7 +880,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX, ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
+                    .indices(
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX,
+                        ReservedRolesStore.LISTS_INDEX,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX,
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Alerts-as-data
@@ -928,7 +938,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX, ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
+                    .indices(
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX,
+                        ReservedRolesStore.LISTS_INDEX,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX,
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
+                    )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build(),
                 // Alerts-as-data

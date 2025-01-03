@@ -24,7 +24,7 @@ final class TraceEvent {
     @Override
     public String toString() {
         return "TraceEvent{"
-            + ", count="
+            + "count="
             + count
             + ", annualCO2Tons="
             + annualCO2Tons

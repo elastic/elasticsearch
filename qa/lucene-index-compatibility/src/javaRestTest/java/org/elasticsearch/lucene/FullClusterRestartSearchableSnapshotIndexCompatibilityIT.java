@@ -17,7 +17,7 @@ import org.elasticsearch.test.cluster.util.Version;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
+public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends FullClusterRestartIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial")
@@ -25,7 +25,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
             .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB");
     }
 
-    public SearchableSnapshotCompatibilityIT(Version version) {
+    public FullClusterRestartSearchableSnapshotIndexCompatibilityIT(Version version) {
         super(version);
     }
 
@@ -38,7 +38,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
         final String index = suffix("index");
         final int numDocs = 1234;
 
-        if (VERSION_MINUS_2.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             logger.debug("--> registering repository [{}]", repository);
             registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
 
@@ -61,7 +61,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
             return;
         }
 
-        if (VERSION_MINUS_1.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
             ensureGreen(index);
 
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
@@ -72,7 +72,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
             return;
         }
 
-        if (VERSION_CURRENT.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
             var mountedIndex = suffix("index-mounted");
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
@@ -98,7 +98,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
         final String index = suffix("index");
         final int numDocs = 4321;
 
-        if (VERSION_MINUS_2.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             logger.debug("--> registering repository [{}]", repository);
             registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
 
@@ -124,7 +124,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
             return;
         }
 
-        if (VERSION_MINUS_1.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
 
@@ -135,7 +135,7 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
             return;
         }
 
-        if (VERSION_CURRENT.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
             ensureGreen(mountedIndex);
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));

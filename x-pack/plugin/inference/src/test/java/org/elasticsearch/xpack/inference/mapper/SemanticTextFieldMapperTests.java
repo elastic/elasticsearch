@@ -24,6 +24,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
@@ -112,6 +113,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
         var settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                SemanticInferenceMetadataFieldMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+            )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
         return createMapperService(settings, mappings);
@@ -768,6 +773,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             )
         );
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
+    }
+
+    public void testModelSettingsRequiredWithChunks() throws IOException {
+        // Create inference results where model settings are set to null and chunks are provided
+        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        SemanticTextField randomSemanticText = randomSemanticText(useLegacyFormat, "field", model, List.of("a"), XContentType.JSON);
+        SemanticTextField inferenceResults = new SemanticTextField(
+            randomSemanticText.useLegacyFormat(),
+            randomSemanticText.fieldName(),
+            randomSemanticText.originalValues(),
+            new SemanticTextField.InferenceResult(
+                randomSemanticText.inference().inferenceId(),
+                null,
+                randomSemanticText.inference().chunks()
+            ),
+            randomSemanticText.contentType()
+        );
+
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null)),
+            useLegacyFormat
+        );
+        SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source)
+        );
+        assertThat(ex.getMessage(), containsString("[model_settings] must be set for field [field] when chunks are provided"));
     }
 
     private MapperService mapperServiceForFieldWithModelSettings(

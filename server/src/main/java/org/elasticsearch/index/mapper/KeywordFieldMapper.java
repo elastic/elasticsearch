@@ -639,14 +639,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     public void readValue(Object value, BlockLoader.Builder builder) {
                         assert value instanceof BytesRef;
                         // TODO apply ignore_above/normalizer same as sourceValueFetcher()
-                        ((BlockLoader.BytesRefBuilder )builder).appendBytesRef((BytesRef) value);
+                        ((BlockLoader.BytesRefBuilder) builder).appendBytesRef((BytesRef) value);
                     }
 
                     @Override
                     public void parse(XContentParser parser, BlockLoader.Builder builder) throws IOException {
                         assert parser.currentToken() == XContentParser.Token.START_ARRAY;
 
-                        var bytesRefBuilder = (BlockLoader.BytesRefBuilder ) builder;
+                        var bytesRefBuilder = (BlockLoader.BytesRefBuilder) builder;
 
                         bytesRefBuilder.beginPositionEntry();
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

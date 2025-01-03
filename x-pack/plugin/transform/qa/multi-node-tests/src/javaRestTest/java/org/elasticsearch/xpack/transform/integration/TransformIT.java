@@ -198,8 +198,9 @@ public class TransformIT extends TransformRestTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        var config = createTransformConfigBuilder(transformId, destinationIndex, QueryConfig.matchAll(), indexName)
-            .setPivotConfig(createPivotConfig(groups, aggs))
+        var config = createTransformConfigBuilder(transformId, destinationIndex, QueryConfig.matchAll(), indexName).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        )
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
             .build();
@@ -691,11 +692,11 @@ public class TransformIT extends TransformRestTestCase {
     private void indexDoc(long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         bulkBuilder.append(format("""
-                {"create":{"_index":"%s"}}
-                """, index));
+            {"create":{"_index":"%s"}}
+            """, index));
         String source = format("""
-                {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
-                """, userId, 1, 2, 5, Instant.now().toEpochMilli());
+            {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
+            """, userId, 1, 2, 5, Instant.now().toEpochMilli());
         bulkBuilder.append(source);
         bulkBuilder.append("\r\n");
         doBulk(bulkBuilder.toString(), true);

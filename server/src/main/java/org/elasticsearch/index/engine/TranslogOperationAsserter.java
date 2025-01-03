@@ -9,13 +9,15 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  *
@@ -33,13 +35,13 @@ public abstract class TranslogOperationAsserter {
     public static TranslogOperationAsserter withEngineConfig(EngineConfig engineConfig) {
         return new TranslogOperationAsserter() {
             @Override
-            boolean sameIndexOperation(Translog.Index o1, Translog.Index o2) throws IOException {
-                if (super.sameIndexOperation(o1, o2)) {
+            public boolean assertSameIndexOperation(Translog.Index o1, Translog.Index o2) throws IOException {
+                if (super.assertSameIndexOperation(o1, o2)) {
                     return true;
                 }
                 if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
-                    return super.sameIndexOperation(synthesizeSource(engineConfig, o1), o2)
-                        || super.sameIndexOperation(o1, synthesizeSource(engineConfig, o2));
+                    return super.assertSameIndexOperation(synthesizeSource(engineConfig, o1), o2)
+                        || super.assertSameIndexOperation(o1, synthesizeSource(engineConfig, o2));
                 }
                 return false;
             }
@@ -48,15 +50,18 @@ public abstract class TranslogOperationAsserter {
 
     static Translog.Index synthesizeSource(EngineConfig engineConfig, Translog.Index op) throws IOException {
         final ShardId shardId = engineConfig.getShardId();
-        MappingLookup mappingLookup = engineConfig.getMapperService().mappingLookup();
-        DocumentParser documentParser = engineConfig.getMapperService().documentParser();
-        try (var reader = new TranslogDirectoryReader(shardId, op, mappingLookup, documentParser, engineConfig, () -> {})) {
+        final MappingLookup mappingLookup = engineConfig.getMapperService().mappingLookup();
+        final DocumentParser documentParser = engineConfig.getMapperService().documentParser();
+        try (
+            var directory = new ByteBuffersDirectory();
+            var reader = TranslogDirectoryReader.createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, op)
+        ) {
             final Engine.Searcher searcher = new Engine.Searcher(
                 "assert_translog",
                 reader,
-                engineConfig.getSimilarity(),
-                engineConfig.getQueryCache(),
-                engineConfig.getQueryCachingPolicy(),
+                new BM25Similarity(),
+                null,
+                TrivialQueryCachingPolicy.NEVER,
                 () -> {}
             );
             try (
@@ -79,49 +84,7 @@ public abstract class TranslogOperationAsserter {
         }
     }
 
-    boolean sameIndexOperation(Translog.Index o1, Translog.Index o2) throws IOException {
-        // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
-        return Objects.equals(o1.id(), o2.id())
-            && Objects.equals(o1.source(), o2.source())
-            && Objects.equals(o1.routing(), o2.routing())
-            && o1.primaryTerm() == o2.primaryTerm()
-            && o1.seqNo() == o2.seqNo()
-            && o1.version() == o2.version();
-    }
-
-    public boolean assertSameOperations(
-        long seqNo,
-        long generation,
-        Translog.Operation newOp,
-        Translog.Operation prvOp,
-        Exception prevFailure
-    ) throws IOException {
-        final boolean sameOp;
-        if (newOp instanceof final Translog.Index o2 && prvOp instanceof final Translog.Index o1) {
-            sameOp = sameIndexOperation(o1, o2);
-        } else if (newOp instanceof final Translog.Delete o1 && prvOp instanceof final Translog.Delete o2) {
-            sameOp = Objects.equals(o1.id(), o2.id())
-                && o1.primaryTerm() == o2.primaryTerm()
-                && o1.seqNo() == o2.seqNo()
-                && o1.version() == o2.version();
-        } else {
-            sameOp = false;
-        }
-        if (sameOp == false) {
-            throw new AssertionError(
-                "seqNo ["
-                    + seqNo
-                    + "] was processed twice in generation ["
-                    + generation
-                    + "], with different data. "
-                    + "prvOp ["
-                    + prvOp
-                    + "], newOp ["
-                    + newOp
-                    + "]",
-                prevFailure
-            );
-        }
-        return true;
+    public boolean assertSameIndexOperation(Translog.Index o1, Translog.Index o2) throws IOException {
+        return Translog.Index.equalsWithoutAutoGeneratedTimestamp(o1, o2);
     }
 }

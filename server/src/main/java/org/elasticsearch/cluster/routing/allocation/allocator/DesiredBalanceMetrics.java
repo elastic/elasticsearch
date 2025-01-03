@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider.NodeAllocationAndClusterBalanceStats;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsCalculator.NodeShardAllocationStats;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -69,13 +69,12 @@ public class DesiredBalanceMetrics {
     private volatile long undesiredAllocations;
 
     private final AtomicReference<Map<DiscoveryNode, NodeWeightStats>> weightStatsPerNodeRef = new AtomicReference<>(Map.of());
-    private final AtomicReference<Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats>> allocationStatsPerNodeRef =
-        new AtomicReference<>(Map.of());
+    private final AtomicReference<Map<DiscoveryNode, NodeShardAllocationStats>> allocationStatsPerNodeRef = new AtomicReference<>(Map.of());
 
     public void updateMetrics(
         AllocationStats allocationStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
-        Map<DiscoveryNode, NodeAllocationAndClusterBalanceStats> nodeAllocationStats
+        Map<DiscoveryNode, NodeShardAllocationStats> nodeAllocationStats
     ) {
         assert allocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";

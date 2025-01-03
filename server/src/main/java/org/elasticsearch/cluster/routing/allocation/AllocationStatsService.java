@@ -19,35 +19,41 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Exposes cluster allocation metrics. Constructs {@link NodeAllocationStats} per node, on demand.
+ */
 public class AllocationStatsService {
     private final ClusterService clusterService;
     private final ClusterInfoService clusterInfoService;
     private final Supplier<DesiredBalance> desiredBalanceSupplier;
-    private final NodeAllocationStatsProvider nodeAllocationStatsProvider;
+    private final NodeAllocationStatsCalculator nodeAllocationStatsCalculator;
 
     public AllocationStatsService(
         ClusterService clusterService,
         ClusterInfoService clusterInfoService,
         ShardsAllocator shardsAllocator,
-        NodeAllocationStatsProvider nodeAllocationStatsProvider
+        NodeAllocationStatsCalculator nodeAllocationStatsCalculator
     ) {
         this.clusterService = clusterService;
         this.clusterInfoService = clusterInfoService;
-        this.nodeAllocationStatsProvider = nodeAllocationStatsProvider;
+        this.nodeAllocationStatsCalculator = nodeAllocationStatsCalculator;
         this.desiredBalanceSupplier = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator
             ? allocator::getDesiredBalance
             : () -> null;
     }
 
+    /**
+     * Returns a map of node IDs to node allocation stats.
+     */
     public Map<String, NodeAllocationStats> stats() {
-        var state = clusterService.state();
-        var stats = nodeAllocationStatsProvider.stats(
-            state.metadata(),
-            state.getRoutingNodes(),
+        var clusterState = clusterService.state();
+        var nodeStats = nodeAllocationStatsCalculator.getAllocationStatsPerNode(
+            clusterState.metadata(),
+            clusterState.getRoutingNodes(),
             clusterInfoService.getClusterInfo(),
             desiredBalanceSupplier.get()
         );
-        return stats.entrySet()
+        return nodeStats.entrySet()
             .stream()
             .collect(
                 Collectors.toMap(

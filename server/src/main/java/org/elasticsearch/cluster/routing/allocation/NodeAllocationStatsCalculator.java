@@ -24,7 +24,10 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
 
-public class NodeAllocationStatsProvider {
+/**
+ * Calculates the balancer weights for each node ({@link NodeShardAllocationStats}).
+ */
+public class NodeAllocationStatsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
 
     private volatile float indexBalanceFactor;
@@ -32,7 +35,10 @@ public class NodeAllocationStatsProvider {
     private volatile float writeLoadBalanceFactor;
     private volatile float diskUsageBalanceFactor;
 
-    public record NodeAllocationAndClusterBalanceStats(
+    /**
+     * Node shard allocation stats, and the total node weight.
+     */
+    public record NodeShardAllocationStats(
         int shards,
         int undesiredShards,
         double forecastedIngestLoad,
@@ -41,7 +47,7 @@ public class NodeAllocationStatsProvider {
         float currentNodeWeight
     ) {}
 
-    public NodeAllocationStatsProvider(WriteLoadForecaster writeLoadForecaster, ClusterSettings clusterSettings) {
+    public NodeAllocationStatsCalculator(WriteLoadForecaster writeLoadForecaster, ClusterSettings clusterSettings) {
         this.writeLoadForecaster = writeLoadForecaster;
         clusterSettings.initializeAndWatch(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
         clusterSettings.initializeAndWatch(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
@@ -55,7 +61,10 @@ public class NodeAllocationStatsProvider {
         );
     }
 
-    public Map<String, NodeAllocationAndClusterBalanceStats> stats(
+    /**
+     * Returns a map of node ID to {@link NodeShardAllocationStats}.
+     */
+    public Map<String, NodeShardAllocationStats> getAllocationStatsPerNode(
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
@@ -66,7 +75,7 @@ public class NodeAllocationStatsProvider {
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
-        var stats = Maps.<String, NodeAllocationAndClusterBalanceStats>newMapWithExpectedSize(routingNodes.size());
+        var nodeAllocationStats = Maps.<String, NodeShardAllocationStats>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
             int shards = 0;
             int undesiredShards = 0;
@@ -75,9 +84,10 @@ public class NodeAllocationStatsProvider {
             long currentDiskUsage = 0;
             for (ShardRouting shardRouting : node) {
                 if (shardRouting.relocating()) {
+                    // Skip the shard if it is moving off this node. The node running recovery will count it.
                     continue;
                 }
-                shards++;
+                ++shards;
                 IndexMetadata indexMetadata = metadata.getIndexSafe(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
@@ -86,9 +96,8 @@ public class NodeAllocationStatsProvider {
                 forecastedWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
                 forecastedDiskUsage += Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0), shardSize);
                 currentDiskUsage += shardSize;
-
             }
-            float currentNodeWeight = weightFunction.nodeWeight(
+            float currentNodeWeight = weightFunction.calculateNodeWeight(
                 shards,
                 avgShardsPerNode,
                 forecastedWriteLoad,
@@ -96,11 +105,11 @@ public class NodeAllocationStatsProvider {
                 currentDiskUsage,
                 avgDiskUsageInBytesPerNode
             );
-            stats.put(
+            nodeAllocationStats.put(
                 node.nodeId(),
-                new NodeAllocationAndClusterBalanceStats(
+                new NodeShardAllocationStats(
                     shards,
-                    desiredBalance != null ? undesiredShards : -1,
+                    undesiredShards,
                     forecastedWriteLoad,
                     forecastedDiskUsage,
                     currentDiskUsage,
@@ -109,10 +118,13 @@ public class NodeAllocationStatsProvider {
             );
         }
 
-        return stats;
+        return nodeAllocationStats;
     }
 
-    private static boolean isDesiredAllocation(DesiredBalance desiredBalance, ShardRouting shardRouting) {
+    /**
+     * Checks whether the current shard assignment is desired by the balancer. Undesired shards are moved off ASAP.
+     */
+    private static boolean isDesiredAllocation(@Nullable DesiredBalance desiredBalance, ShardRouting shardRouting) {
         if (desiredBalance == null) {
             return true;
         }

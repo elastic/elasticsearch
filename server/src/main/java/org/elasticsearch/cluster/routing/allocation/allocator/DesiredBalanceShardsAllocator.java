@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -89,7 +89,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsProvider nodeAllocationStatsProvider
+        NodeAllocationStatsCalculator nodeAllocationStatsCalculator
     ) {
         this(
             delegateAllocator,
@@ -98,7 +98,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
             telemetryProvider,
-            nodeAllocationStatsProvider
+            nodeAllocationStatsCalculator
         );
     }
 
@@ -109,7 +109,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsProvider nodeAllocationStatsProvider
+        NodeAllocationStatsCalculator nodeAllocationStatsCalculator
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
@@ -120,7 +120,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             clusterService.getClusterSettings(),
             threadPool,
             desiredBalanceMetrics,
-            nodeAllocationStatsProvider
+            nodeAllocationStatsCalculator
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 

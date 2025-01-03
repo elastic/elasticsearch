@@ -171,7 +171,7 @@ public class IndexAbstractionResolver {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // complicated to support those options with aliases pointing to multiple indices...
             isVisible = isVisible && indicesOptions.ignoreAliases() == false;
-            if (selectorString != null) {
+            if (isVisible && selectorString != null) {
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
                 if (IndexComponentSelector.FAILURES.equals(selector)) {

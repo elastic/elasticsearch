@@ -263,12 +263,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             final String remoteCluster = in.readString();
             final List<String> leaderIndexPatterns = in.readStringCollectionAsList();
             final String followIndexPattern = in.readOptionalString();
-            final Settings settings;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings = Settings.readSettingsFromStream(in);
-            } else {
-                settings = Settings.EMPTY;
-            }
+            final Settings settings = Settings.readSettingsFromStream(in);
             return new AutoFollowPattern(remoteCluster, leaderIndexPatterns, followIndexPattern, settings, in);
         }
 
@@ -345,9 +340,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings.writeTo(out);
-            }
+            settings.writeTo(out);
             super.writeTo(out);
             out.writeBoolean(active);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {

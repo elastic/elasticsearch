@@ -21,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -781,23 +780,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
             fileDetails = in.readMapValues(FileDetail::new, FileDetail::name);
-            if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                complete = in.readBoolean();
-            } else {
-                // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
-                // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
-                // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
-                // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
-                complete = fileDetails.isEmpty() == false;
-            }
+            complete = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(values());
-            if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                out.writeBoolean(complete);
-            }
+            out.writeBoolean(complete);
         }
 
         @Override

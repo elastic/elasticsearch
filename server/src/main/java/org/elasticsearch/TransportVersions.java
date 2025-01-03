@@ -151,7 +151,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_CCS_TELEMETRY_STATS = def(8_816_00_0);
     public static final TransportVersion ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION = def(8_817_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -526,6 +526,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             skipShard(iterator);
         }
         if (shardsIts.size() > 0) {
+            final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION);
             final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
             doCheckNoMissingShards(getName(), request, shardsIts);
             for (int i = 0; i < shardsIts.size(); i++) {
@@ -537,8 +538,8 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 if (routing == null) {
                     failOnUnavailable(shardIndex, shardRoutings);
                 } else {
-                    if ((routing.getClusterAlias() == null || Objects.equals(request.getLocalClusterAlias(), routing.getClusterAlias()))
-                        && minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION)) {
+                    String clusterAlias = routing.getClusterAlias();
+                    if (supportsBatchedQuery && (clusterAlias == null || Objects.equals(request.getLocalClusterAlias(), clusterAlias))) {
                         perNodeQueries.computeIfAbsent(
                             routing.getNodeId(),
                             ignored -> new NodeQueryRequest(new ArrayList<>(), request, aliasFilter, shardsIts.size())
@@ -590,65 +591,58 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                     for (int i = 0; i < response.results.length; i++) {
                                         var s = request.shards.get(i);
                                         int shardIdx = s.shardIndex;
+                                        final ShardId shardId = s.shardId;
+                                        final SearchShardTarget target = new SearchShardTarget(
+                                            nodeId,
+                                            shardId,
+                                            request.searchRequest.getLocalClusterAlias()
+                                        );
                                         if (response.results[i] instanceof Exception e) {
-                                            onShardFailure(
-                                                shardIdx,
-                                                new SearchShardTarget(nodeId, s.shardId(), request.searchRequest.getLocalClusterAlias()),
-                                                shardIterators[shardIdx],
-                                                e
-                                            );
+                                            onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
                                         } else if (response.results[i] instanceof SearchPhaseResult q) {
                                             q.setShardIndex(shardIdx);
-                                            q.setSearchShardTarget(
-                                                new SearchShardTarget(nodeId, s.shardId(), request.searchRequest.getLocalClusterAlias())
-                                            );
-                                        }
-                                    }
-                                    for (Object result : response.results) {
-                                        if (result instanceof SearchPhaseResult searchPhaseResult) {
+                                            q.setSearchShardTarget(target);
                                             hasShardResponse.set(true);
-                                            results.consumeResult(searchPhaseResult, () -> {
+                                            results.consumeResult(q, () -> {
                                                 successfulOps.incrementAndGet();
-                                                var shard = searchPhaseResult.getSearchShardTarget().getShardId();
-                                                final int shardIndex = searchPhaseResult.getShardIndex();
                                                 logger.info(
                                                     "--> bulk result for shard [{}][{}][{}]",
-                                                    shard,
-                                                    shardIndex,
+                                                    shardId,
+                                                    shardIdx,
                                                     System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
                                                 );
-                                                finishShardAndMaybePhase(shardIndex);
+                                                finishShardAndMaybePhase(shardIdx);
                                             });
+                                        } else {
+                                            assert false : "impossible [" + response.results[i] + "]";
                                         }
                                     }
                                 }
 
                                 @Override
                                 public void handleException(TransportException e) {
-                                    for (ShardToQuery shard : request.shards) {
-                                        var shardIt = shardIterators[shard.shardIndex];
-                                        onShardFailure(
-                                            shard.shardIndex,
-                                            new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
-                                            shardIt,
-                                            e
-                                        );
-                                    }
+                                    onNodeQueryFailure(e, request, nodeId);
                                 }
                             }
                         );
                 } catch (Exception e) {
-                    for (ShardToQuery shard : request.shards) {
-                        onShardFailure(
-                            shard.shardIndex,
-                            new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
-                            e
-                        );
-                    }
+                    onNodeQueryFailure(e, request, nodeId);
                 }
             });
         } else {
             finishIfAllDone();
+        }
+    }
+
+    private void onNodeQueryFailure(Exception e, NodeQueryRequest request, String nodeId) {
+        for (ShardToQuery shard : request.shards) {
+            var shardIt = shardIterators[shard.shardIndex];
+            onShardFailure(
+                shard.shardIndex,
+                new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
+                shardIt,
+                e
+            );
         }
     }
 

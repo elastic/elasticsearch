@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,8 +27,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RoundTests extends AbstractScalarFunctionTestCase {
     public RoundTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -147,9 +144,10 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
 
         // Unsigned long errors
         suppliers.add(
-            new TestCaseSupplier("<big unsigned_long>, <negative long out of integer range>",
-                List.of(DataType.UNSIGNED_LONG, DataType.LONG), () ->
-                new TestCaseSupplier.TestCase(
+            new TestCaseSupplier(
+                "<big unsigned_long>, <negative long out of integer range>",
+                List.of(DataType.UNSIGNED_LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BigInteger("16144415263046370459"), DataType.UNSIGNED_LONG, "number"),
                         new TestCaseSupplier.TypedData(-9223372036854775808L, DataType.LONG, "decimals")
@@ -158,13 +156,16 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                     DataType.UNSIGNED_LONG,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [-9223372036854775808] out of [integer] range")
+                    .withWarning(
+                        "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [-9223372036854775808] out of [integer] range"
+                    )
             )
         );
         suppliers.add(
-            new TestCaseSupplier("<big unsigned_long>, <negative long in integer range>",
-                List.of(DataType.UNSIGNED_LONG, DataType.LONG), () ->
-                new TestCaseSupplier.TestCase(
+            new TestCaseSupplier(
+                "<big unsigned_long>, <negative long in integer range>",
+                List.of(DataType.UNSIGNED_LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BigInteger("16144415263046370459"), DataType.UNSIGNED_LONG, "number"),
                         new TestCaseSupplier.TypedData(-2147483647L, DataType.LONG, "decimals")

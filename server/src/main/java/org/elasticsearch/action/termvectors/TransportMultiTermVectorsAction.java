@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -72,8 +73,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                     clusterState.metadata().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
                 );
                 String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-                shardId = clusterService.operationRouting()
-                    .shardId(clusterState, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
+                shardId = OperationRouting.shardId(
+                    clusterState,
+                    concreteSingleIndex,
+                    termVectorsRequest.id(),
+                    termVectorsRequest.routing()
+                );
             } catch (RoutingMissingException e) {
                 responses.set(
                     i,

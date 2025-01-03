@@ -62,16 +62,27 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        final var operationRouting = clusterService.operationRouting();
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
-            GroupShardsIterator<ShardIterator> groupShardsIter = clusterService.operationRouting()
-                .searchShards(state, new String[] { request.concreteIndex() }, null, request.request().preference());
+            GroupShardsIterator<ShardIterator> groupShardsIter = operationRouting.searchShards(
+                state,
+                new String[] { request.concreteIndex() },
+                null,
+                request.request().preference()
+            );
             return groupShardsIter.iterator().next();
         }
 
-        ShardIterator shards = clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
-        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
+        return operationRouting.useOnlyPromotableShardsForStateless(
+            operationRouting.getShards(
+                state,
+                request.concreteIndex(),
+                request.request().id(),
+                request.request().routing(),
+                request.request().preference()
+            )
+        );
     }
 
     @Override

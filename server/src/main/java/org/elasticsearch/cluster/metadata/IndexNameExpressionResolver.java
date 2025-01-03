@@ -979,10 +979,7 @@ public class IndexNameExpressionResolver {
                 return null;
             }
 
-            if (skipIdentity == false
-                && (resolvedExpressions.contains(new ResolvedExpression(dataStream.getName()))
-                    || resolvedExpressions.contains(new ResolvedExpression(dataStream.getName(), IndexComponentSelector.DATA))
-                    || resolvedExpressions.contains(new ResolvedExpression(dataStream.getName(), IndexComponentSelector.ALL_APPLICABLE)))) {
+            if (skipIdentity == false && resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStream.getName())) {
                 // skip the filters when the request targets the data stream name + selector directly
                 return null;
             }
@@ -991,13 +988,7 @@ public class IndexNameExpressionResolver {
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
                 aliasesForDataStream = dataStreamAliases.values()
                     .stream()
-                    .filter(
-                        dataStreamAlias -> resolvedExpressions.contains(new ResolvedExpression(dataStreamAlias.getName()))
-                            || resolvedExpressions.contains(new ResolvedExpression(dataStreamAlias.getName(), IndexComponentSelector.DATA))
-                            || resolvedExpressions.contains(
-                                new ResolvedExpression(dataStreamAlias.getName(), IndexComponentSelector.ALL_APPLICABLE)
-                            )
-                    )
+                    .filter(dataStreamAlias -> resolvedExpressionsContainsAbstraction(resolvedExpressions, dataStreamAlias.getName()))
                     .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
                     .toList();
             } else {
@@ -1032,14 +1023,8 @@ public class IndexNameExpressionResolver {
                 // faster to iterate indexAliases
                 aliasCandidates = indexAliases.values()
                     .stream()
-                    .filter(
-                        // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
-                        aliasMetadata -> resolvedExpressions.contains(new ResolvedExpression(aliasMetadata.alias()))
-                            || resolvedExpressions.contains(new ResolvedExpression(aliasMetadata.alias(), IndexComponentSelector.DATA))
-                            || resolvedExpressions.contains(
-                                new ResolvedExpression(aliasMetadata.alias(), IndexComponentSelector.ALL_APPLICABLE)
-                            )
-                    )
+                    // Indices can only be referenced with a data selector, or a null selector if selectors are disabled
+                    .filter(aliasMetadata -> resolvedExpressionsContainsAbstraction(resolvedExpressions, aliasMetadata.alias()))
                     .toArray(AliasMetadata[]::new);
             } else {
                 // faster to iterate resolvedExpressions
@@ -1068,6 +1053,12 @@ public class IndexNameExpressionResolver {
             }
             return aliases.toArray(Strings.EMPTY_ARRAY);
         }
+    }
+
+    private static boolean resolvedExpressionsContainsAbstraction(Set<ResolvedExpression> resolvedExpressions, String abstractionName) {
+        return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
+            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA))
+            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.ALL_APPLICABLE));
     }
 
     /**

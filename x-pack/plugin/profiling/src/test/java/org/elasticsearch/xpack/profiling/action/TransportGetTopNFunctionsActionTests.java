@@ -14,6 +14,10 @@ import java.util.Map;
 
 public class TransportGetTopNFunctionsActionTests extends ESTestCase {
     public void testCreateAllTopNFunctions() {
+        TraceEvent traceEvent = new TraceEvent(1L);
+        traceEvent.annualCO2Tons = 0.3d;
+        traceEvent.annualCostsUSD = 2.7d;
+
         GetStackTracesResponse stacktraces = new GetStackTracesResponse(
             Map.of(
                 "2buqP1GpF-TXYmL4USW8gA",
@@ -44,7 +48,7 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), new TraceEvent(1L)),
+            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), traceEvent),
             9,
             1.0d,
             1
@@ -76,6 +80,10 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
     }
 
     public void testCreateTopNFunctionsWithLimit() {
+        TraceEvent traceEvent = new TraceEvent(1L);
+        traceEvent.annualCO2Tons = 0.3d;
+        traceEvent.annualCostsUSD = 2.7d;
+
         GetStackTracesResponse stacktraces = new GetStackTracesResponse(
             Map.of(
                 "2buqP1GpF-TXYmL4USW8gA",
@@ -106,7 +114,7 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), new TraceEvent(1L)),
+            Map.of(new TraceEventID("", "", "", "2buqP1GpF-TXYmL4USW8gA"), traceEvent),
             9,
             1.0d,
             1

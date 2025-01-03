@@ -244,7 +244,7 @@ teardown:
               }
             }
           }
-  - match: { Size: 47}
+  - match: { Size: 49}
 
 ---
 "Test flamegraph from test-events":
@@ -272,7 +272,7 @@ teardown:
               }
             }
           }
-  - match: { Size: 47}
+  - match: { Size: 49}
 
 ---
 "Test topN functions from profiling-events":

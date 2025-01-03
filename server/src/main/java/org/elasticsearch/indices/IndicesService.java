@@ -387,7 +387,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
         this.slowLogFieldProvider = new SlowLogFieldProvider() {
-            private List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+            private final List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
                 SlowLogFieldProvider.class
             );
 

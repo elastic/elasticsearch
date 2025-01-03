@@ -521,6 +521,20 @@ language.id:integer | language.name:keyword | language.name.keyword:keyword
 1                   | English               | English
 ;
 
+joinOnNestedNestedFieldRowImplicitKeywords
+required_capability: join_lookup_v10
+
+ROW language.name = ["English", "French"]
+| MV_EXPAND language.name
+| LOOKUP JOIN languages_nested_fields ON language.name
+| KEEP language.id, language.name, language.name.keyword, language.code
+;
+
+language.id:integer | language.name:keyword | language.name.keyword:keyword | language.code:keyword
+1                   | English               | English                       | EN
+2                   | French                | French                        | FR
+;
+
 ###############################################
 # Tests with clientips_lookup index
 ###############################################

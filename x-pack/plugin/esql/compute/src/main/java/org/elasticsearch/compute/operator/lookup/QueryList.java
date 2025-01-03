@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.IntFunction;
 
 /**
@@ -73,8 +72,7 @@ public abstract class QueryList {
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
                 BytesRef value = bytesRefBlock.getBytesRef(offset, new BytesRef());
                 if (field.typeName().equals("text")) {
-                    // Text fields involve case-insensitive contains queries, we need to use lowercase on the term query
-                    return new BytesRef(value.utf8ToString().toLowerCase(Locale.ROOT));
+                    throw new IllegalArgumentException("Cannot perform LOOKUP JOIN on TEXT fields");
                 }
                 return value;
             };

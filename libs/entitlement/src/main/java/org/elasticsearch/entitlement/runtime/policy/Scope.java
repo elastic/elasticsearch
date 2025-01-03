@@ -15,10 +15,10 @@ import java.util.Objects;
 /**
  * A holder for entitlements within a single scope.
  */
-public record Scope(String name, List<Entitlement> entitlements) {
+public record Scope(String moduleName, List<Entitlement> entitlements) {
 
-    public Scope(String name, List<Entitlement> entitlements) {
-        this.name = Objects.requireNonNull(name);
+    public Scope(String moduleName, List<Entitlement> entitlements) {
+        this.moduleName = Objects.requireNonNull(moduleName);
         this.entitlements = List.copyOf(entitlements);
     }
 

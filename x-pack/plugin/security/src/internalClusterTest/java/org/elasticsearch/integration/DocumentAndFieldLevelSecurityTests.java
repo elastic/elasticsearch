@@ -25,7 +25,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -522,7 +522,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
         for (String field : fieldCapabilitiesResponse.get().keySet()) {
             // remove allowlisted metadata fields
-            if (FieldPermissions.METADATA_FIELDS_ALLOWLIST.contains(field)) {
+            if (MetadataFieldsAllowlist.FIELDS.contains(field)) {
                 responseMap.remove(field);
             }
         }
@@ -540,7 +540,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
         for (String field : actual.keySet()) {
             // remove allowlisted metadata fields
-            if (FieldPermissions.METADATA_FIELDS_ALLOWLIST.contains(field)) {
+            if (MetadataFieldsAllowlist.FIELDS.contains(field)) {
                 fields.remove(field);
             }
         }

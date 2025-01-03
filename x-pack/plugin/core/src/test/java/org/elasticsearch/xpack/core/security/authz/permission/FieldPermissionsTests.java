@@ -164,7 +164,7 @@ public class FieldPermissionsTests extends ESTestCase {
     public void testAllBuiltinMetadataFieldsEitherAllowlistedOrExcluded() {
         // add new fields that shouldn't be exposed under FLS by default here
         final Set<String> excludedFields = Set.of();
-        final Set<String> categorizedFields = Sets.union(excludedFields, FieldPermissions.METADATA_FIELDS_ALLOWLIST);
+        final Set<String> categorizedFields = Sets.union(excludedFields, MetadataFieldsAllowlist.FIELDS);
 
         final Set<String> builtinMetadataFields = IndicesModule.getBuiltInMetadataFields();
         final Set<String> uncategorizedFields = Sets.difference(builtinMetadataFields, categorizedFields);

@@ -811,7 +811,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("bar", "baz");
 
         CharacterRunAutomaton include = new CharacterRunAutomaton(Automata.makeString("foo"));
-        Map<String, Object> filtered = FieldSubsetReader.filter(map, include, 0);
+        Map<String, Object> filtered = FieldSubsetReader.filter(map, include);
         Map<String, Object> expected = new HashMap<>();
         expected.put("foo", 3);
 
@@ -826,7 +826,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("bar", "baz");
 
         include = new CharacterRunAutomaton(Automatons.patterns("foo.*"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         expected.put("foo", subMap);
 
@@ -834,7 +834,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // include on leading wildcard
         include = new CharacterRunAutomaton(Automatons.patterns("*.bar"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subMap = new HashMap<>();
         subMap.put("bar", 42);
@@ -844,7 +844,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // include on inner value
         include = new CharacterRunAutomaton(Automatons.patterns("foo.bar"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
 
         assertEquals(expected, filtered);
 
@@ -852,7 +852,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo.bar"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         expected.put("bar", "baz");
         expected.put("foo", Collections.singletonMap("baz", 6));
@@ -863,7 +863,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo.*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = Collections.singletonMap("bar", "baz");
 
         assertEquals(expected, filtered);
@@ -879,7 +879,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("foo", subArray);
 
         include = new CharacterRunAutomaton(Automatons.patterns("foo.bar"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subMap = new HashMap<>();
@@ -891,7 +891,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // include on inner array 2
         include = new CharacterRunAutomaton(Automatons.patterns("foo"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subArray.add(12);
@@ -903,7 +903,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo.baz"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subMap = new HashMap<>();
@@ -918,7 +918,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         include = new CharacterRunAutomaton(
             Operations.minus(Automata.makeAnyString(), Automatons.patterns("foo"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
         subMap = new HashMap<>();
@@ -939,7 +939,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         map.put("bar", values);
 
         include = new CharacterRunAutomaton(Automatons.patterns("bar.baz"));
-        filtered = FieldSubsetReader.filter(map, include, 0);
+        filtered = FieldSubsetReader.filter(map, include);
 
         expected = new HashMap<>();
         expected.put("bar", Arrays.asList(new HashMap<>(), Collections.singletonMap("baz", "2")));
@@ -1265,7 +1265,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
             CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             assertEquals(2, filtered.size());
             Map<String, Object> object = (Map<String, Object>) filtered.get("object");
             assertEquals(1, object.size());
@@ -1308,7 +1308,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
             CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             assertEquals(1, filtered.size());
             Map<String, Object> object = (Map<String, Object>) filtered.get("object");
             assertEquals(2, object.size());
@@ -1335,7 +1335,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
             CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             // TODO FLS filters out empty objects from source, although they are granted access.
             // When filtering mappings though we keep them.
             assertEquals(0, filtered.size());
@@ -1365,7 +1365,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
             CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
-            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include);
             assertEquals(1, filtered.size());
             List<Map<String, Object>> nested = (List<Map<String, Object>>) filtered.get("nested");
             assertEquals(2, nested.size());

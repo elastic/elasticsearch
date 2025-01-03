@@ -45,7 +45,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -138,7 +138,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (FieldPermissions.METADATA_FIELDS_ALLOWLIST_PREDICATE.test(fi.name) || filter.run(fi.name)) {
+            if (MetadataFieldsAllowlist.PREDICATE.test(fi.name) || filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -184,15 +184,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         };
     }
 
+    static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton) {
+        return filter(map, includeAutomaton, 0);
+    }
+
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
+    private static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
 
             // TODO make sure this correctly handles _source and _ignored_sources
-            if (initialState == 0 && FieldPermissions.METADATA_FIELDS_ALLOWLIST_PREDICATE.test(key)) {
+            if (initialState == 0 && MetadataFieldsAllowlist.PREDICATE.test(key)) {
                 // If the field is an allowlisted metadata field, we always include it.
                 filtered.put(key, entry.getValue());
                 continue;
@@ -389,13 +393,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 // for _source, parse, filter out the fields we care about, and serialize back downstream
                 BytesReference bytes = new BytesArray(value);
                 Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
-                Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
+                Map<String, Object> transformedSource = filter(result.v2(), filter);
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
                 IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
-                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter);
                 if (transformedField.isEmpty() == false) {
                     // The unfiltered map contains at least one element, the field name with its value. If the field contains
                     // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,

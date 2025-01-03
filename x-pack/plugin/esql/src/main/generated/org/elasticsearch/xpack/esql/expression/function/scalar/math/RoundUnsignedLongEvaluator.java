@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -85,7 +86,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
         }
         try {
           result.appendLong(Round.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
-        } catch (InvalidArgumentException e) {
+        } catch (InvalidArgumentException | ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
         }
@@ -99,7 +100,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)));
-        } catch (InvalidArgumentException e) {
+        } catch (InvalidArgumentException | ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
         }

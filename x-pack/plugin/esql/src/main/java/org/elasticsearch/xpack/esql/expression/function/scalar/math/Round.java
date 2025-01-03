@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -35,7 +36,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -63,7 +64,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             optional = true,
             name = "decimals",
-            type = { "integer" },  // TODO long is supported here too
+            type = { "integer", "long" },  // TODO long is supported here too
             description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {
@@ -126,7 +127,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         return Maths.round(val, decimals).longValue();
     }
 
-    @Evaluator(extraName = "UnsignedLong", warnExceptions = InvalidArgumentException.class)
+    @Evaluator(extraName = "UnsignedLong", warnExceptions = { InvalidArgumentException.class, ArithmeticException.class })
     static long processUnsignedLong(long val, long decimals) {
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {

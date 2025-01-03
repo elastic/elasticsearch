@@ -78,6 +78,7 @@ Click the links to review the configuration details of the services:
 * <<infer-service-mistral,Mistral>> (`text_embedding`)
 * <<infer-service-openai,OpenAI>> (`completion`, `text_embedding`)
 * <<infer-service-watsonx-ai>> (`text_embedding`)
+* <<infer-service-jinaai,JinaAI>> (`text_embedding`, `rerank`)
 
 The {es} and ELSER services run on a {ml} node in your {es} cluster. The rest of
 the services connect to external providers.

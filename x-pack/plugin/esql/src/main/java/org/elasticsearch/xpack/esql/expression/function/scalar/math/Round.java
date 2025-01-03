@@ -104,7 +104,15 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return decimals == null ? TypeResolution.TYPE_RESOLVED : isWholeNumber(decimals, sourceText(), SECOND);
+        return decimals == null
+            ? TypeResolution.TYPE_RESOLVED
+            : isType(
+                decimals,
+                dt -> dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG,
+                sourceText(),
+                SECOND,
+                "whole number except unsigned_long or counter types"
+            );
     }
 
     @Override

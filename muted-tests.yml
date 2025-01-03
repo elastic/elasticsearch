@@ -298,6 +298,9 @@ tests:
 - class: org.elasticsearch.ingest.common.DateProcessorTests
   method: testJavaPatternDefaultYear
   issue: https://github.com/elastic/elasticsearch/issues/119391
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
 
 # Examples:
 #

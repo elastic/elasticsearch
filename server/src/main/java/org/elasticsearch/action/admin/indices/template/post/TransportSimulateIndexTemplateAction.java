@@ -220,7 +220,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
-            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState))
             .settings(dummySettings)
             .build();
         return ClusterState.builder(simulatedState)
@@ -309,7 +309,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
-            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState))
             .settings(dummySettings)
             .build();
 

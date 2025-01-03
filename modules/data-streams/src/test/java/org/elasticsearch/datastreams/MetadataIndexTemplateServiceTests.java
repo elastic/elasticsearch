@@ -10,7 +10,6 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
@@ -58,14 +57,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireRoutingPath() throws Exception {
         final var service = getMetadataIndexTemplateService();
-        var projectId = randomProjectIdOrDefault();
-        ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         {
             // Missing routing path should fail validation
             var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
-            var state = service.addComponentTemplate(initialState.projectState(projectId), true, "1", componentTemplate);
+            var project = service.addComponentTemplate(initialProject, true, "1", componentTemplate);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
@@ -73,10 +69,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var e = expectThrows(
-                InvalidIndexTemplateException.class,
-                () -> service.addIndexTemplateV2(state.projectState(projectId), false, "1", indexTemplate)
-            );
+            var e = expectThrows(InvalidIndexTemplateException.class, () -> service.addIndexTemplateV2(project, false, "1", indexTemplate));
             assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
         {
@@ -86,7 +79,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null
             );
-            var state = service.addComponentTemplate(initialState.projectState(projectId), true, "1", componentTemplate);
+            var project = service.addComponentTemplate(initialProject, true, "1", componentTemplate);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
@@ -94,8 +87,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            state = service.addIndexTemplateV2(state.projectState(projectId), false, "1", indexTemplate);
-            assertThat(state.getMetadata().getProject(projectId).templatesV2().get("1"), equalTo(indexTemplate));
+            project = service.addIndexTemplateV2(project, false, "1", indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in component template
@@ -104,7 +97,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null
             );
-            var state = service.addComponentTemplate(initialState.projectState(projectId), true, "1", componentTemplate);
+            var project = service.addComponentTemplate(initialProject, true, "1", componentTemplate);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(null, null, null))
@@ -112,8 +105,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            state = service.addIndexTemplateV2(state.projectState(projectId), false, "1", indexTemplate);
-            assertThat(state.getMetadata().getProject(projectId).templatesV2().get("1"), equalTo(indexTemplate));
+            project = service.addIndexTemplateV2(project, false, "1", indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in index template
@@ -124,8 +117,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "1", indexTemplate);
-            assertThat(state.getMetadata().getProject(projectId).templatesV2().get("1"), equalTo(indexTemplate));
+            var project = service.addIndexTemplateV2(initialProject, false, "1", indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing fetched from mapping in index template
@@ -138,8 +131,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var state = service.addIndexTemplateV2(initialState.projectState(projectId), false, "1", indexTemplate);
-            assertThat(state.getMetadata().getProject(projectId).templatesV2().get("1"), equalTo(indexTemplate));
+            var project = service.addIndexTemplateV2(initialProject, false, "1", indexTemplate);
+            assertThat(project.templatesV2().get("1"), equalTo(indexTemplate));
         }
     }
 

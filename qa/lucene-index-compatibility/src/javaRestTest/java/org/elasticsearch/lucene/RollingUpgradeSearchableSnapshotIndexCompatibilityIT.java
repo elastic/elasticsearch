@@ -76,6 +76,9 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
 
             ensureGreen(mountedIndex);
 
+            updateRandomIndexSettings(mountedIndex);
+            updateRandomMappings(mountedIndex);
+
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
 
@@ -133,6 +136,9 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
         }
 
         ensureGreen(mountedIndex);
+
+        updateRandomIndexSettings(mountedIndex);
+        updateRandomMappings(mountedIndex);
 
         assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
         assertDocCount(client(), mountedIndex, numDocs);

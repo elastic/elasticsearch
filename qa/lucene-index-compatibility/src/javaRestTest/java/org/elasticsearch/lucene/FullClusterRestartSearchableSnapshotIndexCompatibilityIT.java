@@ -82,6 +82,9 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
 
+            updateRandomIndexSettings(mountedIndex);
+            updateRandomMappings(mountedIndex);
+
             logger.debug("--> adding replica to test peer-recovery");
             updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
             ensureGreen(mountedIndex);
@@ -130,6 +133,9 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
 
             ensureGreen(mountedIndex);
 
+            updateRandomIndexSettings(mountedIndex);
+            updateRandomMappings(mountedIndex);
+
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
             return;
@@ -140,6 +146,9 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
+
+            updateRandomIndexSettings(mountedIndex);
+            updateRandomMappings(mountedIndex);
 
             logger.debug("--> adding replica to test peer-recovery");
             updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));

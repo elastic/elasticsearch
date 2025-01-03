@@ -10,7 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -114,8 +114,7 @@ public class ReleaseVersions {
                     // this will no longer be the case with ES 10 (which won't know about ES v8.x where we introduced separated versions)
                     // maybe keep the release mapping around in the csv file?
                     // SEP for now
-                    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-                    // @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
+                    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
                     Version oldVersion = Version.fromId(id);
                     return oldVersion.toString();
                 }

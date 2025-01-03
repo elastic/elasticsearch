@@ -9,6 +9,18 @@ preview::[]
 The time series aggregation queries data created using a time series index. This is typically data such as metrics
 or other data streams with a time component, and requires creating an index using the time series mode.
 
+[NOTE]
+====
+When you create a time series index, you must:
+
+* Set `index.mode` to `"time_series"`.
+* Specify at least one dimension field by adding `"time_series_dimension": true` in your mapping.
+* Provide a `routing_path` array listing the dimension fields.
+
+These fields ensure that documents sharing the same dimensions are routed to the same shard,
+and they allow the `time_series` aggregation to produce meaningful bucket results.
+====
+
 //////////////////////////
 
 Creating a time series mapping

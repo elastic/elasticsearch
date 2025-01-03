@@ -100,7 +100,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
             clusterState,
             query,
             IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true)).build()
-        ).toList();
+        );
 
         assertThat(resolved, containsInAnyOrder(".ds-foo1", ".ds-foo2", ".ds-baz1"));
 
@@ -120,7 +120,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
             clusterState,
             query,
             IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true)).build()
-        ).toList();
+        );
 
         assertThat(resolved, containsInAnyOrder(".ds-foo1", ".fs-foo1", ".ds-foo2", ".ds-baz1"));
     }

@@ -18,9 +18,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.index.Index;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedMap;
-import java.util.stream.Stream;
 
 public class DataStreamsActionUtil {
 
@@ -49,7 +49,7 @@ public class DataStreamsActionUtil {
         return indicesOptions;
     }
 
-    public static Stream<String> resolveConcreteIndexNames(
+    public static List<String> resolveConcreteIndexNames(
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
         String[] names,
@@ -62,23 +62,24 @@ public class DataStreamsActionUtil {
         );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
-        return abstractionNames.stream().flatMap(abstractionName -> {
+        List<String> results = new ArrayList<>(abstractionNames.size());
+        for (ResolvedExpression abstractionName : abstractionNames) {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                return selectDataStreamIndicesNames(
+                selectDataStreamIndicesNames(
                     (DataStream) indexAbstraction,
-                    IndexComponentSelector.FAILURES.equals(abstractionName.selector())
+                    IndexComponentSelector.FAILURES.equals(abstractionName.selector()),
+                    results
                 );
-            } else {
-                return Stream.empty();
             }
-        });
+        }
+        return results;
     }
 
     /**
      * Resolves a list of expressions into data stream names and then collects the concrete indices
-     * that are applicable for those data streams based on the given selector.
+     * that are applicable for those data streams based on the selector provided in the arguments.
      * @param indexNameExpressionResolver resolver object
      * @param clusterState state to query
      * @param names data stream expressions
@@ -87,7 +88,7 @@ public class DataStreamsActionUtil {
      * @return A stream of concrete index names that belong to the components specified
      *         on the data streams returned from the expressions given
      */
-    public static Stream<String> resolveConcreteIndexNamesWithSelector(
+    public static List<String> resolveConcreteIndexNamesWithSelector(
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
         String[] names,
@@ -102,38 +103,29 @@ public class DataStreamsActionUtil {
         );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
-        return abstractionNames.stream().flatMap(abstractionName -> {
+        List<String> results = new ArrayList<>(abstractionNames.size());
+        for (String abstractionName : abstractionNames) {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                Stream<String> backingIndices = null;
-                Stream<String> failureIndices = null;
-
                 if (selector.shouldIncludeData()) {
-                    backingIndices = selectDataStreamIndicesNames((DataStream) indexAbstraction, false);
+                    selectDataStreamIndicesNames((DataStream) indexAbstraction, false, results);
                 }
                 if (selector.shouldIncludeFailures()) {
-                    failureIndices = selectDataStreamIndicesNames((DataStream) indexAbstraction, true);
+                    selectDataStreamIndicesNames((DataStream) indexAbstraction, true, results);
                 }
-
-                assert backingIndices != null || failureIndices != null : "Could not resolve any indices for data stream";
-
-                if (backingIndices == null) {
-                    return failureIndices;
-                } else if (failureIndices == null) {
-                    return backingIndices;
-                } else {
-                    return Stream.concat(backingIndices, failureIndices);
-                }
-            } else {
-                return Stream.empty();
             }
-        });
+        }
+        return results;
     }
 
-    private static Stream<String> selectDataStreamIndicesNames(DataStream indexAbstraction, boolean failureStore) {
-        DataStream.DataStreamIndices dataStreamIndices = indexAbstraction.getDataStreamIndices(failureStore);
-        List<Index> indices = dataStreamIndices.getIndices();
-        return indices.stream().map(Index::getName);
+    private static void selectDataStreamIndicesNames(
+        DataStream indexAbstraction,
+        boolean failureStore,
+        List<String> accumulator
+    ) {
+        for (Index index : indexAbstraction.getDataStreamIndices(failureStore).getIndices()) {
+            accumulator.add(index.getName());
+        }
     }
 }

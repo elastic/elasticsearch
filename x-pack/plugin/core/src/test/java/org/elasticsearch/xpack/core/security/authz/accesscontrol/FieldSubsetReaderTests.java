@@ -73,6 +73,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.hamcrest.Matchers;
 
@@ -669,7 +670,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA"));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
@@ -771,7 +772,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             }
 
             {
-                Automaton automaton = Automatons.patterns(List.of("arr.fieldD"));
+                Automaton automaton = Automatons.patterns("arr.fieldD");
                 try (
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
@@ -965,7 +966,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         // open reader
         Set<String> fields = new HashSet<>();
         fields.add("fieldA");
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", FieldNamesFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA"));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
@@ -1023,7 +1024,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA", "fieldC");
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only two fields
@@ -1068,7 +1069,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA", "fieldC");
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
@@ -1102,7 +1103,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
@@ -1233,7 +1234,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
+    public void testMappingsFilteringDuelWithSourceFiltering() {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
             .build();
@@ -1376,6 +1377,42 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
+    public void testMetadataAllowlistFiltering() {
+        FieldPermissionsDefinition definition = new FieldPermissionsDefinition(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+        CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
+        for (var metadataField : MetadataFieldsAllowlist.FIELDS) {
+            {
+                var actual = FieldSubsetReader.filter(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.format("""
+                    {
+                        "%s": "bar",
+                        "outer" : {
+                            "%s": "bar"
+                        },
+                        "_outer": 4
+                    }
+                    """, metadataField, metadataField), false), include);
+                var expected = Map.of(metadataField, "bar");
+                assertThat(actual, equalTo(expected));
+            }
+
+            {
+                var actual = FieldSubsetReader.filter(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.format("""
+                    {
+                        "%s": {
+                           "inner": "bar"
+                        },
+                        "outer" : {
+                            "%s": "bar"
+                        },
+                        "_outer": 4
+                    }
+                    """, metadataField, metadataField), false), include);
+                var expected = Map.of(metadataField, Map.of("inner", "bar"));
+                assertThat(actual, equalTo(expected));
+            }
+        }
+    }
+
     public void testProducesStoredFieldsReader() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -1396,7 +1433,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.commit();
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         TestUtil.checkReader(ir);

@@ -1,3 +1,4 @@
+
 op.issuer=http://127.0.0.1:${MAPPED_PORT}/c2id
 op.authz.endpoint=http://127.0.0.1:${MAPPED_PORT}/c2id-login/
 op.reg.apiAccessTokenSHA256=d1c4fa70d9ee708d13cfa01daa0e060a05a2075a53c5cc1ad79e460e96ab5363

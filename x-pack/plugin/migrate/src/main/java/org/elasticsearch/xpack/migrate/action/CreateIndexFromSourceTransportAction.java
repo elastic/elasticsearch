@@ -69,31 +69,31 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     @Override
     protected void doExecute(Task task, CreateIndexFromSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(request.getSourceIndex());
+        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(request.sourceIndex());
 
         if (sourceIndex == null) {
-            listener.onFailure(new IndexNotFoundException(request.getSourceIndex()));
+            listener.onFailure(new IndexNotFoundException(request.sourceIndex()));
             return;
         }
 
-        logger.debug("Creating destination index [{}] for source index [{}]", request.getDestIndex(), request.getSourceIndex());
+        logger.debug("Creating destination index [{}] for source index [{}]", request.destIndex(), request.sourceIndex());
 
         Settings settings = Settings.builder()
             // add source settings
             .put(filterSettings(sourceIndex))
             // add override settings from request
-            .put(request.getSettingsOverride())
+            .put(request.settingsOverride())
             .build();
 
         Map<String, Object> mergeMappings;
         try {
-            mergeMappings = mergeMappings(sourceIndex.mapping(), request.getMappingsOverride());
+            mergeMappings = mergeMappings(sourceIndex.mapping(), request.mappingsOverride());
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
 
-        var createIndexRequest = new CreateIndexRequest(request.getDestIndex()).settings(settings);
+        var createIndexRequest = new CreateIndexRequest(request.destIndex()).settings(settings);
         if (mergeMappings.isEmpty() == false) {
             createIndexRequest.mapping(mergeMappings);
         }

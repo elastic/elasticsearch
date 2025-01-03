@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,9 +43,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
-        ? IndicesOptions.strictExpandOpenIncludeFailureStore()
-        : IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;

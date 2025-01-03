@@ -11,7 +11,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -55,7 +54,11 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         if (inferenceIdsIndices.size() == 1) {
             // Simple case, everything uses the same inference ID
             String searchInferenceId = inferenceIdsIndices.keySet().iterator().next();
-            return buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, searchInferenceId);
+            return buildNestedQueryFromKnnVectorQuery(
+                knnVectorQueryBuilder,
+                inferenceIdsIndices.values().iterator().next(),
+                searchInferenceId
+            );
         } else {
             // Multiple inference IDs, construct a boolean query
             return buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
@@ -71,7 +74,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             boolQueryBuilder.should(
                 createSubQueryForIndices(
                     inferenceIdsIndices.get(inferenceId),
-                    buildNestedQueryFromKnnVectorQuery(queryBuilder, inferenceId)
+                    buildNestedQueryFromKnnVectorQuery(queryBuilder, inferenceIdsIndices.get(inferenceId), inferenceId)
                 )
             );
         }
@@ -100,57 +103,33 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
             boolQueryBuilder.should(
                 createSubQueryForIndices(
                     inferenceIdsIndices.get(inferenceId),
-                    buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, inferenceId)
+                    buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, inferenceIdsIndices.get(inferenceId), inferenceId)
                 )
             );
         }
         return boolQueryBuilder;
     }
 
-    private QueryBuilder buildNestedQueryFromKnnVectorQuery(KnnVectorQueryBuilder knnVectorQueryBuilder, String searchInferenceId) {
-        TextEmbeddingQueryVectorBuilder queryVectorBuilder = getTextEmbeddingQueryBuilderFromQuery(knnVectorQueryBuilder);
+    private QueryBuilder buildNestedQueryFromKnnVectorQuery(
+        KnnVectorQueryBuilder knnVectorQueryBuilder,
+        List<String> indices,
+        String searchInferenceId
+    ) {
+        KnnVectorQueryBuilder filteredKnnVectorQueryBuilder = addIndexFilterToKnnVectorQuery(indices, knnVectorQueryBuilder);
+        TextEmbeddingQueryVectorBuilder queryVectorBuilder = getTextEmbeddingQueryBuilderFromQuery(filteredKnnVectorQueryBuilder);
         if (queryVectorBuilder != null && queryVectorBuilder.getModelId() == null && searchInferenceId != null) {
             // If the model ID was not specified, we infer the inference ID associated with the semantic_text field.
             queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(searchInferenceId, queryVectorBuilder.getModelText());
         }
         return QueryBuilders.nestedQuery(
-            SemanticTextField.getChunksFieldName(knnVectorQueryBuilder.getFieldName()),
+            SemanticTextField.getChunksFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
             buildNewKnnVectorQuery(
-                SemanticTextField.getEmbeddingsFieldName(knnVectorQueryBuilder.getFieldName()),
-                knnVectorQueryBuilder,
+                SemanticTextField.getEmbeddingsFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
+                filteredKnnVectorQueryBuilder,
                 queryVectorBuilder
             ),
             ScoreMode.Max
         );
-    }
-
-    @Override
-    protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {
-        switch (queryBuilder) {
-            case KnnVectorQueryBuilder knnVectorQueryBuilder -> {
-                return super.createSubQueryForIndices(indices, addIndexFilterToKnnVectorQuery(indices, knnVectorQueryBuilder));
-            }
-            case NestedQueryBuilder nestedQueryBuilder -> {
-                return super.createSubQueryForIndices(
-                    indices,
-                    new NestedQueryBuilder(
-                        nestedQueryBuilder.path(),
-                        addIndexFilterToKnnVectorQuery(indices, nestedQueryBuilder.query()),
-                        nestedQueryBuilder.scoreMode()
-                    )
-                );
-            }
-            case BoolQueryBuilder boolQueryBuilder -> {
-                BoolQueryBuilder newBoolQueryBuilder = new BoolQueryBuilder();
-                boolQueryBuilder.must().forEach(q -> newBoolQueryBuilder.must(createSubQueryForIndices(indices, q)));
-                boolQueryBuilder.should().forEach(q -> newBoolQueryBuilder.should(createSubQueryForIndices(indices, q)));
-                boolQueryBuilder.mustNot().forEach(q -> newBoolQueryBuilder.mustNot(createSubQueryForIndices(indices, q)));
-                return newBoolQueryBuilder;
-            }
-            case null, default -> {
-                return super.createSubQueryForIndices(indices, queryBuilder);
-            }
-        }
     }
 
     private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, QueryBuilder queryBuilder) {

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 
 import java.util.Objects;
 
-
 public class BWCLucene84Codec extends BWCCodec {
 
     private final TermVectorsFormat vectorsFormat = new Lucene50TermVectorsFormat();
@@ -43,21 +42,19 @@ public class BWCLucene84Codec extends BWCCodec {
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final PostingsFormat defaultFormat;
 
-    private final PostingsFormat postingsFormat =
-        new PerFieldPostingsFormat() {
-            @Override
-            public PostingsFormat getPostingsFormatForField(String field) {
-                return BWCLucene84Codec.this.getPostingsFormatForField(field);
-            }
-        };
+    private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
+        @Override
+        public PostingsFormat getPostingsFormatForField(String field) {
+            return BWCLucene84Codec.this.getPostingsFormatForField(field);
+        }
+    };
 
-    private final DocValuesFormat docValuesFormat =
-        new PerFieldDocValuesFormat() {
-            @Override
-            public DocValuesFormat getDocValuesFormatForField(String field) {
-                return BWCLucene84Codec.this.getDocValuesFormatForField(field);
-            }
-        };
+    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return BWCLucene84Codec.this.getDocValuesFormatForField(field);
+        }
+    };
 
     private final StoredFieldsFormat storedFieldsFormat;
 

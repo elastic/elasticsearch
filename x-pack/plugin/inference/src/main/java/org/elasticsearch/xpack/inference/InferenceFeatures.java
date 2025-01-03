@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
@@ -50,6 +51,7 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_TEXT_HIGHLIGHTER,
             SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
             SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
+            SemanticInferenceMetadataFieldsMapper.EXPLICIT_NULL_FIXES,
             SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED
         );
     }

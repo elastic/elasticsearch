@@ -469,7 +469,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         ) {
             super(sub, numFilters, totalNumKeys, true, hasOtherBucket);
             assert filterWrappers.isEmpty() == false;
-            disjunctionDisi = DisjunctionDISIApproximation.of(List.copyOf(filterWrappers), Long.MAX_VALUE);
+            disjunctionDisi = DisjunctionDISIApproximation.of(filterWrappers, Long.MAX_VALUE);
         }
 
         public void collect(int doc, long bucket) throws IOException {

@@ -1250,7 +1250,7 @@ public class IndexNameExpressionResolver {
     public static <T> boolean isAllIndices(Collection<T> aliasesOrIndices, Function<T, String> resourceGetter) {
         return aliasesOrIndices == null
             || aliasesOrIndices.isEmpty()
-            || isExplicitAllPattern(aliasesOrIndices.stream().map(resourceGetter).toList());
+            || isExplicitAllPattern(aliasesOrIndices, resourceGetter);
     }
 
     /**
@@ -1261,7 +1261,21 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
     static boolean isExplicitAllPattern(Collection<String> aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && Metadata.ALL.equals(aliasesOrIndices.iterator().next());
+        return isExplicitAllPattern(aliasesOrIndices, Function.identity());
+    }
+
+    /**
+     * Identifies whether the array containing index names given as argument explicitly refers to all indices
+     * The empty or null array doesn't explicitly map to all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @param resourceGetter function used to lazily convert the collection type into a string for checking equality with the ALL pattern
+     * @return true if the provided array explicitly maps to all indices, false otherwise
+     */
+    static <T> boolean isExplicitAllPattern(Collection<T> aliasesOrIndices, Function<T, String> resourceGetter) {
+        return aliasesOrIndices != null
+            && aliasesOrIndices.size() == 1
+            && Metadata.ALL.equals(resourceGetter.apply(aliasesOrIndices.iterator().next()));
     }
 
     /**

@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -50,6 +52,52 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
+/**
+ * The {@code IN} operator.
+ * <p>
+ *     This function has quite "unique" null handling rules around {@code null} and multivalued
+ *     fields. The {@code null} rules are inspired by PostgreSQL, and, presumably, every other
+ *     SQL implementation. The multivalue rules are pretty much an extension of the "multivalued
+ *     fields are like null in scalars" rule. Here's some examples:
+ * </p>
+ * <ul>
+ *     <li>{@code 'x' IN ('a', 'b', 'c')} => @{code false}</li>
+ *     <li>{@code 'x' IN ('a', 'x', 'c')} => @{code true}</li>
+ *     <li>{@code null IN ('a', 'b', 'c')} => @{code null}</li>
+ *     <li>{@code ['x', 'y'] IN ('a', 'b', 'c')} => @{code null} and a warning</li>
+ *     <li>{@code 'x' IN ('a', null, 'c')} => @{code null}</li>
+ *     <li>{@code 'x' IN ('x', null, 'c')} => @{code true}</li>
+ *     <li>{@code 'x' IN ('x', ['a', 'b'], 'c')} => @{code true} and a warning</li>
+ *     <li>{@code 'x' IN ('a', ['a', 'b'], 'c')} => @{code false} and a warning</li>
+ * </ul>
+ * <p>
+ *     And here's the decision tree for {@code WHERE x IN (a, b, c)}:
+ * </p>
+ * <ol>
+ *     <li>{@code x IS NULL} => return {@code null}</li>
+ *     <li>{@code MV_COUNT(x) > 1} => emit a warning and return {@code null}</li>
+ *     <li>{@code a IS NULL AND b IS NULL AND c IS NULL} => return {@code null}</li>
+ *     <li>{@code MV_COUNT(a) > 1 OR MV_COUNT(b) > 1 OR MV_COUNT(c) > 1} => emit a warning and continue</li>
+ *     <li>{@code MV_COUNT(a) > 1 AND MV_COUNT(b) > 1 AND MV_COUNT(c) > 1} => return {@code null}</li>
+ *     <li>{@code x == a OR x == b OR x == c} => return {@code true}</li>
+ *     <li>{@code a IS NULL OR b IS NULL OR c IS NULL} => return {@code null}</li>
+ *     <li>{@code else} => {@code false}</li>
+ * </ol>
+ * <p>
+ *     I believe the first five entries are *mostly* optimizations and making the
+ *     <a href="https://en.wikipedia.org/wiki/Three-valued_logic">Three-valued logic</a> of SQL
+ *     explicit and integrated with our multivalue field rules. And make all that work with the
+ *     actual evaluator code. You could probably shorten this to the last three points, but lots
+ *     of folks aren't familiar with SQL's three-valued logic anyway, so let's be explicit.
+ * </p>
+ * <p>
+ *     Because of this chain of logic we don't use the standard evaluator generators. They'd just
+ *     require too many special cases and nothing else quite works like this. I mean, everything
+ *     works just like this in that "three-valued logic" sort of way, but not in the "java code"
+ *     sort of way. So! Instead of using the standard evaluator generators we use the
+ *     String Template generators that we use for things like {@link Block} and {@link Vector}.
+ * </p>
+ */
 public class In extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
 

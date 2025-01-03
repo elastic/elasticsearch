@@ -197,6 +197,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.SetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -614,9 +615,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.LISTS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.LISTS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.LISTS_ITEMS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -3454,6 +3457,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(true));
+            assertThat(role.cluster().check(SetTransformUpgradeModeAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
             assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
@@ -3543,6 +3547,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(SetTransformUpgradeModeAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));

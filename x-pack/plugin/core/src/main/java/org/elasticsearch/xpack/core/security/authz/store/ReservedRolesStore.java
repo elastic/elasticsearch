@@ -47,6 +47,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
+    public static final String ALERTS_BACKING_INDEX_REINDEXED = ".reindexed-v8-internal.alerts*";
 
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
@@ -55,7 +56,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
 
     /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
-    public static final String PREVIEW_ALERTS_BACKING_INDEX_ALIAS = ".internal.preview.alerts*";
+    public static final String PREVIEW_ALERTS_BACKING_INDEX = ".internal.preview.alerts*";
+    public static final String PREVIEW_ALERTS_BACKING_INDEX_REINDEXED = ".reindexed-v8-internal.preview.alerts*";
 
     /** "Security Solutions" only lists index for value lists for detections */
     public static final String LISTS_INDEX = ".lists-*";
@@ -902,8 +904,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         ReservedRolesStore.ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED,
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
-                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED,
                         ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")

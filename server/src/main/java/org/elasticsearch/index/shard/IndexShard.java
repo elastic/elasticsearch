@@ -2206,7 +2206,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Asserts that the latest Lucene commit contains expected information about sequence numbers or ES version.
      */
     private boolean assertLastestCommitUserData() throws IOException {
-        final SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(store.directory());
+        final SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
         final Map<String, String> userData = segmentCommitInfos.getUserData();
         // Ensure sequence numbers are present in commit data
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";

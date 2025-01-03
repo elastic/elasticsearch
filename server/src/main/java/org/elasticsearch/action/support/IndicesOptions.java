@@ -363,7 +363,8 @@ public record IndicesOptions(
             }
 
             /**
-             * Selectors are allowed within index expressions when true, otherwise the resolution will ignore them.
+             * Selectors are allowed within index expressions when true, otherwise the resolution will treat their presence as a syntax
+             * error when resolving index expressions.
              * Defaults to true.
              */
             public Builder allowSelectors(boolean allowSelectors) {

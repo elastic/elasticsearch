@@ -5,8 +5,9 @@ type: breaking
 issues: []
 breaking:
   title: Remove unfreeze REST endpoint
-  area: Indices APIs
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: REST API
+  details: >-
+    The `/{index}/_unfreeze` REST endpoint is no longer supported. This API was deprecated, and the corresponding
+    `/{index}/_freeze` endpoint was removed in 8.0.
+  impact: None, since it is not possible to have a frozen index in a version which is readable by Elasticsearch 9.0
   notable: false

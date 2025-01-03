@@ -1,0 +1,5 @@
+pr: 119291
+summary: Register mustache size limit setting
+area: Infra/Scripting
+type: bug
+issues: []

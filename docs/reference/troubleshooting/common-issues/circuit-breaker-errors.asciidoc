@@ -9,6 +9,9 @@ By default, the <<parent-circuit-breaker,parent circuit breaker>> triggers at
 95% JVM memory usage. To prevent errors, we recommend taking steps to reduce
 memory pressure if usage consistently exceeds 85%.
 
+See https://www.youtube.com/watch?v=k3wYlRVbMSw[this video] for a walkthrough
+of diagnosing circuit breaker errors.
+
 [discrete]
 [[diagnose-circuit-breaker-errors]]
 ==== Diagnose circuit breaker errors

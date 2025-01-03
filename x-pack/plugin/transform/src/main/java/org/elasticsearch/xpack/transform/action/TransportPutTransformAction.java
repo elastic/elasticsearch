@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -62,6 +63,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final TransformConfigAutoMigration transformConfigAutoMigration;
 
     @Inject
     public TransportPutTransformAction(
@@ -72,7 +74,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        TransformConfigAutoMigration transformConfigAutoMigration
     ) {
         super(
             PutTransformAction.NAME,
@@ -91,6 +94,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.auditor();
+        this.transformConfigAutoMigration = transformConfigAutoMigration;
     }
 
     @Override
@@ -182,7 +186,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-        var config = request.getConfig();
+        var config = transformConfigAutoMigration.migrate(request.getConfig());
         transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
             var transformId = config.getId();
             logger.info("[{}] created transform", transformId);

@@ -110,6 +110,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
+import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
@@ -138,6 +139,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
+    private final SetOnce<TransformConfigAutoMigration> transformConfigAutoMigration = new SetOnce<>();
     private final TransformExtension transformExtension = new DefaultTransformExtension();
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
@@ -319,7 +321,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
 
-        return List.of(transformServices.get(), clusterStateListener, new TransformExtensionHolder(getTransformExtension()));
+        var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
+        transformConfigAutoMigration.set(new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry));
+
+        return List.of(
+            transformServices.get(),
+            clusterStateListener,
+            new TransformExtensionHolder(getTransformExtension()),
+            transformConfigAutoMigration.get()
+        );
     }
 
     @Override
@@ -332,6 +342,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     ) {
         // the transform services should have been created
         assert transformServices.get() != null;
+        assert transformConfigAutoMigration.get() != null;
 
         return List.of(
             new TransformPersistentTasksExecutor(
@@ -341,7 +352,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 clusterService,
                 settingsModule.getSettings(),
                 getTransformExtension(),
-                expressionResolver
+                expressionResolver,
+                transformConfigAutoMigration.get()
             )
         );
     }

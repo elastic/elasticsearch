@@ -478,7 +478,8 @@ public final class CsvTestUtils {
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        AGGREGATE_METRIC_DOUBLE(Double::parseDouble, Double.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -546,6 +547,7 @@ public final class CsvTestUtils {
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATED_DOUBLE_METRIC -> throw new IllegalArgumentException("can't assert on aggregated double metric blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

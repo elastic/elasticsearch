@@ -147,6 +147,11 @@ public class TestBlock implements BlockLoader.Block {
                 }
                 return new SingletonOrdsBuilder();
             }
+
+            @Override
+            public BlockLoader.AggregateDoubleMetricBuilder aggregateDoubleMetricBuilder(int count) {
+                return null;
+            }
         };
     }
 

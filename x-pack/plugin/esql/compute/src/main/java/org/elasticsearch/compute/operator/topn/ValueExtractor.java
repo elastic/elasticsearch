@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,7 +26,9 @@ interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
-        if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
+        if (false == (elementType == block.elementType()
+            || ElementType.NULL == block.elementType()
+            || elementType == ElementType.AGGREGATED_DOUBLE_METRIC && block.elementType() == ElementType.COMPOSITE)) {
             throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
         return switch (block.elementType()) {
@@ -37,6 +40,7 @@ interface ValueExtractor {
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
+            case COMPOSITE -> ValueExtractorForComposite.extractorFor(encoder, inKey, (CompositeBlock) block);
             default -> {
                 assert false : "No value extractor for [" + block.elementType() + "]";
                 throw new UnsupportedOperationException("No value extractor for [" + block.elementType() + "]");

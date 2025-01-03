@@ -13,7 +13,7 @@ setup:
             properties:
               aggregate_metric_double:
                 type: aggregate_metric_double
-                metrics: [ min, max ]
+                metrics: [ min, max, sum, value_count ]
                 default_metric: max
               binary:
                 type: binary
@@ -81,7 +81,7 @@ setup:
         body:
           - { "index": { } }
           - {
-            "aggregate_metric_double": { "min": 1.0, "max": 3.0 },
+            "aggregate_metric_double": { "min": 1.0, "max": 3.0, "sum": 15.3, "value_count": 8 },
             "binary": "U29tZSBiaW5hcnkgYmxvYg==",
             "completion": "foo bar",
             "date_nanos": "2015-01-01T12:10:30.123456789Z",
@@ -119,7 +119,7 @@ unsupported:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ date_nanos_type ]
+          capabilities: [ aggregate_metric_double ]
       reason: "support for date nanos type"
 
   - do:
@@ -131,7 +131,7 @@ unsupported:
           query: 'from test'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -190,7 +190,7 @@ unsupported:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: 3.0 }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
@@ -227,7 +227,7 @@ unsupported:
         body:
           query: 'from test | limit 0'
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -308,7 +308,7 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ date_nanos_type ]
+          capabilities: [ aggregate_metric_double ]
       reason: "support for date nanos type"
 
   - do:
@@ -320,7 +320,7 @@ unsupported with sort:
           query: 'from test | sort some_doc.bar'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -379,7 +379,7 @@ unsupported with sort:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: 3.0 }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }

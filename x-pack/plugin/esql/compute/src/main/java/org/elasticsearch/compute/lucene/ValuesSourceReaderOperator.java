@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.AggregateDoubleMetricBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -160,7 +161,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             if (Assertions.ENABLED) {
                 for (int f = 0; f < fields.length; f++) {
-                    assert blocks[f].elementType() == ElementType.NULL || blocks[f].elementType() == fields[f].info.type
+                    assert blocks[f].elementType() == ElementType.NULL
+                        || blocks[f].elementType() == fields[f].info.type
+                        || blocks[f].elementType() == ElementType.COMPOSITE && fields[f].info.type == ElementType.AGGREGATED_DOUBLE_METRIC
                         : blocks[f].elementType() + " NOT IN (NULL, " + fields[f].info.type + ")";
                 }
             }
@@ -697,6 +700,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
             return new SingletonOrdinalsBuilder(factory, ordinals, count);
+        }
+
+        @Override
+        public BlockLoader.AggregateDoubleMetricBuilder aggregateDoubleMetricBuilder(int count) {
+            return new AggregateDoubleMetricBlockBuilder(count, this.factory);
         }
     }
 

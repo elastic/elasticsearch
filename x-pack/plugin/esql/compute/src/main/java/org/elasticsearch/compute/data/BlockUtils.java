@@ -268,6 +268,8 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            // TODO: include all aggregate double metric sub fields. Currently hardcoded to max sub field, which is always the second block:
+            case AGGREGATED_DOUBLE_METRIC -> ((DoubleBlock) ((CompositeBlock) block).getBlock(1)).getDouble(offset);
             case FLOAT -> ((FloatBlock) block).getFloat(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);

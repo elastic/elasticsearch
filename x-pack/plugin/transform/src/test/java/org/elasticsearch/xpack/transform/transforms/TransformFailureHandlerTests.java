@@ -93,7 +93,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
             randomBoolean()
         );
 
-        List.of(true, false).forEach((unattended) -> { assertRetryFailureCountNotIncremented(bulkIndexingException, unattended); });
+        List.of(true, false).forEach((unattended) -> { assertClusterBlockHandled(bulkIndexingException, unattended); });
     }
 
     public void testHandleIndexerFailure_IrrecoverableBulkIndexException() {
@@ -197,7 +197,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
         }
     }
 
-    private void assertRetryFailureCountNotIncremented(Exception e, boolean unattended) {
+    private void assertClusterBlockHandled(Exception e, boolean unattended) {
         String transformId = randomAlphaOfLength(10);
         SettingsConfig settings = new SettingsConfig.Builder().setNumFailureRetries(2).setUnattended(unattended).build();
 
@@ -211,6 +211,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
         assertNoFailure(handler, e, contextListener, settings, false);
+        assertTrue(context.isWaitingForIndexToUnblock());
     }
 
     private void assertFailure(Exception e) {

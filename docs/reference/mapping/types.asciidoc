@@ -180,6 +180,8 @@ include::types/rank-feature.asciidoc[]
 
 include::types/rank-features.asciidoc[]
 
+include::types/rank-vectors.asciidoc[]
+
 include::types/search-as-you-type.asciidoc[]
 
 include::types/semantic-text.asciidoc[]

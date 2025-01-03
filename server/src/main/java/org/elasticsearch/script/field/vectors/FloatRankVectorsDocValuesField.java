@@ -110,14 +110,14 @@ public class FloatRankVectorsDocValuesField extends RankVectorsDocValuesField {
         }
     }
 
-    static class FloatVectorIterator implements VectorIterator<float[]> {
+    public static class FloatVectorIterator implements VectorIterator<float[]> {
         private final float[] buffer;
         private final FloatBuffer vectorValues;
         private final BytesRef vectorValueBytesRef;
         private final int size;
         private int idx = 0;
 
-        FloatVectorIterator(BytesRef vectorValues, float[] buffer, int size) {
+        public FloatVectorIterator(BytesRef vectorValues, float[] buffer, int size) {
             assert vectorValues.length == (buffer.length * Float.BYTES * size);
             this.vectorValueBytesRef = vectorValues;
             this.vectorValues = ByteBuffer.wrap(vectorValues.bytes, vectorValues.offset, vectorValues.length)

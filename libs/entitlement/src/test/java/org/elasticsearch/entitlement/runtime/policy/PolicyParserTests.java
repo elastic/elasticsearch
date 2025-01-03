@@ -68,7 +68,7 @@ public class PolicyParserTests extends ESTestCase {
         assertThat(
             parsedPolicy.scopes,
             contains(
-                both(transformedMatch((Scope scope) -> scope.name, equalTo("entitlement-module-name"))).and(
+                both(transformedMatch((Scope scope) -> scope.moduleName, equalTo("entitlement-module-name"))).and(
                     transformedMatch(scope -> scope.entitlements, contains(instanceOf(CreateClassLoaderEntitlement.class)))
                 )
             )
@@ -87,7 +87,7 @@ public class PolicyParserTests extends ESTestCase {
         assertThat(
             parsedPolicy.scopes,
             contains(
-                both(transformedMatch((Scope scope) -> scope.name, equalTo("entitlement-module-name"))).and(
+                both(transformedMatch((Scope scope) -> scope.moduleName, equalTo("entitlement-module-name"))).and(
                     transformedMatch(scope -> scope.entitlements, contains(instanceOf(SetHttpsConnectionPropertiesEntitlement.class)))
                 )
             )

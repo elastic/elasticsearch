@@ -70,7 +70,11 @@ public abstract class QueryList {
             }
             case BYTES_REF -> offset -> {
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                return bytesRefBlock.getBytesRef(offset, new BytesRef());
+                BytesRef value = bytesRefBlock.getBytesRef(offset, new BytesRef());
+                if (field.typeName().equals("text")) {
+                    throw new IllegalArgumentException("Cannot perform LOOKUP JOIN on TEXT fields");
+                }
+                return value;
             };
             case DOUBLE -> {
                 DoubleBlock doubleBlock = ((DoubleBlock) block);

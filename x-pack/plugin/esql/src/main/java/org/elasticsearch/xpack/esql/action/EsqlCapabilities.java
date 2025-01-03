@@ -563,6 +563,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V10(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN with TEXT fields on the right (right side of the join)
+         */
+        LOOKUP_JOIN_TEXT(Build.current().isSnapshot()),
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,

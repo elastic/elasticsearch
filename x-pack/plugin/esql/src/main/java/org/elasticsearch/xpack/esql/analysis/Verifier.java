@@ -858,7 +858,7 @@ public class Verifier {
             for (int i = 0; i < config.leftFields().size(); i++) {
                 Attribute leftField = config.leftFields().get(i);
                 Attribute rightField = config.rightFields().get(i);
-                if (leftField.dataType() != rightField.dataType()) {
+                if (leftField.dataType().noText() != rightField.dataType().noText()) {
                     failures.add(
                         fail(
                             leftField,

@@ -149,7 +149,7 @@ public abstract class BWCCodec extends Codec {
         return segmentInfo1;
     }
 
-    // special handling for Lucene8xCodecs (which are currently bundled with Lucene)
+    // Special handling for Lucene8xCodecs (which are currently bundled with Lucene)
     // Use BWCLucene8xCodec instead as that one extends BWCCodec (similar to all other older codecs)
     private static Codec getBackwardCompatibleCodec(Codec codec) {
         if (codec instanceof Lucene80Codec) {

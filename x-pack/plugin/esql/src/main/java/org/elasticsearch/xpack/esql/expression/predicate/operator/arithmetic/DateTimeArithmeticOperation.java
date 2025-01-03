@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -111,7 +112,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
 
     /**
      * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold()}.
+     * Used in {@link DateTimeArithmeticOperation#fold}.
      * @param left the left period
      * @param right the right period
      * @return the result of the evaluation
@@ -120,7 +121,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
 
     /**
      * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold()}.
+     * Used in {@link DateTimeArithmeticOperation#fold}.
      * @param left the left duration
      * @param right the right duration
      * @return the result of the evaluation
@@ -128,13 +129,13 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     abstract Duration fold(Duration left, Duration right);
 
     @Override
-    public final Object fold() {
+    public final Object fold(FoldContext ctx) {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
-            var l = left().fold();
-            var r = right().fold();
+            var l = left().fold(ctx);
+            var r = right().fold(ctx);
             if (l instanceof Collection<?> || r instanceof Collection<?>) {
                 return null;
             }
@@ -148,8 +149,8 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
-            Duration l = (Duration) left().fold();
-            Duration r = (Duration) right().fold();
+            Duration l = (Duration) left().fold(ctx);
+            Duration r = (Duration) right().fold(ctx);
             try {
                 return fold(l, r);
             } catch (ArithmeticException e) {
@@ -161,7 +162,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         if (isNull(leftDataType) || isNull(rightDataType)) {
             return null;
         }
-        return super.fold();
+        return super.fold(ctx);
     }
 
     @Override
@@ -178,7 +179,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 temporalAmountArgument = left();
             }
 
-            return millisEvaluator.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
+            return millisEvaluator.apply(
+                source(),
+                toEvaluator.apply(datetimeArgument),
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
+            );
         } else if (dataType() == DATE_NANOS) {
             // One of the arguments has to be a date_nanos and the other a temporal amount.
             Expression dateNanosArgument;
@@ -191,7 +196,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 temporalAmountArgument = left();
             }
 
-            return nanosEvaluator.apply(source(), toEvaluator.apply(dateNanosArgument), (TemporalAmount) temporalAmountArgument.fold());
+            return nanosEvaluator.apply(
+                source(),
+                toEvaluator.apply(dateNanosArgument),
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
+            );
         } else {
             return super.toEvaluator(toEvaluator);
         }

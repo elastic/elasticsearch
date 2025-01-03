@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -78,8 +79,8 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
         Literal pattern = (Literal) args.get(1);
         if (args.size() > 2) {
             Literal caseInsensitive = (Literal) args.get(2);
-            assertThat(caseInsensitive.fold(), equalTo(false));
+            assertThat(caseInsensitive.fold(FoldContext.unbounded()), equalTo(false));
         }
-        return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold()).utf8ToString()));
+        return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold(FoldContext.unbounded())).utf8ToString()));
     }
 }

@@ -147,7 +147,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(), configuration().locale());
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().locale());
             return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);

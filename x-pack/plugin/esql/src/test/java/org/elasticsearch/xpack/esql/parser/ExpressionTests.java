@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -617,16 +618,14 @@ public class ExpressionTests extends ESTestCase {
         Equals eq = (Equals) e;
         assertThat(eq.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.left()).name(), equalTo("a"));
-        assertThat(eq.right(), instanceOf(Literal.class));
-        assertThat(eq.right().fold(), equalTo(1));
+        assertThat(as(eq.right(), Literal.class).value(), equalTo(1));
 
         e = whereExpression("1 IN (a)");
         assertThat(e, instanceOf(Equals.class));
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left(), instanceOf(Literal.class));
-        assertThat(eq.left().fold(), equalTo(1));
+        assertThat(eq.left().fold(FoldContext.unbounded()), equalTo(1));
 
         e = whereExpression("1 NOT IN (a)");
         assertThat(e, instanceOf(Not.class));
@@ -635,9 +634,7 @@ public class ExpressionTests extends ESTestCase {
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left(), instanceOf(Literal.class));
-        assertThat(eq.left().fold(), equalTo(1));
-
+        assertThat(eq.left().fold(FoldContext.unbounded()), equalTo(1));
     }
 
     private Expression whereExpression(String e) {

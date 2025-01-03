@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -104,7 +105,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                 EsqlTestUtils.TEST_CFG
             );
 
-            assertThat(instance.fold(), is(date.getLong(value)));
+            assertThat(instance.fold(FoldContext.unbounded()), is(date.getLong(value)));
             assertThat(
                 DateExtract.process(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.zoneId()),
                 is(date.getLong(value))

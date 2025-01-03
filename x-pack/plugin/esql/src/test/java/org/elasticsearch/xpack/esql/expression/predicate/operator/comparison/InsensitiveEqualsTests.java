@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
@@ -18,37 +19,37 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 public class InsensitiveEqualsTests extends ESTestCase {
 
     public void testFold() {
-        assertTrue(insensitiveEquals(l("foo"), l("foo")).fold());
-        assertTrue(insensitiveEquals(l("Foo"), l("foo")).fold());
-        assertTrue(insensitiveEquals(l("Foo"), l("fOO")).fold());
-        assertTrue(insensitiveEquals(l("foo*"), l("foo*")).fold());
-        assertTrue(insensitiveEquals(l("foo*"), l("FOO*")).fold());
-        assertTrue(insensitiveEquals(l("foo?bar"), l("foo?bar")).fold());
-        assertTrue(insensitiveEquals(l("foo?bar"), l("FOO?BAR")).fold());
-        assertFalse(insensitiveEquals(l("Foo"), l("fo*")).fold());
-        assertFalse(insensitiveEquals(l("Fox"), l("fo?")).fold());
-        assertFalse(insensitiveEquals(l("Foo"), l("*OO")).fold());
-        assertFalse(insensitiveEquals(l("BarFooBaz"), l("*O*")).fold());
-        assertFalse(insensitiveEquals(l("BarFooBaz"), l("bar*baz")).fold());
-        assertFalse(insensitiveEquals(l("foo"), l("*")).fold());
+        assertTrue(insensitiveEquals(l("foo"), l("foo")).fold(FoldContext.unbounded()));
+        assertTrue(insensitiveEquals(l("Foo"), l("foo")).fold(FoldContext.unbounded()));
+        assertTrue(insensitiveEquals(l("Foo"), l("fOO")).fold(FoldContext.unbounded()));
+        assertTrue(insensitiveEquals(l("foo*"), l("foo*")).fold(FoldContext.unbounded()));
+        assertTrue(insensitiveEquals(l("foo*"), l("FOO*")).fold(FoldContext.unbounded()));
+        assertTrue(insensitiveEquals(l("foo?bar"), l("foo?bar")).fold(FoldContext.unbounded()));
+        assertTrue(insensitiveEquals(l("foo?bar"), l("FOO?BAR")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("Foo"), l("fo*")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("Fox"), l("fo?")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("Foo"), l("*OO")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("BarFooBaz"), l("*O*")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("BarFooBaz"), l("bar*baz")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("foo"), l("*")).fold(FoldContext.unbounded()));
 
-        assertFalse(insensitiveEquals(l("foo*bar"), l("foo\\*bar")).fold());
-        assertFalse(insensitiveEquals(l("foo?"), l("foo\\?")).fold());
-        assertFalse(insensitiveEquals(l("foo?bar"), l("foo\\?bar")).fold());
-        assertFalse(insensitiveEquals(l(randomAlphaOfLength(10)), l("*")).fold());
-        assertFalse(insensitiveEquals(l(randomAlphaOfLength(3)), l("???")).fold());
+        assertFalse(insensitiveEquals(l("foo*bar"), l("foo\\*bar")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("foo?"), l("foo\\?")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("foo?bar"), l("foo\\?bar")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l(randomAlphaOfLength(10)), l("*")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l(randomAlphaOfLength(3)), l("???")).fold(FoldContext.unbounded()));
 
-        assertFalse(insensitiveEquals(l("foo"), l("bar")).fold());
-        assertFalse(insensitiveEquals(l("foo"), l("ba*")).fold());
-        assertFalse(insensitiveEquals(l("foo"), l("*a*")).fold());
-        assertFalse(insensitiveEquals(l(""), l("bar")).fold());
-        assertFalse(insensitiveEquals(l("foo"), l("")).fold());
-        assertFalse(insensitiveEquals(l(randomAlphaOfLength(3)), l("??")).fold());
-        assertFalse(insensitiveEquals(l(randomAlphaOfLength(3)), l("????")).fold());
+        assertFalse(insensitiveEquals(l("foo"), l("bar")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("foo"), l("ba*")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("foo"), l("*a*")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l(""), l("bar")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l("foo"), l("")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l(randomAlphaOfLength(3)), l("??")).fold(FoldContext.unbounded()));
+        assertFalse(insensitiveEquals(l(randomAlphaOfLength(3)), l("????")).fold(FoldContext.unbounded()));
 
-        assertNull(insensitiveEquals(l("foo"), Literal.NULL).fold());
-        assertNull(insensitiveEquals(Literal.NULL, l("foo")).fold());
-        assertNull(insensitiveEquals(Literal.NULL, Literal.NULL).fold());
+        assertNull(insensitiveEquals(l("foo"), Literal.NULL).fold(FoldContext.unbounded()));
+        assertNull(insensitiveEquals(Literal.NULL, l("foo")).fold(FoldContext.unbounded()));
+        assertNull(insensitiveEquals(Literal.NULL, Literal.NULL).fold(FoldContext.unbounded()));
     }
 
     public void testProcess() {

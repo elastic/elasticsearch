@@ -7,19 +7,27 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
 
 public class LogicalOptimizerContext {
     private final Configuration configuration;
+    private final FoldContext foldCtx;
 
-    public LogicalOptimizerContext(Configuration configuration) {
+    public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx) {
         this.configuration = configuration;
+        this.foldCtx = foldCtx;
     }
 
     public Configuration configuration() {
         return configuration;
+    }
+
+    public FoldContext foldCtx() {
+        // TODO this has an equals method!? but foldCtx is explicitly mutable state....
+        return foldCtx;
     }
 
     @Override

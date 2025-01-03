@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -26,7 +27,7 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
-        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config)));
+        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.unbounded())));
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
@@ -61,8 +62,13 @@ public class TestPlannerOptimizer {
         // this is of no use in the unit tests, which checks the plan as a whole instead of each
         // individually hence why here the plan is kept as is
 
-        var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(config, searchStats));
-        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(config, searchStats), true);
+        var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(config, FoldContext.unbounded(), searchStats)
+        );
+        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(config, FoldContext.unbounded(), searchStats),
+            true
+        );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
 
         // handle local reduction alignment

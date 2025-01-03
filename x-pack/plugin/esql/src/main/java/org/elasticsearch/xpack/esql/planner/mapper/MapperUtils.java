@@ -11,6 +11,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -90,7 +91,7 @@ class MapperUtils {
                 enrich.mode(),
                 enrich.policy().getType(),
                 enrich.matchField(),
-                BytesRefs.toString(enrich.policyName().fold()),
+                BytesRefs.toString(enrich.policyName().fold(FoldContext.unbounded() /* TODO remove me */)),
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -157,11 +158,11 @@ public class In extends EsqlScalarFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         if (Expressions.isGuaranteedNull(value) || list.stream().allMatch(Expressions::isGuaranteedNull)) {
             return null;
         }
-        return super.fold();
+        return super.fold(ctx);
     }
 
     protected boolean areCompatible(DataType left, DataType right) {

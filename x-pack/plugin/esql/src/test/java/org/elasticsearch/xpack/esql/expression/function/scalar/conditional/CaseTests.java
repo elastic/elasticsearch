@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -785,7 +786,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return;
         }
         assertThat(e.foldable(), equalTo(true));
-        Object result = e.fold();
+        Object result = e.fold(FoldContext.unbounded());
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
@@ -805,18 +806,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         Case c = (Case) buildFieldExpression(testCase);
         if (extra().expectedPartialFold == null) {
-            assertThat(c.partiallyFold(), sameInstance(c));
+            assertThat(c.partiallyFold(FoldContext.unbounded()), sameInstance(c));
             return;
         }
         if (extra().expectedPartialFold.size() == 1) {
-            assertThat(c.partiallyFold(), equalTo(extra().expectedPartialFold.get(0).asField()));
+            assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(extra().expectedPartialFold.get(0).asField()));
             return;
         }
         Case expected = build(
             Source.synthetic("expected"),
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
-        assertThat(c.partiallyFold(), equalTo(expected));
+        assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(expected));
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

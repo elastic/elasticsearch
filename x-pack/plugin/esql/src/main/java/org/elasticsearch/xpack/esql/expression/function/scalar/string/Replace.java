@@ -152,7 +152,7 @@ public class Replace extends EsqlScalarFunction {
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             Pattern regexPattern;
             try {
-                regexPattern = Pattern.compile(((BytesRef) regex.fold()).utf8ToString());
+                regexPattern = Pattern.compile(((BytesRef) regex.fold(toEvaluator.foldCtx())).utf8ToString());
             } catch (PatternSyntaxException pse) {
                 // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
                 // this should generate a header warning and return null (as do the rest of this functionality in evaluators),

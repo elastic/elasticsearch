@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -38,6 +39,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -111,7 +113,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        expression = new FoldNull().rule(expression);
+        expression = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 
@@ -342,11 +344,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
-        Expression nullOptimized = new FoldNull().rule(expression);
+        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold();
+            Object result = nullOptimized.fold(FoldContext.unbounded());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
@@ -359,7 +361,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), nullOptimized::fold);
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.unbounded()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }

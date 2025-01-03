@@ -14,6 +14,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 class TypeConverter {
@@ -33,19 +36,26 @@ class TypeConverter {
                 BigArrays.NON_RECYCLING_INSTANCE
             )
         );
-        return new TypeConverter(
-            convertFunction.functionName(),
-            convertFunction.toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
-                @Override
-                public org.elasticsearch.compute.data.Block eval(Page page) {
-                    // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
-                    return page.getBlock(0);
-                }
+        return new TypeConverter(convertFunction.functionName(), convertFunction.toEvaluator(new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return driverContext -> new ExpressionEvaluator() {
+                    @Override
+                    public org.elasticsearch.compute.data.Block eval(Page page) {
+                        // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
+                        return page.getBlock(0);
+                    }
 
-                @Override
-                public void close() {}
-            }).get(driverContext1)
-        );
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                throw new IllegalStateException("not folding");
+            }
+        }).get(driverContext1));
     }
 
     public Block convert(Block block) {

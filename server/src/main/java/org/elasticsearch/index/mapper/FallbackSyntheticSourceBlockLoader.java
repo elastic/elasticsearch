@@ -11,14 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -102,7 +99,16 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     assert type.isPresent();
 
                     var filterParserConfig = XContentParserConfiguration.EMPTY.withFiltering("", Set.of(fieldName), Set.of(), true);
-                    try (XContentParser parser = type.get().xContent().createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)) {
+                    try (
+                        XContentParser parser = type.get()
+                            .xContent()
+                            .createParser(
+                                filterParserConfig,
+                                nameValue.value().bytes,
+                                nameValue.value().offset + 1,
+                                nameValue.value().length - 1
+                            )
+                    ) {
                         parser.nextToken();
                         reader.parse(parser, builder);
                     }

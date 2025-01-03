@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -59,6 +62,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringValidati
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -77,6 +81,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -85,13 +90,49 @@ public class ConnectorIndexService {
 
     private final Client client;
 
-    public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
+    public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";
+    private static final int CONNECTORS_INDEX_VERSION = 1;
+    private static final String CONNECTORS_MAPPING_VERSION_VARIABLE = "elastic-connectors.version";
+    private static final String CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors.managed.index.version";
+    private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "connectors", "enterprise-search");
 
     /**
      * @param client A client for executing actions on the connector index
      */
     public ConnectorIndexService(Client client) {
         this.client = client;
+    }
+
+    /**
+     * Returns the {@link SystemIndexDescriptor} for the Connector system index.
+     *
+     * @return The {@link SystemIndexDescriptor} for the Connector system index.
+     */
+    public static SystemIndexDescriptor getSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+
+        // TODO get rid of templates for everything but acl indices
+        String templateSource = TemplateUtils.loadTemplate(
+            "/elastic-connectors.json",
+            Version.CURRENT.toString(),
+            CONNECTORS_MAPPING_VERSION_VARIABLE,
+            Map.of(CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CONNECTORS_INDEX_VERSION))
+        );
+        request.source(templateSource, XContentType.JSON);
+
+        // The index pattern needs a strict regex to prevent conflicts with .elastic-connectors-sync-jobs
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(CONNECTOR_INDEX_NAME + "-v*")
+            .setPrimaryIndex(CONNECTOR_INDEX_NAME + "-v" + CONNECTORS_INDEX_VERSION)
+            .setAliasName(CONNECTOR_INDEX_NAME)
+            .setDescription("Search connectors")
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setOrigin(CONNECTORS_ORIGIN)
+            .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setNetNew()
+            .build();
     }
 
     /**

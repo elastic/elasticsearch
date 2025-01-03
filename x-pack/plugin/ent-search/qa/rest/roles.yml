@@ -9,7 +9,6 @@ admin:
         # indices and search applications
         "test-*",
         "another-test-search-application",
-        ".elastic-connectors-v1",
         ".elastic-connectors-sync-jobs-v1"
     ]
       privileges: [ "manage", "write", "read" ]
@@ -42,3 +41,17 @@ unprivileged:
     ]
       privileges: [ "manage", "write", "read" ]
 
+  # Give access to the Connector indices (which are system indices)
+connectors_index_manage_access:
+  indices:
+    - names: [ '.elastic-connectors*' ]
+      privileges:
+        - all
+      allow_restricted_indices: true
+
+connectors_index_read_access:
+  indices:
+    - names: [ '.elastic-connectors*' ]
+      privileges:
+        - read
+      allow_restricted_indices: true

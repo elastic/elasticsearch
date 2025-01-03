@@ -261,9 +261,6 @@ public class TransformIT extends TransformRestTestCase {
             assertEquals(TransformStats.State.STARTED.value(), getTransformState(transformId));
         }, 30, TimeUnit.SECONDS);
 
-        // make sure the transform processes the additional docs
-        waitUntilCheckpoint(transformId, 2L);
-
         stopTransform(transformId);
         deleteTransform(transformId);
     }

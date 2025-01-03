@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.vectors;
+package org.elasticsearch.xpack.core.ml.vectors;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -30,7 +30,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -46,7 +48,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     );
 
     static {
-        PARSER.declareString(constructorArg(), TrainedModelConfig.MODEL_ID);
+        PARSER.declareString(optionalConstructorArg(), TrainedModelConfig.MODEL_ID);
         PARSER.declareString(constructorArg(), MODEL_TEXT);
     }
 
@@ -63,7 +65,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        this.modelId = in.readString();
+        if (in.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
+            this.modelId = in.readOptionalString();
+        } else {
+            this.modelId = in.readString();
+        }
         this.modelText = in.readString();
     }
 
@@ -79,14 +85,20 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
+        if (out.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
+            out.writeOptionalString(modelId);
+        } else {
+            out.writeString(modelId);
+        }
         out.writeString(modelText);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
+        if (modelId != null) {
+            builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
+        }
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.endObject();
         return builder;
@@ -94,6 +106,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void buildVector(Client client, ActionListener<float[]> listener) {
+
+        if (modelId == null) {
+            throw new IllegalArgumentException("[model_id] must not be null.");
+        }
+
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             modelId,
             List.of(modelText),
@@ -101,6 +118,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             false,
             InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
+
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 

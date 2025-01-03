@@ -386,9 +386,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
-
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         this.slowLogFieldProvider = new SlowLogFieldProvider() {
+            private List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+                SlowLogFieldProvider.class
+            );
+
             @Override
             public void init(IndexSettings indexSettings) {
                 slowLogFieldProviders.forEach(provider -> provider.init(indexSettings));

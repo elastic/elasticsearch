@@ -66,13 +66,19 @@ include::security/index.asciidoc[]
 
 include::watcher/index.asciidoc[]
 
+include::ccr/index.asciidoc[leveloffset=-1]
+
+// reference
+
+include::data-store-architecture.asciidoc[]
+
+include::rest-api/index.asciidoc[]
+
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
 
 include::troubleshooting.asciidoc[]
-
-include::rest-api/index.asciidoc[]
 
 include::migration/index.asciidoc[]
 

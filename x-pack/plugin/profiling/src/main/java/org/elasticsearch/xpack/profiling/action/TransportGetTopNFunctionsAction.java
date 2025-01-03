@@ -108,8 +108,8 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
                         );
                     }
                     TopNFunction current = builder.getTopNFunction(frameGroupId);
-                    if (stackTrace.subGroups != null) {
-                        current.addSubGroups(stackTrace.subGroups);
+                    if (event.subGroups != null) {
+                        current.addSubGroups(event.subGroups);
                     }
                     if (frameGroupsPerStackTrace.contains(frameGroupId) == false) {
                         frameGroupsPerStackTrace.add(frameGroupId);

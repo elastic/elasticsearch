@@ -301,6 +301,9 @@ tests:
 - class: org.elasticsearch.gradle.LoggedExecFuncTest
   method: failed tasks output logged to console when spooling true
   issue: https://github.com/elastic/elasticsearch/issues/119509
+- class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
+  method: test {yaml=/10_apm/Test template reinstallation}
+  issue: https://github.com/elastic/elasticsearch/issues/116445
 
 # Examples:
 #

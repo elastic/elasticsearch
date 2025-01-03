@@ -1,0 +1,36 @@
+[rag-elasticsearch]
+== Retrieval augmented generation
+
+Retrieval augmented generation (RAG) is a technique that retrieves additional context  from an external datastore before prompting an LLM.
+This grounds the LLM with in-context learning.
+Compared to finetuning or continuous pretraining, RAG can be implemented faster and cheaper, and it has several advantages.
+
+image::images/search/rag-venn-diagram.svg[RAG sits at the intersection of information retrieval and generative AI, align=center, width=500]
+
+RAG sits at the intersection of information retrieval and generative AI.
+{es} is an excellent tool for implementing RAG, because it offers various retrieval capabilities, such as full-text search, vector search, and hybrid search.
+
+[discrete]
+[[rag-elasticsearch-advantages]]
+=== Advantages of RAG
+
+RAG has several advantages:
+
+* It enables grounding the LLM with additional, up-to-date and/or private data.
+* It is much cheaper and easier to maintain compared to finetuning or continuously pretraining a model.
+* It ensures data privacy and security because you control what data the model sees. Different indices have different access controls.
+* You can rely on the language model to parse and format the retrieved context in a style or format of your choice.
+* You can start with a simple BM25-based full-text search system and gradually improve it by adding more advanced semantic and hybrid search capabilities.
+
+[discrete]
+[[rag-elasticsearch-example]]
+=== Example
+
+Here's a simple example of a RAG system using {es}, where a user has a question about the company travel policy:
+
+1. User makes natural language queries about company travel policy
+2. System retrieves relevant documents from {es}
+3. LLM generates response using retrieved context
+
+The result is accurate, up-to-date answers based on company documents.
+

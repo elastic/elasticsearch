@@ -67,11 +67,10 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
             this.modelId = in.readOptionalString();
-            this.modelText = in.readString();
         } else {
             this.modelId = in.readString();
-            this.modelText = in.readString();
         }
+        this.modelText = in.readString();
     }
 
     @Override
@@ -107,6 +106,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void buildVector(Client client, ActionListener<float[]> listener) {
+
+        if (modelId == null) {
+            throw new IllegalArgumentException("[model_id] must not be null.");
+        }
+
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             modelId,
             List.of(modelText),
@@ -114,10 +118,6 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             false,
             InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
-
-        if (modelId == null) {
-            throw new IllegalArgumentException("Required [model_id]");
-        }
 
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);

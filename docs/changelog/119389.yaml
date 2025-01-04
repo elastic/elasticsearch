@@ -1,0 +1,5 @@
+pr: 119389
+summary: Restrict Connector APIs to manage/monitor_connector privileges
+area: Extract&Transform
+type: feature
+issues: []

@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 
 import java.io.IOException;
 
@@ -22,10 +19,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 
 /**
- * Abstract base class for action requests targeting the connectors index. Implements {@link org.elasticsearch.action.IndicesRequest}
- * to ensure index-level privilege support. This class defines the connectors index as the target for all derived action requests.
+ * Abstract base class for action requests targeting the connectors index.
  */
-public abstract class ConnectorActionRequest extends ActionRequest implements IndicesRequest {
+public abstract class ConnectorActionRequest extends ActionRequest {
 
     public ConnectorActionRequest() {
         super();
@@ -77,15 +73,5 @@ public abstract class ConnectorActionRequest extends ActionRequest implements In
             );
         }
         return validationException;
-    }
-
-    @Override
-    public String[] indices() {
-        return new String[] { ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN };
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.lenientExpandHidden();
     }
 }

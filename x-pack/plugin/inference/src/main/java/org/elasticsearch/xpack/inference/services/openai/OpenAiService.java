@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -25,9 +24,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -72,6 +69,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
 
+    private static final String SERVICE_NAME = "OpenAI";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -397,65 +395,58 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("The name of the model to use for the inference task.")
                         .setLabel("Model ID")
-                        .setOrder(2)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The name of the model to use for the inference task.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 
                 configurationMap.put(
                     ORGANIZATION,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("The unique identifier of your organization.")
                         .setLabel("Organization ID")
-                        .setOrder(3)
                         .setRequired(false)
                         .setSensitive(false)
-                        .setTooltip("The unique identifier of your organization.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
-                        .setLabel("URL")
-                        .setOrder(4)
-                        .setRequired(true)
-                        .setSensitive(false)
-                        .setTooltip(
+                    new SettingsConfiguration.Builder().setDefaultValue("https://api.openai.com/v1/chat/completions")
+                        .setDescription(
                             "The OpenAI API endpoint URL. For more information on the URL, refer to the "
                                 + "https://platform.openai.com/docs/api-reference."
                         )
+                        .setLabel("URL")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
-                        .setDefaultValue("https://api.openai.com/v1/chat/completions")
                         .build()
                 );
 
                 configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfigurationWithTooltip(
+                    DefaultSecretSettings.toSettingsConfigurationWithDescription(
                         "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
                             + "refer to the https://platform.openai.com/account/api-keys."
                     )
                 );
                 configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfigurationWithTooltip(
+                    RateLimitSettings.toSettingsConfigurationWithDescription(
                         "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500."
                     )
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = OpenAiEmbeddingsModel.Configuration.get();
-                        case COMPLETION -> taskSettingsConfig = OpenAiChatCompletionModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

@@ -158,10 +158,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
-
-        Arrays.sort(providers);
 
         var providerList = new ArrayList<>(
             Arrays.asList(
@@ -199,10 +197,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
-        Arrays.sort(providers);
         assertArrayEquals(
             providers,
             List.of(
@@ -231,10 +228,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
-        Arrays.sort(providers);
         assertArrayEquals(
             providers,
             List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "test_reranking_service").toArray()
@@ -249,10 +245,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
 
-        Arrays.sort(providers);
         assertArrayEquals(
             providers,
             List.of(
@@ -283,10 +278,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("provider");
+            providers[i] = (String) serviceConfig.get("service");
         }
-
-        Arrays.sort(providers);
 
         var providerList = new ArrayList<>(Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "test_service"));
         if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()

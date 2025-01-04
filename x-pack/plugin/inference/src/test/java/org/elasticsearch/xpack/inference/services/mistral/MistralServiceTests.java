@@ -748,69 +748,41 @@ public class MistralServiceTests extends ESTestCase {
         try (var service = createService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "mistral",
-                       "task_types": [
-                            {
-                                "task_type": "text_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "mistral",
+                       "name": "Mistral",
+                       "task_types": ["text_embedding"],
+                       "configurations": {
                            "api_key": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
-                               "order": 1,
                                "required": true,
                                "sensitive": true,
-                               "tooltip": "API Key for the provider you're connecting to.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": true,
+                               "type": "str"
                            },
                            "model": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "Refer to the Mistral models documentation for the list of available text embedding models.",
                                "label": "Model",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "Refer to the Mistral models documentation for the list of available text embedding models.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            },
                            "max_input_tokens": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
-                               "order": 3,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Allows you to specify the maximum number of tokens per input.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            }
                        }
                    }

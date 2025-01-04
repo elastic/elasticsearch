@@ -858,59 +858,34 @@ public class HuggingFaceServiceTests extends ESTestCase {
         try (var service = createHuggingFaceService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "hugging_face",
-                       "task_types": [
-                            {
-                                "task_type": "text_embedding",
-                                "configuration": {}
-                            },
-                            {
-                                "task_type": "sparse_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "hugging_face",
+                       "name": "Hugging Face",
+                       "task_types": ["text_embedding", "sparse_embedding"],
+                       "configurations": {
                            "api_key": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
-                               "order": 1,
                                "required": true,
                                "sensitive": true,
-                               "tooltip": "API Key for the provider you're connecting to.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": true,
+                               "type": "str"
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            },
                            "url": {
                                "default_value": "https://api.openai.com/v1/embeddings",
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The URL endpoint to use for the requests.",
                                "label": "URL",
-                               "order": 1,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The URL endpoint to use for the requests.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": "https://api.openai.com/v1/embeddings"
+                               "updatable": false,
+                               "type": "str"
                            }
                        }
                    }

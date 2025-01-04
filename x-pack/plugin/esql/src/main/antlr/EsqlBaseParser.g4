@@ -102,20 +102,15 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (functionArgument (COMMA functionArgument)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
     ;
 
 functionName
     : identifierOrParameter
     ;
 
-functionArgument
-    : booleanExpression                                                                 #functionArgumentDefault
-    | {this.isDevVersion()}? LEFT_BRACES mapExpression RIGHT_BRACES                     #functionArgumentWithName
-    ;
-
 mapExpression
-    : entryExpression (COMMA entryExpression)*
+    : {this.isDevVersion()}? LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
     ;
 
 entryExpression

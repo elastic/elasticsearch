@@ -598,7 +598,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.functionArgument());
+        List<Expression> args = expressions(ctx.booleanExpression());
+        if (ctx.mapExpression() != null) {
+            MapExpression mapArg = visitMapExpression(ctx.mapExpression());
+            args.add(mapArg);
+        }
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
                 source(ctx),
@@ -620,11 +624,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public MapExpression visitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) {
-        List<Expression> namedArgs = new ArrayList<>(ctx.mapExpression().entryExpression().size());
-        List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.mapExpression().entryExpression();
+    public MapExpression visitMapExpression(EsqlBaseParser.MapExpressionContext ctx) {
+        List<Expression> namedArgs = new ArrayList<>(ctx.entryExpression().size());
+        List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
             String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
+            if (key.isBlank()) {
+                throw new ParsingException(
+                    source(ctx),
+                    "Invalid named function argument [{}], empty key is not supported",
+                    entry.getText()
+                );
+            }
             Expression value = expression(entry.constant());
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {

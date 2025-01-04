@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.MapCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -431,9 +430,8 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, uni(Kql::new), "kql"),
-                // The map_count and log_with_base_in_map are for debug/snapshot environments only
+                // log_with_base_in_map is for debug/snapshot environments only
                 // and should never be enabled in a non-snapshot build. They are for the purpose of testing MapExpression only.
-                def(MapCount.class, MapCount::new, "map_count"),
                 def(LogWithBaseInMap.class, LogWithBaseInMap::new, "log_with_base_in_map"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Term.class, bi(Term::new), "term") } };
@@ -533,10 +531,10 @@ public class EsqlFunctionRegistry {
         }
     }
 
-    public record MapArgSignature(String name, String values, String description) {
+    public record MapArgSignature(String name, String valueHint, String type, String description) {
         @Override
         public String toString() {
-            return "name='" + name + "', values=" + values + ", description='" + description + "'";
+            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
         }
     }
 
@@ -602,13 +600,14 @@ public class EsqlFunctionRegistry {
         String desc = mapParam.description().replace('\n', ' ');
         Map<String, MapArgSignature> params = new HashMap<>(mapParam.params().length);
         for (MapParam.MapParamEntry param : mapParam.params()) {
-            String value = param.valueHint().length <= 1
+            String valueHint = param.valueHint().length <= 1
                 ? Arrays.toString(param.valueHint())
                 : "[" + String.join(", ", param.valueHint()) + "]";
-            MapArgSignature mapArg = new MapArgSignature(param.name(), value, param.description());
+            String type = param.type().length <= 1 ? Arrays.toString(param.type()) : "[" + String.join(", ", param.type()) + "]";
+            MapArgSignature mapArg = new MapArgSignature(param.name(), valueHint, type, param.description());
             params.put(param.name(), mapArg);
         }
-        return new EsqlFunctionRegistry.ArgSignature(mapParam.name(), new String[] { "map" }, desc, mapParam.optional(), params);
+        return new EsqlFunctionRegistry.ArgSignature("map", new String[] { "map" }, desc, mapParam.optional(), params);
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {

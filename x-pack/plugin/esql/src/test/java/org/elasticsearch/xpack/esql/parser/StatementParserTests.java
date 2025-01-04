@@ -2470,47 +2470,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
         UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
+    }
 
-        // multiple named function args in map
-        assertEquals(
-            new Filter(
-                EMPTY,
-                new Eval(
-                    EMPTY,
-                    relation("test"),
-                    List.of(
-                        new Alias(
-                            EMPTY,
-                            "x",
-                            function(
-                                "fn1",
-                                List.of(
-                                    attribute("f1"),
-                                    new Literal(EMPTY, "testString", KEYWORD),
-                                    mapExpression(expectedMap1),
-                                    mapExpression(expectedMap2)
-                                )
-                            )
-                        )
-                    )
-                ),
-                new Equals(
-                    EMPTY,
-                    attribute("y"),
-                    function(
-                        "fn2",
-                        List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap3), mapExpression(expectedMap4))
-                    )
-                )
-            ),
-            statement("""
-                from test
-                | eval x = fn1(f1, "testString", {"option1":"string","option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]},
-                  {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true})
-                | where y == fn2("testString", {"option1":"string","option2":2.0,"option3":[1,2,3],"option4":[true,false]},
-                  {"option1":1,"option2":true,"option3":["string1","string2"],"option4":[2.0,3.0,4.0]})
-                """)
+    public void testMultipleNamedFunctionArgumentsNotAllowed() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
         );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "41"),
+            Map.entry("where {}", "38"),
+            Map.entry("stats {}", "38"),
+            Map.entry("stats agg() by {}", "47"),
+            Map.entry("sort {}", "37"),
+            Map.entry("dissect {} \"%{bar}\"", "40"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "37")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
+                ? "mismatched input ',' expecting ')'"
+                : "no viable alternative at input 'fn(f1,";
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":1}, {\"option\":2})"),
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
+            );
+        }
     }
 
     public void testNamedFunctionArgumentNotInMap() {
@@ -2518,7 +2505,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "named function arguments require snapshot build",
             EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
         );
-        // named arguments have to be in braces/map as function arguments
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "38"),
             Map.entry("where {}", "35"),
@@ -2547,7 +2533,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "named function arguments require snapshot build",
             EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
         );
-        // named arguments must have their names in quotes, and values are constants
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
             Map.entry("where {}", new String[] { "28", "32" }),
@@ -2584,7 +2569,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "named function arguments require snapshot build",
             EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
         );
-        // named arguments have to be in braces/map as function arguments
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "30"),
             Map.entry("where {}", "27"),
@@ -2613,7 +2597,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "named function arguments require snapshot build",
             EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
         );
-        // named arguments have to be in braces/map as function arguments
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2630,6 +2613,45 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
                 LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named function argument [null], NULL is not supported")
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentMapWithEmptyKey() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"\":1})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"\":1], empty key is not supported"
+                )
+            );
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"  \":1})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"  \":1], empty key is not supported"
+                )
             );
         }
     }

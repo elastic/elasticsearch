@@ -200,20 +200,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
   /**
-   * Visit a parse tree produced by the {@code functionArgumentDefault}
-   * labeled alternative in {@link EsqlBaseParser#functionArgument}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFunctionArgumentDefault(EsqlBaseParser.FunctionArgumentDefaultContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code functionArgumentWithName}
-   * labeled alternative in {@link EsqlBaseParser#functionArgument}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#mapExpression}.
    * @param ctx the parse tree
    * @return the visitor result

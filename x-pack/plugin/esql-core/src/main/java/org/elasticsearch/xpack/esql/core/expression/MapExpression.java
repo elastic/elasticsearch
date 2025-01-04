@@ -54,7 +54,7 @@ public class MapExpression extends Expression implements Map<Expression, Express
         for (int i = 0; i < entryCount; i++) {
             Expression key = entries.get(i * 2);
             Expression value = entries.get(i * 2 + 1);
-            entryExpressions.add(new EntryExpression(key.source(), key, entries.get(i * 2 + 1)));
+            entryExpressions.add(new EntryExpression(key.source(), key, value));
             map.put(key, value);
             if (key.foldable()) {
                 this.keyFoldedMap.put(key.fold(), value);
@@ -96,6 +96,10 @@ public class MapExpression extends Expression implements Map<Expression, Express
 
     public Map<Expression, Expression> map() {
         return map;
+    }
+
+    public Map<Object, Expression> keyFoldedMap() {
+        return keyFoldedMap;
     }
 
     @Override

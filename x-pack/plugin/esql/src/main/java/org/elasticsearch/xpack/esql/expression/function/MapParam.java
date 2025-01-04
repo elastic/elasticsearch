@@ -24,8 +24,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
 public @interface MapParam {
-    String name();
-
     MapParamEntry[] params() default {};
 
     String description() default "";
@@ -39,6 +37,8 @@ public @interface MapParam {
 
         // A list of valid values/hints of this parameter, it can be a numeric, boolean, string value or an array of these values.
         String[] valueHint() default {};
+
+        String[] type() default {};
 
         String description() default "";
     }

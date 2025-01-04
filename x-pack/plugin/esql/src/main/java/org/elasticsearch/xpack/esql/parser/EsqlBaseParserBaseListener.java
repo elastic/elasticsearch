@@ -349,30 +349,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFunctionArgumentDefault(EsqlBaseParser.FunctionArgumentDefaultContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitFunctionArgumentDefault(EsqlBaseParser.FunctionArgumentDefaultContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitFunctionArgumentWithName(EsqlBaseParser.FunctionArgumentWithNameContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterMapExpression(EsqlBaseParser.MapExpressionContext ctx) { }
   /**
    * {@inheritDoc}

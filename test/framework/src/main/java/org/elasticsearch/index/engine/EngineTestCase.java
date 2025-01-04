@@ -1078,10 +1078,9 @@ public abstract class EngineTestCase extends ESTestCase {
             final int nestedValues = between(0, 3);
             final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
+            final var nonNestedDoc = parseDocument(mapperService, id, null);
             for (int copy = 0; copy < copies; copy++) {
-                final ParsedDocument doc = isNestedDoc
-                    ? nestedParsedDocFactory.apply(id, nestedValues)
-                    : parseDocument(engine.engineConfig.getMapperService(), id, null);
+                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : nonNestedDoc;
                 switch (opType) {
                     case INDEX -> operations.add(
                         new Engine.Index(

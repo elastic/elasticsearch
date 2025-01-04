@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -120,13 +119,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
     public enum ThreadPoolType {
-        @Deprecated(forRemoval = true)
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
-        DIRECT("direct"),
         FIXED("fixed"),
-        @Deprecated(forRemoval = true)
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
-        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
         private final String type;

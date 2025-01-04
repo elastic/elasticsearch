@@ -166,7 +166,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
                         translogDeletionPolicy,
                         engineConfig.getGlobalCheckpointSupplier(),
                         engineConfig.getPrimaryTermSupplier(),
-                        seqNo -> {}
+                        seqNo -> {},
+                        TranslogOperationAsserter.DEFAULT
                     )
                 ) {
                     translog.trimUnreferencedReaders();

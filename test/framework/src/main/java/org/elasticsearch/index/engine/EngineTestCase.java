@@ -141,7 +141,6 @@ import static java.util.Collections.shuffle;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -458,7 +457,13 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument parseDocument(MapperService mapperService, String id, String routing) {
-        SourceToParse sourceToParse = new SourceToParse(id, new BytesArray("{ \"value\" : \"test\" }"), XContentType.JSON, routing);
+        String source = randomFrom(
+            "{ \"value\" : \"test-1\" }",
+            "{ \"value\" : [\"test-1\",\"test-2\"] }",
+            "{ \"value\" : [\"test-2\",\"test-1\"] }",
+            "{ \"value\" : [\"test-1\",\"test-2\",\"test-2\"] }"
+        );
+        SourceToParse sourceToParse = new SourceToParse(id, new BytesArray(source), XContentType.JSON, routing);
         return mapperService.documentMapper().parse(sourceToParse);
     }
 
@@ -492,7 +497,8 @@ public abstract class EngineTestCase extends ESTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTermSupplier,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
     }
 
@@ -1072,10 +1078,9 @@ public abstract class EngineTestCase extends ESTestCase {
             final int nestedValues = between(0, 3);
             final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
+            final var nonNestedDoc = parseDocument(mapperService, id, null);
             for (int copy = 0; copy < copies; copy++) {
-                final ParsedDocument doc = isNestedDoc
-                    ? nestedParsedDocFactory.apply(id, nestedValues)
-                    : parseDocument(engine.engineConfig.getMapperService(), id, null);
+                final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : nonNestedDoc;
                 switch (opType) {
                     case INDEX -> operations.add(
                         new Engine.Index(
@@ -1345,6 +1350,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             minSeqNoToRetain = engine.getMinRetainedSeqNo();
         }
+        TranslogOperationAsserter translogOperationAsserter = TranslogOperationAsserter.withEngineConfig(engine.engineConfig);
         for (Translog.Operation translogOp : translogOps) {
             final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
             if (luceneOp == null) {
@@ -1372,10 +1378,9 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
-                    assertToXContentEquivalent(
-                        ((Translog.Index) luceneOp).source(),
-                        ((Translog.Index) translogOp).source(),
-                        XContentFactory.xContentType(((Translog.Index) luceneOp).source().array())
+                    assertTrue(
+                        "luceneOp=" + luceneOp + " != translogOp=" + translogOp,
+                        translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)
                     );
                 } else {
                     assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));

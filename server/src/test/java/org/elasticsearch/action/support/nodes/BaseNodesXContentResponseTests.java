@@ -36,7 +36,7 @@ public class BaseNodesXContentResponseTests extends ESTestCase {
         final var fullResponse = new BaseNodesXContentResponse<>(ClusterName.DEFAULT, List.of(new TestNodeResponse(node)), List.of()) {
             @Override
             protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
-                return ChunkedToXContentHelper.singleChunk((b, p) -> b.startObject("content").endObject());
+                return ChunkedToXContentHelper.chunk((b, p) -> b.startObject("content").endObject());
             }
 
             @Override

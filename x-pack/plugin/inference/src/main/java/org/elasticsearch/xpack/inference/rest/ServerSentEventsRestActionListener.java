@@ -158,7 +158,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     // except we need to emit the error as SSE
     private ChunkedToXContent errorChunk(Throwable t) {
         var status = ExceptionsHelper.status(t);
-        return params -> Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((b, p) -> {
+        return params -> Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.chunk((b, p) -> {
             // Render the exception with a simple message
             if (channel.detailedErrorsEnabled() == false) {
                 String message = "No ElasticsearchException found";

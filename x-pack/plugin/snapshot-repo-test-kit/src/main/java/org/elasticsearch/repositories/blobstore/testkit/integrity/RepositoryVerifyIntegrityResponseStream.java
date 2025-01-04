@@ -61,7 +61,7 @@ class RepositoryVerifyIntegrityResponseStream extends AbstractRefCounted {
         assert streamingXContentResponse == null;
         streamingXContentResponse = new StreamingXContentResponse(restChannel, restChannel.request(), () -> {});
         streamingXContentResponse.writeFragment(
-            p0 -> ChunkedToXContentHelper.singleChunk((b, p) -> b.startObject().startArray("log")),
+            p0 -> ChunkedToXContentHelper.chunk((b, p) -> b.startObject().startArray("log")),
             releasable
         );
     }
@@ -74,7 +74,7 @@ class RepositoryVerifyIntegrityResponseStream extends AbstractRefCounted {
             anomalyCount.incrementAndGet();
         }
         streamingXContentResponse.writeFragment(
-            p0 -> ChunkedToXContentHelper.singleChunk((b, p) -> b.startObject().value(chunk, p).endObject()),
+            p0 -> ChunkedToXContentHelper.chunk((b, p) -> b.startObject().value(chunk, p).endObject()),
             releasable
         );
     }
@@ -89,7 +89,7 @@ class RepositoryVerifyIntegrityResponseStream extends AbstractRefCounted {
                     // success - finish the response with the final results
                     assert streamingXContentResponse != null;
                     streamingXContentResponse.writeFragment(
-                        p0 -> ChunkedToXContentHelper.singleChunk(
+                        p0 -> ChunkedToXContentHelper.chunk(
                             (b, p) -> b.endArray()
                                 .startObject("results")
                                 .field("status", repositoryVerifyIntegrityResponse.finalTaskStatus())
@@ -116,7 +116,7 @@ class RepositoryVerifyIntegrityResponseStream extends AbstractRefCounted {
                     if (streamingXContentResponse != null) {
                         // failure after starting the response - finish the response with a rendering of the final exception
                         streamingXContentResponse.writeFragment(
-                            p0 -> ChunkedToXContentHelper.singleChunk(
+                            p0 -> ChunkedToXContentHelper.chunk(
                                 (b, p) -> b.endArray()
                                     .startObject("exception")
                                     .value((bb, pp) -> ElasticsearchException.generateFailureXContent(bb, pp, e, true))

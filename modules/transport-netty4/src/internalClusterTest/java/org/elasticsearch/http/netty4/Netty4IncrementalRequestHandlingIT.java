@@ -594,7 +594,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         @Override
         public void close() throws Exception {
             safeGet(clientChannel.close());
-            safeGet(clientBootstrap.config().group().shutdownGracefully());
+            safeGet(clientBootstrap.config().group().shutdownGracefully(0, 0, TimeUnit.SECONDS));
             clientRespQueue.forEach(o -> { if (o instanceof FullHttpResponse resp) resp.release(); });
             for (var opaqueId : ControlServerRequestPlugin.handlers.keySet()) {
                 if (opaqueId.startsWith(testName)) {

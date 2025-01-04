@@ -86,6 +86,9 @@ public class StackTraceTests extends ESTestCase {
             .array("file_ids", "AAAAAAAAAAUAAAAAAAAB3g")
             .array("frame_ids", "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u")
             .array("type_ids", new int[] { 2 })
+            .field("annual_co2_tons", 0.3d)
+            .field("annual_costs_usd", 2.7d)
+            .field("count", 1)
             .endObject();
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
@@ -95,6 +98,9 @@ public class StackTraceTests extends ESTestCase {
             new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" },
             new int[] { 2 }
         );
+        stackTrace.annualCO2Tons = 0.3d;
+        stackTrace.annualCostsUSD = 2.7d;
+        stackTrace.count = 1;
         stackTrace.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);

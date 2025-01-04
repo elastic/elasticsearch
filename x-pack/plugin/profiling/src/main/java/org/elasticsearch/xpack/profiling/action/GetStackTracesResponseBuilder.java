@@ -137,6 +137,22 @@ class GetStackTracesResponseBuilder {
     }
 
     public GetStackTracesResponse build() {
+        // Merge the TraceEvent data into the StackTraces.
+        if (stackTraces != null) {
+            for (Map.Entry<TraceEventID, TraceEvent> entry : stackTraceEvents.entrySet()) {
+                TraceEventID traceEventID = entry.getKey();
+                StackTrace stackTrace = stackTraces.get(traceEventID.stacktraceID());
+                if (stackTrace != null) {
+                    TraceEvent event = entry.getValue();
+                    if (event.subGroups != null) {
+                        stackTrace.subGroups = event.subGroups;
+                    }
+                    stackTrace.count += event.count;
+                    stackTrace.annualCO2Tons += event.annualCO2Tons;
+                    stackTrace.annualCostsUSD += event.annualCostsUSD;
+                }
+            }
+        }
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, totalSamples);
     }
 }

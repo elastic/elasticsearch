@@ -27,12 +27,18 @@ final class StackTrace implements ToXContentObject {
     String[] frameIds;
     int[] typeIds;
     SubGroup subGroups;
+    double annualCO2Tons;
+    double annualCostsUSD;
+    long count;
 
     StackTrace(int[] addressOrLines, String[] fileIds, String[] frameIds, int[] typeIds) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;
         this.frameIds = frameIds;
         this.typeIds = typeIds;
+        annualCO2Tons = 0.0d;
+        annualCostsUSD = 0.0d;
+        count = 0;
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -210,12 +216,15 @@ final class StackTrace implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("address_or_lines", this.addressOrLines);
-        builder.field("file_ids", this.fileIds);
-        builder.field("frame_ids", this.frameIds);
-        builder.field("type_ids", this.typeIds);
-        builder.endObject();
+        builder.startObject()
+            .field("address_or_lines", this.addressOrLines)
+            .field("file_ids", this.fileIds)
+            .field("frame_ids", this.frameIds)
+            .field("type_ids", this.typeIds)
+            .field("annual_co2_tons", this.annualCO2Tons)
+            .field("annual_costs_usd", this.annualCostsUSD)
+            .field("count", this.count)
+            .endObject();
         return builder;
     }
 
@@ -230,7 +239,7 @@ final class StackTrace implements ToXContentObject {
             && Arrays.equals(fileIds, that.fileIds)
             && Arrays.equals(frameIds, that.frameIds)
             && Arrays.equals(typeIds, that.typeIds);
-        // Don't compare metadata like subGroups.
+        // Don't compare metadata like annualized co2, annualized costs, subGroups and count.
     }
 
     // Don't hash metadata like annualized co2, annualized costs, subGroups and count.

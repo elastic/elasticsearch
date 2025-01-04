@@ -17,6 +17,7 @@ import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -43,6 +44,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -96,6 +99,14 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     public static class StreamingPlugin extends Plugin implements ActionPlugin {
+        private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            threadPool.set(services.threadPool());
+            return Collections.emptyList();
+        }
+
         @Override
         public Collection<RestHandler> getRestHandlers(
             Settings settings,
@@ -122,7 +133,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
                     var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
                 @Override
@@ -132,7 +143,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    new ServerSentEventsRestActionListener(channel).onFailure(expectedException);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -143,7 +154,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             });
         }

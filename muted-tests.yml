@@ -258,6 +258,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/119548
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119549
 
 # Examples:
 #

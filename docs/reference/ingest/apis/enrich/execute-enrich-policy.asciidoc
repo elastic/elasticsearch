@@ -96,8 +96,8 @@ or index documents to an enrich index.
 Instead, update your source indices
 and <<execute-enrich-policy-api,execute>> the enrich policy again.
 This creates a new enrich index from your updated source indices. 
-The previous enrich index will deleted with a delayed maintenance job. 
-By default this is done every 15 minutes. 
+The previous enrich index will be deleted with a delayed maintenance 
+job that executes by default every 15 minutes.
 // end::update-enrich-index[]
 
 By default, this API is synchronous: It returns when a policy has been executed.

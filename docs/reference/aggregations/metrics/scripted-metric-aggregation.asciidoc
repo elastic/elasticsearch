@@ -9,7 +9,9 @@ A metric aggregation that executes using scripts to provide a metric output.
 WARNING: `scripted_metric` is not available in {serverless-full}.
 
 WARNING: Using scripts can result in slower search speeds. See
-<<scripts-and-search-speed>>.
+<<scripts-and-search-speed>>.  When using a scripted metric aggregation, its intermediate state is serialized 
+into an in-memory byte array for transmission to other nodes during the aggregation process. 
+Consequently, a complex scripted metric aggregation may also encounter the 2GB limitation imposed on Java arrays.
 
 Example:
 

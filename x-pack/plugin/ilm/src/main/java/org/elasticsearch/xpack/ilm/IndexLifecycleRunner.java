@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -44,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 
 class IndexLifecycleRunner {
@@ -290,7 +288,7 @@ class IndexLifecycleRunner {
             // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
             // to move it back into the failed step, so we'll try again
             submitUnlessAlreadyQueued(
-                Strings.format("ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index, failedStep.getKey()),
+                "ilm-retry-failed-step {policy [" + policy + "], index [" + index + "], failedStep [" + failedStep.getKey() + "]}",
                 new MoveToRetryFailedStepUpdateTask(indexMetadata.getIndex(), policy, currentStep, failedStep)
             );
         } else {
@@ -438,7 +436,7 @@ class IndexLifecycleRunner {
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
             submitUnlessAlreadyQueued(
-                Strings.format("ilm-execute-cluster-state-steps [%s]", currentStep),
+                "ilm-execute-cluster-state-steps [" + currentStep + "]",
                 new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier)
             );
         } else {
@@ -453,13 +451,15 @@ class IndexLifecycleRunner {
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
         submitUnlessAlreadyQueued(
-            Strings.format(
-                "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}",
-                policy,
-                index.getName(),
-                currentStepKey,
-                newStepKey
-            ),
+            "ilm-move-to-step {policy ["
+                + policy
+                + "], index ["
+                + index.getName()
+                + "], currentStep ["
+                + currentStepKey
+                + "], nextStep ["
+                + newStepKey
+                + "]}",
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerSuccessfulOperation(indexMetadata);
@@ -475,11 +475,17 @@ class IndexLifecycleRunner {
      */
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(
-            () -> format("policy [%s] for index [%s] failed on step [%s]. Moving to ERROR step", policy, index.getName(), currentStepKey),
+            () -> "policy ["
+                + policy
+                + "] for index ["
+                + index.getName()
+                + "] failed on step ["
+                + currentStepKey
+                + "]. Moving to ERROR step",
             e
         );
         submitUnlessAlreadyQueued(
-            Strings.format("ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
+            "ilm-move-to-error-step {policy [" + policy + "], index [" + index.getName() + "], currentStep [" + currentStepKey + "]}",
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
@@ -493,7 +499,7 @@ class IndexLifecycleRunner {
      */
     private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
         submitUnlessAlreadyQueued(
-            Strings.format("ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
+            "ilm-set-step-info {policy [" + policy + "], index [" + index.getName() + "], currentStep [" + currentStepKey + "]}",
             new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo)
         );
     }
@@ -518,11 +524,11 @@ class IndexLifecycleRunner {
      */
     private void markPolicyRetrievalError(String policyName, Index index, LifecycleExecutionState executionState, Exception e) {
         logger.debug(
-            () -> format(
-                "unable to retrieve policy [%s] for index [%s], recording this in step_info for this index",
-                policyName,
-                index.getName()
-            ),
+            () -> "unable to retrieve policy ["
+                + policyName
+                + "] for index ["
+                + index.getName()
+                + "], recording this in step_info for this index",
             e
         );
         setStepInfo(index, policyName, Step.getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));
@@ -671,7 +677,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected void handleFailure(Exception e) {
-            logger.error(() -> format("retry execution of step [%s] for index [%s] failed", failedStep.getKey().name(), index), e);
+            logger.error(() -> "retry execution of step [" + failedStep.getKey().name() + "] for index [" + index + "] failed", e);
         }
 
         @Override

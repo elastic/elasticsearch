@@ -2612,7 +2612,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
@@ -2830,7 +2830,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),

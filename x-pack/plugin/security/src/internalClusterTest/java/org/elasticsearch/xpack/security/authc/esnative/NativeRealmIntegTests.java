@@ -84,7 +84,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -550,7 +550,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .get()
             .getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.indices(), contains(INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(snapshotInfo.indices(), contains(INTERNAL_SECURITY_MAIN_INDEX));
         deleteSecurityIndex();
         // the realm cache should clear itself but we don't wish to race it
         new ClearRolesCacheRequestBuilder(client()).get();
@@ -572,7 +572,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .setFeatureStates(SECURITY_FEATURE_NAME)
             .get();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getRestoreInfo().indices(), contains(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(response.getRestoreInfo().indices(), contains(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX));
         // the realm cache should clear itself but we don't wish to race it
         new ClearRealmCacheRequestBuilder(client()).get();
         // users and roles are retrievable
@@ -744,10 +744,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_MAIN_ALIAS).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
+        assertThat(response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX), notNullValue());
         assertThat(
-            response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
-            is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7)
+            response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX).getIndex(),
+            is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX)
         );
     }
 

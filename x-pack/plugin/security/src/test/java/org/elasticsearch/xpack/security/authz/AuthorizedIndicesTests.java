@@ -74,7 +74,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -156,7 +156,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -194,7 +194,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -248,7 +248,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
         Metadata metadata = Metadata.builder()
@@ -331,7 +331,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
         Metadata metadata = Metadata.builder()

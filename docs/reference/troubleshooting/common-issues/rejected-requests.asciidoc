@@ -69,7 +69,7 @@ These stats are cumulative from node startup.
 
 Indexing pressure rejections appear as an
 `EsRejectedExecutionException`, and indicate that they were rejected due
-to `coordinating_and_primary_bytes`, `coordinating`, `primary`, or `replica`.
+to `combined_coordinating_and_primary`, `coordinating`, `primary`, or `replica`.
 
 These errors are often related to <<task-queue-backlog,backlogged tasks>>,
 <<docs-bulk,bulk index>> sizing, or the ingest target's

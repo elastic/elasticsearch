@@ -62,7 +62,6 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     }
 
     private void reset() {
-        channel = new EmbeddedChannel();
         header.set(null);
         listener.set(null);
         validationException.set(null);
@@ -75,7 +74,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
             listener.set(validationCompleteListener);
         };
         netty4HttpHeaderValidator = new Netty4HttpHeaderValidator(validator, new ThreadContext(Settings.EMPTY));
-        channel.pipeline().addLast(netty4HttpHeaderValidator);
+        channel = new EmbeddedChannel(true, false, netty4HttpHeaderValidator);
     }
 
     public void testValidationPausesAndResumesData() {

@@ -176,6 +176,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
         this.requestId = other.requestId;
     }
 
+    protected RestRequest(RestRequest other, HttpRequest httpRequest) {
+        this(other);
+        this.consumedParams.addAll(other.consumedParams);
+        this.httpRequest = httpRequest;
+    }
+
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
         // TODO: make all usages of headers case-insensitive
         List<String> header = headers.get(headerName);
@@ -291,11 +297,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return isStreamedContent() || contentLength() > 0;
+        return contentLength() != 0;
     }
 
     public int contentLength() {
-        return httpRequest.body().asFull().bytes().length();
+        return httpRequest.contentLength();
     }
 
     public boolean isFullContent() {

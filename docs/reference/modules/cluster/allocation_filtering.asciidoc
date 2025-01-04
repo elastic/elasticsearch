@@ -6,7 +6,7 @@ allocates shards from any index. These cluster wide filters are applied in
 conjunction with <<shard-allocation-filtering, per-index allocation filtering>>
 and <<shard-allocation-awareness, allocation awareness>>.
 
-Shard allocation filters can be based on custom node attributes or the built-in
+Shard allocation filters can be based on <<custom-node-attributes,custom node attributes>> or the built-in
 `_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host`, `_id` and `_tier` attributes.
 
 The `cluster.routing.allocation` settings are <<dynamic-cluster-setting,dynamic>>, enabling live indices to
@@ -59,9 +59,9 @@ The cluster allocation settings support the following built-in attributes:
 
 NOTE: `_tier` filtering is based on <<modules-node, node>> roles. Only
 a subset of roles are <<data-tiers, data tier>> roles, and the generic
-<<data-node, data role>> will match any tier filtering.
+<<data-node-role, data role>> will match any tier filtering.
 a subset of roles that are <<data-tiers, data tier>> roles, but the generic
-<<data-node, data role>> will match any tier filtering.
+<<data-node-role, data role>> will match any tier filtering.
 
 
 You can use wildcards when specifying attribute values, for example:

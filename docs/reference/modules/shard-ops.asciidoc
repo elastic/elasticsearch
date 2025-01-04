@@ -25,7 +25,7 @@ By default, the primary and replica shard copies for an index can be allocated t
 
 You can control how shard copies are allocated using the following settings:
 
-- <<modules-cluster,Cluster-level shard allocation settings>>: Use these settings to control how shard copies are allocated and balanced across the entire cluster. For example, you might want to allocate nodes availability zones, or prevent certain nodes from being used so you can perform maintenance.
+- <<modules-cluster,Cluster-level shard allocation settings>>: Use these settings to control how shard copies are allocated and balanced across the entire cluster. For example, you might want to <<shard-allocation-awareness,allocate nodes availability zones>>, or prevent certain nodes from being used so you can perform maintenance.
 
 - <<index-modules-allocation,Index-level shard allocation settings>>: Use these settings to control how the shard copies for a specific index are allocated. For example, you might want to allocate an index to a node in a specific data tier, or to an node with specific attributes.
 
@@ -80,4 +80,4 @@ When a shard copy is relocated, it is created as a new shard copy on the target 
 
 You can control how and when shard copies are relocated. For example, you can adjust the rebalancing settings that control when shard copies are relocated to balance the cluster, or the high watermark for disk-based shard allocation that can trigger relocation. These settings are part of the <<modules-cluster,cluster-level shard allocation settings>>.
 
-Shard relocation operations also respect shard allocation and recovery settings. 
+Shard relocation operations also respect shard allocation and recovery settings.

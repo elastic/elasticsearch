@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -55,7 +55,11 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.security.NoSuchAlgorithmException: invalid MessageDigest not available")
-                .withFoldingException(InvalidArgumentException.class, "invalid algorithm for []: invalid MessageDigest not available");
+                .withFoldingException(
+                    VerificationException.class,
+                    "org.elasticsearch.xpack.esql.core.InvalidArgumentException: "
+                        + "invalid algorithm for []: invalid MessageDigest not available"
+                );
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
     }

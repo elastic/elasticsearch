@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.regex.PatternSyntaxException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -99,8 +99,11 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                     )
                 )
                 .withFoldingException(
-                    PatternSyntaxException.class,
-                    "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
+                    VerificationException.class,
+                    "java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
+                        "\n",
+                        System.lineSeparator()
+                    )
                 );
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");

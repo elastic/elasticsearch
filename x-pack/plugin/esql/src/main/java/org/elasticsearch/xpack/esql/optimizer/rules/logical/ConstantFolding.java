@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.convertToVerificationException;
+
 public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
     public ConstantFolding() {
@@ -18,6 +20,10 @@ public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRul
 
     @Override
     public Expression rule(Expression e) {
-        return e.foldable() ? Literal.of(e) : e;
+        try {
+            return e.foldable() ? Literal.of(e) : e;
+        } catch (Exception exception) {
+            throw convertToVerificationException(exception, e.source().source());
+        }
     }
 }

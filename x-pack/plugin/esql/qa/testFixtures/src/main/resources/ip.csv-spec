@@ -624,23 +624,6 @@ count(*):long | ip_prefix(ip1, 24, 120):ip
 2             | null
 ;
 
-ipPrefixWithWrongLengths
-required_capability: fn_ip_prefix
-row ip4 = to_ip("1.2.3.4")
-| eval a = ip_prefix(ip4, -1, 128), b = ip_prefix(ip4, 32, -1), c = ip_prefix(ip4, 33, 0), d = ip_prefix(ip4, 32, 129);
-warning:Line 2:12: evaluation of [ip_prefix(ip4, -1, 128)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:12: java.lang.IllegalArgumentException: Prefix length v4 must be in range [0, 32], found -1
-warning:Line 2:41: evaluation of [ip_prefix(ip4, 32, -1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:41: java.lang.IllegalArgumentException: Prefix length v6 must be in range [0, 128], found -1
-warning:Line 2:69: evaluation of [ip_prefix(ip4, 33, 0)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:69: java.lang.IllegalArgumentException: Prefix length v4 must be in range [0, 32], found 33
-warning:Line 2:96: evaluation of [ip_prefix(ip4, 32, 129)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:96: java.lang.IllegalArgumentException: Prefix length v6 must be in range [0, 128], found 129
-
-ip4:ip  | a:ip | b:ip | c:ip | d:ip
-1.2.3.4 | null | null | null | null
-;
-
 ipPrefixWithNullArguments
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4")

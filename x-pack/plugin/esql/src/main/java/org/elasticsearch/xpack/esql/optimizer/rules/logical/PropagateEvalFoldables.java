@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.convertToVerificationException;
+
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
  * This avoids ulterior look-ups between attributes and its source across nodes.
@@ -38,8 +40,12 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
                 c = c.transformUp(ReferenceAttribute.class, replaceReference);
                 shouldCollect = c.foldable();
             }
-            if (shouldCollect) {
-                collectRefs.put(a.toAttribute(), Literal.of(c));
+            try {
+                if (shouldCollect) {
+                    collectRefs.put(a.toAttribute(), Literal.of(c));
+                }
+            } catch (Exception e) {
+                throw convertToVerificationException(e, c.source().source());
             }
         });
         if (collectRefs.isEmpty()) {

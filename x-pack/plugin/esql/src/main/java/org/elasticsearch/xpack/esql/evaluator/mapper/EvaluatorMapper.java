@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.convertToVerificationException;
 
 /**
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
@@ -61,14 +62,19 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
-            @Override
-            public Block eval(Page page) {
-                return fromArrayRow(driverContext.blockFactory(), e.fold())[0];
-            }
+        try {
+            return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    return fromArrayRow(driverContext.blockFactory(), e.fold())[0];
+                }
 
-            @Override
-            public void close() {}
-        }).get(DriverContext.getLocalDriver()).eval(new Page(1)), 0);
+                @Override
+                public void close() {}
+            }).get(DriverContext.getLocalDriver()).evalFoldable(new Page(1)), 0);
+        } catch (Exception e) {
+            // The location of the expression is not available
+            throw convertToVerificationException(e, null);
+        }
     }
 }

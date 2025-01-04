@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -82,7 +83,10 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "Line -1:-1: java.lang.IllegalArgumentException: "
                                 + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"
                         )
-                        .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
+                        .withFoldingException(
+                            VerificationException.class,
+                            "org.elasticsearch.xpack.esql.core.InvalidArgumentException: invalid date field for []: not a unit"
+                        )
                 )
             ),
             (v, p) -> switch (p) {

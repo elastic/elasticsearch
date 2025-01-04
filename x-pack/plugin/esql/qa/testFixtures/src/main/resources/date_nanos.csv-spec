@@ -1100,46 +1100,6 @@ dt:date_nanos                  | plus:date_nanos
 2104-04-16T00:00:00.000123456Z | 2100-01-01T01:01:01.001123456Z
 ;
 
-dateMathArithmeticOverflow from addition
-required_capability: date_nanos_add_subtract
-
-row dt = to_date_nanos(9223372036854775807)
-| eval plus = dt + 1 day
-| keep plus;
-
-warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:15: java.time.DateTimeException: Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807
-plus:date_nanos
-null
-;
-
-date nanos subtraction before 1970
-required_capability: date_nanos_add_subtract
-
-row dt = to_date_nanos(0::long)
-| eval minus = dt - 1 day
-| keep minus;
-
-warning:Line 2:16: evaluation of [dt - 1 day] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:16: java.time.DateTimeException: Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807
-minus:date_nanos
-null
-;
-
-dateMathDateException
-required_capability: date_nanos_add_subtract
-
-row dt = to_date_nanos(0::long)
-| eval plus = dt + 2147483647 years
-| keep plus;
-
-warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:15: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
-
-plus:date_nanos
-null
-;
-
 dateMathNegatedPeriod
 required_capability: date_nanos_add_subtract
 

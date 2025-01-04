@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -45,7 +46,9 @@ public class CoshTests extends AbstractScalarFunctionTestCase {
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
-                )
+                ),
+                VerificationException.class,
+                "java.lang.ArithmeticException: cosh overflow"
             )
         );
         suppliers.addAll(
@@ -58,7 +61,9 @@ public class CoshTests extends AbstractScalarFunctionTestCase {
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
-                )
+                ),
+                VerificationException.class,
+                "java.lang.ArithmeticException: cosh overflow"
             )
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "numeric");

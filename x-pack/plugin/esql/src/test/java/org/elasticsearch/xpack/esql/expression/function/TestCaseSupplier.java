@@ -174,6 +174,70 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate negative test cases for unary functions that operate on an {@code numeric}
+     * fields by casting them to {@link DataType#DOUBLE}s.
+     */
+    public static List<TestCaseSupplier> forUnaryCastingToDouble(
+        String name,
+        String argName,
+        UnaryOperator<Double> expected,
+        Double min,
+        Double max,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        String read = "Attribute[channel=0]";
+        String eval = name + "[" + argName + "=";
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        forUnaryInt(
+            suppliers,
+            eval + castToDoubleEvaluator(read, DataType.INTEGER) + "]",
+            DataType.DOUBLE,
+            i -> expected.apply(Double.valueOf(i)),
+            min.intValue(),
+            max.intValue(),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+        forUnaryLong(
+            suppliers,
+            eval + castToDoubleEvaluator(read, DataType.LONG) + "]",
+            DataType.DOUBLE,
+            i -> expected.apply(Double.valueOf(i)),
+            min.longValue(),
+            max.longValue(),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+        forUnaryUnsignedLong(
+            suppliers,
+            eval + castToDoubleEvaluator(read, DataType.UNSIGNED_LONG) + "]",
+            DataType.DOUBLE,
+            ul -> expected.apply(ul.doubleValue()),
+            BigInteger.valueOf((int) Math.ceil(min)),
+            BigInteger.valueOf((int) Math.floor(max)),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+        forUnaryDouble(
+            suppliers,
+            eval + read + "]",
+            DataType.DOUBLE,
+            expected::apply,
+            min,
+            max,
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+        return suppliers;
+    }
+
+    /**
      * Generate positive test cases for binary functions that operate on an {@code numeric}
      * fields by casting them to {@link DataType#DOUBLE}s.
      */
@@ -191,6 +255,38 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TypedDataSupplier> lhsSuppliers = castToDoubleSuppliersFromRange(lhsMin, lhsMax);
         List<TypedDataSupplier> rhsSuppliers = castToDoubleSuppliersFromRange(rhsMin, rhsMax);
         return forBinaryCastingToDouble(name, lhsName, rhsName, expected, lhsSuppliers, rhsSuppliers, warnings);
+    }
+
+    /**
+     * Generate negative test cases for binary functions that operate on an {@code numeric}
+     * fields by casting them to {@link DataType#DOUBLE}s.
+     */
+    public static List<TestCaseSupplier> forBinaryCastingToDouble(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Double> expected,
+        Double lhsMin,
+        Double lhsMax,
+        Double rhsMin,
+        Double rhsMax,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        List<TypedDataSupplier> lhsSuppliers = castToDoubleSuppliersFromRange(lhsMin, lhsMax);
+        List<TypedDataSupplier> rhsSuppliers = castToDoubleSuppliersFromRange(rhsMin, rhsMax);
+        return forBinaryCastingToDouble(
+            name,
+            lhsName,
+            rhsName,
+            expected,
+            lhsSuppliers,
+            rhsSuppliers,
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     public static List<TestCaseSupplier> forBinaryCastingToDouble(
@@ -227,6 +323,44 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
+    public static List<TestCaseSupplier> forBinaryCastingToDouble(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Double> expected,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        casesCrossProduct(
+            (l, r) -> expected.apply(((Number) l).doubleValue(), ((Number) r).doubleValue()),
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhsType, rhsType) -> equalTo(
+                name
+                    + "["
+                    + lhsName
+                    + "="
+                    + castToDoubleEvaluator("Attribute[channel=0]", lhsType)
+                    + ", "
+                    + rhsName
+                    + "="
+                    + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
+                    + "]"
+            ),
+            (lhs, rhs) -> warnings,
+            suppliers,
+            DataType.DOUBLE,
+            false,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+        return suppliers;
+    }
+
     public static void casesCrossProduct(
         BinaryOperator<Object> expected,
         List<TypedDataSupplier> lhsSuppliers,
@@ -239,9 +373,55 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
-                suppliers.add(testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                suppliers.add(testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expected, warnings, null, null));
                 if (symmetric) {
-                    suppliers.add(testCaseSupplier(rhsSupplier, lhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                    suppliers.add(
+                        testCaseSupplier(rhsSupplier, lhsSupplier, evaluatorToString, expectedType, expected, warnings, null, null)
+                    );
+                }
+            }
+        }
+    }
+
+    public static void casesCrossProduct(
+        BinaryOperator<Object> expected,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        BiFunction<DataType, DataType, Matcher<String>> evaluatorToString,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        List<TestCaseSupplier> suppliers,
+        DataType expectedType,
+        boolean symmetric,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
+            for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
+                suppliers.add(
+                    testCaseSupplier(
+                        lhsSupplier,
+                        rhsSupplier,
+                        evaluatorToString,
+                        expectedType,
+                        expected,
+                        warnings,
+                        expectedExceptionClass,
+                        expectedExceptionMessage
+                    )
+                );
+                if (symmetric) {
+                    suppliers.add(
+                        testCaseSupplier(
+                            rhsSupplier,
+                            lhsSupplier,
+                            evaluatorToString,
+                            expectedType,
+                            expected,
+                            warnings,
+                            expectedExceptionClass,
+                            expectedExceptionMessage
+                        )
+                    );
                 }
             }
         }
@@ -254,7 +434,37 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         BinaryOperator<Object> expectedValue
     ) {
-        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, (lhs, rhs) -> List.of());
+        return testCaseSupplier(
+            lhsSupplier,
+            rhsSupplier,
+            evaluatorToString,
+            expectedType,
+            expectedValue,
+            (lhs, rhs) -> List.of(),
+            null,
+            null
+        );
+    }
+
+    public static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        BiFunction<DataType, DataType, Matcher<String>> evaluatorToString,
+        DataType expectedType,
+        BinaryOperator<Object> expectedValue,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        return testCaseSupplier(
+            lhsSupplier,
+            rhsSupplier,
+            evaluatorToString,
+            expectedType,
+            expectedValue,
+            (lhs, rhs) -> List.of(),
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     private static TestCaseSupplier testCaseSupplier(
@@ -263,7 +473,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<DataType, DataType, Matcher<String>> evaluatorToString,
         DataType expectedType,
         BinaryOperator<Object> expectedValue,
-        BiFunction<TypedData, TypedData, List<String>> warnings
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
     ) {
         String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
         return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
@@ -277,6 +489,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
             for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
+            }
+            if (expectedExceptionClass != null && expectedExceptionMessage != null) {
+                testCase = testCase.withFoldingException(expectedExceptionClass, expectedExceptionMessage);
             }
             if (DataType.isRepresentable(expectedType) == false) {
                 testCase = testCase.withoutEvaluator();
@@ -452,6 +667,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     public static List<TestCaseSupplier> forBinaryNotCasting(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Object> expected,
+        DataType expectedType,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings,
+        boolean symmetric,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        return forBinaryNotCasting(
+            expected,
+            expectedType,
+            lhsSuppliers,
+            rhsSuppliers,
+            equalTo(name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]"),
+            (lhs, rhs) -> warnings,
+            symmetric,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    public static List<TestCaseSupplier> forBinaryNotCasting(
         BinaryOperator<Object> expected,
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
@@ -474,6 +715,33 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
+    public static List<TestCaseSupplier> forBinaryNotCasting(
+        BinaryOperator<Object> expected,
+        DataType expectedType,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        Matcher<String> evaluatorToString,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean symmetric,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        casesCrossProduct(
+            expected,
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhsType, rhsType) -> evaluatorToString,
+            warnings,
+            suppliers,
+            expectedType,
+            symmetric,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+        return suppliers;
+    }
+
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#INTEGER}.
      */
@@ -492,7 +760,35 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             intCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.intValue()),
-            n -> expectedWarnings.apply(n.intValue())
+            n -> expectedWarnings.apply(n.intValue()),
+            null,
+            null
+        );
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#INTEGER}.
+     */
+    public static void forUnaryInt(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        IntFunction<Object> expectedValue,
+        int lowerBound,
+        int upperBound,
+        Function<Number, List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            intCases(lowerBound, upperBound, true),
+            expectedType,
+            n -> expectedValue.apply(n.intValue()),
+            n -> expectedWarnings.apply(n.intValue()),
+            expectedExceptionClass,
+            expectedExceptionMessage
         );
     }
 
@@ -506,6 +802,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         forUnaryInt(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
+    }
+
+    public static void forUnaryInt(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        IntFunction<Object> expectedValue,
+        int lowerBound,
+        int upperBound,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        forUnaryInt(
+            suppliers,
+            expectedEvaluatorToString,
+            expectedType,
+            expectedValue,
+            lowerBound,
+            upperBound,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -526,7 +846,35 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             longCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.longValue()),
-            expectedWarnings
+            expectedWarnings,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#LONG}.
+     */
+    public static void forUnaryLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        LongFunction<Object> expectedValue,
+        long lowerBound,
+        long upperBound,
+        Function<Number, List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            longCases(lowerBound, upperBound, true),
+            expectedType,
+            n -> expectedValue.apply(n.longValue()),
+            expectedWarnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
         );
     }
 
@@ -540,6 +888,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         forUnaryLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
+    }
+
+    public static void forUnaryLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        LongFunction<Object> expectedValue,
+        long lowerBound,
+        long upperBound,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        forUnaryLong(
+            suppliers,
+            expectedEvaluatorToString,
+            expectedType,
+            expectedValue,
+            lowerBound,
+            upperBound,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -560,7 +932,35 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             ulongCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply((BigInteger) n),
-            n -> expectedWarnings.apply((BigInteger) n)
+            n -> expectedWarnings.apply((BigInteger) n),
+            null,
+            null
+        );
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#UNSIGNED_LONG}.
+     */
+    public static void forUnaryUnsignedLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BigInteger, Object> expectedValue,
+        BigInteger lowerBound,
+        BigInteger upperBound,
+        Function<BigInteger, List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            ulongCases(lowerBound, upperBound, true),
+            expectedType,
+            n -> expectedValue.apply((BigInteger) n),
+            n -> expectedWarnings.apply((BigInteger) n),
+            expectedExceptionClass,
+            expectedExceptionMessage
         );
     }
 
@@ -574,6 +974,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         forUnaryUnsignedLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
+    }
+
+    public static void forUnaryUnsignedLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BigInteger, Object> expectedValue,
+        BigInteger lowerBound,
+        BigInteger upperBound,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        forUnaryUnsignedLong(
+            suppliers,
+            expectedEvaluatorToString,
+            expectedType,
+            expectedValue,
+            lowerBound,
+            upperBound,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -591,6 +1015,33 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         forUnaryDouble(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
     }
 
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#DOUBLE}.
+     */
+    public static void forUnaryDouble(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        DoubleFunction<Object> expectedValue,
+        double lowerBound,
+        double upperBound,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        forUnaryDouble(
+            suppliers,
+            expectedEvaluatorToString,
+            expectedType,
+            expectedValue,
+            lowerBound,
+            upperBound,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
     public static void forUnaryDouble(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -606,7 +1057,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             doubleCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.doubleValue()),
-            n -> expectedWarnings.apply(n.doubleValue())
+            n -> expectedWarnings.apply(n.doubleValue()),
+            null,
+            null
+        );
+    }
+
+    public static void forUnaryDouble(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        DoubleFunction<Object> expectedValue,
+        double lowerBound,
+        double upperBound,
+        DoubleFunction<List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            doubleCases(lowerBound, upperBound, true),
+            expectedType,
+            n -> expectedValue.apply(n.doubleValue()),
+            n -> expectedWarnings.apply(n.doubleValue()),
+            expectedExceptionClass,
+            expectedExceptionMessage
         );
     }
 
@@ -624,6 +1100,176 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#BOOLEAN}.
+     */
+    public static void forUnaryBoolean(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Boolean, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            booleanCases(),
+            expectedType,
+            v -> expectedValue.apply((Boolean) v),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant defaults to maximum range of possible values
+     */
+    public static void forUnaryDatetime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateCases(),
+            expectedType,
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant defaults to maximum range of possible values
+     */
+    public static void forUnaryDatetime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateCases(),
+            expectedType,
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant accepts a range of values
+     */
+    public static void forUnaryDatetime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        long min,
+        long max,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateCases(min, max),
+            expectedType,
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#DATETIME}.
+     * This variant accepts a range of values
+     */
+    public static void forUnaryDatetime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        long min,
+        long max,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateCases(min, max),
+            expectedType,
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#DATE_NANOS}.
+     */
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateNanosCases(),
+            expectedType,
+            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
+            warnings,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#DATE_NANOS}.
+     */
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            dateNanosCases(),
+            expectedType,
+            n -> expectedValue.apply(DateUtils.toInstant((long) n)),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
@@ -634,6 +1280,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, geoPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#GEO_POINT}.
+     */
+    public static void forUnaryGeoPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            geoPointCases(),
+            expectedType,
+            n -> expectedValue.apply((BytesRef) n),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -650,6 +1320,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#CARTESIAN_POINT}.
+     */
+    public static void forUnaryCartesianPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            cartesianPointCases(),
+            expectedType,
+            n -> expectedValue.apply((BytesRef) n),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#GEO_SHAPE}.
      */
     public static void forUnaryGeoShape(
@@ -660,6 +1354,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, geoShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#GEO_SHAPE}.
+     */
+    public static void forUnaryGeoShape(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            geoShapeCases(),
+            expectedType,
+            n -> expectedValue.apply((BytesRef) n),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -676,6 +1394,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#CARTESIAN_SHAPE}.
+     */
+    public static void forUnaryCartesianShape(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            cartesianShapeCases(),
+            expectedType,
+            n -> expectedValue.apply((BytesRef) n),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#IP}.
      */
     public static void forUnaryIp(
@@ -686,6 +1428,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, ipCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#IP}.
+     */
+    public static void forUnaryIp(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            ipCases(),
+            expectedType,
+            v -> expectedValue.apply((BytesRef) v),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -710,6 +1476,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
     }
 
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#KEYWORD} and {@link DataType#TEXT}.
+     */
+    public static void forUnaryStrings(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        Function<BytesRef, List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        for (DataType type : DataType.stringTypes()) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                stringCases(type),
+                expectedType,
+                v -> expectedValue.apply((BytesRef) v),
+                v -> expectedWarnings.apply((BytesRef) v),
+                expectedExceptionClass,
+                expectedExceptionMessage
+            );
+        }
+    }
+
     public static void forUnaryStrings(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -717,7 +1509,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        forUnaryStrings(suppliers, expectedEvaluatorToString, expectedType, expectedValue, unused -> warnings);
+        forUnaryStrings(suppliers, expectedEvaluatorToString, expectedType, expectedValue, unused -> warnings, null, null);
+    }
+
+    public static void forUnaryStrings(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        forUnaryStrings(
+            suppliers,
+            expectedEvaluatorToString,
+            expectedType,
+            expectedValue,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**
@@ -740,13 +1552,39 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate negative test cases for a unary function operating on an {@link DataType#VERSION}.
+     */
+    public static void forUnaryVersion(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Version, Object> expectedValue,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            versionCases(""),
+            expectedType,
+            v -> expectedValue.apply(new Version((BytesRef) v)),
+            warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         List<TypedDataSupplier> valueSuppliers,
         DataType expectedOutputType,
         Function<Number, Object> expectedValue,
-        Function<Number, List<String>> expectedWarnings
+        Function<Number, List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
     ) {
         unary(
             suppliers,
@@ -754,7 +1592,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             valueSuppliers,
             expectedOutputType,
             v -> expectedValue.apply((Number) v),
-            v -> expectedWarnings.apply((Number) v)
+            v -> expectedWarnings.apply((Number) v),
+            expectedExceptionClass,
+            expectedExceptionMessage
         );
     }
 
@@ -764,9 +1604,20 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TypedDataSupplier> valueSuppliers,
         DataType expectedOutputType,
         Function<Number, Object> expected,
-        List<String> warnings
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
     ) {
-        unaryNumeric(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            valueSuppliers,
+            expectedOutputType,
+            expected,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     public static void unary(
@@ -795,7 +1646,39 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return testCase;
             }));
         }
+    }
 
+    public static void unary(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        List<TypedDataSupplier> valueSuppliers,
+        DataType expectedOutputType,
+        Function<Object, Object> expectedValue,
+        Function<Object, List<String>> expectedWarnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        for (TypedDataSupplier supplier : valueSuppliers) {
+            suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
+                TypedData typed = supplier.get();
+                Object value = typed.getValue();
+                logger.info("Value is " + value + " of type " + value.getClass());
+                logger.info("expectedValue is " + expectedValue.apply(value));
+                TestCase testCase = new TestCase(
+                    List.of(typed),
+                    expectedEvaluatorToString,
+                    expectedOutputType,
+                    equalTo(expectedValue.apply(value))
+                );
+                for (String warning : expectedWarnings.apply(value)) {
+                    testCase = testCase.withWarning(warning);
+                }
+                if (expectedExceptionClass != null && expectedExceptionMessage != null) {
+                    testCase = testCase.withFoldingException(expectedExceptionClass, expectedExceptionMessage);
+                }
+                return testCase;
+            }));
+        }
     }
 
     public static void unary(
@@ -807,6 +1690,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
+    }
+
+    public static void unary(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        List<TypedDataSupplier> valueSuppliers,
+        DataType expectedOutputType,
+        Function<Object, Object> expected,
+        List<String> warnings,
+        Class<? extends Throwable> expectedExceptionClass,
+        String expectedExceptionMessage
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            valueSuppliers,
+            expectedOutputType,
+            expected,
+            unused -> warnings,
+            expectedExceptionClass,
+            expectedExceptionMessage
+        );
     }
 
     /**

@@ -534,6 +534,8 @@ not both. Refer to <<knn-semantic-search>> to learn more.
 (Optional, float)
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
 ====
 
 [[search-api-min-score]]

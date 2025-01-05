@@ -417,6 +417,8 @@ public interface BlockLoader {
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
 
         // TODO support non-singleton ords
+
+        AggregateDoubleMetricBuilder aggregateDoubleMetricBuilder(int count);
     }
 
     /**
@@ -500,5 +502,11 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+    }
+
+    interface AggregateDoubleMetricBuilder extends Builder {
+
+        AggregateDoubleMetricBuilder append(double min, double max, double sum, int valueCount);
+
     }
 }

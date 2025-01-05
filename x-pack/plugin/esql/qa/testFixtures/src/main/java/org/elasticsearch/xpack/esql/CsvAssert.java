@@ -135,6 +135,9 @@ public final class CsvAssert {
                         || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
+                if (blockType == Type.DOUBLE && expectedType == Type.AGGREGATE_METRIC_DOUBLE) {
+                    continue;
+                }
                 if (blockType == Type.KEYWORD
                     && (expectedType == Type.IP
                         || expectedType == Type.VERSION

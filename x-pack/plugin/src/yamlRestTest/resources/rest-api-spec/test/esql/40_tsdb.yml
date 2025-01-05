@@ -82,8 +82,7 @@ setup:
                 time_series_dimension: true
               agg_metric:
                 type: aggregate_metric_double
-                metrics:
-                  - max
+                metrics: [ max, min, sum, value_count]
                 default_metric: max
               k8s:
                 properties:
@@ -101,9 +100,9 @@ setup:
         index: test2
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10, "min": 5, "sum": 15, "value_count": 2}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20, "min": -10, "sum": 5, "value_count": 3}}'
 
 ---
 load everything:
@@ -213,7 +212,7 @@ from doc with aggregate_metric_double:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}
@@ -225,7 +224,21 @@ from doc with aggregate_metric_double:
 ---
 stats on aggregate_metric_double:
   - do:
-      catch: /Cannot use field \[agg_metric\] with unsupported type \[aggregate_metric_double\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test2 | STATS max(agg_metric)'
+
+  - match: { columns.0.name: "max(agg_metric)" }
+  - match: { columns.0.type: "aggregate_metric_double" }
+  - match: { values.0.0: 20.0 }
+# TODO: add other aggregations (min, sum, count)
+
+---
+grouping stats on aggregate_metric_double:
+  - do:
+      catch: /grouping aggregator is not supported yet/
       esql.query:
         body:
           query: 'FROM test2 | STATS max(agg_metric) BY dim'
@@ -242,7 +255,7 @@ from index pattern unsupported counter:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}

@@ -271,6 +271,7 @@ public class PlannerUtils {
             case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
+            case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATED_DOUBLE_METRIC;
             // unsupported fields are passed through as a BytesRef
             case KEYWORD, TEXT, IP, SOURCE, VERSION, SEMANTIC_TEXT, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;

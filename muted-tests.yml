@@ -232,9 +232,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=indices.create/20_synthetic_source/create index with use_synthetic_source}
-  issue: https://github.com/elastic/elasticsearch/issues/119191
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
@@ -258,6 +255,30 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/119510
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/119548
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119549
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119550
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119551
+- class: org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshotTests
+  method: testSkipNonRootOfNestedDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/119553
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119560
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119561
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119562
 
 # Examples:
 #

@@ -51,71 +51,71 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
-    private static final TestsDataset EMPLOYEES_INCOMPATIBLE = new TestsDataset(
+    private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
         "employees_incompatible",
         "mapping-default-incompatible.json",
         "employees_incompatible.csv"
     ).noSubfields();
-    private static final TestsDataset HOSTS = new TestsDataset("hosts");
-    private static final TestsDataset APPS = new TestsDataset("apps");
-    private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
-    private static final TestsDataset LANGUAGES = new TestsDataset("languages");
-    private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
+    private static final TestDataset HOSTS = new TestDataset("hosts");
+    private static final TestDataset APPS = new TestDataset("apps");
+    private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestDataset LANGUAGES = new TestDataset("languages");
+    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
         .withSetting("languages_lookup-settings.json");
-    private static final TestsDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
+    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
-    private static final TestsDataset LANGUAGES_NESTED_FIELDS = new TestsDataset(
+    private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
         "languages_nested_fields.csv"
     ).withSetting("languages_lookup-settings.json");
-    private static final TestsDataset ALERTS = new TestsDataset("alerts");
-    private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
-    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
-    private static final TestsDataset MV_SAMPLE_DATA = new TestsDataset("mv_sample_data");
-    private static final TestsDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
+    private static final TestDataset ALERTS = new TestDataset("alerts");
+    private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
+    private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
+    private static final TestDataset MV_SAMPLE_DATA = new TestDataset("mv_sample_data");
+    private static final TestDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
-    private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
+    private static final TestDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
-    private static final TestsDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+    private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
-    private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
-    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
-    private static final TestsDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
+    private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
+    private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
+    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
         .withSetting("clientips_lookup-settings.json");
-    private static final TestsDataset MESSAGE_TYPES = new TestsDataset("message_types");
-    private static final TestsDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+    private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
+    private static final TestDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
         .withSetting("message_types_lookup-settings.json");
-    private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
-    private static final TestsDataset AGES = new TestsDataset("ages");
-    private static final TestsDataset HEIGHTS = new TestsDataset("heights");
-    private static final TestsDataset DECADES = new TestsDataset("decades");
-    private static final TestsDataset AIRPORTS = new TestsDataset("airports");
-    private static final TestsDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
-    private static final TestsDataset AIRPORTS_NO_DOC_VALUES = new TestsDataset("airports_no_doc_values").withData("airports.csv");
-    private static final TestsDataset AIRPORTS_NOT_INDEXED = new TestsDataset("airports_not_indexed").withData("airports.csv");
-    private static final TestsDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestsDataset("airports_not_indexed_nor_doc_values")
+    private static final TestDataset CLIENT_CIDR = new TestDataset("client_cidr");
+    private static final TestDataset AGES = new TestDataset("ages");
+    private static final TestDataset HEIGHTS = new TestDataset("heights");
+    private static final TestDataset DECADES = new TestDataset("decades");
+    private static final TestDataset AIRPORTS = new TestDataset("airports");
+    private static final TestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestDataset AIRPORTS_NO_DOC_VALUES = new TestDataset("airports_no_doc_values").withData("airports.csv");
+    private static final TestDataset AIRPORTS_NOT_INDEXED = new TestDataset("airports_not_indexed").withData("airports.csv");
+    private static final TestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestDataset("airports_not_indexed_nor_doc_values")
         .withData("airports.csv");
-    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web");
-    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos");
-    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset("countries_bbox");
-    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset("countries_bbox_web");
-    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset("airport_city_boundaries");
-    private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset("cartesian_multipolygons");
-    private static final TestsDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestsDataset("cartesian_multipolygons_no_doc_values")
+    private static final TestDataset AIRPORTS_WEB = new TestDataset("airports_web");
+    private static final TestDataset DATE_NANOS = new TestDataset("date_nanos");
+    private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
+    private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
+    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries");
+    private static final TestDataset CARTESIAN_MULTIPOLYGONS = new TestDataset("cartesian_multipolygons");
+    private static final TestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestDataset("cartesian_multipolygons_no_doc_values")
         .withData("cartesian_multipolygons.csv");
-    private static final TestsDataset MULTIVALUE_GEOMETRIES = new TestsDataset("multivalue_geometries");
-    private static final TestsDataset MULTIVALUE_POINTS = new TestsDataset("multivalue_points");
-    private static final TestsDataset DISTANCES = new TestsDataset("distances");
-    private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
-    private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
-    private static final TestsDataset BOOKS = new TestsDataset("books").withSetting("books-settings.json");
-    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset MULTIVALUE_GEOMETRIES = new TestDataset("multivalue_geometries");
+    private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
+    private static final TestDataset DISTANCES = new TestDataset("distances");
+    private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset ADDRESSES = new TestDataset("addresses");
+    private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
+    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
 
-    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
+    public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
         Map.entry(HOSTS.indexName, HOSTS),
@@ -266,12 +266,12 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static Set<TestsDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
+    public static Set<TestDataset> availableDatasetsForEs(RestClient client, boolean supportsIndexModeLookup) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
-        Set<TestsDataset> testDataSets = new HashSet<>();
+        Set<TestDataset> testDataSets = new HashSet<>();
 
-        for (TestsDataset dataset : CSV_DATASET_MAP.values()) {
+        for (TestDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)) {
                 testDataSets.add(dataset);
@@ -281,7 +281,7 @@ public class CsvTestsDataLoader {
         return testDataSets;
     }
 
-    public static boolean isLookupDataset(TestsDataset dataset) throws IOException {
+    public static boolean isLookupDataset(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
@@ -363,7 +363,7 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(RestClient client, TestsDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
         final String mappingName = "/" + dataset.mappingFileName;
         URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
         if (mapping == null) {
@@ -604,14 +604,14 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record MultiIndexTestDataset(String indexPattern, List<TestsDataset> datasets) {
-        public static MultiIndexTestDataset of(TestsDataset testsDataset) {
+    public record MultiIndexTestDataset(String indexPattern, List<TestDataset> datasets) {
+        public static MultiIndexTestDataset of(TestDataset testsDataset) {
             return new MultiIndexTestDataset(testsDataset.indexName, List.of(testsDataset));
         }
 
     }
 
-    public record TestsDataset(
+    public record TestDataset(
         String indexName,
         String mappingFileName,
         String dataFileName,
@@ -620,16 +620,16 @@ public class CsvTestsDataLoader {
         @Nullable Map<String, String> typeMapping,
         boolean requiresInferenceEndpoint
     ) {
-        public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
+        public TestDataset(String indexName, String mappingFileName, String dataFileName) {
             this(indexName, mappingFileName, dataFileName, null, true, null, false);
         }
 
-        public TestsDataset(String indexName) {
+        public TestDataset(String indexName) {
             this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
         }
 
-        public TestsDataset withIndex(String indexName) {
-            return new TestsDataset(
+        public TestDataset withIndex(String indexName) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -640,8 +640,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public TestsDataset withData(String dataFileName) {
-            return new TestsDataset(
+        public TestDataset withData(String dataFileName) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -652,8 +652,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public TestsDataset withSetting(String settingFileName) {
-            return new TestsDataset(
+        public TestDataset withSetting(String settingFileName) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -664,8 +664,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public TestsDataset noSubfields() {
-            return new TestsDataset(
+        public TestDataset noSubfields() {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -676,8 +676,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public TestsDataset withTypeMapping(Map<String, String> typeMapping) {
-            return new TestsDataset(
+        public TestDataset withTypeMapping(Map<String, String> typeMapping) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
@@ -688,8 +688,8 @@ public class CsvTestsDataLoader {
             );
         }
 
-        public TestsDataset withInferenceEndpoint(boolean needsInference) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+        public TestDataset withInferenceEndpoint(boolean needsInference) {
+            return new TestDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
         }
 
         private Settings readSettingsFile() throws IOException {

@@ -97,8 +97,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
     private static final TestDataset AIRPORTS_NO_DOC_VALUES = new TestDataset("airports_no_doc_values").withData("airports.csv");
     private static final TestDataset AIRPORTS_NOT_INDEXED = new TestDataset("airports_not_indexed").withData("airports.csv");
-    private static final TestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestDataset("airports_not_indexed_nor_doc_values")
-        .withData("airports.csv");
+    private static final TestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestDataset("airports_not_indexed_nor_doc_values").withData(
+        "airports.csv"
+    );
     private static final TestDataset AIRPORTS_WEB = new TestDataset("airports_web");
     private static final TestDataset DATE_NANOS = new TestDataset("date_nanos");
     private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");

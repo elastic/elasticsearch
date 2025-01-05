@@ -6,6 +6,12 @@
 ++++
 [[security-api-has-privilege]]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Determines whether the logged in user has a specified list of privileges.
 
 [[security-api-has-privileges-request]]

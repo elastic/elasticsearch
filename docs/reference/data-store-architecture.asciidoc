@@ -1,0 +1,18 @@
+= Data store architecture
+
+[partintro]
+--
+
+{es} is a distributed document store. Instead of storing information as rows of columnar data, {es} stores complex data structures that have been serialized as JSON documents. When you have multiple {es} nodes in a cluster, stored documents are distributed across the cluster and can be accessed immediately
+from any node.
+
+The topics in this section provides information about the architecture of {es} and how it stores and retrieves data: 
+
+* <<nodes-shards,Nodes and shards>>: Learn about the basic building blocks of an {es} cluster, including nodes, shards, primaries, and replicas.
+* <<docs-replication,Reading and writing documents>>: Learn how {es} replicates read and write operations across shards and shard copies.
+* <<shard-allocation-relocation-recovery,Shard allocation, relocation, and recovery>>: Learn how {es} allocates and balances shards across nodes.
+--
+
+include::nodes-shards.asciidoc[]
+include::docs/data-replication.asciidoc[leveloffset=-1]
+include::modules/shard-ops.asciidoc[]

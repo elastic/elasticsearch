@@ -20,7 +20,7 @@ Project mainProject = project
 
 subprojects {
   // Use tests from the root security qa project in subprojects
-  configurations.create('testArtifacts').transitive(false)
+  configurations.create('testArtifacts').transitive = false
 
   def clusterPath = getPath()
 

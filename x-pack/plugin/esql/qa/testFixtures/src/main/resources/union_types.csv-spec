@@ -263,8 +263,8 @@ FROM sample_data, sample_data_str
 | LIMIT 1
 ;
 
-@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword
-2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected
+@timestamp:date           |  client_ip:unsupported  |  event_duration:long  |  message:keyword
+2023-10-23T13:33:34.937Z  |  null                   |  1232382              |  Disconnected
 ;
 
 multiIndexSortIpStringEval
@@ -278,8 +278,8 @@ FROM sample_data, sample_data_str
 | LIMIT 1
 ;
 
-@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword | client_ip_as_ip:ip
-2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected    | 172.21.0.5
+@timestamp:date           |  client_ip:unsupported  |  event_duration:long  |  message:keyword | client_ip_as_ip:ip
+2023-10-23T13:33:34.937Z  |  null                   |  1232382              |  Disconnected    | 172.21.0.5
 ;
 
 multiIndexIpStringStats
@@ -1270,11 +1270,11 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-@timestamp:null | client_ip:null | event_duration:long | message:keyword  | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
-null            | null           |  8268153            | Connection error | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
+@timestamp:unsupported | client_ip:unsupported | event_duration:long | message:keyword  | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
+null                   | null                  |  8268153            | Connection error | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null                   | null                  |  8268153            | Connection error | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null                   | null                  |  8268153            | Connection error | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null                   | null                  |  8268153            | Connection error | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
 multiIndexMultiColumnTypesRenameAndKeep
@@ -1380,8 +1380,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInEval
@@ -1392,8 +1392,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:boolean
-           null | 172.21.0.5   |             1232382 | Disconnected    | true
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:boolean
+           null        | 172.21.0.5   |             1232382 | Disconnected    | true
 ;
 
 multiIndexIndirectUseOfUnionTypesInRename
@@ -1404,8 +1404,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | event_message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | event_message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInKeep
@@ -1427,8 +1427,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep2
@@ -1439,8 +1439,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 
@@ -1451,7 +1451,7 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null
+@timestamp:unsupported
 null
 ;
 
@@ -1484,9 +1484,9 @@ FROM sample_data, sample_data_ts_long
 | WHERE message == "Disconnected"
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInDissect
@@ -1496,8 +1496,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInGrok
@@ -1507,8 +1507,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInEnrich
@@ -1520,8 +1520,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | event_duration:long | message:keyword | client_ip:keyword | env:keyword
-           null |             1232382 | Disconnected    | 172.21.0.5        | Development
+@timestamp:unsupported | event_duration:long | message:keyword | client_ip:keyword | env:keyword
+           null        |             1232382 | Disconnected    | 172.21.0.5        | Development
 ;
 
 multiIndexIndirectUseOfUnionTypesInStats
@@ -1545,8 +1545,8 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:long
-           null | 172.21.0.5   |             1232382 | Disconnected    |  8268153
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:long
+           null        | 172.21.0.5   |             1232382 | Disconnected    |  8268153
 ;
 
 multiIndexIndirectUseOfUnionTypesInLookup-Ignore
@@ -1558,8 +1558,8 @@ FROM sample_data, sample_data_ts_long
 | LOOKUP_🐔 int_number_names ON int
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    |           2 | two
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    |           2 | two
 ;
 
 multiIndexIndirectUseOfUnionTypesInMvExpand
@@ -1570,9 +1570,9 @@ FROM sample_data, sample_data_ts_long
 | MV_EXPAND foo
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 shortIntegerWidening

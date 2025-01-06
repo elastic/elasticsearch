@@ -9,9 +9,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'rank-vectors'
-  description 'Rank vectors in search.'
-  classname 'org.elasticsearch.xpack.rank.vectors.RankVectorsPlugin'
+  name = 'rank-vectors'
+  description = 'Rank vectors in search.'
+  classname = 'org.elasticsearch.xpack.rank.vectors.RankVectorsPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 

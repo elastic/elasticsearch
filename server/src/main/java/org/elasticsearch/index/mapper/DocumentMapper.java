@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -177,18 +178,16 @@ public class DocumentMapper {
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
-            for (String match : mappingLookup.getMatchingFieldNames(path)) {
-                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+            if (settings.getMode() == IndexMode.TIME_SERIES) {
+                for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                    mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+                }
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
                 // object type is not allowed in the routing paths
                 if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
-                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
-                            + "or flattened fields with a list of dimensions in [time_series_dimensions] "
-                            + "and without the [script] parameter. ["
-                            + objectName
-                            + "] was [object]."
+                        "All fields that match routing_path must be flattened fields. [" + objectName + "] was [object]."
                     );
                 }
             }

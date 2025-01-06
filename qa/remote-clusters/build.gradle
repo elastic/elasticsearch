@@ -39,14 +39,22 @@ elasticsearch_distributions {
   }
 }
 
+
+interface Injected {
+  @Inject
+  FileSystemOperations getFs()
+}
+
 tasks.named("preProcessFixture").configure {
   dependsOn "copyNodeKeyMaterial", elasticsearch_distributions.docker
+  def injected = project.objects.newInstance(Injected)
+
   doLast {
     // tests expect to have an empty repo
-    project.delete(
-      "${testFixturesDir}/repo",
-      "${testFixturesDir}/oss-repo"
-    )
+    injected.fs.delete {
+      it.delete("${testFixturesDir}/repo")
+      it.delete("${testFixturesDir}/oss-repo")
+    }
     createAndSetWritable(
       "${testFixturesDir}/repo",
       "${testFixturesDir}/oss-repo",
@@ -69,7 +77,8 @@ dockerCompose {
 
 def createAndSetWritable(Object... locations) {
   locations.each { location ->
-    File file = file(location)
+    println "location = $location"
+    File file = new File(location)
     file.mkdirs()
     file.setWritable(true, false)
   }

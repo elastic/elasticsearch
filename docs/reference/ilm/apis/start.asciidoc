@@ -7,6 +7,12 @@
 <titleabbrev>Start {ilm}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Start the <<index-lifecycle-management,{ilm}>> ({ilm-init}) plugin.
 
 [[ilm-start-request]]

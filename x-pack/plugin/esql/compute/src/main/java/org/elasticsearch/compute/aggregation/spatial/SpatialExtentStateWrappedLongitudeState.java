@@ -53,8 +53,8 @@ final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
                 SpatialAggregationUtils.encodePositiveLongitude(geoPointVisitor.getMinPosX()),
                 SpatialAggregationUtils.encodeNegativeLongitude(geoPointVisitor.getMaxNegX()),
                 SpatialAggregationUtils.encodePositiveLongitude(geoPointVisitor.getMaxPosX()),
-                POINT_TYPE.encodeY(geoPointVisitor.getMaxY()),
-                POINT_TYPE.encodeY(geoPointVisitor.getMinY())
+                POINT_TYPE.encoder().encodeY(geoPointVisitor.getMaxY()),
+                POINT_TYPE.encoder().encodeY(geoPointVisitor.getMinY())
             );
         }
     }

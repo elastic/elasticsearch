@@ -16,6 +16,7 @@ import com.sun.tools.attach.VirtualMachine;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -23,14 +24,24 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.function.Function;
+
+import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {}
+    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {
+        public BootstrapArgs {
+            requireNonNull(pluginData);
+            requireNonNull(pluginResolver);
+        }
+    }
 
-    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {}
+    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {
+        public PluginData {
+            requireNonNull(pluginPath);
+        }
+    }
 
     private static BootstrapArgs bootstrapArgs;
 
@@ -50,9 +61,10 @@ public class EntitlementBootstrap {
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(Objects.requireNonNull(pluginData), Objects.requireNonNull(pluginResolver));
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginData, pluginResolver);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
+        selfTest();
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
@@ -96,6 +108,64 @@ public class EntitlementBootstrap {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+    }
+
+    /**
+     * Attempt a few sensitive operations to ensure that some are permitted and some are forbidden.
+     * <p>
+     *
+     * This serves two purposes:
+     *
+     * <ol>
+     *     <li>
+     *         a smoke test to make sure the entitlements system is not completely broken, and
+     *     </li>
+     *     <li>
+     *         an early test of certain important operations so they don't fail later on at an awkward time.
+     *     </li>
+     * </ol>
+     *
+     * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
+     */
+    private static void selfTest() {
+        ensureCannotStartProcess();
+        ensureCanCreateTempFile();
+    }
+
+    private static void ensureCannotStartProcess() {
+        try {
+            // The command doesn't matter; it doesn't even need to exist
+            new ProcessBuilder("").start();
+        } catch (NotEntitledException e) {
+            logger.debug("Success: Entitlement protection correctly prevented process creation");
+            return;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed entitlement protection self-test", e);
+        }
+        throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+    }
+
+    /**
+     * Originally {@code Security.selfTest}.
+     */
+    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
+    private static void ensureCanCreateTempFile() {
+        try {
+            Path p = Files.createTempFile(null, null);
+            p.toFile().deleteOnExit();
+
+            // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.
+            try {
+                Files.delete(p);
+            } catch (IOException ignored) {
+                // Can be caused by virus scanner
+            }
+        } catch (NotEntitledException e) {
+            throw new IllegalStateException("Entitlement protection self-test was incorrectly forbidden", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to perform entitlement protection self-test", e);
+        }
+        logger.debug("Success: Entitlement protection correctly permitted temp file creation");
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

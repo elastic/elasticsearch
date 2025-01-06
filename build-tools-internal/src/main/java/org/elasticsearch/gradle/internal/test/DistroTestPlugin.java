@@ -31,6 +31,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -89,8 +90,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<String, TaskProvider<?>> versionTasks = versionTasks(project, "destructiveDistroUpgradeTest", buildParams.getBwcVersions());
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
-        Configuration examplePlugin = configureExamplePlugin(project);
-
+        Configuration examplePluginConfiguration = configureExamplePlugin(project);
+        FileCollection examplePluginFileCollection = examplePluginConfiguration;
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
 
@@ -103,9 +104,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable()
                 );
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
-                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePluginFileCollection.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
-            }, distribution, examplePlugin.getDependencies());
+            }, distribution, examplePluginConfiguration.getDependencies());
 
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);

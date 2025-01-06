@@ -54,7 +54,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 11: Added 'profiling.agent.protocol' keyword mapping to profiling-hosts
     // version 12: Added 'profiling.agent.env_https_proxy' keyword mapping to profiling-hosts
     // version 13: Added 'container.id' keyword mapping to profiling-events
-    public static final int INDEX_TEMPLATE_VERSION = 14;
+    // version 14: Added 'profiling.executable.name' keyword mapping to profiling-events
+    public static final int INDEX_TEMPLATE_VERSION = 15;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 5;

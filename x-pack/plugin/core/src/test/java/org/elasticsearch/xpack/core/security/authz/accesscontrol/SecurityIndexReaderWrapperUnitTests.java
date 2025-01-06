@@ -184,11 +184,10 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
             "bar"
         );
 
-        // TODO this does not test what it says it tests...
         // make sure meta fields cannot be denied access to
         deniedFields = MetadataFieldsAllowlist.FIELDS.toArray(new String[0]);
         assertResolved(
-            new FieldPermissions(fieldPermissionDef(null, deniedFields)),
+            new FieldPermissions(fieldPermissionDef(new String[] { "*" }, deniedFields)),
             new HashSet<>(Arrays.asList("foo", "bar", "_some_plugin_meta_field"))
         );
 

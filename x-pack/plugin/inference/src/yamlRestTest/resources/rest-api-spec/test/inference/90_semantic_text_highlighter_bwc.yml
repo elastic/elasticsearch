@@ -4,6 +4,13 @@ setup:
       reason: a new highlighter for semantic text field
       test_runner_features: [ capabilities ]
 
+  - skip:
+      reason: Test suite targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       inference.put:
         task_type: sparse_embedding
@@ -41,7 +48,7 @@ setup:
         index: test-sparse-index
         body:
           settings:
-            index.mapping.semantic_text.use_legacy_format: false
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               body:
@@ -53,7 +60,7 @@ setup:
         index: test-dense-index
         body:
           settings:
-            index.mapping.semantic_text.use_legacy_format: false
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               body:

@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -509,12 +508,14 @@ public final class IndicesPermission {
         FieldPermissionsCache fieldPermissionsCache
     ) {
         // Short circuit if the indicesPermission allows all access to every index
-        if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
-            return IndicesAccessControl.allowAll();
+        for (Group group : groups) {
+            if (group.isTotal()) {
+                return IndicesAccessControl.allowAll();
+            }
         }
 
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
-        final AtomicInteger totalResourceCountHolder = new AtomicInteger(0);
+        int totalResourceCount = 0;
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
             // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
@@ -525,15 +526,15 @@ public final class IndicesPermission {
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
             resources.put(resource.name, resource);
-            totalResourceCountHolder.getAndAdd(resource.size(lookup));
+            totalResourceCount += resource.size(lookup);
         }
 
         final boolean overallGranted = isActionGranted(action, resources);
-
+        final int finalTotalResourceCount = totalResourceCount;
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
-            totalResourceCountHolder.get(),
+            finalTotalResourceCount,
             fieldPermissionsCache,
             lookup
         );

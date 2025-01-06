@@ -365,17 +365,20 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
         private final int totalShards;
+        private final long absoluteStartMillis;
 
         private NodeQueryRequest(
             List<ShardToQuery> shards,
             SearchRequest searchRequest,
             Map<String, AliasFilter> aliasFilters,
-            int totalShards
+            int totalShards,
+            long absoluteStartMillis
         ) {
             this.shards = shards;
             this.searchRequest = searchRequest;
             this.aliasFilters = aliasFilters;
             this.totalShards = totalShards;
+            this.absoluteStartMillis = absoluteStartMillis;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -384,6 +387,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             this.searchRequest = new SearchRequest(in);
             this.aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
             this.totalShards = in.readVInt();
+            this.absoluteStartMillis = in.readLong();
         }
 
         @Override
@@ -398,6 +402,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             searchRequest.writeTo(out);
             out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
             out.writeVInt(totalShards);
+            out.writeLong(absoluteStartMillis);
         }
 
         @Override
@@ -542,7 +547,13 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     if (supportsBatchedQuery && (clusterAlias == null || Objects.equals(request.getLocalClusterAlias(), clusterAlias))) {
                         perNodeQueries.computeIfAbsent(
                             routing.getNodeId(),
-                            ignored -> new NodeQueryRequest(new ArrayList<>(), request, aliasFilter, shardsIts.size())
+                            ignored -> new NodeQueryRequest(
+                                new ArrayList<>(),
+                                request,
+                                aliasFilter,
+                                shardsIts.size(),
+                                timeProvider.absoluteStartMillis()
+                            )
                         ).shards.add(
                             new ShardToQuery(
                                 concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
@@ -1116,7 +1127,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             shardToQuery.boost,
             request.searchRequest,
             request.totalShards,
-            System.currentTimeMillis(),
+            request.absoluteStartMillis,
             false
         );
         return new AbstractRunnable() {

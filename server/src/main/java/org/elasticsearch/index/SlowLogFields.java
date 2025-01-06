@@ -9,14 +9,22 @@
 
 package org.elasticsearch.index;
 
+import java.util.Map;
+
 /**
- * Interface for providing additional fields to the slow log from a plugin.
- * Intended to be loaded through SPI.
+ * Fields for the slow log. These may be different each call depending on the state of the system.
  */
-public interface SlowLogFieldProvider {
+public interface SlowLogFields {
+
     /**
-     * Create a field provider with index level settings to be able to listen for updates and set initial values
-     * @param indexSettings settings for the index
+     * Slow log fields for indexing events
+     * @return map of field name to value
      */
-    SlowLogFields create(IndexSettings indexSettings);
+    Map<String, String> indexFields();
+
+    /**
+     * Slow log fields for search events
+     * @return map of field name to value
+     */
+    Map<String, String> searchFields();
 }

@@ -95,7 +95,7 @@ final class RequestDispatcher {
         for (String index : indices) {
             final GroupShardsIterator<ShardIterator> shardIts;
             try {
-                shardIts = clusterService.operationRouting().searchShards(clusterState, new String[] { index }, null, null, null, null);
+                shardIts = clusterService.operationRouting().searchShards(clusterState, new String[] { index }, null, null);
             } catch (Exception e) {
                 onIndexFailure.accept(index, e);
                 continue;

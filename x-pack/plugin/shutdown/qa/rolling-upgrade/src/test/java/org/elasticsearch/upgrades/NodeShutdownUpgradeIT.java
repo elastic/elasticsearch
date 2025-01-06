@@ -35,6 +35,7 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
         final Response getNodesResp = adminClient().performRequest(getNodesReq);
         final Map<String, Map<String, Object>> nodes = (Map<String, Map<String, Object>>) entityAsMap(getNodesResp).get("nodes");
         nodeNameToIdMap = nodes.entrySet().stream().collect(Collectors.toMap(e -> (String) (e.getValue().get("name")), e -> e.getKey()));
+        nodeNameToIdMap.forEach((k, v) -> logger.info("Node [{}] has id [{}]", k, v));
         namesSorted = nodeNameToIdMap.keySet().stream().sorted().collect(Collectors.toList());
     }
 

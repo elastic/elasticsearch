@@ -101,7 +101,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendInt(getInt(getFirstValueIndex(pos)));
+                    builder.appendInt(getInt(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

@@ -257,7 +257,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertResolved(new FieldPermissions(fieldPermissionDef(grantedFields, deniedFields)), expected);
     }
 
-    private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
+    static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
         return new FieldPermissionsDefinition(granted, denied);
     }
 }

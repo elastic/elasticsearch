@@ -73,6 +73,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.hamcrest.Matchers;
 
@@ -88,7 +89,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapperUnitTests.fieldPermissionDef;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /** Simple tests for this filterreader */
 public class FieldSubsetReaderTests extends MapperServiceTestCase {
@@ -1049,6 +1053,50 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         IOUtils.close(ir, iw, dir);
     }
 
+    public void testMetadataFieldNames() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add document with 2 fields
+        Document doc = new Document();
+        doc.add(new StringField("fieldA", "test", Field.Store.NO));
+        doc.add(new StringField("fieldB", "test", Field.Store.NO));
+        doc.add(new StringField("fieldC", "test", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldC", Field.Store.NO));
+        iw.addDocument(doc);
+
+        // open reader
+        Automaton automaton = Automatons.patterns("fieldA", "fieldC");
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
+
+        // see only two fields
+        LeafReader segmentReader = ir.leaves().get(0).reader();
+        Terms terms = segmentReader.terms(FieldNamesFieldMapper.NAME);
+        TermsEnum termsEnum = terms.iterator();
+        assertEquals(new BytesRef("fieldA"), termsEnum.next());
+        assertEquals(new BytesRef("fieldC"), termsEnum.next());
+        assertNull(termsEnum.next());
+
+        // seekExact
+        termsEnum = terms.iterator();
+        assertTrue(termsEnum.seekExact(new BytesRef("fieldA")));
+        assertFalse(termsEnum.seekExact(new BytesRef("fieldB")));
+        assertTrue(termsEnum.seekExact(new BytesRef("fieldC")));
+
+        // seekCeil
+        termsEnum = terms.iterator();
+        assertEquals(SeekStatus.FOUND, termsEnum.seekCeil(new BytesRef("fieldA")));
+        assertEquals(SeekStatus.NOT_FOUND, termsEnum.seekCeil(new BytesRef("fieldB")));
+        assertEquals(new BytesRef("fieldC"), termsEnum.term());
+        assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldD")));
+
+        TestUtil.checkReader(ir);
+        IOUtils.close(ir, iw, dir);
+    }
+
     /**
      * test _field_names where a field is permitted, but doesn't exist in the segment.
      */
@@ -1083,6 +1131,31 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
+    }
+
+    public void testMetadataFieldFiltering() {
+        var result = new FieldPermissions(fieldPermissionDef(new String[] {}, null));
+        for (var field : MetadataFieldsAllowlist.FIELDS) {
+            FieldInfos actual = FieldSubsetReader.filter(
+                new FieldInfos(new FieldInfo[] { getFieldInfoWithName(field) }),
+                result.getPermittedFieldsAutomaton()
+            );
+            assertThat(actual.size(), equalTo(1));
+            assertThat(actual.fieldInfo(field), is(notNullValue()));
+
+            actual = FieldSubsetReader.filter(
+                new FieldInfos(new FieldInfo[] { getFieldInfoWithName(field + "." + "field") }),
+                result.getPermittedFieldsAutomaton()
+            );
+            assertThat(actual.size(), equalTo(1));
+            assertThat(actual.fieldInfo(field + "." + "field"), is(notNullValue()));
+
+            actual = FieldSubsetReader.filter(
+                new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") }),
+                result.getPermittedFieldsAutomaton()
+            );
+            assertThat(actual.size(), equalTo(0));
+        }
     }
 
     /**

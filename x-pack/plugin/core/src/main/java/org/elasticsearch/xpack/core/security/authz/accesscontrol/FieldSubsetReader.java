@@ -136,14 +136,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      */
     FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) throws IOException {
         super(in);
-        ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
-        for (FieldInfo fi : in.getFieldInfos()) {
+        this.fieldInfos = filter(in.getFieldInfos(), filter);
+        this.filter = filter;
+    }
+
+    // pkg-private for testing
+    static FieldInfos filter(FieldInfos fieldInfos, CharacterRunAutomaton filter) {
+        final ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
+        for (FieldInfo fi : fieldInfos) {
             if (MetadataFieldsAllowlist.PREDICATE.test(fi.name) || filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
-        fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
-        this.filter = filter;
+        return new FieldInfos(filteredInfos.toArray(new FieldInfo[0]));
     }
 
     /** returns true if this field is allowed. */

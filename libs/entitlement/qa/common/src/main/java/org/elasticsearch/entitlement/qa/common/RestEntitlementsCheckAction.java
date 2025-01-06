@@ -124,10 +124,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("socket_setSocketImplFactory", alwaysDenied(RestEntitlementsCheckAction::socket$$setSocketImplFactory)),
         entry("url_setURLStreamHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::url$$setURLStreamHandlerFactory)),
         entry("urlConnection_setFileNameMap", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setFileNameMap)),
-        entry(
-            "urlConnection_setContentHandlerFactory",
-            alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory)
-        )
+        entry("urlConnection_setContentHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory))
     );
 
     private static void setDefaultSSLContext() {

@@ -242,7 +242,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
-     @Override
+    @Override
     public void check$java_util_logging_LogManager$(Class<?> callerClass) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.RankVectorsFieldType;
 
 import java.io.IOException;
@@ -78,9 +79,9 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     public void testDocValueFormat() {
         RankVectorsFieldType fft = createFloatFieldType();
-        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat(null, null));
         RankVectorsFieldType bft = createByteFieldType();
-        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {

@@ -9,17 +9,13 @@ package org.elasticsearch.xpack.rank.vectors.script;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.RankVectorsDocValuesField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.HexFormat;
 import java.util.List;
-
-import static org.elasticsearch.xpack.rank.vectors.RankVectorsPlugin.RANK_VECTORS_FEATURE;
 
 public class RankVectorsScoreScriptUtils {
 
@@ -182,9 +178,6 @@ public class RankVectorsScoreScriptUtils {
         private final MaxSimInvHammingDistanceInterface function;
 
         public MaxSimInvHamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
-            if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-                throw LicenseUtils.newComplianceException("Rank Vectors");
-            }
             RankVectorsDocValuesField field = (RankVectorsDocValuesField) scoreScript.field(fieldName);
             if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
@@ -340,9 +333,6 @@ public class RankVectorsScoreScriptUtils {
 
         @SuppressWarnings("unchecked")
         public MaxSimDotProduct(ScoreScript scoreScript, Object queryVector, String fieldName) {
-            if (RANK_VECTORS_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
-                throw LicenseUtils.newComplianceException("Rank Vectors");
-            }
             RankVectorsDocValuesField field = (RankVectorsDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
                 case BIT -> {

@@ -431,3 +431,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/119396
+- class: org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshotTests
+  method: testSkipNonRootOfNestedDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/119553

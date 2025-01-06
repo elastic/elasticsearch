@@ -9,10 +9,13 @@
 
 package org.elasticsearch.action.support.local;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,6 +33,20 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
 
     protected LocalClusterStateRequest(TimeValue masterTimeout) {
         this.masterTimeout = Objects.requireNonNull(masterTimeout);
+    }
+
+    /**
+     * This constructor exists solely for BwC purposes. It should exclusively be used by requests that used to extend
+     * {@link org.elasticsearch.action.support.master.MasterNodeReadRequest} and still need to be able to serialize incoming request.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    protected LocalClusterStateRequest(StreamInput in) throws IOException {
+        super(in);
+        masterTimeout = in.readTimeValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            in.readVLong();
+        }
+        in.readBoolean();
     }
 
     @Override

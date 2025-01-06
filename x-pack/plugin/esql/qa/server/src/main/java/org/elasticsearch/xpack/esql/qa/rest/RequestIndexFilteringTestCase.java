@@ -221,7 +221,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), containsString("no such index [foo]"));
 
-        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled()) {
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled()) {
             e = expectThrows(
                 ResponseException.class,
                 () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))

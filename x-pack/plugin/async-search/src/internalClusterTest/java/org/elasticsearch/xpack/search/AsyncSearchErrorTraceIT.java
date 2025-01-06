@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,6 +38,17 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(AsyncSearch.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // TODO: this can be removed once we consistently use the Threadpool provided timestamps in search code. Currently, there is
+        // a mix of the threadpool timestamps and System.currentTimeMillis etc. in the codebase so we need to force the threadpool to be
+        // consistent with those APIs.
+        return super.nodeSettings(
+            nodeOrdinal,
+            Settings.builder().put(otherSettings).put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build()
+        );
     }
 
     private AtomicBoolean transportMessageHasStackTrace;

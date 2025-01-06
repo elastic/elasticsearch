@@ -116,10 +116,12 @@ public class DockerRun {
         cmd.add("--memory " + memory);
 
         // Add default java opts
-        if (this.envVars.containsKey("CLI_JAVA_OPTS")) {
-            this.envVars.put("CLI_JAVA_OPTS", this.envVars.get("CLI_JAVA_OPTS") + " " + DEFAULT_JAVA_OPTS);
-        } else {
-            this.envVars.put("CLI_JAVA_OPTS", DEFAULT_JAVA_OPTS);
+        for (String envVar : List.of("CLI_JAVA_OPTS", "ES_JAVA_OPTS")) {
+            if (this.envVars.containsKey(envVar)) {
+                this.envVars.put(envVar, this.envVars.get(envVar) + " " + DEFAULT_JAVA_OPTS);
+            } else {
+                this.envVars.put(envVar, DEFAULT_JAVA_OPTS);
+            }
         }
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));

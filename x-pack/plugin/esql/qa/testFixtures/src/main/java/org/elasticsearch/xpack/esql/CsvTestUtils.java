@@ -551,11 +551,11 @@ public final class CsvTestUtils {
         }
 
         private static Type bytesRefBlockType(Type actualType) {
-            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT || actualType == GEO_SHAPE || actualType == CARTESIAN_SHAPE) {
-                return actualType;
-            } else {
-                return KEYWORD;
-            }
+            return switch (actualType) {
+                case NULL -> NULL;
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
+                default -> KEYWORD;
+            };
         }
 
         Object convert(String value) {

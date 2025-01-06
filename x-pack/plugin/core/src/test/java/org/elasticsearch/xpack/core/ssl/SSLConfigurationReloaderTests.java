@@ -220,11 +220,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 try (MockWebServer server = new MockWebServer(updatedContext, false)) {
                     server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
                     server.start();
-                    SSLHandshakeException sslException = expectThrows(
-                        SSLHandshakeException.class,
-                        () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
-                    );
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    if (inFipsJvm()) {
+                        Exception sslException = expectThrows(
+                            IOException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("Unable to construct a valid chain"));
+                    } else {
+                        SSLHandshakeException sslException = expectThrows(
+                            SSLHandshakeException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
@@ -322,11 +330,20 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             // Client doesn't trust the Server certificate anymore so SSLHandshake should fail
             final Consumer<SSLContext> trustMaterialPostChecks = (updatedContext) -> {
                 try (CloseableHttpClient client = createHttpClient(updatedContext)) {
-                    SSLHandshakeException sslException = expectThrows(
-                        SSLHandshakeException.class,
-                        () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
-                    );
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    if (inFipsJvm()) {
+                        Exception sslException = expectThrows(
+                            IOException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("Unable to construct a valid chain"));
+                    } else {
+                        SSLHandshakeException sslException = expectThrows(
+                            SSLHandshakeException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    }
+
                 } catch (Exception e) {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }

@@ -537,6 +537,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
         doCheckNoMissingShards(getName(), request, shardsIts);
+        final String localClusterAlias = request.getLocalClusterAlias();
         for (int i = 0; i < shardsIts.size(); i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
             assert shardRoutings.skip() == false;
@@ -547,7 +548,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 failOnUnavailable(shardIndex, shardRoutings);
             } else {
                 String clusterAlias = routing.getClusterAlias();
-                if (supportsBatchedQuery && (clusterAlias == null || Objects.equals(request.getLocalClusterAlias(), clusterAlias))) {
+                if (supportsBatchedQuery && (clusterAlias == null || Objects.equals(localClusterAlias, clusterAlias))) {
                     perNodeQueries.computeIfAbsent(
                         routing.getNodeId(),
                         ignored -> new NodeQueryRequest(
@@ -574,74 +575,63 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         perNodeQueries.forEach((nodeId, request) -> {
             if (request.shards.size() == 1) {
                 var shard = request.shards.getFirst();
-                this.performPhaseOnShard(
-                    shard.shardIndex,
-                    shardIterators[shard.shardIndex],
-                    new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias())
-                );
+                final int sidx = shard.shardIndex;
+                this.performPhaseOnShard(sidx, shardIterators[sidx], new SearchShardTarget(nodeId, shard.shardId, localClusterAlias));
                 return;
             }
-
+            final Transport.Connection connection;
             try {
-                searchTransportService.transportService()
-                    .sendChildRequest(
-                        getConnection(request.searchRequest.getLocalClusterAlias(), nodeId),
-                        NODE_SEARCH_ACTION_NAME,
-                        request,
-                        task,
-                        new TransportResponseHandler<NodeQueryResponse>() {
-                            @Override
-                            public NodeQueryResponse read(StreamInput in) throws IOException {
-                                return new NodeQueryResponse(in);
-                            }
-
-                            @Override
-                            public Executor executor() {
-                                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
-                            }
-
-                            @Override
-                            public void handleResponse(NodeQueryResponse response) {
-                                for (int i = 0; i < response.results.length; i++) {
-                                    var s = request.shards.get(i);
-                                    int shardIdx = s.shardIndex;
-                                    final ShardId shardId = s.shardId;
-                                    final SearchShardTarget target = new SearchShardTarget(
-                                        nodeId,
-                                        shardId,
-                                        request.searchRequest.getLocalClusterAlias()
-                                    );
-                                    if (response.results[i] instanceof Exception e) {
-                                        onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
-                                    } else if (response.results[i] instanceof SearchPhaseResult q) {
-                                        q.setShardIndex(shardIdx);
-                                        q.setSearchShardTarget(target);
-                                        onShardResult(q);
-                                    } else {
-                                        assert false : "impossible [" + response.results[i] + "]";
-                                    }
-                                }
-                            }
-
-                            @Override
-                            public void handleException(TransportException e) {
-                                onNodeQueryFailure(e, request, nodeId);
-                            }
-                        }
-                    );
+                connection = getConnection(localClusterAlias, nodeId);
             } catch (Exception e) {
                 onNodeQueryFailure(e, request, nodeId);
+                return;
             }
+            searchTransportService.transportService()
+                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+                    @Override
+                    public NodeQueryResponse read(StreamInput in) throws IOException {
+                        return new NodeQueryResponse(in);
+                    }
+
+                    @Override
+                    public Executor executor() {
+                        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                    }
+
+                    @Override
+                    public void handleResponse(NodeQueryResponse response) {
+                        for (int i = 0; i < response.results.length; i++) {
+                            var s = request.shards.get(i);
+                            int shardIdx = s.shardIndex;
+                            final SearchShardTarget target = new SearchShardTarget(nodeId, s.shardId, localClusterAlias);
+                            switch (response.results[i]) {
+                                case Exception e -> onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
+                                case SearchPhaseResult q -> {
+                                    q.setShardIndex(shardIdx);
+                                    q.setSearchShardTarget(target);
+                                    onShardResult(q);
+                                }
+                                case null, default -> {
+                                    assert false : "impossible [" + response.results[i] + "]";
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        onNodeQueryFailure(e, request, nodeId);
+                    }
+                });
         });
     }
 
     private void onNodeQueryFailure(Exception e, NodeQueryRequest request, String nodeId) {
         for (ShardToQuery shard : request.shards) {
-            var shardIt = shardIterators[shard.shardIndex];
             onShardFailure(
                 shard.shardIndex,
                 new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
-                shardIt,
+                shardIterators[shard.shardIndex],
                 e
             );
         }
@@ -697,24 +687,10 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 @Override
                 public void innerOnResponse(SearchPhaseResult result) {
                     try {
-                        logger.info(
-                            "--> result for shard [{}][{}][{}]",
-                            shard.getShardId(),
-                            shardIndex,
-                            System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
-                        );
                         onShardResult(result);
                     } catch (Exception exc) {
-                        logger.error(
-                            "--> failure for shard ["
-                                + shard.getShardId()
-                                + "]["
-                                + shardIndex
-                                + "]["
-                                + System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
-                                + "]",
-                            exc
-                        );
+                        // TODO: this looks like a nasty bug where it to actually happen
+                        assert false : exc;
                         onShardFailure(shardIndex, shard, shardIt, exc);
                     }
                 }
@@ -764,19 +740,20 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     private void finishShardAndMaybePhase(int shardIndex) {
         boolean removed = outstandingShards.remove(shardIndex);
         var shardId = shardIterators[shardIndex].shardId();
-        var shardIdString = "["
-            + shardId
-            + "] ["
-            + shardId.getIndex().getUUID()
-            + "]["
-            + System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
-            + "]";
-        logger.info("finishing shard [{}]", shardIdString);
-        assert removed : "unknown shardId " + shardIdString;
+        assert removed
+            : "unknown shardId "
+                + "["
+                + shardId
+                + "] ["
+                + shardId.getIndex().getUUID()
+                + "]["
+                + System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
+                + "]";
         finishIfAllDone();
     }
 
     private void finishIfAllDone() {
+        // TODO: this is obviously somewhat stupid, lets find a nicer primitive or go back to fiddling with successfulOps
         if (outstandingShards.isEmpty()) {
             var doneTrace = new RuntimeException("successful ops " + successfulOps.get());
             if (done.compareAndSet(null, doneTrace)) {
@@ -998,9 +975,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 var executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
                 final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
                 // TODO: start at 0
-                request.searchRequest.finalReduce = false;
                 request.searchRequest.setBatchedReduceSize(Integer.MAX_VALUE);
-                final CountDown countDown = new CountDown(request.shards.size());
+                final int shardCount = request.shards.size();
+                final CountDown countDown = new CountDown(shardCount);
                 final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                     request.searchRequest,
                     executor,
@@ -1008,7 +985,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     new SearchPhaseController(searchService::aggReduceContextBuilder),
                     ((CancellableTask) task)::isCancelled,
                     SearchProgressListener.NOOP,
-                    request.shards.size(),
+                    shardCount,
                     e -> logger.error("failed to merge on data node", e)
                 );
                 final Runnable onDone = () -> {
@@ -1018,19 +995,23 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                             var failure = queryPhaseResultConsumer.failure.get();
                             if (failure != null) {
                                 try {
-                                    queryPhaseResultConsumer.getSuccessfulResults().forEach(searchPhaseResult -> {
-                                        SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
-                                            ? searchPhaseResult.queryResult()
-                                            : searchPhaseResult.rankFeatureResult();
-                                        maybeRelease(searchService, request, phaseResult);
-                                    });
+                                    queryPhaseResultConsumer.getSuccessfulResults()
+                                        .forEach(
+                                            searchPhaseResult -> maybeRelease(
+                                                searchService,
+                                                request,
+                                                searchPhaseResult.queryResult() != null
+                                                    ? searchPhaseResult.queryResult()
+                                                    : searchPhaseResult.rankFeatureResult()
+                                            )
+                                        );
                                 } catch (Throwable e) {
                                     throw new RuntimeException(e);
                                 }
                                 channelListener.onFailure(failure);
                                 return;
                             }
-                            final Object[] results = new Object[request.shards.size()];
+                            final Object[] results = new Object[shardCount];
                             for (int i = 0; i < results.length; i++) {
                                 var e = failures.get(i);
                                 var res = queryPhaseResultConsumer.results.get(i);
@@ -1106,67 +1087,70 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     ) {
         var pitBuilder = request.searchRequest.pointInTimeBuilder();
         var shardToQuery = request.shards.get(dataNodeLocalIdx);
-        final ShardSearchRequest req = buildShardSearchRequest(
-            shardToQuery.shardId,
-            null,
-            shardToQuery.shardIndex,
-            shardToQuery.contextId,
-            shardToQuery.originalIndices,
-            request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
-            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-            shardToQuery.boost,
-            request.searchRequest,
-            request.totalShards,
-            request.absoluteStartMillis,
-            false
-        );
         return new AbstractRunnable() {
             @Override
             protected void doRun() {
-                searchService.executeQueryPhase(req, task, new ActionListener<>() {
-                    @Override
-                    public void onResponse(SearchPhaseResult searchPhaseResult) {
-                        try {
-                            searchPhaseResult.setShardIndex(dataNodeLocalIdx);
-                            queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
-                        } catch (Throwable e) {
-                            throw new AssertionError(e);
-                        } finally {
-                            maybeNext();
+                searchService.executeQueryPhase(
+                    buildShardSearchRequest(
+                        shardToQuery.shardId,
+                        null,
+                        shardToQuery.shardIndex,
+                        shardToQuery.contextId,
+                        shardToQuery.originalIndices,
+                        request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
+                        pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                        shardToQuery.boost,
+                        request.searchRequest,
+                        request.totalShards,
+                        request.absoluteStartMillis,
+                        false
+                    ),
+                    task,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SearchPhaseResult searchPhaseResult) {
+                            try {
+                                searchPhaseResult.setShardIndex(dataNodeLocalIdx);
+                                queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
+                            } catch (Throwable e) {
+                                throw new AssertionError(e);
+                            } finally {
+                                maybeNext();
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            failures.put(dataNodeLocalIdx, e);
-                            onDone.run();
-                            maybeNext();
-                        } catch (Throwable expected) {
-                            expected.addSuppressed(e);
-                            throw new AssertionError(expected);
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                failures.put(dataNodeLocalIdx, e);
+                                onDone.run();
+                                maybeNext();
+                            } catch (Throwable expected) {
+                                expected.addSuppressed(e);
+                                throw new AssertionError(expected);
+                            }
                         }
-                    }
 
-                    private void maybeNext() {
-                        final int shardToQuery = shardIndex.incrementAndGet();
-                        if (shardToQuery < request.shards.size()) {
-                            executor.execute(
-                                shardTask(
-                                    searchService,
-                                    request,
-                                    task,
-                                    shardToQuery,
-                                    shardIndex,
-                                    executor,
-                                    queryPhaseResultConsumer,
-                                    failures,
-                                    onDone
-                                )
-                            );
+                        private void maybeNext() {
+                            final int shardToQuery = shardIndex.incrementAndGet();
+                            if (shardToQuery < request.shards.size()) {
+                                executor.execute(
+                                    shardTask(
+                                        searchService,
+                                        request,
+                                        task,
+                                        shardToQuery,
+                                        shardIndex,
+                                        executor,
+                                        queryPhaseResultConsumer,
+                                        failures,
+                                        onDone
+                                    )
+                                );
+                            }
                         }
                     }
-                });
+                );
             }
 
             @Override

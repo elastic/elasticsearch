@@ -21,26 +21,42 @@ import javax.net.ssl.SSLSocketFactory;
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
+    ////////////////////
+    //
     // Exit the JVM process
+    //
+
     void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status);
 
     void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status);
 
+    ////////////////////
+    //
     // ClassLoader ctor
+    //
+
     void check$java_lang_ClassLoader$(Class<?> callerClass);
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent);
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
+    ////////////////////
+    //
     // SecureClassLoader ctor
+    //
+
     void check$java_security_SecureClassLoader$(Class<?> callerClass);
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
+    ////////////////////
+    //
     // URLClassLoader constructors
+    //
+
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent);
@@ -51,7 +67,11 @@ public interface EntitlementChecker {
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
+    ////////////////////
+    //
     // "setFactory" methods
+    //
+
     void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(Class<?> callerClass, HttpsURLConnection conn, SSLSocketFactory sf);
 
     void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf);
@@ -60,7 +80,11 @@ public interface EntitlementChecker {
 
     void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context);
 
+    ////////////////////
+    //
     // Process creation
+    //
+
     void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder that);
 
     void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);

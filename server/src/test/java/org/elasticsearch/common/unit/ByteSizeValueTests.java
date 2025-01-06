@@ -54,9 +54,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testEquality() {
         String[] equalValues = new String[] { "1GB", "1024MB", "1048576KB", "1073741824B" };
-        ByteSizeValue value1 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
-        ByteSizeValue value2 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
-        assertThat(value1, equalTo(value2));
+        for (int first = 0; first < equalValues.length; first++) {
+            ByteSizeValue firstValue = ByteSizeValue.parseBytesSizeValue(equalValues[first], "equalTest");
+            for (int second = first + 1; second < equalValues.length; second++) {
+                ByteSizeValue secondValue = ByteSizeValue.parseBytesSizeValue(equalValues[second], "equalTest");
+                assertEquals(firstValue, secondValue);
+            }
+        }
     }
 
     public void testToString() {
@@ -314,27 +318,33 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test")
         );
         assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
+
+        exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("1.1b", "test"));
+        assertEquals(
+            "No decimal places allowed if the unit is bytes",
+            "failed to parse setting [test] with value [1.1b]",
+            exception.getMessage()
+        );
+
+        exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("1.234" + unitSuffix, "test"));
+        assertEquals("more than two decimal places in setting [test]: [1.234" + unitSuffix + "]", exception.getMessage());
     }
 
     public void testParseFractionalNumber() throws IOException {
         ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
-        String fractionalValue = "23.5" + unit.getSuffix();
+        String fractionalValue = "23.55" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
-        assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
-                + fractionalValue
-                + "] found for setting [test]"
-        );
     }
 
+    @SuppressWarnings("deprecation") // bytesAsInt is deprecated
     public void testGetBytesAsInt() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             ByteSizeValue instance = new ByteSizeValue(randomIntBetween(1, 1000), randomFrom(ByteSizeUnit.values()));
             long bytesValue = instance.getBytes();
             if (bytesValue > Integer.MAX_VALUE) {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> instance.bytesAsInt());
-                assertEquals("size [" + instance.toString() + "] is bigger than max int", exception.getMessage());
+                assertEquals("size [" + instance + "] is bigger than max int", exception.getMessage());
             } else {
                 assertEquals((int) bytesValue, instance.bytesAsInt());
             }

@@ -195,7 +195,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
 
-            // TODO make sure this correctly handles _source and _ignored_sources
             if (initialState == 0 && MetadataFieldsAllowlist.PREDICATE.test(key)) {
                 // If the field is an allowlisted metadata field, we always include it.
                 filtered.put(key, entry.getValue());
@@ -235,6 +234,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /** Filter a list by a {@link CharacterRunAutomaton} that defines the fields to retain. */
     @SuppressWarnings("unchecked")
     private static List<Object> filter(Iterable<?> iterable, CharacterRunAutomaton includeAutomaton, int initialState) {
+        assert initialState != 0 : "encountered initial state 0 on intermediate field check";
         List<Object> filtered = new ArrayList<>();
         for (Object value : iterable) {
             if (value instanceof Map) {

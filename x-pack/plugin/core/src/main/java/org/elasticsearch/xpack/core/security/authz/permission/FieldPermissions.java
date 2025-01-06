@@ -277,9 +277,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * fieldName can be a wildcard.
      */
     public boolean grantsAccessTo(String fieldName) {
-        return permittedFieldsAutomatonIsTotal
-            || MetadataFieldsAllowlist.PREDICATE.test(fieldName)
-            || permittedFieldsAutomaton.run(fieldName);
+        return permittedFieldsAutomatonIsTotal || fieldPredicate.test(fieldName);
     }
 
     public FieldPredicate fieldPredicate() {

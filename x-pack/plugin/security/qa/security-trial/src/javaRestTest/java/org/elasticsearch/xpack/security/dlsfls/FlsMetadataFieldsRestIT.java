@@ -20,6 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,23 +28,38 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
+public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String FLS_FILE_ROLE_USER = "fls_file_role_user";
     // defined in resources/roles.yml
     private static final String FLS_LEGACY_METADATA_FIELDS_ROLE = "fls_legacy_metadata_fields_role";
     private static final String INDEX_NAME = "index_allowed";
+    public static final Set<String> EXPECTED_METADATA_FIELDS = Set.of(
+        "_routing",
+        "_doc_count",
+        "_ignored_source",
+        "_index",
+        "_feature",
+        "_index_mode",
+        "_ignored",
+        "_tier",
+        "_seq_no",
+        "_nested_path",
+        "_data_stream_timestamp",
+        "_field_names",
+        "_source",
+        "_id",
+        "_version"
+    );
 
     @Before
     public void setup() throws IOException {
         createUser(FLS_FILE_ROLE_USER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING, List.of(FLS_LEGACY_METADATA_FIELDS_ROLE));
-        createSystemWriteRole("system_write");
         setupData();
     }
 
     @After
     public void cleanup() throws IOException {
         deleteUser(FLS_FILE_ROLE_USER);
-        deleteRole("system_write");
         cleanupData();
     }
 
@@ -54,17 +70,16 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testFileRoleWithUnderscoredFieldsInExceptList() throws IOException {
-        searchAndAssert("x_pack_rest_user", Set.of("field1", "field2", "_field3", "hidden_field"));
+        queryAndAssert("x_pack_rest_user", Set.of("field1", "field2", "_field3", "hidden_field"));
 
         // the user has access to field* and allowlisted metadata fields like _id
         // _field3 and hidden_field are excluded due to field security
-        searchAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
+        queryAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
     }
 
     public void testCreateRoleWithUnderscoredFieldsInExceptList() throws IOException {
-        searchAndAssert("x_pack_rest_user", Set.of("field1", "field2", "_field3", "hidden_field"));
+        queryAndAssert("x_pack_rest_user", Set.of("field1", "field2", "_field3", "hidden_field"));
 
-        // update user to have native role and check that _field3 is correctly omitted
         createUser(FLS_FILE_ROLE_USER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING, List.of("fls_role"));
 
         assertOK(createRole("fls_role", """
@@ -75,7 +90,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "index_allowed"
                   ],
                   "privileges": [
-                    "read"
+                    "read",
+                    "view_index_metadata"
                   ],
                   "field_security": {
                     "grant": [
@@ -89,7 +105,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
               ]
             }
             """));
-        searchAndAssert(FLS_FILE_ROLE_USER, Set.of("hidden_field", "field1", "field2", "_field3"));
+        queryAndAssert(FLS_FILE_ROLE_USER, Set.of("hidden_field", "field1", "field2", "_field3"));
 
         assertOK(createRole("fls_role", """
             {
@@ -99,7 +115,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "index_allowed"
                   ],
                   "privileges": [
-                    "read"
+                    "read",
+                    "view_index_metadata"
                   ],
                   "field_security": {
                     "grant": [
@@ -113,7 +130,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
               ]
             }
             """));
-        searchAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
+        queryAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
 
         assertOK(createRole("fls_role", """
             {
@@ -123,7 +140,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "index_allowed"
                   ],
                   "privileges": [
-                    "read"
+                    "read",
+                    "view_index_metadata"
                   ],
                   "field_security": {
                     "grant": [
@@ -134,7 +152,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
               ]
             }
             """));
-        searchAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
+        queryAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
 
         assertOK(createRole("fls_role", """
             {
@@ -144,7 +162,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "index_allowed"
                   ],
                   "privileges": [
-                    "read"
+                    "read",
+                    "view_index_metadata"
                   ],
                   "field_security": {
                     "grant": [
@@ -158,7 +177,7 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
               ]
             }
             """));
-        searchAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
+        queryAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
 
         // this is not valid because even with the legacy metadata fields automaton, the except list is not a proper subset
         assertThat(expectThrows(Exception.class, () -> createRole("fls_role", """
@@ -169,7 +188,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "index_allowed"
                   ],
                   "privileges": [
-                    "read"
+                    "read",
+                    "view_index_metadata"
                   ],
                   "field_security": {
                     "grant": [
@@ -187,8 +207,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteRole("fls_role");
     }
 
-    public void testExistingRolesWithUnderscoredFieldsInExceptListWork() throws Exception {
-        searchAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
+    public void testCreateApiKeyWithUnderscoredFieldsInExceptListWork() throws Exception {
+        queryAndAssert(FLS_FILE_ROLE_USER, Set.of("field1", "field2"));
 
         String k = createApiKey(FLS_FILE_ROLE_USER, """
             {
@@ -201,7 +221,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                         "index_allowed"
                       ],
                       "privileges": [
-                        "read"
+                        "read",
+                        "view_index_metadata"
                       ],
                       "field_security": {
                         "grant": [
@@ -220,10 +241,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""");
 
         searchAndAssertWithAuthzHeader(k, Set.of("field1"));
-    }
 
-    public void testCannotCreateApiKeyWithUnderscoredFieldsInExceptList() throws IOException {
-        String k = createApiKey("x_pack_rest_user", """
+        k = createApiKey("x_pack_rest_user", """
             {
               "name": "fls_api_key",
               "role_descriptors": {
@@ -234,7 +253,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                         "index_allowed"
                       ],
                       "privileges": [
-                        "read"
+                        "read",
+                        "view_index_metadata"
                       ],
                       "field_security": {
                         "grant": [
@@ -262,7 +282,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                         "index_allowed"
                       ],
                       "privileges": [
-                        "read"
+                        "read",
+                        "view_index_metadata"
                       ],
                       "field_security": {
                         "grant": [
@@ -291,7 +312,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                         "index_allowed"
                       ],
                       "privileges": [
-                        "read"
+                        "read",
+                        "view_index_metadata"
                       ],
                       "field_security": {
                         "grant": [
@@ -319,7 +341,8 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
                         "index_allowed"
                       ],
                       "privileges": [
-                        "read"
+                        "read",
+                        "view_index_metadata"
                       ],
                       "field_security": {
                         "grant": [
@@ -337,20 +360,6 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""");
 
         searchAndAssertWithAuthzHeader(k, Set.of("hidden_field", "field1", "field2"));
-    }
-
-    static void createSystemWriteRole(String roleName) throws IOException {
-        assertOK(createRole(roleName, """
-            {
-              "cluster": ["all"],
-              "indices": [
-                {
-                  "names": [ "*" ],
-                  "privileges": ["all"],
-                  "allow_restricted_indices" : true
-                }
-              ]
-            }"""));
     }
 
     private static Response createRole(String role, String payload) throws IOException {
@@ -374,21 +383,61 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         return ApiKeyService.withApiKeyPrefix(responseAsMap(response).get("encoded").toString());
     }
 
-    private void searchAndAssert(String user, Set<String> expectedSourceFields) throws IOException {
-        searchAndAssertWithAuthzHeader(
+    // TODO this should be query and assert with authz header
+    private void queryAndAssert(String user, Set<String> expectedFields) throws IOException {
+        searchAndAssertWithAuthzHeader(basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING), expectedFields);
+
+        getAndAssertWithAuthzHeader(basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING), expectedFields);
+
+        var expectedFieldsWithMetadataFields = new HashSet<>(EXPECTED_METADATA_FIELDS);
+        expectedFieldsWithMetadataFields.addAll(expectedFields);
+
+        getFieldMappingsAndAssertWithAuthzHeader(
             basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
-            expectedSourceFields
+            expectedFieldsWithMetadataFields
         );
+
+        getFieldCapsAndAssertWithAuthzHeader(
+            basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
+            expectedFieldsWithMetadataFields
+        );
+
+        // search with `fields`?
     }
 
-    private void searchAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedSourceFields) throws IOException {
-        final Request searchRequest = new Request("GET", INDEX_NAME + "/_search");
-        searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader));
-        assertSearchResponse(client().performRequest(searchRequest), "1", expectedSourceFields);
+    private void searchAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedFields) throws IOException {
+        final Request request = new Request("GET", INDEX_NAME + "/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader));
+        assertSearchResponse(client().performRequest(request), "1", expectedFields);
+    }
+
+    private void getAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedFields) throws IOException {
+        final Request request = new Request("GET", INDEX_NAME + "/_doc/1");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader));
+        assertGetResponse(client().performRequest(request), "1", expectedFields);
+    }
+
+    private void getFieldMappingsAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedFields) throws IOException {
+        final Request request = new Request("GET", INDEX_NAME + "/_mapping/field/*");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader));
+        assertGetFieldMappings(client().performRequest(request), expectedFields);
+    }
+
+    private void getFieldCapsAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedFields) throws IOException {
+        final Request request = new Request("GET", INDEX_NAME + "/_field_caps?fields=*");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader));
+        assertGetFieldCaps(client().performRequest(request), expectedFields);
     }
 
     @SuppressWarnings("unchecked")
-    private void assertSearchResponse(Response response, String docId, Set<String> sourceFields) throws IOException {
+    private void assertGetFieldCaps(Response response, Set<String> expectedFields) throws IOException {
+        final Map<String, Object> m = responseAsMap(response);
+        final Map<String, Object> fields = (Map<String, Object>) m.get("fields");
+        assertThat(fields.keySet(), equalTo(expectedFields));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertSearchResponse(Response response, String docId, Set<String> expectedFields) throws IOException {
         final Map<String, Object> m = responseAsMap(response);
 
         final Map<String, Object> hits = (Map<String, Object>) m.get("hits");
@@ -398,13 +447,42 @@ public class FlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(docs.getFirst().get("_id"), equalTo(docId));
 
         var actualFields = ((Map<String, Object>) docs.getFirst().get("_source")).keySet();
-        assertThat(actualFields, equalTo(sourceFields));
+        assertThat(actualFields, equalTo(expectedFields));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertGetResponse(Response response, String docId, Set<String> expectedFields) throws IOException {
+        final Map<String, Object> m = responseAsMap(response);
+        assertThat(m.get("_id"), equalTo(docId));
+
+        var actualFields = ((Map<String, Object>) m.get("_source")).keySet();
+        assertThat(actualFields, equalTo(expectedFields));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertGetFieldMappings(Response response, Set<String> expectedFields) throws IOException {
+        final Map<String, Object> m = responseAsMap(response);
+        final Map<String, Object> mappings = (Map<String, Object>) m.get(INDEX_NAME);
+        final Map<String, Object> fieldMappings = (Map<String, Object>) mappings.get("mappings");
+
+        var actualFields = fieldMappings.keySet();
+
+        assertThat(actualFields, equalTo(expectedFields));
     }
 
     private void setupData() throws IOException {
         final Request createRequest = new Request("PUT", INDEX_NAME);
         createRequest.setJsonEntity("""
-            {}""");
+            {
+              "mappings": {
+                "properties": {
+                  "hidden_field": { "type": "keyword" },
+                  "field1": { "type": "keyword" },
+                  "field2": { "type": "keyword" },
+                  "_field3": { "type": "keyword" }
+                }
+              }
+            }""");
         final Response createResponse = adminClient().performRequest(createRequest);
         assertOK(createResponse);
         ensureGreen(INDEX_NAME);

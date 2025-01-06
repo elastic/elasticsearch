@@ -94,7 +94,7 @@ public final class FieldPermissionsCache {
                             + "but are not a subset of the granted fields. "
                             + "This is supported for backwards compatibility only. "
                             + "To avoid counter-intuitive field-level security behavior, ensure that the [except] field is a subset of the "
-                            + "[grant] field by either adding the missing _-prefixed fields to the [grant] field, "
+                            + "[grant] field by either including the missing _-prefixed fields in the [grant] field, "
                             + "or by removing them from the [except] field. "
                             + "You cannot exclude any of [{}] since these are minimally required metadata fields.",
                         roleName,

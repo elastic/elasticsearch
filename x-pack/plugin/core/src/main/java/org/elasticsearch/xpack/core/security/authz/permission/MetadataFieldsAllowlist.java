@@ -30,7 +30,6 @@ import java.util.Set;
 public class MetadataFieldsAllowlist {
     private MetadataFieldsAllowlist() {}
 
-    // TODO what about _recovery_source and _recovery_source_size?
     // public for testing
     public static final Set<String> FIELDS = Set.of(
         // built-in
@@ -67,7 +66,12 @@ public class MetadataFieldsAllowlist {
         }
 
         private boolean nestedMatch(String field) {
-            return FIELDS.stream().anyMatch(f -> field.startsWith(f + "."));
+            for (String f : FIELDS) {
+                if (field.startsWith(f + ".")) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

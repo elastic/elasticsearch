@@ -28,7 +28,7 @@ public class EsSourceExec extends LeafExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EsSourceExec",
-        EsSourceExec::new
+        EsSourceExec::readFrom
     );
 
     private final EsIndex index;
@@ -48,14 +48,13 @@ public class EsSourceExec extends LeafExec {
         this.indexMode = indexMode;
     }
 
-    private EsSourceExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            new EsIndex(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalNamedWriteable(QueryBuilder.class),
-            EsRelation.readIndexMode(in)
-        );
+    private static EsSourceExec readFrom(StreamInput in) throws IOException {
+        var source = Source.readFrom((PlanStreamInput) in);
+        var index = new EsIndex(in);
+        var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        var query = in.readOptionalNamedWriteable(QueryBuilder.class);
+        var indexMode = EsRelation.readIndexMode(in);
+        return new EsSourceExec(source, index, attributes, query, indexMode);
     }
 
     @Override

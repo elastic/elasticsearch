@@ -42,7 +42,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EsQueryExec",
-        EsQueryExec::deserialize
+        EsQueryExec::readFrom
     );
 
     public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
@@ -148,7 +148,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      * The matching constructor is used during physical plan optimization and needs valid sorts. But we no longer serialize sorts.
      * If this cluster node is talking to an older instance it might receive a plan with sorts, but it will ignore them.
      */
-    public static EsQueryExec deserialize(StreamInput in) throws IOException {
+    private static EsQueryExec readFrom(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
         String indexName;
         Map<String, IndexMode> indexNameWithModes;

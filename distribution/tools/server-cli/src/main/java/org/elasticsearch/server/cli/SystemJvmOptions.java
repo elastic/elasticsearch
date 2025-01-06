@@ -167,13 +167,16 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
-        String modulesThatCallBridge = "java.logging";
+        // We instrument classes in these modules to call the bridge. Because the bridge gets patched
+        // into java.base, we must export the bridge from java.base to these modules.
+        String modulesContainingEntitlementInstrumentation = "java.logging";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,
-            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement," + modulesThatCallBridge
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+                + modulesContainingEntitlementInstrumentation
         );
     }
 }

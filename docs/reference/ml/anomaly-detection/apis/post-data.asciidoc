@@ -7,6 +7,12 @@
 
 deprecated::[7.11.0, "Posting data directly to anomaly detection jobs is deprecated, in a future major version a <<ml-api-datafeed-endpoint,{dfeed}>> will be required."]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Sends data to an anomaly detection job for analysis.
 
 [[ml-post-data-request]]

@@ -99,10 +99,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         return new UnsupportedOperationException();
     }
 
-    public TranslogLeafReader getLeafReader() {
-        return leafReader;
-    }
-
     @Override
     protected DirectoryReader doOpenIfChanged() {
         throw unsupported();
@@ -141,6 +137,45 @@ final class TranslogDirectoryReader extends DirectoryReader {
     @Override
     public CacheHelper getReaderCacheHelper() {
         return leafReader.getReaderCacheHelper();
+    }
+
+    static DirectoryReader createInMemoryReader(
+        ShardId shardId,
+        EngineConfig engineConfig,
+        Directory directory,
+        DocumentParser documentParser,
+        MappingLookup mappingLookup,
+        Translog.Index operation
+    ) {
+        final ParsedDocument parsedDocs = documentParser.parseDocument(
+            new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
+            mappingLookup
+        );
+
+        parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
+        parsedDocs.version().setLongValue(operation.version());
+        // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
+        final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
+            IndexWriterConfig.OpenMode.CREATE
+        ).setCodec(engineConfig.getCodec());
+        try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
+            writer.addDocument(parsedDocs.rootDoc());
+            final DirectoryReader reader = open(writer);
+            if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
+                reader.close();
+                throw new IllegalStateException(
+                    "Expected a single document segment; "
+                        + "but ["
+                        + reader.leaves().size()
+                        + " segments with "
+                        + reader.leaves().get(0).reader().numDocs()
+                        + " documents"
+                );
+            }
+            return reader;
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + operation.id() + "]", e);
+        }
     }
 
     private static class TranslogLeafReader extends LeafReader {
@@ -244,7 +279,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     ensureOpen();
                     reader = delegate.get();
                     if (reader == null) {
-                        reader = createInMemoryLeafReader();
+                        var indexReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, operation);
+                        reader = indexReader.leaves().get(0).reader();
                         final LeafReader existing = delegate.getAndSet(reader);
                         assert existing == null;
                         onSegmentCreated.run();
@@ -252,39 +288,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             }
             return reader;
-        }
-
-        private LeafReader createInMemoryLeafReader() {
-            assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = documentParser.parseDocument(
-                new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
-                mappingLookup
-            );
-
-            parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
-            parsedDocs.version().setLongValue(operation.version());
-            // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
-            final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
-                IndexWriterConfig.OpenMode.CREATE
-            ).setCodec(engineConfig.getCodec());
-            try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
-                writer.addDocument(parsedDocs.rootDoc());
-                final DirectoryReader reader = open(writer);
-                if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
-                    reader.close();
-                    throw new IllegalStateException(
-                        "Expected a single document segment; "
-                            + "but ["
-                            + reader.leaves().size()
-                            + " segments with "
-                            + reader.leaves().get(0).reader().numDocs()
-                            + " documents"
-                    );
-                }
-                return reader.leaves().get(0).reader();
-            } catch (IOException e) {
-                throw new EngineException(shardId, "failed to create an in-memory segment for get [" + operation.id() + "]", e);
-            }
         }
 
         @Override
@@ -440,7 +443,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 SourceFieldMapper mapper = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
                 if (mapper != null) {
                     try {
-                        sourceBytes = mapper.applyFilters(sourceBytes, null);
+                        sourceBytes = mapper.applyFilters(mappingLookup, sourceBytes, null);
                     } catch (IOException e) {
                         throw new IOException("Failed to reapply filters after reading from translog", e);
                     }

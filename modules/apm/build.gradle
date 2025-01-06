@@ -7,9 +7,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-  name 'apm'
-  description 'Provides APM integration for Elasticsearch'
-  classname 'org.elasticsearch.telemetry.apm.APM'
+  name = 'apm'
+  description = 'Provides APM integration for Elasticsearch'
+  classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
 def otelVersion = '1.31.0'

@@ -1974,7 +1974,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
@@ -1985,7 +1985,11 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query) {
-        defaultAnalyzer.analyze(parser.createStatement(query));
+        query(query, defaultAnalyzer);
+    }
+
+    private void query(String query, Analyzer analyzer) {
+        analyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {

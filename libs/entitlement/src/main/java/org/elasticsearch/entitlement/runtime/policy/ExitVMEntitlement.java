@@ -12,4 +12,4 @@ package org.elasticsearch.entitlement.runtime.policy;
 /**
  * Internal policy type (not-parseable -- not available to plugins).
  */
-public class ExitVMEntitlement implements Entitlement {}
+public record ExitVMEntitlement() implements Entitlement {}

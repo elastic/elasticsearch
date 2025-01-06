@@ -59,7 +59,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
-    public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {});
+    public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
     private final String prefix;
 
     record CheckAction(Runnable action, boolean isAlwaysDeniedToPlugins) {
@@ -185,10 +185,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         System.setIn(System.in);
     }
 
+    @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
     private static void system$$setOut() {
         System.setOut(System.out);
     }
 
+    @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
     private static void system$$setErr() {
         System.setErr(System.err);
     }
@@ -259,6 +261,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     @SuppressWarnings("deprecation")
+    @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
     private static void datagramSocket$$setDatagramSocketImplFactory() {
         try {
             DatagramSocket.setDatagramSocketImplFactory(new DatagramSocketImplFactory() {
@@ -277,6 +280,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     @SuppressWarnings("deprecation")
+    @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
     private static void serverSocket$$setSocketFactory() {
         try {
             ServerSocket.setSocketFactory(() -> { throw new IllegalStateException(); });
@@ -286,6 +290,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     @SuppressWarnings("deprecation")
+    @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
     private static void socket$$setSocketImplFactory() {
         try {
             Socket.setSocketImplFactory(() -> { throw new IllegalStateException(); });

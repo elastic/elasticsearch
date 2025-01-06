@@ -14,8 +14,6 @@ Fields of type <<text-field-type,`text`>> are analyzed and indexed for full-text
 
 Built on decades of information retrieval research, full-text search delivers reliable results that scale predictably as your data grows. Because it runs efficiently on CPUs, {es}'s full-text search requires minimal computational resources compared to GPU-intensive vector operations.
 
-This translates to lower infrastructure costs and predictable scaling requirements. You can scale horizontally by adding more nodes with standard CPU cores and RAM - no specialized hardware needed. A typical deployment will start with 2-3 nodes and grow incrementally as search volume increases. Learn more about <<scalability, moving to production>>.
-
 You can combine full-text search with <<semantic-search,semantic search using vectors>> to build modern hybrid search applications. While vector search may require additional GPU resources, the full-text component remains cost-effective by leveraging existing CPU infrastructure.
 
 [discrete]

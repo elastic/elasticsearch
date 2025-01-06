@@ -131,8 +131,8 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 service.stats(),
                 allOf(
                     aMapWithSize(2),
-                    hasEntry("node-1", new NodeAllocationStats(0, -1, 0, 0, 0)),
-                    hasEntry("node-2", new NodeAllocationStats(1, -1, 0, 0, 0))
+                    hasEntry("node-1", new NodeAllocationStats(0, 0, 0, 0, 0)),
+                    hasEntry("node-2", new NodeAllocationStats(1, 0, 0, 0, 0))
                 )
             );
         }

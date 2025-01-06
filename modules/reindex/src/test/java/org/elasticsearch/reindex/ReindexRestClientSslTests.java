@@ -119,7 +119,14 @@ public class ReindexRestClientSslTests extends ESTestCase {
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+            if (inFipsJvm()) {
+                // Bouncy Castle throws a different exception
+                IOException exception = expectThrows(IOException.class, () -> client.performRequest(new Request("GET", "/")));
+                assertThat(exception.getCause(), Matchers.instanceOf(javax.net.ssl.SSLException.class));
+            } else {
+                expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+
+            }
         }
     }
 

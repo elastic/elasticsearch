@@ -337,7 +337,10 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     public Optional<String> getRecoveryCommitMetadataNodeEphemeralId() {
         String nodeEphemeralId = recoveryCommitMetadataNodeEphemeralId.get();
-        return nodeEphemeralId != null ? Optional.of(nodeEphemeralId) : Optional.empty();
+        if (nodeEphemeralId != null && nodeEphemeralId.isEmpty() == false) {
+            return Optional.of(nodeEphemeralId);
+        }
+        return Optional.empty();
     }
 
     public long getTranslogRecoveryStartFile() {

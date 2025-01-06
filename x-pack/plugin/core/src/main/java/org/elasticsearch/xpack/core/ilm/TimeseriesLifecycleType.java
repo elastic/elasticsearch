@@ -474,6 +474,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         }
     }
 
+    /**
+     * Performs two validations of the 'replicate_for' attribute on searchable_snapshot actions:
+     *   - If 'replicate_for' is present on a searchable_snapshot action, then it is the *first* searchable_snapshot action
+     *     in phase order
+     *   - If 'replicate_for' is present on a searchable_snapshot action, then for any subsequent phases that have an explicit 'min_age'
+     *     the min_age must be greater than or equal to the 'replicate_for' time itself
+     */
     static void validateReplicateFor(Collection<Phase> phases) {
         final Map<String, Phase> phasesWithSearchableSnapshotActions = phases.stream()
             .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))

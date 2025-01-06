@@ -6,6 +6,7 @@
  # License v3.0 only", or the "Server Side Public License, v 1".
 
 [libdefaults]
+    spake_preauth_groups = edwards25519
     default_realm = ${REALM_NAME}
     dns_canonicalize_hostname = false
     dns_lookup_kdc = false
@@ -25,7 +26,7 @@
 [realms]
     ${REALM_NAME} = {
         kdc = 127.0.0.1:88
-        kdc = 127.0.0.1:${MAPPED_PORT}
+        #KDC_DOCKER_HOST
         admin_server = ${KDC_NAME}:749
         default_domain = ${BUILD_ZONE}
     }

@@ -20,6 +20,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Registers allocation related APM metrics and getters with {@link MeterRegistry}.
+ * Metrics can be updated or cleared (if the node steps down from being master, see {@link #zeroAllMetrics()}), and the metrics will be
+ * pulled for reporting via the MeterRegistry mechanism.
+ */
 public class DesiredBalanceMetrics {
 
     public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}

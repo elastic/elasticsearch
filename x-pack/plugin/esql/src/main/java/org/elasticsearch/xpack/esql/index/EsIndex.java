@@ -40,6 +40,7 @@ public record EsIndex(String name, Map<String, EsField> mapping, Map<String, Ind
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
+            @SuppressWarnings("unchecked")
             Set<String> indices = (Set<String>) in.readGenericValue();
             assert indices != null;
             indexNameWithModes = indices.stream().collect(toMap(e -> e, e -> IndexMode.STANDARD));

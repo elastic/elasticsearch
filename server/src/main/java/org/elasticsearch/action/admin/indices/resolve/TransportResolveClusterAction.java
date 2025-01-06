@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
@@ -99,9 +98,15 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
 
         Map<String, OriginalIndices> remoteClusterIndices;
         if (request.clusterInfoOnly() && request.queryingCluster()) {
-            // user does not want to check whether an index expression matches
-            // use "*:*" to 1) discover all the configured remote clusters and 2) specify an index pattern
-            // of "*" for older clusters that do not have/understand the clusterInfoOnly flag on the request
+            /*
+             * User does not want to check whether an index expression matches, so we use the "*:dummy: index pattern to
+             * 1) determine all the local configured remotes and
+             * 2) for older clusters that do not understand the new clusterInfoOnly setting (or for even older clusters
+             *    where we need to fallback to use _resolve/index, we use the concrete index "dummy" to minimize the
+             *    CPU time spent do index/alias/datastream matching when we don't need it.
+             * The response handlers on the coordinator ignores IndexNotFoundExceptions or matching_indices values when
+             * clusterInfoOnly=true, so it doesn't matter when the remote cluster has an index called "dummy" or not.
+             */
             remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), new String[] { "*:" + DUMMY_IDX }, false);
             if (remoteClusterIndices.isEmpty()) {
                 // no remote clusters are configured on the primary "querying" cluster
@@ -117,7 +122,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         Map<String, ResolveClusterInfo> clusterInfoMap = new ConcurrentHashMap<>();
         // add local cluster info if in scope of the index-expression from user
         if (request.clusterInfoOnly() && request.queryingCluster() == false) {
-            // on the remote cluster if cluster info only is requested (localIndices == null), just return build info
+            // on the remote cluster if clusterInfoOnly is requested, just return build info
             ResolveClusterInfo resolveClusterInfo = new ResolveClusterInfo(true, false, null, Build.current());
             clusterInfoMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolveClusterInfo);
         } else if (localIndices != null) {
@@ -163,8 +168,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                     searchCoordinationExecutor,
                     RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
                 );
-                // // MP TODO: can this ever actually be null now?
-                // String[] remoteIndicesArray = originalIndices.indices() != null ? originalIndices.indices() : new String[0];
                 var remoteRequest = new ResolveClusterActionRequest(
                     originalIndices.indices(),
                     request.indicesOptions(),
@@ -335,7 +338,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
      * @return true if indices has at least one matching non-closed index or any aliases or data streams match
      * @throws IndexNotFoundException if a (non-wildcarded) index, alias or data stream is requested
      */
-    private boolean hasMatchingIndices(@Nullable OriginalIndices localIndices, IndicesOptions indicesOptions, ClusterState clusterState) {
+    private boolean hasMatchingIndices(OriginalIndices localIndices, IndicesOptions indicesOptions, ClusterState clusterState) {
         if (localIndices == null) {
             return false;
         }

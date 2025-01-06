@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -108,13 +109,13 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        String asyncExecutionId;
+        AtomicReference<String> asyncExecutionId = new AtomicReference<>();
 
         String q = "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10";
         try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueMillis(100))) {
             assertTrue(resp.isRunning());
             assertNotNull("async execution id is null", resp.asyncExecutionId());
-            asyncExecutionId = resp.asyncExecutionId().get();
+            asyncExecutionId.set(resp.asyncExecutionId().get());
             // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
             // so we do not check for it here
         }
@@ -124,7 +125,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
         assertBusy(() -> {
-            try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId.get())) {
                 EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
                 assertNotNull(executionInfo);
                 EsqlExecutionInfo.Cluster clusterA = executionInfo.getCluster("cluster-a");
@@ -137,7 +138,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
          *  the query against remote-b should be running (blocked on the PauseFieldPlugin.allowEmitting CountDown)
          *  the query against the local cluster should be running because it has a STATS clause that needs to wait on remote-b
          */
-        try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
+        try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId.get())) {
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
             assertThat(asyncResponse.isRunning(), is(true));
             assertThat(
@@ -174,7 +175,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         // wait until both remoteB and local queries have finished
         assertBusy(() -> {
-            try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId.get())) {
                 EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
                 assertNotNull(executionInfo);
                 EsqlExecutionInfo.Cluster remoteB = executionInfo.getCluster(REMOTE_CLUSTER_2);
@@ -185,7 +186,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             }
         });
 
-        try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
+        try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId.get())) {
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
             assertNotNull(executionInfo);
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(1L));
@@ -217,7 +218,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(local.getFailedShards(), equalTo(0));
             assertThat(local.getFailures().size(), equalTo(0));
         } finally {
-            AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId);
+            AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId.get());
             assertThat(acknowledgedResponse.isAcknowledged(), is(true));
         }
     }

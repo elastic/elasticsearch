@@ -52,8 +52,8 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     private IndicesOptions indicesOptions;
     // true if the user did not provide any index expression - they only want cluster level info, not index matching
     private boolean clusterInfoOnly;
-    // whether this request is being processing on the primary ("local") cluster being queried or on a remote
-    // this is needed when clusterInfoOnly=true since we need to know whether to list out all possible remotes
+    // Whether this request is being processed on the primary ("local") cluster being queried or on a remote.
+    // This is needed when clusterInfoOnly=true since we need to know whether to list out all possible remotes
     // on a node. (We don't want cross-cluster chaining on remotes that might be configured with their own remotes.)
     private boolean isQueryingCluster;
 

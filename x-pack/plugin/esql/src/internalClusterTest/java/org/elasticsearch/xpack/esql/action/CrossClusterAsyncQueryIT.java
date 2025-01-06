@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -20,11 +21,13 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.junit.Before;
 
@@ -37,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
@@ -479,12 +483,35 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testBadAsyncId() {
-        final String asyncId = randomAlphaOfLength(20);
-        var stopRequest = new AsyncStopRequest(asyncId);
+    private String randomAsyncId() {
+        return AsyncExecutionId.encode(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(10), randomLong()));
+    }
+
+    public void testBadAsyncId() throws Exception {
+        setupClusters(3);
+        final AtomicReference<String> asyncId = new AtomicReference<>();
+        try (
+            EsqlQueryResponse resp = runAsyncQuery(
+                client(),
+                "FROM logs-*,*:logs-* | STATS total=sum(const) | LIMIT 1",
+                randomBoolean(),
+                null,
+                TimeValue.timeValueMillis(0)
+            )
+        ) {
+            assertTrue(resp.isRunning());
+            asyncId.set(resp.asyncExecutionId().get());
+        }
+        assertBusy(() -> {
+            try (EsqlQueryResponse resp = getAsyncResponse(client(), asyncId.get())) {
+                assertFalse(resp.isRunning());
+            }
+        });
+
+        String randomAsyncIdasyncId = randomAsyncId();
+        var stopRequest = new AsyncStopRequest(randomAsyncIdasyncId);
         var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
-        // Since part of the query has not been stopped, we expect some result to emerge here
-        assertThrows(IllegalArgumentException.class, () -> stopAction.actionGet(1000, TimeUnit.SECONDS));
+        assertThrows(ResourceNotFoundException.class, () -> stopAction.actionGet(1000, TimeUnit.SECONDS));
     }
 
     private void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster cluster, int numShards) {

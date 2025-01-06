@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 900">
     <!-- Styles -->
     <defs>
         <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -8,55 +8,74 @@
             text {
                 font-family: Inter, Arial, sans-serif;
             }
+            .title {
+                font-size: 24px;
+                font-weight: bold;
+                fill: #333;
+            }
+            .box-title {
+                font-size: 16px;
+                fill: #333;
+            }
+            .box-subtitle {
+                font-size: 12px;
+                fill: #666;
+            }
+            .search-text {
+                fill: #2d5a27;
+            }
+            .doc-text {
+                fill: #1a3d66;
+            }
         </style>
     </defs>
     
     <!-- Background -->
-    <rect width="600" height="900" fill="#f8f9fa"/>
+    <rect width="700" height="900" fill="#ffffff"/>
     
     <!-- Title -->
-    <text x="300" y="50" text-anchor="middle" font-size="24" font-weight="bold" fill="#333">
+    <text x="350" y="50" text-anchor="middle" class="title">
         Full-text search with Elasticsearch
     </text>
 
     <!-- Document Input Box -->
-    <rect x="50" y="100" width="200" height="80" rx="10" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>
-    <text x="150" y="145" text-anchor="middle" font-size="16" fill="#1976d2">Source documents</text>
+    <rect x="50" y="100" width="240" height="80" rx="10" fill="#e8f0f9" stroke="#1a3d66" stroke-width="2"/>
+    <text x="170" y="145" text-anchor="middle" class="box-title doc-text">Source documents</text>
 
     <!-- Analysis Pipeline -->
-    <rect x="200" y="250" width="200" height="80" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
-    <text x="300" y="280" text-anchor="middle" font-size="16" fill="#2e7d32">Analysis pipeline</text>
-    <text x="300" y="300" text-anchor="middle" font-size="12" fill="#666">Transforms text to normalized terms</text>
+    <rect x="230" y="250" width="240" height="80" rx="10" fill="#f4f4f4" stroke="#666" stroke-width="2"/>
+    <text x="350" y="285" text-anchor="middle" class="box-title">Analysis pipeline</text>
+    <text x="350" y="305" text-anchor="middle" class="box-subtitle">Transforms text to normalized terms</text>
 
     <!-- Inverted Index -->
-    <rect x="200" y="420" width="200" height="80" rx="10" fill="#fff3e0" stroke="#ef6c00" stroke-width="2"/>
-    <text x="300" y="455" text-anchor="middle" font-size="16" fill="#ef6c00">Inverted index</text>
-    <text x="300" y="475" text-anchor="middle" font-size="12" fill="#666">Search-optimized data structure</text>
+    <rect x="230" y="420" width="240" height="80" rx="10" fill="#f4f4f4" stroke="#666" stroke-width="2"/>
+    <text x="350" y="455" text-anchor="middle" class="box-title">Inverted index</text>
+    <text x="350" y="475" text-anchor="middle" class="box-subtitle">Search-optimized data structure</text>
 
     <!-- Search Query Box -->
-    <rect x="350" y="100" width="200" height="80" rx="10" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2"/>
-    <text x="450" y="145" text-anchor="middle" font-size="16" fill="#7b1fa2">Search query</text>
+    <rect x="410" y="100" width="240" height="80" rx="10" fill="#edf7ec" stroke="#2d5a27" stroke-width="2"/>
+    <text x="530" y="145" text-anchor="middle" class="box-title search-text">Search query</text>
 
     <!-- Scoring Engine -->
-    <rect x="200" y="590" width="200" height="80" rx="10" fill="#ffebee" stroke="#c62828" stroke-width="2"/>
-    <text x="300" y="620" text-anchor="middle" font-size="16" fill="#c62828">Relevance scoring</text>
-    <text x="300" y="640" text-anchor="middle" font-size="12" fill="#666">Similarity algorithm scores documents</text>
+    <rect x="230" y="590" width="240" height="80" rx="10" fill="#f4f4f4" stroke="#666" stroke-width="2"/>
+    <text x="350" y="625" text-anchor="middle" class="box-title">Relevance scoring</text>
+    <text x="350" y="645" text-anchor="middle" class="box-subtitle">Similarity algorithm scores documents</text>
 
-    <!-- Results Box -->
-    <rect x="200" y="760" width="200" height="80" rx="10" fill="#e0f7fa" stroke="#006064" stroke-width="2"/>
-    <text x="300" y="805" text-anchor="middle" font-size="16" fill="#006064">Search results</text>
-    <text x="300" y="825" text-anchor="middle" font-size="12" fill="#666">Most relevant results returned first</text>
+    <!-- Results Box (using circle shape) -->
+    <circle cx="350" cy="800" r="70" fill="#edf7ec" stroke="#2d5a27" stroke-width="2"/>
+    <text x="350" y="790" text-anchor="middle" class="box-title search-text">Search results</text>
+    <text x="350" y="810" text-anchor="middle" class="box-subtitle">Most relevant first</text>
 
     <!-- Arrows -->
-    <line x1="150" y1="180" x2="150" y2="300" stroke="#666" stroke-width="2"/>
-    <line x1="150" y1="300" x2="200" y2="300" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="170" y1="180" x2="170" y2="300" stroke="#666" stroke-width="2"/>
+    <line x1="170" y1="300" x2="230" y2="300" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
     
-    <line x1="450" y1="180" x2="450" y2="300" stroke="#666" stroke-width="2"/>
-    <line x1="450" y1="300" x2="400" y2="300" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="530" y1="180" x2="530" y2="300" stroke="#666" stroke-width="2"/>
+    <line x1="530" y1="300" x2="470" y2="300" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
     
-    <line x1="300" y1="330" x2="300" y2="420" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="350" y1="330" x2="350" y2="420" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
     
-    <line x1="300" y1="500" x2="300" y2="590" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="350" y1="500" x2="350" y2="590" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
     
-    <line x1="300" y1="670" x2="300" y2="760" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="350" y1="670" x2="350" y2="730" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
 </svg>

@@ -35,9 +35,13 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
     }
 
-    public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ZERO = of(0, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ONE = of(1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MINUS_ONE = of(-1, ByteSizeUnit.BYTES);
+
+    public static ByteSizeValue of(long size, ByteSizeUnit unit) {
+        return new ByteSizeValue(size, unit);
+    }
 
     public static ByteSizeValue ofBytes(long size) {
         if (size == 0) {
@@ -49,27 +53,27 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         if (size == -1) {
             return MINUS_ONE;
         }
-        return new ByteSizeValue(size, ByteSizeUnit.BYTES);
+        return of(size, ByteSizeUnit.BYTES);
     }
 
     public static ByteSizeValue ofKb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.KB);
+        return of(size, ByteSizeUnit.KB);
     }
 
     public static ByteSizeValue ofMb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.MB);
+        return of(size, ByteSizeUnit.MB);
     }
 
     public static ByteSizeValue ofGb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.GB);
+        return of(size, ByteSizeUnit.GB);
     }
 
     public static ByteSizeValue ofTb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.TB);
+        return of(size, ByteSizeUnit.TB);
     }
 
     public static ByteSizeValue ofPb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.PB);
+        return of(size, ByteSizeUnit.PB);
     }
 
     private final long size;
@@ -81,7 +85,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         if (unit == ByteSizeUnit.BYTES) {
             return ofBytes(size);
         }
-        return new ByteSizeValue(size, unit);
+        return of(size, unit);
     }
 
     @Override
@@ -90,7 +94,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         unit.writeTo(out);
     }
 
-    public ByteSizeValue(long size, ByteSizeUnit unit) {
+    private ByteSizeValue(long size, ByteSizeUnit unit) {
         if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
             throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
@@ -288,7 +292,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             try {
-                return new ByteSizeValue(Long.parseLong(s), unit);
+                return of(Long.parseLong(s), unit);
             } catch (final NumberFormatException e) {
                 try {
                     BigDecimal decimalValue = new BigDecimal(s);

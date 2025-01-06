@@ -604,7 +604,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     private static void disableTranslogFlush(String index) {
         updateIndexSettings(
             Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)),
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB)),
             index
         );
     }

@@ -65,7 +65,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             Settings.builder()
                 .put(
                     RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(),
-                    new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)
+                    ByteSizeValue.of(randomIntBetween(50, 300), ByteSizeUnit.BYTES)
                 )
         );
 

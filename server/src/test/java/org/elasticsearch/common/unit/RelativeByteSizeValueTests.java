@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 public class RelativeByteSizeValueTests extends ESTestCase {
 
     public void testDeserialization() throws IOException {
-        final var origin1 = new RelativeByteSizeValue(new ByteSizeValue(between(0, 2048), randomFrom(ByteSizeUnit.values())));
+        final var origin1 = new RelativeByteSizeValue(ByteSizeValue.of(between(0, 2048), randomFrom(ByteSizeUnit.values())));
         final var origin2 = new RelativeByteSizeValue(new RatioValue(randomDoubleBetween(0.0, 100.0, true)));
         final RelativeByteSizeValue target1, target2;
 
@@ -63,7 +63,7 @@ public class RelativeByteSizeValueTests extends ESTestCase {
     }
 
     public void testAbsolute() {
-        ByteSizeValue value = new ByteSizeValue(between(0, 100), randomFrom(ByteSizeUnit.values()));
+        ByteSizeValue value = ByteSizeValue.of(between(0, 100), randomFrom(ByteSizeUnit.values()));
         RelativeByteSizeValue parsed = RelativeByteSizeValue.parseRelativeByteSizeValue(value.getStringRep(), "test");
         assertThat(parsed.getAbsolute(), equalTo(value));
         assertThat(parsed.isAbsolute(), is(true));

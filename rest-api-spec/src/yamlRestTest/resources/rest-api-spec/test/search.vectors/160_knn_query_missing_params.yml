@@ -100,8 +100,9 @@ setup:
             knn:
               field: vector
               query_vector: [1, 1, 1]
+              k: 2
           size: 1
-  - match: { hits.total: 1 }  # k defaults to size
+  - match: { hits.total: 2 }  # k defaults to size
   - length: { hits.hits: 1 }  # one result is only returned though
 
 ---
@@ -155,12 +156,13 @@ setup:
                 - knn:
                     field: vector
                     query_vector: [1, 1, 0]
+                    k: 2
                 - match:
                     category: B
               tie_breaker: 0.8
           size: 1
 
-  - match: { hits.total.value: 2 } # 2 knn result + 1 extra from match query
+  - match: { hits.total.value: 3 } # 2 knn result + 1 extra from match query
   - length: { hits.hits: 1 }
 
 ---
@@ -176,8 +178,9 @@ setup:
                 knn:
                   field: nested.vector
                   query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 2
               inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
           size: 1
 
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 2 }
   - length: { hits.hits: 1 }

@@ -528,7 +528,12 @@ public class RBACEngine implements AuthorizationEngine {
                 + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
 
         // Check if the parent context has already successfully authorized access to the child's indices
-        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
+        for (String index : indices) {
+            if (indicesAccessControl.hasIndexPermissions(index) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

@@ -28,7 +28,7 @@ RAG has several advantages:
 * *Simplified response parsing:* Eliminates the need for custom parsing logic by letting the language model handle parsing {es} responses and formatting the retrieved context.
 * *Flexible implementation:* Works with basic 
 // TODO: uncomment when page is live <<full-text-search,full-text search>> 
-full-text search and can be gradually updated to use advanced <<semantic-search,semantic search>> and hybrid search capabilities.
+full-text search and can be gradually updated to add more advanced and computationally intensive <<semantic-search,semantic search>> capabilities.
 
 [discrete]
 [[rag-elasticsearch-components]]

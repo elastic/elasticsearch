@@ -143,6 +143,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -920,8 +921,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topN = as(optimized, TopNExec.class);
-        // no fields are added after the top n - so 0 here
-        assertThat(topN.estimatedRowSize(), equalTo(0));
+        // all fields + nullsum are loaded in the final TopN
+        assertThat(topN.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
@@ -929,7 +930,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(extract.child(), EvalExec.class);
         var source = source(eval.child());
         // All fields loaded
-        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + 3 * Integer.BYTES + Long.BYTES));
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + 3 * Integer.BYTES + 2 * Integer.BYTES));
     }
 
     public void testPushAndInequalitiesFilter() {
@@ -1141,8 +1142,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var topNLocal = as(extract.child(), TopNExec.class);
-        // two extra ints for forwards and backwards map
-        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
+        // all fields plus nullsum and shards, segments, docs and two extra ints for forwards and backwards map
+        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + Integer.BYTES * 2 + Integer.BYTES * 3));
 
         var eval = as(topNLocal.child(), EvalExec.class);
         var source = source(eval.child());
@@ -7551,6 +7552,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertTrue(esRelation.optimized());
         assertTrue(esRelation.resolved());
         assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+    }
+
+    public void testReductionPlanForTopN() {
+        int limit = between(1, 100);
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            FROM test
+            | sort emp_no
+            | LIMIT %d
+            """, limit));
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        TopNExec reductionTopN = as(reduction, TopNExec.class);
+        assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
+        assertThat(reductionTopN.limit().fold(), equalTo(limit));
+    }
+
+    public void testReductionPlanForAggs() {
+        var plan = physicalPlan("""
+            FROM test
+            | stats x = sum(salary) BY first_name
+            """);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        AggregateExec reductionAggs = as(reduction, AggregateExec.class);
+        assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
 
     @SuppressWarnings("SameParameterValue")

@@ -26,11 +26,13 @@ public class UsageService {
     private final Map<String, BaseRestHandler> handlers;
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
+    private final CCSUsageTelemetry esqlUsageHolder;
 
     public UsageService() {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
         this.ccsUsageHolder = new CCSUsageTelemetry();
+        this.esqlUsageHolder = new CCSUsageTelemetry(false);
     }
 
     /**
@@ -88,5 +90,9 @@ public class UsageService {
 
     public CCSUsageTelemetry getCcsUsageHolder() {
         return ccsUsageHolder;
+    }
+
+    public CCSUsageTelemetry getEsqlUsageHolder() {
+        return esqlUsageHolder;
     }
 }

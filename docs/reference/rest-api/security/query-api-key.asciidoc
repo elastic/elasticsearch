@@ -1,10 +1,15 @@
 [role="xpack"]
 [[security-api-query-api-key]]
 === Query API key information API
-
 ++++
 <titleabbrev>Query API key information</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
 
 ////
 [source,console]

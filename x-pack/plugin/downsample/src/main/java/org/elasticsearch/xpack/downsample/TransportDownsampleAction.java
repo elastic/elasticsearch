@@ -58,6 +58,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -723,6 +724,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     if (mapping.get("format") != null) {
                         builder.field("format", mapping.get("format"));
                     }
+                    if (mapping.get("ignore_malformed") != null) {
+                        builder.field("ignore_malformed", mapping.get("ignore_malformed"));
+                    }
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException("Unable to create timestamp field mapping for field [" + timestampField + "]", e);
@@ -895,6 +899,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
                 sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
+        }
+        if (sourceIndexMetadata.getSettings().hasValue(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())) {
+            builder.put(
+                FieldMapper.IGNORE_MALFORMED_SETTING.getKey(),
+                sourceIndexMetadata.getSettings().get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())
             );
         }
 

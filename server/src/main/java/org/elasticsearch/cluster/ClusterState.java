@@ -626,7 +626,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return Iterators.concat(
 
             // header chunk
-            Iterators.single(((builder, params) -> {
+            Iterators.single((builder, params) -> {
                 // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
                 builder.field("cluster_uuid", metadata().clusterUUID());
 
@@ -642,7 +642,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
 
                 return builder;
-            })),
+            }),
 
             // blocks
             chunkedSection(metrics.contains(Metric.BLOCKS), (builder, params) -> {
@@ -757,8 +757,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             // customs
             metrics.contains(Metric.CUSTOMS)
-                ? ChunkedToXContent.builder(outerParams)
-                    .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
+                ? Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    e -> ChunkedToXContentHelper.wrapWithObject(e.getKey(), e.getValue().toXContentChunked(outerParams))
+                )
                 : Collections.emptyIterator()
         );
     }

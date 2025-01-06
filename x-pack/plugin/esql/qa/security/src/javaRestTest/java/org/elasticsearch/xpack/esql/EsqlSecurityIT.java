@@ -26,14 +26,18 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
@@ -56,6 +60,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
         .user("alias_user2", "x-pack-test-password", "alias_user2", false)
+        .user("logs_foo_all", "x-pack-test-password", "logs_foo_all", false)
+        .user("logs_foo_16_only", "x-pack-test-password", "logs_foo_16_only", false)
+        .user("logs_foo_after_2021", "x-pack-test-password", "logs_foo_after_2021", false)
+        .user("logs_foo_after_2021_pattern", "x-pack-test-password", "logs_foo_after_2021_pattern", false)
+        .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
         .build();
 
     @Override
@@ -81,9 +90,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
+        Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
         String mapping = """
             "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}}
             """;
+
         createIndex("index", Settings.EMPTY, mapping);
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
@@ -104,6 +115,16 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
 
+        createIndex("lookup-user1", lookupSettings, mapping);
+        indexDocument("lookup-user1", 1, 12.0, "engineering");
+        indexDocument("lookup-user1", 2, 31.0, "sales");
+        refresh("lookup-user1");
+
+        createIndex("lookup-user2", lookupSettings, mapping);
+        indexDocument("lookup-user2", 1, 32.0, "marketing");
+        indexDocument("lookup-user2", 2, 40.0, "sales");
+        refresh("lookup-user2");
+
         if (aliasExists("second-alias") == false) {
             Request aliasRequest = new Request("POST", "_aliases");
             aliasRequest.setJsonEntity("""
@@ -113,6 +134,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
                           "add": {
                             "alias": "first-alias",
                             "index": "index-user1",
+                            "filter": {
+                                "term": {
+                                    "org": "sales"
+                                }
+                            }
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "lookup-first-alias",
+                            "index": "lookup-user1",
                             "filter": {
                                 "term": {
                                     "org": "sales"
@@ -223,22 +255,30 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testUnauthorizedIndices() throws IOException {
         ResponseException error;
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testInsufficientPrivilege() {
-        Exception error = expectThrows(Exception.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)")
+        );
         logger.info("error", error);
         assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
@@ -336,6 +376,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     public void testDocumentLevelSecurity() throws Exception {
         Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testDocumentLevelSecurityFromStar() throws Exception {
+        Response resp = runESQLCommand("user3", "from in*x | stats sum=sum(value)");
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
@@ -497,6 +545,73 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    public void testLookupJoinIndexAllowed() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName()))
+        );
+
+        Response resp = runESQLCommand(
+            "metadata1_read2",
+            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
+
+        // Alias, should find the index and the row
+        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
+
+        // Alias, for a row that's filtered out
+        resp = runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(123.0, null))));
+    }
+
+    public void testLookupJoinIndexForbidden() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName()))
+        );
+
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
     private void createEnrichPolicy() throws Exception {
         createIndex("songs", Settings.EMPTY, """
             "properties":{"song_id": {"type": "keyword"}, "title": {"type": "keyword"}, "artist": {"type": "keyword"} }
@@ -545,6 +660,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", "_enrich/policy/songs"));
     }
 
+    public void testDataStream() throws IOException {
+        createDataStream();
+        MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));
+        MapMatcher oneResult = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(1)));
+        assertMap(entityAsMap(runESQLCommand("logs_foo_all", "FROM logs-foo | STATS COUNT(*)")), twoResults);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_16_only", "FROM logs-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM logs-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM logs-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_all", "FROM logs-* | STATS COUNT(*)")), twoResults);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_16_only", "FROM logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
+    }
+
     protected Response runESQLCommand(String user, String command) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
@@ -591,5 +722,104 @@ public class EsqlSecurityIT extends ESRestTestCase {
             settings.put("node_level_reduction", randomBoolean());
         }
         return settings.build();
+    }
+
+    private void createDataStream() throws IOException {
+        createDataStreamPolicy();
+        createDataStreamComponentTemplate();
+        createDataStreamIndexTemplate();
+        createDataStreamDocuments();
+        createDataStreamAlias();
+    }
+
+    private void createDataStreamPolicy() throws IOException {
+        Request request = new Request("PUT", "_ilm/policy/my-lifecycle-policy");
+        request.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_primary_shard_size": "50gb"
+                      }
+                    }
+                  },
+                  "delete": {
+                    "min_age": "735d",
+                    "actions": {
+                      "delete": {}
+                    }
+                  }
+                }
+              }
+            }""");
+        client().performRequest(request);
+    }
+
+    private void createDataStreamComponentTemplate() throws IOException {
+        Request request = new Request("PUT", "_component_template/my-template");
+        request.setJsonEntity("""
+            {
+                "template": {
+                   "settings": {
+                        "index.lifecycle.name": "my-lifecycle-policy"
+                   },
+                   "mappings": {
+                       "properties": {
+                           "@timestamp": {
+                               "type": "date",
+                               "format": "date_optional_time||epoch_millis"
+                           },
+                           "data_stream": {
+                               "properties": {
+                                   "namespace": {"type": "keyword"}
+                               }
+                           }
+                       }
+                   }
+                }
+            }""");
+        client().performRequest(request);
+    }
+
+    private void createDataStreamIndexTemplate() throws IOException {
+        Request request = new Request("PUT", "_index_template/my-index-template");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["logs-*"],
+                "data_stream": {},
+                "composed_of": ["my-template"],
+                "priority": 500
+            }""");
+        client().performRequest(request);
+    }
+
+    private void createDataStreamDocuments() throws IOException {
+        Request request = new Request("POST", "logs-foo/_bulk");
+        request.addParameter("refresh", "");
+        request.setJsonEntity("""
+            { "create" : {} }
+            { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16"} }
+            { "create" : {} }
+            { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17"} }
+            """);
+        assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
+    }
+
+    private void createDataStreamAlias() throws IOException {
+        Request request = new Request("PUT", "_alias");
+        request.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "logs-foo",
+                    "alias": "alias-foo"
+                  }
+                }
+              ]
+            }""");
+        assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
     }
 }

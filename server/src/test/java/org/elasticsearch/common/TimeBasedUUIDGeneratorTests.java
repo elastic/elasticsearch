@@ -9,12 +9,14 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HashSet;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -104,6 +106,12 @@ public class TimeBasedUUIDGeneratorTests extends ESTestCase {
             randomIntBetween(0, 0x00FF_FFFF),
             new TestRandomMacAddressSupplier().get()
         );
+    }
+
+    public void testUUIDEncodingDecodingWithHash() {
+        int hash = randomInt();
+        byte[] decoded = Base64.getUrlDecoder().decode(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.of(hash)));
+        assertEquals(hash, ByteUtils.readIntLE(decoded, decoded.length - 9));
     }
 
     private void testUUIDEncodingDecodingHelper(final long timestamp, final int sequenceId, final byte[] macAddress) {

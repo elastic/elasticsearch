@@ -16,6 +16,7 @@ import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -276,7 +277,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
-                if (MetadataAttribute.isSupported(id) == false) {
+                if (MetadataAttribute.isSupported(id) == false // TODO: drop check below once METADATA_SCORE is no longer snapshot-only
+                    || (EsqlCapabilities.Cap.METADATA_SCORE.isEnabled() == false && MetadataAttribute.SCORE.equals(id))) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
                 }
                 Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
@@ -560,6 +562,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             } else {
                 throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
             }
+        }
+
+        var matchFieldsCount = joinFields.size();
+        if (matchFieldsCount > 1) {
+            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
         }
 
         return p -> new LookupJoin(source, p, right, joinFields);

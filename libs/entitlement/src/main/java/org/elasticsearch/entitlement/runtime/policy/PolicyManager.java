@@ -10,26 +10,54 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.groupingBy;
 
 public class PolicyManager {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
+    private static final Logger logger = LogManager.getLogger(PolicyManager.class);
 
-    protected final Policy serverPolicy;
-    protected final Map<String, Policy> pluginPolicies;
+    record ModuleEntitlements(Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType) {
+        public static final ModuleEntitlements NONE = new ModuleEntitlements(Map.of());
+
+        ModuleEntitlements {
+            entitlementsByType = Map.copyOf(entitlementsByType);
+        }
+
+        public static ModuleEntitlements from(List<Entitlement> entitlements) {
+            return new ModuleEntitlements(entitlements.stream().collect(groupingBy(Entitlement::getClass)));
+        }
+
+        public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
+            return entitlementsByType.containsKey(entitlementClass);
+        }
+
+        public <E extends Entitlement> Stream<E> getEntitlements(Class<E> entitlementClass) {
+            return entitlementsByType.get(entitlementClass).stream().map(entitlementClass::cast);
+        }
+    }
+
+    final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
+
+    protected final Map<String, List<Entitlement>> serverEntitlements;
+    protected final List<Entitlement> agentEntitlements;
+    protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
@@ -42,7 +70,6 @@ public class PolicyManager {
             .stream()
             .map(ModuleReference::descriptor)
             .collect(Collectors.toUnmodifiableSet());
-
         return ModuleLayer.boot()
             .modules()
             .stream()
@@ -50,67 +77,198 @@ public class PolicyManager {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
-        this.serverPolicy = Objects.requireNonNull(defaultPolicy);
-        this.pluginPolicies = Collections.unmodifiableMap(Objects.requireNonNull(pluginPolicies));
+    /**
+     * Frames originating from this module are ignored in the permission logic.
+     */
+    private final Module entitlementsModule;
+
+    public PolicyManager(
+        Policy serverPolicy,
+        List<Entitlement> agentEntitlements,
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Module entitlementsModule
+    ) {
+        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
+        this.agentEntitlements = agentEntitlements;
+        this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
+        this.entitlementsModule = entitlementsModule;
     }
 
-    public void checkFlagEntitlement(Class<?> callerClass, FlagEntitlementType type) {
-        var requestingModule = requestingModule(callerClass);
+    private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
+        return policy.scopes().stream().collect(Collectors.toUnmodifiableMap(scope -> scope.moduleName(), scope -> scope.entitlements()));
+    }
+
+    public void checkStartProcess(Class<?> callerClass) {
+        neverEntitled(callerClass, "start process");
+    }
+
+    private void neverEntitled(Class<?> callerClass, String operationDescription) {
+        var requestingModule = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
 
-        // TODO: real policy check. For now, we only allow our hardcoded System.exit policy for server.
-        // TODO: this will be checked using policies
-        if (requestingModule.isNamed()
-            && requestingModule.getName().equals("org.elasticsearch.server")
-            && (type == FlagEntitlementType.SYSTEM_EXIT || type == FlagEntitlementType.CREATE_CLASSLOADER)) {
-            logger.debug("Allowed: caller [{}] in module [{}] has entitlement [{}]", callerClass, requestingModule.getName(), type);
-            return;
-        }
-
-        // TODO: plugins policy check using pluginResolver and pluginPolicies
         throw new NotEntitledException(
-            Strings.format("Missing entitlement [%s] for caller [%s] in module [%s]", type, callerClass, requestingModule.getName())
+            Strings.format(
+                "Not entitled: caller [%s], module [%s], operation [%s]",
+                callerClass,
+                requestingModule.getName(),
+                operationDescription
+            )
         );
     }
 
-    private static Module requestingModule(Class<?> callerClass) {
-        if (callerClass != null) {
-            Module callerModule = callerClass.getModule();
-            if (systemModules.contains(callerModule) == false) {
-                // fast path
-                return callerModule;
-            }
-        }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
-            + 1  // the instrumented method
-        ;
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(
-                s -> s.skip(framesToSkip)
-                    .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> systemModules.contains(m) == false)
-                    .findFirst()
-            );
-        return module.orElse(null);
+    public void checkExitVM(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, ExitVMEntitlement.class);
     }
 
-    private static boolean isTriviallyAllowed(Module requestingModule) {
-        if (requestingModule == null) {
-            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
+    public void checkCreateClassLoader(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, CreateClassLoaderEntitlement.class);
+    }
+
+    public void checkSetHttpsConnectionProperties(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, SetHttpsConnectionPropertiesEntitlement.class);
+    }
+
+    public void checkSetGlobalHttpsConnectionProperties(Class<?> callerClass) {
+        neverEntitled(callerClass, "set global https connection properties");
+    }
+
+    private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.hasEntitlement(entitlementClass)) {
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: class [%s], module [%s], entitlement [%s]",
+                    requestingClass,
+                    requestingClass.getModule().getName(),
+                    entitlementClass.getSimpleName()
+                )
+            );
+            return;
+        }
+        throw new NotEntitledException(
+            Strings.format(
+                "Missing entitlement: class [%s], module [%s], entitlement [%s]",
+                requestingClass,
+                requestingClass.getModule().getName(),
+                entitlementClass.getSimpleName()
+            )
+        );
+    }
+
+    ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+        return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));
+    }
+
+    private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
+        Module requestingModule = requestingClass.getModule();
+        if (isServerModule(requestingModule)) {
+            return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName());
+        }
+
+        // plugins
+        var pluginName = pluginResolver.apply(requestingClass);
+        if (pluginName != null) {
+            var pluginEntitlements = pluginsEntitlements.get(pluginName);
+            if (pluginEntitlements != null) {
+                final String scopeName;
+                if (requestingModule.isNamed() == false) {
+                    scopeName = ALL_UNNAMED;
+                } else {
+                    scopeName = requestingModule.getName();
+                }
+                return getModuleScopeEntitlements(requestingClass, pluginEntitlements, scopeName);
+            }
+        }
+
+        if (requestingModule.isNamed() == false) {
+            // agents are the only thing running non-modular
+            return ModuleEntitlements.from(agentEntitlements);
+        }
+
+        logger.warn("No applicable entitlement policy for class [{}]", requestingClass.getName());
+        return ModuleEntitlements.NONE;
+    }
+
+    private ModuleEntitlements getModuleScopeEntitlements(
+        Class<?> callerClass,
+        Map<String, List<Entitlement>> scopeEntitlements,
+        String moduleName
+    ) {
+        var entitlements = scopeEntitlements.get(moduleName);
+        if (entitlements == null) {
+            logger.warn("No applicable entitlement policy for module [{}], class [{}]", moduleName, callerClass);
+            return ModuleEntitlements.NONE;
+        }
+        return ModuleEntitlements.from(entitlements);
+    }
+
+    private static boolean isServerModule(Module requestingModule) {
+        return requestingModule.isNamed() && requestingModule.getLayer() == ModuleLayer.boot();
+    }
+
+    /**
+     * Walks the stack to determine which class should be checked for entitlements.
+     *
+     * @param callerClass when non-null will be returned;
+     *                    this is a fast-path check that can avoid the stack walk
+     *                    in cases where the caller class is available.
+     * @return the requesting class, or {@code null} if the entire call stack
+     * comes from the entitlement library itself.
+     */
+    Class<?> requestingClass(Class<?> callerClass) {
+        if (callerClass != null) {
+            // fast path
+            return callerClass;
+        }
+        Optional<Class<?>> result = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+            .walk(frames -> findRequestingClass(frames.map(StackFrame::getDeclaringClass)));
+        return result.orElse(null);
+    }
+
+    /**
+     * Given a stream of classes corresponding to the frames from a {@link StackWalker},
+     * returns the module whose entitlements should be checked.
+     *
+     * @throws NullPointerException if the requesting module is {@code null}
+     */
+    Optional<Class<?>> findRequestingClass(Stream<Class<?>> classes) {
+        return classes.filter(c -> c.getModule() != entitlementsModule)  // Ignore the entitlements library
+            .skip(1)                                           // Skip the sensitive caller method
+            .findFirst();
+    }
+
+    /**
+     * @return true if permission is granted regardless of the entitlement
+     */
+    private static boolean isTriviallyAllowed(Class<?> requestingClass) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
+        }
+        if (requestingClass == null) {
+            logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
-        logger.trace("Not trivially allowed");
+        if (systemModules.contains(requestingClass.getModule())) {
+            logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            return true;
+        }
+        logger.trace("Entitlement not trivially allowed");
         return false;
     }
 
     @Override
     public String toString() {
-        return "PolicyManager{" + "serverPolicy=" + serverPolicy + ", pluginPolicies=" + pluginPolicies + '}';
+        return "PolicyManager{" + "serverEntitlements=" + serverEntitlements + ", pluginsEntitlements=" + pluginsEntitlements + '}';
     }
 }

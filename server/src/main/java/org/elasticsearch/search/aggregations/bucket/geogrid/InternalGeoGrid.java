@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -106,7 +107,13 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                 final int size = Math.toIntExact(
                     context.isFinalReduce() == false ? bucketsReducer.size() : Math.min(requiredSize, bucketsReducer.size())
                 );
-                try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, context.bigArrays())) {
+                try (
+                    BucketPriorityQueue<InternalGeoGridBucket, InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(
+                        size,
+                        context.bigArrays(),
+                        Function.identity()
+                    )
+                ) {
                     bucketsReducer.forEach(entry -> {
                         InternalGeoGridBucket bucket = createBucket(entry.key, entry.value.getDocCount(), entry.value.getAggregations());
                         ordered.insertWithOverflow(bucket);

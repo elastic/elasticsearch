@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -111,6 +112,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -207,7 +209,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
         ClusterState clusterState,
-        Set<String> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         String[] indices,
         IndicesOptions indicesOptions
     ) {
@@ -215,6 +217,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         var blocks = clusterState.blocks();
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
         boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
+        // Get a distinct set of index abstraction names present from the resolved expressions to help with the reverse resolution from
+        // concrete index to the expression that produced it.
+        Set<String> indicesAndAliasesResources = indicesAndAliases.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         for (String index : indices) {
             if (hasBlocks) {
                 blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
@@ -231,8 +236,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String[] finalIndices = Strings.EMPTY_ARRAY;
             if (aliases == null
                 || aliases.length == 0
-                || indicesAndAliases.contains(index)
-                || hasDataStreamRef(clusterState, indicesAndAliases, index)) {
+                || indicesAndAliasesResources.contains(index)
+                || hasDataStreamRef(clusterState, indicesAndAliasesResources, index)) {
                 finalIndices = new String[] { index };
             }
             if (aliases != null) {
@@ -251,7 +256,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return indicesAndAliases.contains(ret.getParentDataStream().getName());
     }
 
-    Map<String, AliasFilter> buildIndexAliasFilters(ClusterState clusterState, Set<String> indicesAndAliases, Index[] concreteIndices) {
+    Map<String, AliasFilter> buildIndexAliasFilters(
+        ClusterState clusterState,
+        Set<ResolvedExpression> indicesAndAliases,
+        Index[] concreteIndices
+    ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
@@ -380,10 +389,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (original.pointInTimeBuilder() != null) {
                         tl.setFeature(CCSUsageTelemetry.PIT_FEATURE);
                     }
-                    String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-                    if (client != null) {
-                        tl.setClient(client);
-                    }
+                    tl.setClient(task);
                     // Check if any of the index patterns are wildcard patterns
                     var localIndices = resolvedIndices.getLocalIndices();
                     if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
@@ -503,6 +509,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         });
+
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {
             // disabling shard reordering for request
@@ -1240,7 +1247,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
+            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+                clusterState,
+                searchRequest.indices()
+            );
             aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
@@ -1839,7 +1849,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ClusterState clusterState,
         SearchRequest searchRequest,
         String clusterAlias,
-        Set<String> indicesAndAliases,
+        Set<ResolvedExpression> indicesAndAliases,
         String[] concreteIndices
     ) {
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
@@ -1875,7 +1885,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         void setFeature(String feature);
 
-        void setClient(String client);
+        void setClient(Task task);
     }
 
     private class SearchResponseActionListener extends DelegatingActionListener<SearchResponse, SearchResponse>
@@ -1909,8 +1919,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         @Override
-        public void setClient(String client) {
-            usageBuilder.setClient(client);
+        public void setClient(Task task) {
+            usageBuilder.setClientFromTask(task);
         }
 
         @Override

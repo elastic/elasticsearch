@@ -7,6 +7,12 @@
 <titleabbrev>Start {dfeeds}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Starts one or more {dfeeds}.
 
 [[ml-start-datafeed-request]]

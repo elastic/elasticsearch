@@ -115,7 +115,7 @@ setup:
   - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
 
 ---
-"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=0 should SUCCEED":
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=0 should FAIL":
 
   - requires:
       test_runner_features: [capabilities]
@@ -136,7 +136,7 @@ setup:
   - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer, or -1" }
 
 ---
-"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=1 should FAIL":
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=1 should SUCCEED":
 
   - requires:
       cluster_features: ["gte_v7.12.0"]

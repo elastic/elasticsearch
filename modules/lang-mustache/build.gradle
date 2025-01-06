@@ -12,8 +12,8 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Mustache scripting integration for Elasticsearch'
-  classname 'org.elasticsearch.script.mustache.MustachePlugin'
+  description = 'Mustache scripting integration for Elasticsearch'
+  classname ='org.elasticsearch.script.mustache.MustachePlugin'
 }
 
 dependencies {

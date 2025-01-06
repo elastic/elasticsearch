@@ -69,13 +69,56 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.empty;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
+    // TODO should we remove this now that this is integrated into ESQL proper?
     /**
      * Quick and dirty test for looking up data from a lookup index.
      */
     public void testLookupIndex() throws IOException {
-        // TODO this should *fail* if the target index isn't a lookup type index - it doesn't now.
-        int docCount = between(10, 1000);
-        List<String> expected = new ArrayList<>(docCount);
+        runLookup(new UsingSingleLookupTable(new String[] { "aa", "bb", "cc", "dd" }));
+    }
+
+    /**
+     * Tests when multiple results match.
+     */
+    @AwaitsFix(bugUrl = "fixing real soon now")
+    public void testLookupIndexMultiResults() throws IOException {
+        runLookup(new UsingSingleLookupTable(new Object[] { "aa", new String[] { "bb", "ff" }, "cc", "dd" }));
+    }
+
+    interface PopulateIndices {
+        void populate(int docCount, List<String> expected) throws IOException;
+    }
+
+    class UsingSingleLookupTable implements PopulateIndices {
+        private final Object[] lookupData;
+
+        UsingSingleLookupTable(Object[] lookupData) {
+            this.lookupData = lookupData;
+        }
+
+        @Override
+        public void populate(int docCount, List<String> expected) throws IOException {
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                docs.add(client().prepareIndex("source").setSource(Map.of("data", lookupData[i % lookupData.length])));
+                Object d = lookupData[i % lookupData.length];
+                if (d instanceof String s) {
+                    expected.add(s + ":" + (i % lookupData.length));
+                } else if (d instanceof String[] ss) {
+                    for (String s : ss) {
+                        expected.add(s + ":" + (i % lookupData.length));
+                    }
+                }
+            }
+            for (int i = 0; i < lookupData.length; i++) {
+                docs.add(client().prepareIndex("lookup").setSource(Map.of("data", lookupData[i], "l", i)));
+            }
+            Collections.sort(expected);
+            indexRandom(true, true, docs);
+        }
+    }
+
+    private void runLookup(PopulateIndices populateIndices) throws IOException {
         client().admin()
             .indices()
             .prepareCreate("source")
@@ -95,17 +138,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             .get();
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
-        String[] data = new String[] { "aa", "bb", "cc", "dd" };
-        List<IndexRequestBuilder> docs = new ArrayList<>();
-        for (int i = 0; i < docCount; i++) {
-            docs.add(client().prepareIndex("source").setSource(Map.of("data", data[i % data.length])));
-            expected.add(data[i % data.length] + ":" + (i % data.length));
-        }
-        for (int i = 0; i < data.length; i++) {
-            docs.add(client().prepareIndex("lookup").setSource(Map.of("data", data[i], "l", i)));
-        }
-        Collections.sort(expected);
-        indexRandom(true, true, docs);
+        int docCount = between(10, 1000);
+        List<String> expected = new ArrayList<>(docCount);
+        populateIndices.populate(docCount, expected);
 
         /*
          * Find the data node hosting the only shard of the source index.

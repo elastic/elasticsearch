@@ -538,6 +538,6 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
+        return super.getTotalFieldsCount() - 1 + runtimeFields.size();
     }
 }

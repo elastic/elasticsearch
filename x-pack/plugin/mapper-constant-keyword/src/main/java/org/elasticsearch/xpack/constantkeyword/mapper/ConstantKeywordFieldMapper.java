@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -339,6 +341,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     + "]"
             );
         }
+
+        if (context.mappingLookup().isSourceSynthetic()) {
+            // Remember which documents had value in source so that it can be correctly
+            // reconstructed in synthetic source
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), 1));
+        }
     }
 
     @Override
@@ -348,20 +356,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        String value = fieldType().value();
+        String const_value = fieldType().value();
 
-        if (value == null) {
+        if (const_value == null) {
             return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        /*
-        If there was no value in the document, synthetic source should not have the value too.
-        This is consistent with stored source behavior and is important for scenarios
-        like reindexing into an index that has a different value of this value in the mapping.
+        var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
+            @Override
+            protected void writeValue(XContentBuilder b, long ignored) throws IOException {
+                b.value(const_value);
+            }
+        };
 
-        In order to do that we use fallback logic which implements exactly such logic (_source only contains value
-        if it was in the original document).
-         */
-        return new SyntheticSourceSupport.Fallback();
+        return new SyntheticSourceSupport.Native(loader);
     }
 }

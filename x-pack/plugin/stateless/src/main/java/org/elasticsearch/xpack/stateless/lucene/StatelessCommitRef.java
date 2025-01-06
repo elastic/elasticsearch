@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+
 public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     private final ShardId shardId;
@@ -81,6 +83,10 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     public long getTranslogRecoveryStartFile() {
         return translogRecoveryStartFile;
+    }
+
+    public boolean isHollow() {
+        return getTranslogRecoveryStartFile() == HOLLOW_TRANSLOG_RECOVERY_START_FILE;
     }
 
     @Override

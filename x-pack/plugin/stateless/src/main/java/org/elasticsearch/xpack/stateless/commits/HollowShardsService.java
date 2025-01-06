@@ -99,6 +99,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     public boolean isHollowableIndexShard(IndexShard indexShard) {
+        // TODO: for ES-10258 we may need a variation of this function that does not check the primary permits (which may be held already)
         if (featureEnabled && indexShard.isSystem() == false && indexShard.getActiveOperationsCount() == 0) {
             final var engine = indexShard.getEngineOrNull();
             if (engine instanceof IndexEngine indexEngine) {

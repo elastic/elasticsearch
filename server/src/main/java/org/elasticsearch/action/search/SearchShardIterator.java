@@ -10,7 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
+ * Extension of {@link ShardIterator} used in the search api, which also holds the {@link OriginalIndices}
  * of the search request (useful especially with cross-cluster search, as each cluster has its own set of original indices) as well as
  * the cluster alias.
  * @see OriginalIndices
@@ -42,7 +42,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final PlainIterator<String> targetNodesIterator;
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link ShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
      *
      * @param clusterAlias    the alias of the cluster where the shard is located
@@ -55,7 +55,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     }
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link ShardIterator} instance that iterates over a subset of the given shards
      *
      * @param clusterAlias           the alias of the cluster where the shard is located
      * @param shardId                shard id of the group

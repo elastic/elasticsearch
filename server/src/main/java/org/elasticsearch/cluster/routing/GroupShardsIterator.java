@@ -26,7 +26,7 @@ public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Cou
 
     /**
      * Constructs a new sorted GroupShardsIterator from the given list. Items are sorted based on their natural ordering.
-     * @see PlainShardIterator#compareTo(PlainShardIterator)
+     * @see ShardIterator#compareTo(ShardIterator)
      */
     public static <ShardIt extends Comparable<ShardIt> & Countable> GroupShardsIterator<ShardIt> sortAndCreate(List<ShardIt> iterators) {
         CollectionUtil.timSort(iterators);

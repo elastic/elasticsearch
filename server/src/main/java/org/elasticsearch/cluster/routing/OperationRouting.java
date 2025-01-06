@@ -58,7 +58,7 @@ public class OperationRouting {
      * Shards to use for a {@code GET} operation.
      * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
      */
-    public PlainShardIterator getShards(
+    public ShardIterator getShards(
         ClusterState clusterState,
         String index,
         String id,
@@ -70,7 +70,7 @@ public class OperationRouting {
         return preferenceActiveShardIterator(shards, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
     }
 
-    public PlainShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
+    public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
         return preferenceActiveShardIterator(
             indexShard,
@@ -82,11 +82,11 @@ public class OperationRouting {
         );
     }
 
-    public PlainShardIterator useOnlyPromotableShardsForStateless(PlainShardIterator shards) {
+    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
         // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
         // implemented for search shards.
         if (isStateless && shards != null) {
-            return new PlainShardIterator(
+            return new ShardIterator(
                 shards.shardId(),
                 shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
             );
@@ -95,7 +95,7 @@ public class OperationRouting {
         }
     }
 
-    public GroupShardsIterator<PlainShardIterator> searchShards(
+    public GroupShardsIterator<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -104,7 +104,7 @@ public class OperationRouting {
         return searchShards(clusterState, concreteIndices, routing, preference, null, null);
     }
 
-    public GroupShardsIterator<PlainShardIterator> searchShards(
+    public GroupShardsIterator<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -113,9 +113,9 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
-        final Set<PlainShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
+        final Set<ShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            PlainShardIterator iterator = preferenceActiveShardIterator(
+            ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
                 clusterState.nodes().getLocalNodeId(),
                 clusterState.nodes(),
@@ -124,13 +124,13 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(PlainShardIterator.allSearchableShards(iterator));
+                set.add(ShardIterator.allSearchableShards(iterator));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
     }
 
-    public static PlainShardIterator getShards(ClusterState clusterState, ShardId shardId) {
+    public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
         final IndexShardRoutingTable shard = clusterState.routingTable().shardRoutingTable(shardId);
         return shard.activeInitializingShardsRandomIt();
     }
@@ -181,7 +181,7 @@ public class OperationRouting {
         }
     }
 
-    private PlainShardIterator preferenceActiveShardIterator(
+    private ShardIterator preferenceActiveShardIterator(
         IndexShardRoutingTable indexShard,
         String localNodeId,
         DiscoveryNodes nodes,
@@ -248,7 +248,7 @@ public class OperationRouting {
         return indexShard.activeInitializingShardsIt(routingHash);
     }
 
-    private PlainShardIterator shardRoutings(
+    private ShardIterator shardRoutings(
         IndexShardRoutingTable indexShard,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts

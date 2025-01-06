@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
@@ -60,11 +60,11 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     }
 
-    protected PlainShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         final var operationRouting = clusterService.operationRouting();
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
-            GroupShardsIterator<PlainShardIterator> groupShardsIter = operationRouting.searchShards(
+            GroupShardsIterator<ShardIterator> groupShardsIter = operationRouting.searchShards(
                 state,
                 new String[] { request.concreteIndex() },
                 null,

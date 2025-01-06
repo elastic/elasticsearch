@@ -188,19 +188,19 @@ public class IndexShardRoutingTable {
         return this.unpromotableShards;
     }
 
-    public PlainShardIterator shardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards)));
+    public ShardIterator shardsRandomIt() {
+        return new ShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards)));
     }
 
-    public PlainShardIterator shardsIt(int seed) {
-        return new PlainShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards), seed));
+    public ShardIterator shardsIt(int seed) {
+        return new ShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards), seed));
     }
 
     /**
      * Returns an iterator over active and initializing shards. Making sure though that
      * its random within the active shards, and initializing shards are the last to iterate through.
      */
-    public PlainShardIterator activeInitializingShardsRandomIt() {
+    public ShardIterator activeInitializingShardsRandomIt() {
         return activeInitializingShardsIt(shuffler.nextSeed());
     }
 
@@ -208,14 +208,14 @@ public class IndexShardRoutingTable {
      * Returns an iterator over active and initializing shards. Making sure though that
      * its random within the active shards, and initializing shards are the last to iterate through.
      */
-    public PlainShardIterator activeInitializingShardsIt(int seed) {
+    public ShardIterator activeInitializingShardsIt(int seed) {
         if (allInitializingShards.isEmpty()) {
-            return new PlainShardIterator(shardId, shuffler.shuffle(activeShards, seed));
+            return new ShardIterator(shardId, shuffler.shuffle(activeShards, seed));
         }
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         ordered.addAll(shuffler.shuffle(activeShards, seed));
         ordered.addAll(allInitializingShards);
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
     /**
@@ -223,16 +223,13 @@ public class IndexShardRoutingTable {
      * selection formula. Making sure though that its random within the active shards of the same
      * (or missing) rank, and initializing shards are the last to iterate through.
      */
-    public PlainShardIterator activeInitializingShardsRankedIt(
+    public ShardIterator activeInitializingShardsRankedIt(
         @Nullable ResponseCollectorService collector,
         @Nullable Map<String, Long> nodeSearchCounts
     ) {
         final int seed = shuffler.nextSeed();
         if (allInitializingShards.isEmpty()) {
-            return new PlainShardIterator(
-                shardId,
-                rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts)
-            );
+            return new ShardIterator(shardId, rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));
         }
 
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
@@ -240,7 +237,7 @@ public class IndexShardRoutingTable {
         ordered.addAll(rankedActiveShards);
         List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
     private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
@@ -396,14 +393,14 @@ public class IndexShardRoutingTable {
     /**
      * Returns an iterator only on the primary shard.
      */
-    public PlainShardIterator primaryShardIt() {
+    public ShardIterator primaryShardIt() {
         if (primary != null) {
-            return new PlainShardIterator(shardId, Collections.singletonList(primary));
+            return new ShardIterator(shardId, Collections.singletonList(primary));
         }
-        return new PlainShardIterator(shardId, Collections.emptyList());
+        return new ShardIterator(shardId, Collections.emptyList());
     }
 
-    public PlainShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
+    public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         int seed = shuffler.nextSeed();
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
@@ -416,10 +413,10 @@ public class IndexShardRoutingTable {
                 ordered.add(shardRouting);
             }
         }
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
-    public PlainShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttributes, DiscoveryNodes discoveryNodes) {
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttributes, DiscoveryNodes discoveryNodes) {
         return onlyNodeSelectorActiveInitializingShardsIt(new String[] { nodeAttributes }, discoveryNodes);
     }
 
@@ -427,7 +424,7 @@ public class IndexShardRoutingTable {
      * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
      * Supports node specifications in cluster API
      */
-    public PlainShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttributes, DiscoveryNodes discoveryNodes) {
+    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttributes, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));
         int seed = shuffler.nextSeed();
@@ -451,10 +448,10 @@ public class IndexShardRoutingTable {
             );
             throw new IllegalArgumentException(message);
         }
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
-    public PlainShardIterator preferNodeActiveInitializingShardsIt(Set<String> nodeIds) {
+    public ShardIterator preferNodeActiveInitializingShardsIt(Set<String> nodeIds) {
         ArrayList<ShardRouting> preferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         ArrayList<ShardRouting> notPreferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         // fill it in a randomized fashion
@@ -469,7 +466,7 @@ public class IndexShardRoutingTable {
         if (allInitializingShards.isEmpty() == false) {
             preferred.addAll(allInitializingShards);
         }
-        return new PlainShardIterator(shardId, preferred);
+        return new ShardIterator(shardId, preferred);
     }
 
     @Override

@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -105,13 +105,13 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected PlainShardIterator shards(ClusterState state, InternalRequest request) {
-        PlainShardIterator iterator = clusterService.operationRouting()
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        ShardIterator iterator = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
         if (iterator == null) {
             return null;
         }
-        return PlainShardIterator.allSearchableShards(iterator);
+        return ShardIterator.allSearchableShards(iterator);
     }
 
     @Override

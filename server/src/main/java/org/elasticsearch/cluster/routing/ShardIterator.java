@@ -15,17 +15,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The {@link PlainShardIterator} iterates shard copies for a given {@link ShardId shard id}
+ * The {@link ShardIterator} iterates shard copies for a given {@link ShardId shard id}
  */
-public class PlainShardIterator extends PlainShardsIterator implements Comparable<PlainShardIterator> {
+public class ShardIterator extends PlainShardsIterator implements Comparable<ShardIterator> {
 
     private final ShardId shardId;
 
-    public static PlainShardIterator allSearchableShards(PlainShardIterator shardIterator) {
-        return new PlainShardIterator(shardIterator.shardId(), shardsThatCanHandleSearches(shardIterator));
+    public static ShardIterator allSearchableShards(ShardIterator shardIterator) {
+        return new ShardIterator(shardIterator.shardId(), shardsThatCanHandleSearches(shardIterator));
     }
 
-    private static List<ShardRouting> shardsThatCanHandleSearches(PlainShardIterator iterator) {
+    private static List<ShardRouting> shardsThatCanHandleSearches(ShardIterator iterator) {
         final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
         for (ShardRouting shardRouting : iterator) {
             if (shardRouting.isSearchable()) {
@@ -36,13 +36,13 @@ public class PlainShardIterator extends PlainShardsIterator implements Comparabl
     }
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link ShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
      *
      * @param shardId shard id of the group
      * @param shards  shards to iterate
      */
-    public PlainShardIterator(ShardId shardId, List<ShardRouting> shards) {
+    public ShardIterator(ShardId shardId, List<ShardRouting> shards) {
         super(shards);
         this.shardId = shardId;
     }
@@ -55,7 +55,7 @@ public class PlainShardIterator extends PlainShardsIterator implements Comparabl
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PlainShardIterator that = (PlainShardIterator) o;
+        ShardIterator that = (ShardIterator) o;
         return shardId.equals(that.shardId());
     }
 
@@ -65,7 +65,7 @@ public class PlainShardIterator extends PlainShardsIterator implements Comparabl
     }
 
     @Override
-    public int compareTo(PlainShardIterator o) {
+    public int compareTo(ShardIterator o) {
         return shardId.compareTo(o.shardId());
     }
 }

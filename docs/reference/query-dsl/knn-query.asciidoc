@@ -273,14 +273,8 @@ A sample query can look like below:
 
 [[knn-query-aggregations]]
 ==== Knn query with aggregations
-`knn` query calculates aggregations on top `k` documents from each shard.
+`knn` query calculates aggregations on top `k` documents from each shard in each queried index.
 Thus, the final results from aggregations contain
 `k * number_of_shards` documents. This is different from
 the <<knn-search,top level knn section>> where aggregations are
 calculated on the global top `k` nearest documents.
-
-[[knn-query-multiple-indices]]
-==== Knn query over multiple indices
-`knn` query calculates the top `k` documents from each index searched.
-Therefore, if `k` is smaller than the query `size`, `k` matching documents
-from each index will be returned.

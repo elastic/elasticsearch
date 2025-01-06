@@ -61,23 +61,24 @@ For a hands-on introduction to full-text search, refer to the <<full-text-filter
 
 Here are some resources to help you learn more about full-text search with {es}.
 
-.Core concepts
+*Core concepts*
 
 Learn about the core components of full-text search:
-
 
 * <<text,Text fields>>
 * <<analysis,Text analysis>>
 ** <<analysis-tokenizers,Tokenizers>>
 ** <<analysis-analyzers,Analyzers>>
 
-.Using {es} query languages
+*{es} query languages*
 
 Learn how to build full-text search queries using {es}'s query languages:
 
 * <<full-text-queries,Full-text queries using Query DSL>> 
 * <<esql-search-functions,Full-text search functions in {esql}>>
 
-.Advanced topics
-* For a technical deep dive into {es}'s BM25 implementation read this blog post: https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables[The BM25 Algorithm and its Variables]
-* To learn how to optimize the relevance of your search results, refer to <<Search relevance optimizations>>"
+*Advanced topics*
+
+For a technical deep dive into {es}'s BM25 implementation read this blog post: https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables[The BM25 Algorithm and its Variables].
+
+To learn how to optimize the relevance of your search results, refer to <<recipes,Search relevance optimizations>>.

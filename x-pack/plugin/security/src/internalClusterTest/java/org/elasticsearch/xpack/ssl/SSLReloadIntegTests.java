@@ -126,6 +126,9 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             fail("handshake should not have been successful!");
         } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
+        } catch (IOException e) {
+            // BouncyCastle throws a different exception
+            assertThat(e.getClass().getName(), is("org.bouncycastle.tls.TlsFatalAlertReceived"));
         }
         // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now
         try {

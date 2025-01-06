@@ -1352,7 +1352,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         IndexVersions.ZERO,
         IndexVersion::fromId,
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.NotCopyableOnResize
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and

@@ -234,7 +234,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /** Filter a list by a {@link CharacterRunAutomaton} that defines the fields to retain. */
     @SuppressWarnings("unchecked")
     private static List<Object> filter(Iterable<?> iterable, CharacterRunAutomaton includeAutomaton, int initialState) {
-        assert initialState != 0 : "encountered initial state 0 on intermediate field check";
         List<Object> filtered = new ArrayList<>();
         for (Object value : iterable) {
             if (value instanceof Map) {

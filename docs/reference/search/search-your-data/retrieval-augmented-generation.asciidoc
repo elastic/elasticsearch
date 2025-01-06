@@ -1,13 +1,18 @@
 [rag-elasticsearch]
 == Retrieval augmented generation
 
-Retrieval augmented generation (RAG) is a technique that retrieves additional context  from an external datastore before prompting an LLM.
-This grounds the LLM with in-context learning.
+.🍿 Prefer a video introduction?
+***********************
+Check out https://www.youtube.com/watch?v=OS4ZefUPAks[this short video] from the Elastic Snackable Series.
+***********************
+
+Retrieval augmented generation (RAG) is a technique where additional context is retrieved from an external datastore before prompting a language model to generate a response using the retrieved context.
+This grounds the model with in-context learning.
 Compared to finetuning or continuous pretraining, RAG can be implemented faster and cheaper, and it has several advantages.
 
 image::images/search/rag-venn-diagram.svg[RAG sits at the intersection of information retrieval and generative AI, align=center, width=500]
 
-RAG sits at the intersection of information retrieval and generative AI.
+RAG sits at the intersection of https://www.elastic.co/what-is/information-retrieval[information retrieval] and generative AI.
 {es} is an excellent tool for implementing RAG, because it offers various retrieval capabilities, such as full-text search, vector search, and hybrid search.
 
 [discrete]
@@ -16,21 +21,57 @@ RAG sits at the intersection of information retrieval and generative AI.
 
 RAG has several advantages:
 
-* It enables grounding the LLM with additional, up-to-date and/or private data.
-* It is much cheaper and easier to maintain compared to finetuning or continuously pretraining a model.
-* It ensures data privacy and security because you control what data the model sees. Different indices have different access controls.
-* You can rely on the language model to parse and format the retrieved context in a style or format of your choice.
-* You can start with a simple BM25-based full-text search system and gradually improve it by adding more advanced semantic and hybrid search capabilities.
+* *Improved context:* Enables grounding the LLM with additional, up-to-date, and/or private data.
+* *Reduced hallucination:* Helps minimize factual errors by enabling models to cite authoritative sources.
+* *Cost efficiency:* Requires less maintenance compared to finetuning or continuously pretraining models.
+* *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control, and field/document-level security.
+* *Simplified response parsing:* Eliminates the need for custom parsing logic by letting the language model handle parsing {es} responses and formatting the retrieved context.
+* *Flexible implementation:* Works with basic 
+// TODO: uncomment when page is live <<full-text-search,full-text search>> 
+full-text search and can be gradually updated to use advanced <<semantic-search,semantic search>> and hybrid search capabilities.
 
 [discrete]
-[[rag-elasticsearch-example]]
-=== Example
+[[rag-elasticsearch-components]]
+=== RAG system overview
 
-Here's a simple example of a RAG system using {es}, where a user has a question about the company travel policy:
+The following diagram illustrates a simple RAG system using {es}.
 
-1. User makes natural language queries about company travel policy
-2. System retrieves relevant documents from {es}
-3. LLM generates response using retrieved context
+image::images/search/rag-schema.svg[Components of a simple RAG system using Elasticsearch, align=center, width=800]
 
-The result is accurate, up-to-date answers based on company documents.
+The system consists of the following components:
+
+. User submits a query
+. Elasticsearch retrieves relevant documents, using full-text search, vector search, or hybrid search
+. Language model processes the context and generates a response, using custom instructions, such as "Cite a source" or "Provide a concise summary of the `content` field in markdown format"
+. Model returns final response to the user
+
+[TIP]
+====
+A more advanced setup might include query rewriting between steps 1 and 2. This intermediate step could use one or more additional language models with different instructions to reformulate queries for more specific and detailed responses.
+====
+
+[discrete]
+[[rag-elasticsearch-getting-started]]
+=== Getting started
+
+Start building RAG applications quickly with Playground, which seamlessly integrates {es} with language model providers.
+The Playground UI enables you to build, test, and deploy RAG interfaces on top of your {es} indices.
+
+Playground automatically selects the best retrieval methods for your data, while providing full control over the final {es} queries and language model instructions.
+You can also download the underlying Python code to integrate with your existing applications.
+
+Learn more in the {kibana-ref}/playground.html[documentation] and 
+try the https://www.elastic.co/demo-gallery/ai-playground[interactive lab] for hands-on experience.
+
+[discrete]
+[[rag-elasticsearch-learn-more]]
+=== Learn more
+
+Learn more about building RAG systems using {es} in these blog posts:
+
+* https://www.elastic.co/blog/beyond-rag-basics-semantic-search-with-elasticsearch[Beyond RAG Basics: Advanced strategies for AI applications]
+* https://www.elastic.co/search-labs/blog/building-a-rag-system-with-gemma-hugging-face-elasticsearch[Building a RAG system with Gemma, Hugging Face, and Elasticsearch]
+* https://www.elastic.co/search-labs/blog/rag-agent-tool-elasticsearch-langchain[Building an agentic RAG tool with Elasticsearch and Langchain]
+
+
 

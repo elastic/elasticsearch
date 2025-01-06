@@ -10,15 +10,18 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -36,6 +39,7 @@ import java.util.Set;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -76,7 +80,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
-    public void testDefaultMetaFields() {
+    public void testMetadataFields() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -93,10 +97,43 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
         for (var field : MetadataFieldsAllowlist.FIELDS) {
             assertThat(FieldSubsetReader.filter(Map.of(field, "value"), result.getFilter()), hasKey(field));
+            assertThat(FieldSubsetReader.filter(Map.of(field, Map.of(field, "value")), result.getFilter()), hasKey(field));
+
+            {
+                var actual = FieldSubsetReader.filter(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.format("""
+                    {
+                        "%s": "value",
+                        "outer" : {
+                            "%s": "value"
+                        },
+                        "_outer": 4
+                    }
+                    """, field, field), false), result.getFilter());
+                var expected = Map.of(field, "value");
+                assertThat(actual, equalTo(expected));
+            }
+
+            {
+                var actual = FieldSubsetReader.filter(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.format("""
+                    {
+                        "%s": {
+                           "inner": "value"
+                        },
+                        "outer" : {
+                            "%s": "value"
+                        },
+                        "_outer": 4
+                    }
+                    """, field, field), false), result.getFilter());
+                var expected = Map.of(field, Map.of("inner", "value"));
+                assertThat(actual, equalTo(expected));
+                assertThat(MetadataFieldsAllowlist.PREDICATE.test(field), is(true));
+            }
         }
 
-        for (String notAllowed : List.of("_uid", "_timestamp", "_ttl", "_some_random_meta_field", "some_random_regular_field")) {
+        for (var notAllowed : List.of("_uid", "_timestamp", "_ttl", "_some_random_meta_field", "some_random_regular_field")) {
             assertThat(FieldSubsetReader.filter(Map.of(notAllowed, "value"), result.getFilter()), is(anEmptyMap()));
+            assertThat(MetadataFieldsAllowlist.PREDICATE.test(notAllowed), is(false));
         }
     }
 

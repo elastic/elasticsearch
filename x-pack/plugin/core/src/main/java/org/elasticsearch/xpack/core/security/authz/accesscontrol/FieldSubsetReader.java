@@ -195,6 +195,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
 
+            // only do this for `initialState == 0` since metadata fields would always only be top-level fields
             if (initialState == 0 && MetadataFieldsAllowlist.PREDICATE.test(key)) {
                 // If the field is an allowlisted metadata field, we always include it.
                 filtered.put(key, entry.getValue());

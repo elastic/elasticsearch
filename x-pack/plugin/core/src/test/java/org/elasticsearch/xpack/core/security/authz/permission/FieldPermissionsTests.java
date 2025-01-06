@@ -253,53 +253,35 @@ public class FieldPermissionsTests extends ESTestCase {
     }
 
     public void testLegacyExcludeForUnderscoredFields() {
-        assertThat(
-            new CharacterRunAutomaton(
-                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "abc" }))
-                    .automaton()
-            ).run("abc"),
-            is(false)
-        );
+        FieldPermissions fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] {}));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(false));
 
-        assertThat(
-            new CharacterRunAutomaton(
-                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_abc" }))
-                    .automaton()
-            ).run("abc"),
-            is(true)
-        );
+        fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] { "_xyz" }));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
 
-        assertThat(
-            new CharacterRunAutomaton(
-                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
-                    .automaton()
-            ).run("_abc"),
-            is(false)
-        );
+        fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] { "_*yz" }));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
 
-        assertThat(
-            new CharacterRunAutomaton(
-                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] { "abc" }, new String[] { "_*bc" }))
-                    .automaton()
-            ).run("_id"),
-            is(false)
-        );
+        fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] {}, new String[] { "_*yz" }));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
 
-        assertThat(
-            new CharacterRunAutomaton(
-                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
-                    .automaton()
-            ).run("_id"),
-            is(false)
-        );
+        for (var allowlistedMetadataField : MetadataFieldsAllowlist.FIELDS) {
+            fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] {}, new String[] { "_*yz" }));
+            assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
+            assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
 
-        assertThat(
-            new CharacterRunAutomaton(
-                FieldPermissions.initializePermittedFieldsAutomaton(fieldPermissionDef(new String[] {}, new String[] { "_*bc" }))
-                    .automaton()
-            ).run("_abc"),
-            is(false)
-        );
+            fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { "*" }));
+            assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
+            assertThat(fieldPermissions.hasLegacyExceptFields(), is(false));
+
+            fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { allowlistedMetadataField }));
+            assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
+            assertThat(fieldPermissions.hasLegacyExceptFields(), is(false));
+        }
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

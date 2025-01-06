@@ -330,7 +330,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return ramBytesUsed;
     }
 
-    public boolean hasLegacyExceptionFields() {
+    public boolean hasLegacyExceptFields() {
         return hasLegacyExceptFields;
     }
 }

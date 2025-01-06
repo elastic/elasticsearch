@@ -85,10 +85,11 @@ public final class FieldPermissionsCache {
 
     public void validateFieldPermissionsWithCache(String roleName, FieldPermissionsDefinition fieldPermissionsDefinition) {
         try {
-            // we're "abusing" the cache here a bit: to avoid excessive WARN logging, only log if the entry is not cached
+            // we're "abusing" the cache here a bit: to avoid excessive WARN logging, only log if the entry is not cached, i.e., on first
+            // encounter
             cache.computeIfAbsent(fieldPermissionsDefinition, key -> {
                 var fieldPermissions = new FieldPermissions(key);
-                if (fieldPermissions.hasLegacyExceptionFields()) {
+                if (fieldPermissions.hasLegacyExceptFields()) {
                     logger.warn(
                         "Role [{}] has exceptions for field permissions that cover fields prefixed with [_] "
                             + "but are not a subset of the granted fields. "
@@ -133,7 +134,7 @@ public final class FieldPermissionsCache {
                     );
                 }
                 fieldGrantExcludeGroups.addAll(fieldPermissionsDefinitions.getFirst().getFieldGrantExcludeGroups());
-                hasLegacyExceptFields = hasLegacyExceptFields || fieldPermissions.hasLegacyExceptionFields();
+                hasLegacyExceptFields = hasLegacyExceptFields || fieldPermissions.hasLegacyExceptFields();
             }
             final FieldPermissionsDefinition combined = new FieldPermissionsDefinition(fieldGrantExcludeGroups);
             final boolean hasLegacyExceptFieldsFinal = hasLegacyExceptFields;

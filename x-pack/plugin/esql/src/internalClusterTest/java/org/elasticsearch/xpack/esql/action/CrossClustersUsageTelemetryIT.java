@@ -29,7 +29,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTelemetryIT {
@@ -41,6 +43,7 @@ public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTel
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
         plugins.add(SimplePauseFieldPlugin.class);
+        plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
         return plugins;
     }
 
@@ -271,6 +274,9 @@ public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTel
                 assertPerClusterCount(perCluster.get(clusterAlias), 1L);
             }
             assertPerClusterCount(perCluster.get(LOCAL_CLUSTER), 1L);
+        } finally {
+            // Clean up
+            assertAcked(deleteAsyncId(client(), asyncExecutionId.get()));
         }
     }
 

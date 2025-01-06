@@ -20,6 +20,8 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import static fixture.aws.AwsCredentialsUtils.fixedAccessKeyAndToken;
+
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -36,7 +38,7 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
         true,
         BUCKET,
         BASE_PATH,
-        S3HttpFixture.fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN)
+        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN)
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

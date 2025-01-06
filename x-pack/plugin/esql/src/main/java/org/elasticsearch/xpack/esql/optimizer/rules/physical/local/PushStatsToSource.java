@@ -59,7 +59,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             if (tuple.v2().size() == aggregateExec.aggregates().size()) {
                 plan = new EsStatsQueryExec(
                     aggregateExec.source(),
-                    null, // TODO 112998
+                    queryExec.indexName(),
                     queryExec.query(),
                     queryExec.limit(),
                     tuple.v1(),

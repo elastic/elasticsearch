@@ -41,7 +41,7 @@ public class EsSourceExec extends LeafExec {
     private final List<Attribute> attributes;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.index().name(), relation.indexMode(), relation.index().indexNameWithModes(), null, relation.output());
+        this(relation.source(), relation.indexName(), relation.indexMode(), relation.indexNameWithModes(), null, relation.output());
     }
 
     public EsSourceExec(Source source, String indexName, IndexMode indexMode, Map<String, IndexMode> indexNameWithModes, QueryBuilder query, List<Attribute> attributes) {

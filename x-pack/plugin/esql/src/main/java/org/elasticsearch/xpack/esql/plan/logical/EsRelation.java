@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.TransportVersions.ESQ_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsRelation extends LeafPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -35,30 +38,41 @@ public class EsRelation extends LeafPlan {
         EsRelation::readFrom
     );
 
-    private final EsIndex index;
+    private final String indexName;
+    private final IndexMode indexMode;
+    private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
     private final boolean frozen;
-    private final IndexMode indexMode;
 
     public EsRelation(Source source, EsIndex index, IndexMode indexMode, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), indexMode, frozen);
+        this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()), frozen);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode) {
-        this(source, index, attributes, indexMode, false);
+    public EsRelation(Source source, String indexName, IndexMode indexMode, Map<String, IndexMode> indexNameWithModes, List<Attribute> attributes) {
+        this(source, indexName, indexMode, indexNameWithModes, attributes, false);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode, boolean frozen) {
+    public EsRelation(Source source, String indexName, IndexMode indexMode, Map<String, IndexMode> indexNameWithModes, List<Attribute> attributes, boolean frozen) {
         super(source);
-        this.index = index;
-        this.attrs = attributes;
+        this.indexName = indexName;
         this.indexMode = indexMode;
+        this.indexNameWithModes = indexNameWithModes;
+        this.attrs = attributes;
         this.frozen = frozen;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        EsIndex esIndex = new EsIndex(in);
+        String indexName;
+        Map<String, IndexMode> indexNameWithModes;
+        if (in.getTransportVersion().onOrAfter(ESQ_SKIP_ES_INDEX_SERIALIZATION)) {
+            indexName = in.readString();
+            indexNameWithModes = in.readMap(IndexMode::readFrom);
+        } else {
+            var index = new EsIndex(in);
+            indexName = index.name();
+            indexNameWithModes = index.indexNameWithModes();
+        }
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         if (supportingEsSourceOptions(in.getTransportVersion())) {
             // We don't do anything with these strings
@@ -68,13 +82,18 @@ public class EsRelation extends LeafPlan {
         }
         IndexMode indexMode = readIndexMode(in);
         boolean frozen = in.readBoolean();
-        return new EsRelation(source, esIndex, attributes, indexMode, frozen);
+        return new EsRelation(source, indexName, indexMode, indexNameWithModes, attributes, frozen);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        index().writeTo(out);
+        if (out.getTransportVersion().onOrAfter(ESQ_SKIP_ES_INDEX_SERIALIZATION)) {
+            out.writeString(indexName);
+            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        } else {
+            new EsIndex(indexName, Map.of(), indexNameWithModes).writeTo(out);
+        }
         out.writeNamedWriteableCollection(output());
         if (supportingEsSourceOptions(out.getTransportVersion())) {
             // write (null) string fillers expected by remote
@@ -97,7 +116,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, attrs, indexMode, frozen);
+        return NodeInfo.create(this, EsRelation::new, indexName, indexMode, indexNameWithModes, attrs, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -128,21 +147,29 @@ public class EsRelation extends LeafPlan {
         return list;
     }
 
-    public EsIndex index() {
-        return index;
-    }
-
-    public boolean frozen() {
-        return frozen;
+    public String indexName() {
+        return indexName;
     }
 
     public IndexMode indexMode() {
         return indexMode;
     }
 
+    public Map<String, IndexMode> indexNameWithModes() {
+        return indexNameWithModes;
+    }
+
+    public boolean frozen() {
+        return frozen;
+    }
+
     @Override
     public List<Attribute> output() {
         return attrs;
+    }
+
+    public Set<String> concreteIndices() {
+        return indexNameWithModes.keySet();
     }
 
     @Override
@@ -159,7 +186,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, indexMode, frozen, attrs);
+        return Objects.hash(indexName, indexMode, indexNameWithModes, frozen, attrs);
     }
 
     @Override
@@ -173,8 +200,9 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index)
-            && indexMode == other.indexMode()
+        return Objects.equals(indexName, other.indexName)
+            && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && frozen == other.frozen
             && Objects.equals(attrs, other.attrs);
     }
@@ -183,7 +211,7 @@ public class EsRelation extends LeafPlan {
     public String nodeString() {
         return nodeName()
             + "["
-            + index
+            + indexName
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
             + NodeUtils.limitedToString(attrs);

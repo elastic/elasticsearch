@@ -105,9 +105,7 @@ public class QueryBuilderResolver {
 
     public Set<String> indexNames(LogicalPlan plan) {
         Holder<Set<String>> indexNames = new Holder<>();
-
-        plan.forEachDown(EsRelation.class, esRelation -> { indexNames.set(esRelation.index().concreteIndices()); });
-
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.set(esRelation.concreteIndices()));
         return indexNames.get();
     }
 

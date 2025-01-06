@@ -109,7 +109,7 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(relation.index().concreteIndices()));
+        forEachFromRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
         return indices;
     }
 
@@ -121,7 +121,7 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.index().name()))));
+        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexName()))));
         return indices.toArray(String[]::new);
     }
 

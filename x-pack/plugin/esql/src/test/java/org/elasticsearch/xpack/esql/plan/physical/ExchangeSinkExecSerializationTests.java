@@ -166,7 +166,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
         List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
         List<Attribute> keepAttributes = keepAllFields ? allAttributes : List.of(allAttributes.get(0));
-        EsRelation relation = new EsRelation(randomSource(), index, keepAttributes, IndexMode.STANDARD);
+        EsRelation relation = new EsRelation(randomSource(), index.name(), IndexMode.STANDARD, index.indexNameWithModes(), keepAttributes);
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);

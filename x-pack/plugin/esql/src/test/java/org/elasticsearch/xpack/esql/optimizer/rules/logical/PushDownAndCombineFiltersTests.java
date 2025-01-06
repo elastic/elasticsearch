@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -253,9 +254,10 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
     private static EsRelation relation(List<Attribute> fieldAttributes) {
         return new EsRelation(
             EMPTY,
-            new EsIndex(randomAlphaOfLength(8), emptyMap()),
-            fieldAttributes,
+            randomIdentifier(),
             randomFrom(IndexMode.values()),
+            Map.of(),
+            fieldAttributes,
             randomBoolean()
         );
     }

@@ -5,6 +5,12 @@
 <titleabbrev>Create or update roles</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Adds and updates roles in the native realm.
 
 [[security-api-put-role-request]]

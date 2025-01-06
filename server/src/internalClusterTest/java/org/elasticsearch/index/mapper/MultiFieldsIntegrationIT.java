@@ -91,11 +91,11 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint(51, 19);
         prepareIndex("my-index").setId("1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(
+            1L,
             prepareSearch("my-index").setSize(0)
                 .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS))),
-            1L
+            prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.geohash()))
         );
-        assertHitCount(prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.geohash())), 1L);
     }
 
     @SuppressWarnings("unchecked")

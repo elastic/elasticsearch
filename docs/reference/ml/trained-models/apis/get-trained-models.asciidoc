@@ -6,6 +6,12 @@
 <titleabbrev>Get trained models</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Retrieves configuration information about {ml-docs}/ml-nlp-deploy-models.html[{infer} trained models].
 
 

@@ -668,6 +668,16 @@ node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
+tag::local-deprecated-9.0.0[]
+`local`::
+(Optional, Boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
+the master node.
++
+deprecated::[9.0.0, "The `?local` query parameter to this API has no effect, is now deprecated, and will be removed in a future version."]
+
+end::local-deprecated-9.0.0[]
+
 tag::mappings[]
 `mappings`::
 +

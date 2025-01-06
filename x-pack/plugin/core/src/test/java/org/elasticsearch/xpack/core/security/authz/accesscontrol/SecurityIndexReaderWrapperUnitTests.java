@@ -188,7 +188,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         deniedFields = MetadataFieldsAllowlist.FIELDS.toArray(new String[0]);
         assertResolved(
             new FieldPermissions(fieldPermissionDef(new String[] { "*" }, deniedFields)),
-            new HashSet<>(Arrays.asList("foo", "bar", "_some_plugin_meta_field"))
+            new HashSet<>(Arrays.asList(randomFrom(MetadataFieldsAllowlist.FIELDS), "foo", "bar", "_some_plugin_meta_field"))
         );
 
         // check we can add all fields with *

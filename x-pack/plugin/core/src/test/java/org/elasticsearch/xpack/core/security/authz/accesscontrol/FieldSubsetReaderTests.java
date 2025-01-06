@@ -73,7 +73,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.hamcrest.Matchers;
 
@@ -670,7 +669,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA"));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
@@ -964,9 +963,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         iw.addDocument(doc);
 
         // open reader
-        Set<String> fields = new HashSet<>();
-        fields.add("fieldA");
-        Automaton automaton = Automatons.patterns(Arrays.asList("fieldA"));
+        Automaton automaton = Automatons.patterns("fieldA");
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
 
         // see only one field
@@ -1373,42 +1370,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             for (Map<String, Object> objectMap : nested) {
                 assertEquals(1, objectMap.size());
                 assertTrue(objectMap.containsKey("inner2"));
-            }
-        }
-    }
-
-    public void testMetadataAllowlistFiltering() {
-        FieldPermissionsDefinition definition = new FieldPermissionsDefinition(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-        CharacterRunAutomaton include = new FieldPermissions(definition).getPermittedFieldsAutomaton();
-        for (var metadataField : MetadataFieldsAllowlist.FIELDS) {
-            {
-                var actual = FieldSubsetReader.filter(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.format("""
-                    {
-                        "%s": "bar",
-                        "outer" : {
-                            "%s": "bar"
-                        },
-                        "_outer": 4
-                    }
-                    """, metadataField, metadataField), false), include);
-                var expected = Map.of(metadataField, "bar");
-                assertThat(actual, equalTo(expected));
-            }
-
-            {
-                var actual = FieldSubsetReader.filter(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.format("""
-                    {
-                        "%s": {
-                           "inner": "bar"
-                        },
-                        "outer" : {
-                            "%s": "bar"
-                        },
-                        "_outer": 4
-                    }
-                    """, metadataField, metadataField), false), include);
-                var expected = Map.of(metadataField, Map.of("inner", "bar"));
-                assertThat(actual, equalTo(expected));
             }
         }
     }

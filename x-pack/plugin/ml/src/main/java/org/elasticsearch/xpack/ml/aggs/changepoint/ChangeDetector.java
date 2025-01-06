@@ -378,10 +378,12 @@ public class ChangeDetector {
         // before we run the tests.
         SampleData sampleData = sample(values, weights, discoveredChangePoints);
         final double[] sampleValues = sampleData.values();
-        final double[] sampleWeights = sampleData.weights();
 
         double pValue = 1;
         for (int cp : sampleData.changePoints()) {
+            if (cp == -1) {
+                continue;
+            }
             double[] x = Arrays.copyOfRange(sampleValues, 0, cp);
             double[] y = Arrays.copyOfRange(sampleValues, cp, sampleValues.length);
             double statistic = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovStatistic(x, y);

@@ -144,7 +144,7 @@ public final class FieldPermissionsCache {
                         .collect(Collectors.toList());
                     return new FieldPermissions(
                         key,
-                        new FieldPermissions.AutomatonWithLegacyExceptionFieldsFlag(
+                        new FieldPermissions.AutomatonWithLegacyExceptFieldsFlag(
                             Automatons.unionAndMinimize(automatonList),
                             hasLegacyExceptFieldsFinal
                         )

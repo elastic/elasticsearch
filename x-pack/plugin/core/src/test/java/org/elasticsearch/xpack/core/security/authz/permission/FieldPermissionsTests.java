@@ -62,7 +62,7 @@ public class FieldPermissionsTests extends ESTestCase {
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions)));
             assertThat(result, not(same(fieldPermissions1)));
-            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            CharacterRunAutomaton automaton = result.getPermittedFieldsAutomaton();
             assertThat(automaton.run("f1"), is(true));
             assertThat(automaton.run("f2"), is(true));
             assertThat(automaton.run("f3"), is(false));
@@ -75,7 +75,7 @@ public class FieldPermissionsTests extends ESTestCase {
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions1)));
             assertThat(result, not(same(fieldPermissions2)));
-            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            CharacterRunAutomaton automaton = result.getPermittedFieldsAutomaton();
             assertThat(automaton.run("f1"), is(true));
             assertThat(automaton.run("f2"), is(false));
             assertThat(automaton.run("f3"), is(false));
@@ -88,7 +88,7 @@ public class FieldPermissionsTests extends ESTestCase {
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions1)));
             assertThat(result, not(same(fieldPermissions2)));
-            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            CharacterRunAutomaton automaton = result.getPermittedFieldsAutomaton();
             assertThat(automaton.run("f1"), is(true));
             assertThat(automaton.run("f2"), is(false));
             assertThat(automaton.run("f3"), is(false));
@@ -142,7 +142,7 @@ public class FieldPermissionsTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
         expectThrows(
             NullPointerException.class,
-            () -> new FieldPermissions(null, new FieldPermissions.AutomatonWithLegacyExceptionFieldsFlag(Automatons.MATCH_ALL, false))
+            () -> new FieldPermissions(null, new FieldPermissions.AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false))
         );
 
         final FieldPermissions fieldPermissions03 = randomFrom(

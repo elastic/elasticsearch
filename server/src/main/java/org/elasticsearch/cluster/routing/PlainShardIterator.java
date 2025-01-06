@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -19,6 +20,20 @@ import java.util.List;
 public class PlainShardIterator extends PlainShardsIterator implements Comparable<PlainShardIterator> {
 
     private final ShardId shardId;
+
+    public static PlainShardIterator allSearchableShards(PlainShardIterator shardIterator) {
+        return new PlainShardIterator(shardIterator.shardId(), shardsThatCanHandleSearches(shardIterator));
+    }
+
+    private static List<ShardRouting> shardsThatCanHandleSearches(PlainShardIterator iterator) {
+        final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
+        for (ShardRouting shardRouting : iterator) {
+            if (shardRouting.isSearchable()) {
+                shardsThatCanHandleSearches.add(shardRouting);
+            }
+        }
+        return shardsThatCanHandleSearches;
+    }
 
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards

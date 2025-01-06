@@ -12,7 +12,10 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,7 +57,12 @@ public final class AggregatorsReducer implements Releasable {
      * returns the reduced {@link InternalAggregations}.
      */
     public InternalAggregations get() {
-        return InternalAggregations.from(aggByName.values().stream().map(AggregatorReducer::get).toList());
+        final Collection<AggregatorReducer> reducers = aggByName.values();
+        final List<InternalAggregation> aggs = new ArrayList<>(reducers.size());
+        for (AggregatorReducer reducer : reducers) {
+            aggs.add(reducer.get());
+        }
+        return InternalAggregations.from(aggs);
     }
 
     @Override

@@ -580,7 +580,7 @@ public class HighlightBuilderTests extends ESTestCase {
             "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, -1) + "}"
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
-        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be an integer >= -1"));
+        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
     }
 
     /**

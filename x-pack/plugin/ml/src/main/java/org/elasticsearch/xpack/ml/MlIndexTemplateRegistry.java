@@ -43,7 +43,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
      * 10000001: TODO - reason
      */
     public static final int ML_INDEX_TEMPLATE_VERSION = 10000000 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
-        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION;
+        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
     private static final String ROOT_RESOURCE_PATH = "/ml/";
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";

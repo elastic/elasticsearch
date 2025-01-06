@@ -48,6 +48,7 @@ public final class TransformInternalIndexConstants {
     public static final String AUDIT_INDEX_PATTERN_DEPRECATED = TRANSFORM_PREFIX_DEPRECATED + "notifications-*";
 
     public static final String AUDIT_INDEX_READ_ALIAS = TRANSFORM_PREFIX + "notifications-read";
+    public static final String AUDIT_INDEX_WRITE_ALIAS = TRANSFORM_PREFIX + "notifications-write";
     public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
 
     private TransformInternalIndexConstants() {}

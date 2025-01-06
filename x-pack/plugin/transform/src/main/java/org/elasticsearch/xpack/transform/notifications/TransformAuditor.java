@@ -43,6 +43,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             new OriginSettingClient(client, TRANSFORM_ORIGIN),
             TransformInternalIndexConstants.AUDIT_INDEX,
             TransformInternalIndexConstants.AUDIT_INDEX,
+            TransformConfigVersion.CURRENT.id(),
             () -> {
                 try {
                     return new TransportPutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(

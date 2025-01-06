@@ -47,8 +47,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private final OriginSettingClient client;
     private final String nodeName;
-    private final String auditIndex;
+    private final String auditIndexWriteAlias;
     private final String templateName;
+    private final int templateVersion;
     private final Supplier<TransportPutComposableIndexTemplateAction.Request> templateSupplier;
     private final AbstractAuditMessageFactory<T> messageFactory;
     private final AtomicBoolean hasLatestTemplate;
@@ -66,7 +67,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         ClusterService clusterService
     ) {
 
-        this(client, auditIndex, templateConfig.getTemplateName(), () -> {
+        this(client, auditIndex, templateConfig.getTemplateName(), templateConfig.getVersion(), () -> {
             try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
                 return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
                     ComposableIndexTemplate.parse(parser)
@@ -79,16 +80,18 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     protected AbstractAuditor(
         OriginSettingClient client,
-        String auditIndex,
+        String auditIndexWriteAlias,
         String templateName,
+        int templateVersion,
         Supplier<TransportPutComposableIndexTemplateAction.Request> templateSupplier,
         String nodeName,
         AbstractAuditMessageFactory<T> messageFactory,
         ClusterService clusterService
     ) {
         this.client = Objects.requireNonNull(client);
-        this.auditIndex = Objects.requireNonNull(auditIndex);
+        this.auditIndexWriteAlias = Objects.requireNonNull(auditIndexWriteAlias);
         this.templateName = Objects.requireNonNull(templateName);
+        this.templateVersion = templateVersion;
         this.templateSupplier = Objects.requireNonNull(templateSupplier);
         this.messageFactory = Objects.requireNonNull(messageFactory);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -128,7 +131,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             return;
         }
 
-        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName)) {
+        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName, templateVersion)) {
             synchronized (this) {
                 // synchronized so nothing can be added to backlog while this value changes
                 hasLatestTemplate.set(true);
@@ -169,6 +172,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                     MlIndexAndAlias.installIndexTemplateIfRequired(
                         clusterService.state(),
                         client,
+                        templateVersion,
                         templateSupplier.get(),
                         putTemplateListener
                     );
@@ -185,9 +189,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {
-        IndexRequest indexRequest = new IndexRequest(auditIndex);
+        IndexRequest indexRequest = new IndexRequest(auditIndexWriteAlias);
         indexRequest.source(toXContentBuilder(toXContent));
         indexRequest.timeout(TimeValue.timeValueSeconds(5));
+        indexRequest.setRequireAlias(true);
         return indexRequest;
     }
 

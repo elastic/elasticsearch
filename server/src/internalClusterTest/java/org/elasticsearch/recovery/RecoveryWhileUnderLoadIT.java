@@ -16,8 +16,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -365,11 +365,10 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 );
             }
 
-            ClusterService clusterService = clusterService();
-            final ClusterState state = clusterService.state();
+            final ClusterState state = clusterService().state();
             for (int shard = 0; shard < numberOfShards; shard++) {
                 for (String id : ids) {
-                    ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
+                    ShardId docShard = OperationRouting.shardId(state, "test", id, null);
                     if (docShard.id() == shard) {
                         final IndexShardRoutingTable indexShardRoutingTable = state.routingTable().shardRoutingTable("test", shard);
                         for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {

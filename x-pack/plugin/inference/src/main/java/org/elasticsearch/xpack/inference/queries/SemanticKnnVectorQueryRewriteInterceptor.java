@@ -53,12 +53,10 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         if (inferenceIdsIndices.size() == 1) {
             // Simple case, everything uses the same inference ID
-            String searchInferenceId = inferenceIdsIndices.keySet().iterator().next();
-            return buildNestedQueryFromKnnVectorQuery(
-                knnVectorQueryBuilder,
-                inferenceIdsIndices.values().iterator().next(),
-                searchInferenceId
-            );
+            Map.Entry<String, List<String>> inferenceIdIndex = inferenceIdsIndices.entrySet().iterator().next();
+            String searchInferenceId = inferenceIdIndex.getKey();
+            List<String> indices = inferenceIdIndex.getValue();
+            return buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
         } else {
             // Multiple inference IDs, construct a boolean query
             return buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
@@ -91,14 +89,10 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.should(
-            createSubQueryForIndices(
-                indexInformation.nonInferenceIndices(),
-                createSubQueryForIndices(indexInformation.nonInferenceIndices(), queryBuilder)
-            )
-        );
-        // We always perform nested subqueries on semantic_text fields, to support
-        // knn queries using query vectors.
+        boolQueryBuilder.should(addIndexFilterToKnnVectorQuery(indexInformation.nonInferenceIndices(), knnVectorQueryBuilder));
+
+        // We always perform nested subqueries on semantic_text fields, to support knn queries using query vectors.
+        // Both pre and post filtering are required here to ensure we get the results we need without errors based on field types.
         for (String inferenceId : inferenceIdsIndices.keySet()) {
             boolQueryBuilder.should(
                 createSubQueryForIndices(
@@ -132,9 +126,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         );
     }
 
-    private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, QueryBuilder queryBuilder) {
-        assert queryBuilder instanceof KnnVectorQueryBuilder;
-        KnnVectorQueryBuilder original = (KnnVectorQueryBuilder) queryBuilder;
+    private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, KnnVectorQueryBuilder original) {
         KnnVectorQueryBuilder copy;
         if (original.queryVectorBuilder() != null) {
             copy = new KnnVectorQueryBuilder(

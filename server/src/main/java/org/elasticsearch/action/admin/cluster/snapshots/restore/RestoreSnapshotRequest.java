@@ -54,7 +54,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersions.V_8_4_0;
+    public static final TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersions.V_8_4_0;
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;

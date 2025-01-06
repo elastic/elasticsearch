@@ -33,19 +33,13 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     final List<RetrieverBuilder> sources;
     final Supplier<RankDoc[]> rankDocs;
 
-    public RankDocsRetrieverBuilder(
-        int rankWindowSize,
-        List<RetrieverBuilder> sources,
-        Supplier<RankDoc[]> rankDocs,
-        List<QueryBuilder> preFilterQueryBuilders
-    ) {
+    public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs) {
         this.rankWindowSize = rankWindowSize;
         this.rankDocs = rankDocs;
         if (sources == null || sources.isEmpty()) {
             throw new IllegalArgumentException("sources must not be null or empty");
         }
         this.sources = sources;
-        this.preFilterQueryBuilders = preFilterQueryBuilders;
     }
 
     @Override
@@ -73,10 +67,6 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     @Override
     public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         assert false == sourceShouldRewrite(ctx) : "retriever sources should be rewritten first";
-        var rewrittenFilters = rewritePreFilters(ctx);
-        if (rewrittenFilters != preFilterQueryBuilders) {
-            return new RankDocsRetrieverBuilder(rankWindowSize, sources, rankDocs, rewrittenFilters);
-        }
         return this;
     }
 
@@ -94,7 +84,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                 boolQuery.should(query);
             }
         }
-        // ignore prefilters of this level, they are already propagated to children
+        // ignore prefilters of this level, they were already propagated to children
         return boolQuery;
     }
 
@@ -133,7 +123,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         } else {
             rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false);
         }
-        // ignore prefilters of this level, they are already propagated to children
+        // ignore prefilters of this level, they were already propagated to children
         searchSourceBuilder.query(rankQuery);
         if (sourceHasMinScore()) {
             searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());

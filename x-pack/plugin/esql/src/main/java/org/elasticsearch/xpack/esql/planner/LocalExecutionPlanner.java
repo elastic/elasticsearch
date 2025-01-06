@@ -345,6 +345,8 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        final Integer rowSize = topNExec.estimatedRowSize();
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
@@ -385,24 +387,8 @@ public class LocalExecutionPlanner {
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
-
-        // TODO Replace page size with passing estimatedRowSize down
-        /*
-         * The 2000 below is a hack to account for incoming size and to make
-         * sure the estimated row size is never 0 which'd cause a divide by 0.
-         * But we should replace this with passing the estimate into the real
-         * topn and letting it actually measure the size of rows it produces.
-         * That'll be more accurate. And we don't have a path for estimating
-         * incoming rows. And we don't need one because we can estimate.
-         */
         return source.with(
-            new TopNOperatorFactory(
-                limit,
-                asList(elementTypes),
-                asList(encoders),
-                orders,
-                context.pageSize(2000 + topNExec.estimatedRowSize())
-            ),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
             source.layout
         );
     }
@@ -571,20 +557,21 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        // TODO: this works when the join happens on the coordinator
-        /*
-         * But when it happens on the data node we get a
-         * \_FieldExtractExec[language_code{f}#15, language_name{f}#16]<[]>
-         *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#18], limit[], sort[] estimatedRowSize[62]
-         * Which we'd prefer not to do - at least for now. We already know the fields we're loading
-         * and don't want any local planning.
-         */
         EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.matchFields().size());
-        for (Attribute m : join.matchFields()) {
+        Map<String, IndexMode> indicesWithModes = localSourceExec.index().indexNameWithModes();
+        if (indicesWithModes.size() != 1) {
+            throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
+        }
+        var entry = indicesWithModes.entrySet().iterator().next();
+        if (entry.getValue() != IndexMode.LOOKUP) {
+            throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        }
+        String indexName = entry.getKey();
+        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
+        for (Attribute m : join.leftFields()) {
             Layout.ChannelAndType t = source.layout.get(m.id());
             if (t == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
@@ -603,8 +590,8 @@ public class LocalExecutionPlanner {
                 matchFields.getFirst().channel(),
                 lookupFromIndexService,
                 matchFields.getFirst().type(),
-                localSourceExec.index().name(),
-                join.matchFields().getFirst().name(),
+                indexName,
+                join.leftFields().getFirst().name(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
@@ -757,7 +744,7 @@ public class LocalExecutionPlanner {
             return Stream.concat(
                 Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
                 Stream.of(sinkOperatorFactory)
-            ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
+            ).map(describable -> describable == null ? "null" : describable.describe()).collect(joining("\n\\_", "\\_", ""));
         }
 
         @Override

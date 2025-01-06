@@ -67,7 +67,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -464,12 +463,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                                 @Override
                                 public BlobContainer blobContainer(BlobPath path) {
                                     return new TrackingFilesBlobContainer(delegate.blobContainer(path));
-                                }
-
-                                @Override
-                                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames)
-                                    throws IOException {
-                                    delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
                                 }
 
                                 @Override

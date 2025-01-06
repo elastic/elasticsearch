@@ -13,31 +13,27 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -51,6 +47,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -97,7 +94,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
 
-    public EsPhysicalOperationProviders(List<ShardContext> shardContexts) {
+    public EsPhysicalOperationProviders(List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+        super(analysisRegistry);
         this.shardContexts = shardContexts;
     }
 
@@ -110,12 +108,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
-        var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             var unionTypes = findUnionTypes(attr);
             DataType dataType = attr.dataType();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             // Do not use the field attribute name, this can deviate from the field name for union types.
             String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
@@ -165,7 +162,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
-        if (sorts != null && sorts.isEmpty() == false) {
+        boolean scoring = esQueryExec.attrs()
+            .stream()
+            .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE));
+        if ((sorts != null && sorts.isEmpty() == false)) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             for (Sort sort : sorts) {
                 sortBuilders.add(sort.sortBuilder());
@@ -177,7 +177,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
-                sortBuilders
+                sortBuilders,
+                scoring
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -195,7 +196,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     context.queryPragmas().dataPartitioning(),
                     context.queryPragmas().taskConcurrency(),
                     context.pageSize(rowEstimatedSize),
-                    limit
+                    limit,
+                    scoring
                 );
             }
         }
@@ -273,7 +275,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException {
-            return SortBuilder.buildSort(sorts, ctx);
+            return SortBuilder.buildSort(sorts, ctx, false);
         }
 
         @Override
@@ -289,15 +291,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Query toQuery(QueryBuilder queryBuilder) {
             Query query = ctx.toQuery(queryBuilder).query();
-            NestedLookup nestedLookup = ctx.nestedLookup();
-            if (nestedLookup != NestedLookup.EMPTY) {
-                NestedHelper nestedHelper = new NestedHelper(nestedLookup, ctx::isFieldMapped);
-                if (nestedHelper.mightMatchNestedDocs(query)) {
-                    // filter out nested documents
-                    query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                        .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
-                        .build();
-                }
+            if (ctx.nestedLookup() != NestedLookup.EMPTY && NestedHelper.mightMatchNestedDocs(query, ctx)) {
+                // filter out nested documents
+                query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
+                    .add(newNonNestedFilter(ctx.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                    .build();
             }
             if (aliasFilter != AliasFilter.EMPTY) {
                 Query filterQuery = ctx.toQuery(aliasFilter.getQueryBuilder()).query();
@@ -340,7 +338,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
                 @Override
                 public SearchLookup lookup() {
-                    return ctx.lookup();
+                    boolean syntheticSource = SourceFieldMapper.isSynthetic(indexSettings());
+                    var searchLookup = ctx.lookup();
+                    if (syntheticSource) {
+                        // in the context of scripts and when synthetic source is used the search lookup can't always be reused between
+                        // users of SearchLookup. This is only an issue when scripts fallback to _source, but since we can't always
+                        // accurately determine whether a script uses _source, we should do this for all script usages.
+                        // This lookup() method is only invoked for scripts / runtime fields, so it is ok to do here.
+                        searchLookup = searchLookup.swapSourceProvider(ctx.createSourceProvider());
+                    }
+                    return searchLookup;
                 }
 
                 @Override
@@ -367,29 +374,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
-    static class TypeConvertingBlockLoader implements BlockLoader {
-        protected final BlockLoader delegate;
-        private final EvalOperator.ExpressionEvaluator convertEvaluator;
+    private static class TypeConvertingBlockLoader implements BlockLoader {
+        private final BlockLoader delegate;
+        private final TypeConverter typeConverter;
 
         protected TypeConvertingBlockLoader(BlockLoader delegate, AbstractConvertFunction convertFunction) {
             this.delegate = delegate;
-            DriverContext driverContext1 = new DriverContext(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                new org.elasticsearch.compute.data.BlockFactory(
-                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                    BigArrays.NON_RECYCLING_INSTANCE
-                )
-            );
-            this.convertEvaluator = convertFunction.toEvaluator(e -> driverContext -> new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public org.elasticsearch.compute.data.Block eval(Page page) {
-                    // This is a pass-through evaluator, since it sits directly on the source loading (no prior expressions)
-                    return page.getBlock(0);
-                }
-
-                @Override
-                public void close() {}
-            }).get(driverContext1);
+            this.typeConverter = TypeConverter.fromConvertFunction(convertFunction);
         }
 
         @Override
@@ -400,8 +391,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public Block convert(Block block) {
-            Page page = new Page((org.elasticsearch.compute.data.Block) block);
-            return convertEvaluator.eval(page);
+            return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
         }
 
         @Override
@@ -414,9 +404,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public Block read(BlockFactory factory, Docs docs) throws IOException {
                     Block block = reader.read(factory, docs);
-                    Page page = new Page((org.elasticsearch.compute.data.Block) block);
-                    org.elasticsearch.compute.data.Block converted = convertEvaluator.eval(page);
-                    return converted;
+                    return typeConverter.convert((org.elasticsearch.compute.data.Block) block);
                 }
 
                 @Override
@@ -456,7 +444,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public final String toString() {
-            return "TypeConvertingBlockLoader[delegate=" + delegate + ", convertEvaluator=" + convertEvaluator + "]";
+            return "TypeConvertingBlockLoader[delegate=" + delegate + ", typeConverter=" + typeConverter + "]";
         }
     }
 }

@@ -81,10 +81,8 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         super(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : asList(in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class))
         );

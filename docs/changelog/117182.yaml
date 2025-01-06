@@ -1,6 +1,0 @@
-pr: 117182
-summary: Change synthetic source logic for `constant_keyword`
-area: Mapping
-type: bug
-issues:
- - 117083

@@ -88,4 +88,15 @@ public class InputStreamIndexInput extends InputStream {
         indexInput.seek(markPointer);
         counter = markCounter;
     }
+
+    @Override
+    public long skip(long n) throws IOException {
+        long skipBytes = Math.min(n, Math.min(indexInput.length() - indexInput.getFilePointer(), limit - counter));
+        if (skipBytes <= 0) {
+            return 0;
+        }
+        indexInput.skipBytes(skipBytes);
+        counter += skipBytes;
+        return skipBytes;
+    }
 }

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.util.ByteUtils;
+
 import java.nio.ByteBuffer;
+import java.util.OptionalInt;
 import java.util.function.Supplier;
 
 /**
@@ -28,6 +31,7 @@ import java.util.function.Supplier;
  * The result is a compact base64-encoded string, optimized for efficient compression of the _id field in an inverted index.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
+    static final int SIZE_IN_BYTES = 15;
 
     public TimeBasedKOrderedUUIDGenerator(
         final Supplier<Long> timestampSupplier,
@@ -39,6 +43,10 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
     @Override
     public String getBase64UUID() {
+        return getBase64UUID(OptionalInt.empty());
+    }
+
+    public String getBase64UUID(OptionalInt hash) {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         // Calculate timestamp to ensure ordering and avoid backward movement in case of time shifts.
@@ -50,7 +58,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 
-        final byte[] uuidBytes = new byte[15];
+        final byte[] uuidBytes = new byte[SIZE_IN_BYTES + (hash.isPresent() ? 4 : 0)];
         final ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
 
         buffer.put((byte) (timestamp >>> 40)); // changes every 35 years
@@ -63,6 +71,13 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         byte[] macAddress = macAddress();
         assert macAddress.length == 6;
         buffer.put(macAddress, 0, macAddress.length);
+
+        // Copy the hash value if provided
+        if (hash.isPresent()) {
+            byte[] hashBytes = new byte[4];
+            ByteUtils.writeIntLE(hash.getAsInt(), hashBytes, 0);
+            buffer.put(hashBytes, 0, hashBytes.length);
+        }
 
         buffer.put((byte) (sequenceId >>> 16));
 

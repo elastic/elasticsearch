@@ -1,5 +1,0 @@
-pr: 116591
-summary: "Add support for `BYTE_LENGTH` scalar function"
-area: ES|QL
-type: feature
-issues: []

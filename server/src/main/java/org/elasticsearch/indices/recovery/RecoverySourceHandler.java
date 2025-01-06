@@ -324,7 +324,8 @@ public class RecoverySourceHandler {
                         Long.MAX_VALUE,
                         false,
                         false,
-                        true
+                        true,
+                        chunkSizeInBytes
                     );
                     resources.add(phase2Snapshot);
                     retentionLock.close();

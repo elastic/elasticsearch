@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
@@ -200,6 +202,12 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         }
         if (map.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) == false) {
             map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+        }
+        if (map.containsKey(Engine.ES_VERSION) == false) {
+            assert oldSegmentInfos.getLuceneVersion()
+                .onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion()) == false
+                : oldSegmentInfos.getLuceneVersion() + " should contain the ES_VERSION";
+            map.put(Engine.ES_VERSION, IndexVersions.MINIMUM_COMPATIBLE.toString());
         }
         segmentInfos.setUserData(map, false);
         for (SegmentCommitInfo infoPerCommit : oldSegmentInfos.asList()) {

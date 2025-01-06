@@ -204,7 +204,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                 // TODO - add a random instant thing here?
-                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomNonNegativeLong());
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
@@ -529,7 +529,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 7 + sizeClusterDetails + bodySize); // is_running
+            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize); // is_running
         }
     }
 
@@ -541,7 +541,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 7 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize);
         }
     }
 

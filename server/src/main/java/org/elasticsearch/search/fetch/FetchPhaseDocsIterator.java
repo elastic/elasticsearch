@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
@@ -29,12 +30,6 @@ import java.util.Arrays;
  * into an array and returns them in the order of the original doc ids.
  */
 abstract class FetchPhaseDocsIterator {
-
-    private boolean timedOut = false;
-
-    public boolean isTimedOut() {
-        return timedOut;
-    }
 
     /**
      * Called when a new leaf reader is reached
@@ -53,7 +48,13 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Iterate over a set of docsIds within a particular shard and index reader
      */
-    public final SearchHit[] iterate(SearchShardTarget shardTarget, IndexReader indexReader, int[] docIds, boolean allowPartialResults) {
+    public final SearchHit[] iterate(
+        SearchShardTarget shardTarget,
+        IndexReader indexReader,
+        int[] docIds,
+        boolean allowPartialResults,
+        QuerySearchResult querySearchResult
+    ) {
         SearchHit[] searchHits = new SearchHit[docIds.length];
         DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
         for (int index = 0; index < docIds.length; index++) {
@@ -69,12 +70,10 @@ abstract class FetchPhaseDocsIterator {
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
             try {
                 setNextReader(ctx, docsInLeaf);
-            } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
-                if (allowPartialResults) {
-                    timedOut = true;
-                    return SearchHits.EMPTY;
-                }
-                throw new SearchTimeoutException(shardTarget, "Time exceeded");
+            } catch (ContextIndexSearcher.TimeExceededException e) {
+                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                assert allowPartialResults;
+                return SearchHits.EMPTY;
             }
             for (int i = 0; i < docs.length; i++) {
                 try {
@@ -88,15 +87,15 @@ abstract class FetchPhaseDocsIterator {
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
                     searchHits[docs[i].index] = nextDoc(docs[i].docId);
-                } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
-                    if (allowPartialResults) {
-                        timedOut = true;
-                        SearchHit[] partialSearchHits = new SearchHit[i];
-                        System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
-                        return partialSearchHits;
+                } catch (ContextIndexSearcher.TimeExceededException e) {
+                    if (allowPartialResults == false) {
+                        purgeSearchHits(searchHits);
                     }
-                    purgeSearchHits(searchHits);
-                    throw new SearchTimeoutException(shardTarget, "Time exceeded");
+                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                    assert allowPartialResults;
+                    SearchHit[] partialSearchHits = new SearchHit[i];
+                    System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
+                    return partialSearchHits;
                 }
             }
         } catch (SearchTimeoutException e) {

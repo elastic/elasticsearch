@@ -107,9 +107,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private String leafName;
 
-        @SuppressWarnings("this-escape")
         protected Builder(String leafName) {
-            setLeafName(leafName);
+            this.leafName = leafName;
         }
 
         public final String leafName() {
@@ -120,7 +119,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(MapperBuilderContext context);
 
         void setLeafName(String leafName) {
-            this.leafName = internFieldName(leafName);
+            this.leafName = leafName;
         }
     }
 
@@ -131,7 +130,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Whether we can parse this type on indices with the given index created version.
          */
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
     }
 
@@ -171,18 +170,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
-
-    /**
-     * Create a {@link SourceLoader.SyntheticFieldLoader} to populate synthetic source.
-     *
-     * @throws IllegalArgumentException if the field is configured in a way that doesn't
-     *         support synthetic source. This translates nicely into a 400 error when
-     *         users configure synthetic source in the mapping without configuring all
-     *         fields properly.
-     */
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
-    }
 
     @Override
     public String toString() {

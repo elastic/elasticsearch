@@ -30,7 +30,7 @@ public final class SplitInWithFoldableValue extends OptimizerRules.OptimizerExpr
             List<Expression> foldables = new ArrayList<>(in.list().size());
             List<Expression> nonFoldables = new ArrayList<>(in.list().size());
             in.list().forEach(e -> {
-                if (e.foldable() && Expressions.isNull(e) == false) { // keep `null`s, needed for the 3VL
+                if (e.foldable() && Expressions.isGuaranteedNull(e) == false) { // keep `null`s, needed for the 3VL
                     foldables.add(e);
                 } else {
                     nonFoldables.add(e);

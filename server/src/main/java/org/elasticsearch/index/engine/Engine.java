@@ -937,7 +937,7 @@ public abstract class Engine implements Closeable {
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
@@ -951,7 +951,8 @@ public abstract class Engine implements Closeable {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException;
 
     /**

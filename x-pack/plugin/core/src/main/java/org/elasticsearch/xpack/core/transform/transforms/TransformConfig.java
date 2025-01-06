@@ -374,7 +374,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
      * @param namedXContentRegistry XContent registry required for aggregations and query DSL
      * @return The deprecations of this transform
      */
-    public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) {
+    public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) throws IOException {
 
         List<DeprecationIssue> deprecations = new ArrayList<>();
 
@@ -404,6 +404,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         if (retentionPolicyConfig != null) {
             retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
         }
+
         return deprecations;
     }
 

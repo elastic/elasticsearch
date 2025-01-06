@@ -126,7 +126,7 @@ repeatedly-dropped connections will severely affect its operation.
 The connections from the elected master node to every other node in the cluster
 are particularly important. The elected master never spontaneously closes its
 outbound connections to other nodes. Similarly, once an inbound connection is
-fully established, a node never spontaneously it unless the node is shutting
+fully established, a node never spontaneously closes it unless the node is shutting
 down.
 
 If you see a node unexpectedly leave the cluster with the `disconnected`

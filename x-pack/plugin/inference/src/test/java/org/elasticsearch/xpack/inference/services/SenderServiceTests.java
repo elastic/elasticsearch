@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.After;
 import org.junit.Before;
 
@@ -120,13 +121,21 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
+        protected void doUnifiedCompletionInfer(
+            Model model,
+            UnifiedChatInput inputs,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {}
+
+        @Override
         protected void doChunkedInfer(
             Model model,
             DocumentsOnlyInput inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
 
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -1645,6 +1647,59 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testScriptField() throws Exception {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("runtime");
+            {
+                mapping.startObject("k1");
+                mapping.field("type", "long");
+                mapping.endObject();
+                mapping.startObject("k2");
+                mapping.field("type", "long");
+                mapping.endObject();
+            }
+            mapping.endObject();
+            {
+                mapping.startObject("properties");
+                mapping.startObject("meter").field("type", "double").endObject();
+                mapping.endObject();
+            }
+        }
+        mapping.endObject();
+        String sourceMode = randomBoolean() ? "stored" : "synthetic";
+        Settings.Builder settings = indexSettings(1, 0).put(indexSettings()).put("index.mapping.source.mode", sourceMode);
+        client().admin().indices().prepareCreate("test-script").setMapping(mapping).setSettings(settings).get();
+        int numDocs = 256;
+        for (int i = 0; i < numDocs; i++) {
+            index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-" + i, "meter", 10000 * i));
+        }
+        refresh("test-script");
+
+        var pragmas = randomPragmas();
+        if (canUseQueryPragmas()) {
+            Settings.Builder pragmaSettings = Settings.builder().put(pragmas.getSettings());
+            pragmaSettings.put("task_concurrency", 10);
+            pragmaSettings.put("data_partitioning", "doc");
+            pragmas = new QueryPragmas(pragmaSettings.build());
+        }
+        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
+            List<Object> k1Column = Iterators.toList(resp.column(0));
+            assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
+            List<Object> k2Column = Iterators.toList(resp.column(1));
+            assertThat(k2Column, equalTo(Collections.nCopies(numDocs, null)));
+            List<Object> meterColumn = Iterators.toList(resp.column(2));
+            var expectedMeterColumn = new ArrayList<>(numDocs);
+            double val = 0.0;
+            for (int i = 0; i < numDocs; i++) {
+                expectedMeterColumn.add(val);
+                val += 10000.0;
+            }
+            assertThat(meterColumn, equalTo(expectedMeterColumn));
         }
     }
 

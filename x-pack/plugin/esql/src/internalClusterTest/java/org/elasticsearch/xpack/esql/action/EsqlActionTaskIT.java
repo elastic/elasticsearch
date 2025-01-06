@@ -36,6 +36,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -89,7 +90,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         nodeLevelReduction = randomBoolean();
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));
@@ -338,7 +339,15 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
          */
         assertThat(
             cancelException.getMessage(),
-            in(List.of("test cancel", "task cancelled", "request cancelled test cancel", "parent task was cancelled [test cancel]"))
+            in(
+                List.of(
+                    "test cancel",
+                    "task cancelled",
+                    "request cancelled test cancel",
+                    "parent task was cancelled [test cancel]",
+                    "cancelled on failure"
+                )
+            )
         );
         assertBusy(
             () -> assertThat(
@@ -434,6 +443,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 allowedFetching.countDown();
             }
             Exception failure = expectThrows(Exception.class, () -> future.actionGet().close());
+            EsqlTestUtils.assertEsqlFailure(failure);
             assertThat(failure.getMessage(), containsString("failed to fetch pages"));
             // If we proceed without waiting for pages, we might cancel the main request before starting the data-node request.
             // As a result, the exchange sinks on data-nodes won't be removed until the inactive_timeout elapses, which is
@@ -448,6 +458,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     public void testTaskContentsForTopNQuery() throws Exception {
         READ_DESCRIPTION = ("\\_LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 1000, "
+            + "scoreMode = TOP_DOCS, "
             + "sorts = [{\"pause_me\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"long\"}}]]\n"
             + "\\_ValuesSourceReaderOperator[fields = [pause_me]]\n"
             + "\\_ProjectOperator[projection = [1]]\n"
@@ -482,7 +493,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     public void testTaskContentsForLimitQuery() throws Exception {
         String limit = Integer.toString(randomIntBetween(pageSize() + 1, 2 * numberOfDocs()));
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit()]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit(), scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_ProjectOperator[projection = [1]]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit);
@@ -511,7 +522,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     public void testTaskContentsForGroupingStatsQuery() throws Exception {
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [foo]]
             \\_OrdinalsGroupingOperator(aggs = max of longs)
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));

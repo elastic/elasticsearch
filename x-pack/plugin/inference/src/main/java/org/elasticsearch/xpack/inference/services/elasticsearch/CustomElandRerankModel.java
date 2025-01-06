@@ -17,7 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandRerankTaskSettings.RETURN_DOCUMENTS;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.RerankTaskSettings.RETURN_DOCUMENTS;
 
 public class CustomElandRerankModel extends CustomElandModel {
 
@@ -26,7 +26,7 @@ public class CustomElandRerankModel extends CustomElandModel {
         TaskType taskType,
         String service,
         CustomElandInternalServiceSettings serviceSettings,
-        CustomElandRerankTaskSettings taskSettings
+        RerankTaskSettings taskSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
     }

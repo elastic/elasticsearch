@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -46,7 +45,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState = new BulkRequest.IncrementalState(in);
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
@@ -151,20 +150,21 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> ob.append((b, p) -> {
-            b.field(ERRORS, hasFailures());
-            b.field(TOOK, tookInMillis);
+        return Iterators.concat(Iterators.single((builder, p) -> {
+            builder.startObject();
+            builder.field(ERRORS, hasFailures());
+            builder.field(TOOK, tookInMillis);
             if (ingestTookInMillis != BulkResponse.NO_INGEST_TOOK) {
-                b.field(INGEST_TOOK, ingestTookInMillis);
+                builder.field(INGEST_TOOK, ingestTookInMillis);
             }
-            return b;
-        }).array(ITEMS, Iterators.forArray(responses)));
+            return builder.startArray(ITEMS);
+        }), Iterators.forArray(responses), Iterators.<ToXContent>single((builder, p) -> builder.endArray().endObject()));
     }
 }

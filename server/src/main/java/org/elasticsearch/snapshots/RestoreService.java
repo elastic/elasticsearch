@@ -160,6 +160,7 @@ public final class RestoreService implements ClusterStateApplier {
         SETTING_HISTORY_UUID,
         IndexSettings.MODE.getKey(),
         SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(),
@@ -1347,6 +1348,7 @@ public final class RestoreService implements ClusterStateApplier {
             final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
 
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+            final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
@@ -1359,12 +1361,16 @@ public final class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
+                if (snapshotIndexMetadata.getCompatibilityVersion().isLegacyIndexVersion()) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
                 }
                 try {
-                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
+                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                        snapshotIndexMetadata,
+                        minIndexCompatibilityVersion,
+                        minReadOnlyIndexCompatibilityVersion
+                    );
                 } catch (Exception ex) {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                 }

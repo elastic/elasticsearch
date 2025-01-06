@@ -11,18 +11,68 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class PolicyParserTests extends ESTestCase {
 
+    private static class TestWrongEntitlementName implements Entitlement {}
+
+    public void testGetEntitlementTypeName() {
+        assertEquals("create_class_loader", PolicyParser.getEntitlementTypeName(CreateClassLoaderEntitlement.class));
+
+        var ex = expectThrows(IllegalArgumentException.class, () -> PolicyParser.getEntitlementTypeName(TestWrongEntitlementName.class));
+        assertThat(
+            ex.getMessage(),
+            equalTo("TestWrongEntitlementName is not a valid Entitlement class name. A valid class name must end with 'Entitlement'")
+        );
+    }
+
     public void testPolicyBuilder() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml")
+        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", false)
             .parsePolicy();
-        Policy builtPolicy = new Policy(
+        Policy expected = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
         );
-        assertEquals(parsedPolicy, builtPolicy);
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testPolicyBuilderOnExternalPlugin() throws IOException {
+        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", true)
+            .parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseCreateClassloader() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - create_class_loader
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseSetHttpsConnectionProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - set_https_connection_properties
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new SetHttpsConnectionPropertiesEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
     }
 }

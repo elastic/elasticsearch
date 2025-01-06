@@ -24,7 +24,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -108,8 +107,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "setting [%s] for index [%s] is empty or not defined",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             index.getName()
@@ -147,7 +145,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
             boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
             if (indexingComplete) {
-                logger.trace(index + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
+                logger.trace("{} has lifecycle complete set, skipping {}", index, WaitForRolloverReadyStep.NAME);
                 // If this index is still the write index for this alias, skipping rollover and continuing with the policy almost certainly
                 // isn't what we want, as something likely still expects to be writing to this index.
                 // If the alias doesn't point to this index, that's okay as that will be the result if this index is using a
@@ -155,8 +153,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 if (aliasPointsToThisIndex && Boolean.TRUE.equals(isWriteIndex)) {
                     listener.onFailure(
                         new IllegalStateException(
-                            String.format(
-                                Locale.ROOT,
+                            Strings.format(
                                 "index [%s] has [%s] set to [true], but is still the write index for alias [%s]",
                                 index.getName(),
                                 LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE,
@@ -175,8 +172,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (aliasPointsToThisIndex == false) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "%s [%s] does not point to index [%s]",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             rolloverAlias,
@@ -191,7 +187,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (Boolean.FALSE.equals(isWriteIndex)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(Locale.ROOT, "index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)
+                        Strings.format("index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)
                     )
                 );
                 return;

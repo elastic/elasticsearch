@@ -1058,8 +1058,10 @@ PUT image-index
 * When using kNN search in <<modules-cross-cluster-search,{ccs}>>, the <<ccs-min-roundtrips,`ccs_minimize_roundtrips`>>
 option is not supported.
 
-* {blank}
-include::{es-ref-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
+* {es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
+efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
+that sacrifices result accuracy for improved search speed. This means the
+results returned are not always the true _k_ closest neighbors.
 
 NOTE: Approximate kNN search always uses the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type in order to gather

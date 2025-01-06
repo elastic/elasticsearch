@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -47,7 +48,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
@@ -108,8 +108,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        return clone;
     }
 
     @Override

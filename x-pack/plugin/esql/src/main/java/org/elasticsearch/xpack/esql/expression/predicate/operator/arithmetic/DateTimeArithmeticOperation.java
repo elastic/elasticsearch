@@ -22,10 +22,11 @@ import java.time.temporal.TemporalAmount;
 import java.util.Collection;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
@@ -35,7 +36,8 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
     }
 
-    private final DatetimeArithmeticEvaluator datetimes;
+    private final DatetimeArithmeticEvaluator millisEvaluator;
+    private final DatetimeArithmeticEvaluator nanosEvaluator;
 
     DateTimeArithmeticOperation(
         Source source,
@@ -46,10 +48,12 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        DatetimeArithmeticEvaluator datetimes
+        DatetimeArithmeticEvaluator millisEvaluator,
+        DatetimeArithmeticEvaluator nanosEvaluator
     ) {
         super(source, left, right, op, ints, longs, ulongs, doubles);
-        this.datetimes = datetimes;
+        this.millisEvaluator = millisEvaluator;
+        this.nanosEvaluator = nanosEvaluator;
     }
 
     DateTimeArithmeticOperation(
@@ -59,19 +63,22 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        DatetimeArithmeticEvaluator datetimes
+        DatetimeArithmeticEvaluator millisEvaluator,
+        DatetimeArithmeticEvaluator nanosEvaluator
     ) throws IOException {
         super(in, op, ints, longs, ulongs, doubles);
-        this.datetimes = datetimes;
+        this.millisEvaluator = millisEvaluator;
+        this.nanosEvaluator = nanosEvaluator;
     }
 
     @Override
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
         return TypeResolutions.isType(
             e,
-            t -> t.isNumeric() || DataType.isDateTimeOrTemporal(t) || DataType.isNull(t),
+            t -> t.isNumeric() || DataType.isDateTimeOrNanosOrTemporal(t) || DataType.isNull(t),
             sourceText(),
             paramOrdinal,
+            "date_nanos",
             "datetime",
             "numeric"
         );
@@ -86,11 +93,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
         // - both arguments are TemporalValues (so we can fold them), or
         // - one argument is NULL and the other one a DATETIME.
-        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
+        if (isDateTimeOrNanosOrTemporal(leftType) || isDateTimeOrNanosOrTemporal(rightType)) {
             if (isNull(leftType) || isNull(rightType)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if ((isDateTime(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isDateTime(rightType))) {
+            if ((isMillisOrNanos(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isMillisOrNanos(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
             if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
@@ -171,7 +178,20 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 temporalAmountArgument = left();
             }
 
-            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
+            return millisEvaluator.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
+        } else if (dataType() == DATE_NANOS) {
+            // One of the arguments has to be a date_nanos and the other a temporal amount.
+            Expression dateNanosArgument;
+            Expression temporalAmountArgument;
+            if (left().dataType() == DATE_NANOS) {
+                dateNanosArgument = left();
+                temporalAmountArgument = right();
+            } else {
+                dateNanosArgument = right();
+                temporalAmountArgument = left();
+            }
+
+            return nanosEvaluator.apply(source(), toEvaluator.apply(dateNanosArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

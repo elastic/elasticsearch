@@ -126,7 +126,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(
             n,
             c.indexVersionCreated(),
@@ -183,6 +183,16 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, Function.identity());
+        }
+
+        @Override
+        protected boolean isBoundsExtractionSupported() {
+            return true;
+        }
+
+        @Override
+        protected CoordinateEncoder coordinateEncoder() {
+            return CoordinateEncoder.CARTESIAN;
         }
     }
 

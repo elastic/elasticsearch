@@ -1,5 +1,0 @@
-pr: 116676
-summary: Fix handling of time exceeded exception in fetch phase
-area: Search
-type: bug
-issues: []

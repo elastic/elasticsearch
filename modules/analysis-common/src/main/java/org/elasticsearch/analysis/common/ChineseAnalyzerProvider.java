@@ -24,7 +24,7 @@ public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stand
     private final StandardAnalyzer analyzer;
 
     ChineseAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         // old index: best effort
         analyzer = new StandardAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
 

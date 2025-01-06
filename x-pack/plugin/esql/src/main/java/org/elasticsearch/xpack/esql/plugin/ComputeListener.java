@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -39,8 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class ComputeListener implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
 
-    private final RefCountingListener refs;
-    private final FailureCollector failureCollector = new FailureCollector();
+    private final EsqlRefCountingListener refs;
     private final AtomicBoolean cancelled = new AtomicBoolean();
     private final CancellableTask task;
     private final TransportService transportService;
@@ -105,13 +104,14 @@ final class ComputeListener implements Releasable {
             : "clusterAlias and executionInfo must both be null or both non-null";
 
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
-        this.refs = new RefCountingListener(1, ActionListener.wrap(ignored -> {
+        this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
             ComputeResponse result;
 
             if (runningOnRemoteCluster()) {
                 // for remote executions - this ComputeResponse is created on the remote cluster/node and will be serialized and
                 // received by the acquireCompute method callback on the coordinating cluster
+                setFinalStatusAndShardCounts(clusterAlias, executionInfo);
                 EsqlExecutionInfo.Cluster cluster = esqlExecutionInfo.getCluster(clusterAlias);
                 result = new ComputeResponse(
                     collectedProfiles.isEmpty() ? List.of() : collectedProfiles.stream().toList(),
@@ -126,17 +126,31 @@ final class ComputeListener implements Releasable {
                 if (coordinatingClusterIsSearchedInCCS()) {
                     // if not already marked as SKIPPED, mark the local cluster as finished once the coordinator and all
                     // data nodes have finished processing
-                    executionInfo.swapCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, (k, v) -> {
-                        if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).build();
-                        } else {
-                            return v;
-                        }
-                    });
+                    setFinalStatusAndShardCounts(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, executionInfo);
                 }
             }
             delegate.onResponse(result);
-        }, e -> delegate.onFailure(failureCollector.getFailure())));
+        }));
+    }
+
+    private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            // TODO: once PARTIAL status is supported (partial results work to come), modify this code as needed
+            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
+                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                    /*
+                     * Total and skipped shard counts are set early in execution (after can-match).
+                     * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
+                     * as successful and none are failed.
+                     */
+                    .setSuccessfulShards(v.getTotalShards())
+                    .setFailedShards(0)
+                    .build();
+            } else {
+                return v;
+            }
+        });
     }
 
     /**
@@ -176,7 +190,6 @@ final class ComputeListener implements Releasable {
      */
     ActionListener<Void> acquireAvoid() {
         return refs.acquire().delegateResponse((l, e) -> {
-            failureCollector.unwrapAndCollect(e);
             try {
                 if (cancelled.compareAndSet(false, true)) {
                     LOGGER.debug("cancelling ESQL task {} on failure", task);

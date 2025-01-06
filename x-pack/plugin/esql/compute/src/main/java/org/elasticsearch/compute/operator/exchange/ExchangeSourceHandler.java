@@ -9,15 +9,18 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -40,6 +43,9 @@ public final class ExchangeSourceHandler {
     // The final failure collected will be notified to callers via the {@code completionListener}.
     private final FailureCollector failure = new FailureCollector();
 
+    private final AtomicInteger nextSinkId = new AtomicInteger();
+    private final Map<Integer, RemoteSink> remoteSinks = ConcurrentCollections.newConcurrentMap();
+
     /**
      * Creates a new ExchangeSourceHandler.
      *
@@ -52,22 +58,25 @@ public final class ExchangeSourceHandler {
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
-        this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
+        final PendingInstances closingSinks = new PendingInstances(() -> {});
+        closingSinks.trackNewInstance();
+        this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.running(closingSinks::finishInstance)));
         buffer.addCompletionListener(ActionListener.running(() -> {
-            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener).delegateFailure((l, unused) -> {
+            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener);
+            try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
                 final Exception e = failure.getFailure();
                 if (e != null) {
-                    l.onFailure(e);
+                    listener.onFailure(e);
                 } else {
-                    l.onResponse(null);
+                    listener.onResponse(null);
                 }
-            });
-            try (RefCountingListener refs = new RefCountingListener(listener)) {
+            })) {
+                closingSinks.completion.addListener(refs.acquireListener());
                 for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
                     // Create an outstanding instance and then finish to complete the completionListener
                     // if we haven't registered any instances of exchange sinks or exchange sources before.
                     pending.trackNewInstance();
-                    pending.completion.addListener(refs.acquire());
+                    pending.completion.addListener(refs.acquireListener());
                     pending.finishInstance();
                 }
             }
@@ -224,8 +233,10 @@ public final class ExchangeSourceHandler {
             buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
             if (finished == false) {
                 finished = true;
-                outstandingSinks.finishInstance();
-                completionListener.onFailure(e);
+                remoteSink.close(ActionListener.running(() -> {
+                    outstandingSinks.finishInstance();
+                    completionListener.onFailure(e);
+                }));
             }
         }
 
@@ -254,7 +265,11 @@ public final class ExchangeSourceHandler {
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
     public void addRemoteSink(RemoteSink remoteSink, boolean failFast, int instances, ActionListener<Void> listener) {
-        final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(ActionListener.notifyOnce(listener));
+        final int sinkId = nextSinkId.incrementAndGet();
+        remoteSinks.put(sinkId, remoteSink);
+        final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(
+            ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> remoteSinks.remove(sinkId)))
+        );
         fetchExecutor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -262,12 +277,12 @@ public final class ExchangeSourceHandler {
                     failure.unwrapAndCollect(e);
                 }
                 buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
-                sinkListener.onFailure(e);
+                remoteSink.close(ActionListener.running(() -> sinkListener.onFailure(e)));
             }
 
             @Override
             protected void doRun() {
-                try (RefCountingListener refs = new RefCountingListener(sinkListener)) {
+                try (EsqlRefCountingListener refs = new EsqlRefCountingListener(sinkListener)) {
                     for (int i = 0; i < instances; i++) {
                         var fetcher = new RemoteSinkFetcher(remoteSink, failFast, refs.acquire());
                         fetcher.fetchPage();
@@ -286,6 +301,22 @@ public final class ExchangeSourceHandler {
     public Releasable addEmptySink() {
         outstandingSinks.trackNewInstance();
         return outstandingSinks::finishInstance;
+    }
+
+    /**
+     * Gracefully terminates the exchange source early by instructing all remote exchange sinks to stop their computations.
+     * This can happen when the exchange source has accumulated enough data (e.g., reaching the LIMIT) or when users want to
+     * see the current result immediately.
+     *
+     * @param drainingPages whether to discard pages already fetched in the exchange
+     */
+    public void finishEarly(boolean drainingPages, ActionListener<Void> listener) {
+        buffer.finish(drainingPages);
+        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
+            for (RemoteSink remoteSink : remoteSinks.values()) {
+                remoteSink.close(refs.acquire());
+            }
+        }
     }
 
     private static class PendingInstances {

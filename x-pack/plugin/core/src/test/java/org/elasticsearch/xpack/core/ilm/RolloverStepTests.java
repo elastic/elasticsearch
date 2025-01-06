@@ -23,9 +23,9 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -185,7 +185,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             assertRolloverIndexRequest(request, rolloverTarget);
-            listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), true, true, true, false));
+            listener.onResponse(new RolloverResponse(null, null, Map.of(), request.isDryRun(), true, true, true, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -214,11 +214,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .putAlias(AliasMetadata.builder(rolloverAlias))
             .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(
-                new RolloverInfo(
-                    rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
-                    System.currentTimeMillis()
-                )
+                new RolloverInfo(rolloverAlias, List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))), System.currentTimeMillis())
             )
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))

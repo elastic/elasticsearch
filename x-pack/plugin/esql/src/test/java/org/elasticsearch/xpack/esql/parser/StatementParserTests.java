@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -2314,7 +2315,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | WHERE field:CONCAT(\"hello\", \"world\")",
             "line 1:25: mismatched input 'CONCAT' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
-        expectError("from test | WHERE field:123::STRING", "line 1:28: mismatched input '::' expecting {<EOF>, '|', 'and', 'or'}");
         expectError(
             "from test | WHERE field:(true OR false)",
             "line 1:25: extraneous input '(' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
@@ -2323,7 +2323,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | WHERE field:another_field_or_value",
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
-        expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+' expecting {<EOF>, '|', 'and', 'or'}");
+        expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
         expectError(
             "from test | WHERE \"field\":\"value\"",
             "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
@@ -2332,5 +2332,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | WHERE CONCAT(\"field\", 1):\"value\"",
             "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
         );
+    }
+
+    public void testMatchFunctionFieldCasting() {
+        var plan = statement("FROM test | WHERE match(field::int, \"value\")");
+        var filter = as(plan, Filter.class);
+        var function = (UnresolvedFunction) filter.condition();
+        var toInteger = (ToInteger) function.children().get(0);
+        var matchField = (UnresolvedAttribute) toInteger.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(function.children().get(1).fold(), equalTo("value"));
+    }
+
+    public void testMatchOperatorFieldCasting() {
+        var plan = statement("FROM test | WHERE field::int : \"value\"");
+        var filter = as(plan, Filter.class);
+        var match = (Match) filter.condition();
+        var toInteger = (ToInteger) match.field();
+        var matchField = (UnresolvedAttribute) toInteger.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(match.query().fold(), equalTo("value"));
     }
 }

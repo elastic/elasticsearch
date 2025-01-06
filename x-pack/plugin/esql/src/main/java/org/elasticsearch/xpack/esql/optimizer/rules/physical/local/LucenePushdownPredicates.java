@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -57,6 +58,10 @@ public interface LucenePushdownPredicates {
             return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasExactSubfield(fa);
         }
         return false;
+    }
+
+    default boolean isPushableMetadataAttribute(Expression exp) {
+        return exp instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE);
     }
 
     /**

@@ -47,7 +47,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -129,7 +128,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected TextSimilarityRankRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+    protected TextSimilarityRankRetrieverBuilder clone(
+        List<RetrieverSource> newChildRetrievers,
+        List<QueryBuilder> newPreFilterQueryBuilders
+    ) {
         return new TextSimilarityRankRetrieverBuilder(
             newChildRetrievers,
             inferenceId,
@@ -138,7 +140,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             rankWindowSize,
             minScore,
             retrieverName,
-            preFilterQueryBuilders
+            newPreFilterQueryBuilders
         );
     }
 

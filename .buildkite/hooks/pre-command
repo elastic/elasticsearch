@@ -47,6 +47,8 @@ export GRADLE_BUILD_CACHE_PASSWORD
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
 
+export GH_TOKEN="$VAULT_GITHUB_TOKEN"
+
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
 
@@ -117,3 +119,5 @@ if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
   echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
   sudo systemctl restart dnsmasq.service
 fi
+
+.buildkite/scripts/get-latest-test-mutes.sh

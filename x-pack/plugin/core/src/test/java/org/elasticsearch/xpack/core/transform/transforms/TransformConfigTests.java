@@ -165,6 +165,25 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
+    public static TransformConfig randomTransformConfigWithHeaders(Map<String, String> headers) {
+        return new TransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean() ? null : randomSyncConfig(),
+            headers,
+            randomBoolean() ? null : PivotConfigTests.randomPivotConfig(),
+            randomBoolean() ? null : LatestConfigTests.randomLatestConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            randomBoolean() ? null : Instant.now(),
+            TransformConfigVersion.CURRENT.toString()
+        );
+    }
+
     public static TransformConfig randomTransformConfig(
         String id,
         TransformConfigVersion version,
@@ -915,10 +934,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         }
     }
 
-    public void testCheckForDeprecations() {
+    public void testCheckForDeprecations_NoDeprecationWarnings() throws IOException {
         String id = randomAlphaOfLengthBetween(1, 10);
         assertThat(randomTransformConfig(id, TransformConfigVersion.CURRENT).checkForDeprecations(xContentRegistry()), is(empty()));
+    }
 
+    public void testCheckForDeprecations_WithDeprecatedFields_VersionCurrent() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
         TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.CURRENT);
 
         // check _and_ clear warnings
@@ -940,8 +962,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
-        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_10_0);
+    public void testCheckForDeprecations_WithDeprecatedFields_Version_7_10() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_10_0);
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
@@ -962,8 +987,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
-        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_4_0);
+    public void testCheckForDeprecations_WithDeprecatedFields_Version_7_4() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_4_0);
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);

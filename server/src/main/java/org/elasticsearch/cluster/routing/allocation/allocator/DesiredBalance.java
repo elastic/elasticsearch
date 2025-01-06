@@ -40,7 +40,14 @@ public record DesiredBalance(
         this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
     }
 
-    public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
+    /**
+     * The placeholder value for {@link DesiredBalance} when the node stands down as master.
+     */
+    public static final DesiredBalance NOT_MASTER = new DesiredBalance(-2, Map.of());
+    /**
+     * The starting value for {@link DesiredBalance} when the node becomes the master.
+     */
+    public static final DesiredBalance BECOME_MASTER_INITIAL = new DesiredBalance(-1, Map.of());
 
     public ShardAssignment getAssignment(ShardId shardId) {
         return assignments.get(shardId);

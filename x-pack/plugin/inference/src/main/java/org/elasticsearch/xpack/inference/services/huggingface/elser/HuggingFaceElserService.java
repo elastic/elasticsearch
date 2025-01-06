@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -28,14 +28,15 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
@@ -43,12 +44,15 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings.URL;
 
 public class HuggingFaceElserService extends HuggingFaceBaseService {
@@ -82,13 +86,23 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
@@ -98,16 +112,31 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
     }
 
-    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        DocumentsOnlyInput inputs,
-        InferenceServiceResults inferenceResults
-    ) {
+    private static List<ChunkedInference> translateToChunkedResults(DocumentsOnlyInput inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs.getInputs(), textEmbeddingResults);
+            validateInputSizeAgainstEmbeddings(inputs.getInputs(), textEmbeddingResults.embeddings().size());
+
+            var results = new ArrayList<ChunkedInference>(inputs.getInputs().size());
+
+            for (int i = 0; i < inputs.getInputs().size(); i++) {
+                results.add(
+                    new ChunkedInferenceEmbeddingFloat(
+                        List.of(
+                            new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
+                                textEmbeddingResults.embeddings().get(i).values(),
+                                inputs.getInputs().get(i),
+                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
+                            )
+                        )
+                    )
+                );
+            }
+            return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return InferenceChunkedSparseEmbeddingResults.listOf(inputs.getInputs(), sparseEmbeddingResults);
+            var inputsAsList = DocumentsOnlyInput.of(inputs).getInputs();
+            return ChunkedInferenceEmbeddingSparse.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
-            return List.of(new ErrorChunkedInferenceResults(error.getException()));
+            return List.of(new ChunkedInferenceError(error.getException()));
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",

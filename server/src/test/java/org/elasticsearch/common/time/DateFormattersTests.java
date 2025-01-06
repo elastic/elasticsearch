@@ -260,6 +260,32 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(formatter.format(instant), is("-0.12345"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
+        {
+            Instant instant = Instant.from(formatter.parse("12345."));
+            assertThat(instant.getEpochSecond(), is(12L));
+            assertThat(instant.getNano(), is(345_000_000));
+            assertThat(formatter.format(instant), is("12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("12345.0."));
+            assertThat(e.getMessage(), is("failed to parse date field [12345.0.] with format [epoch_millis]"));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000"));
+            assertThat(instant.getEpochSecond(), is(-86400L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-86400000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000.999999"));
+            assertThat(instant.getEpochSecond(), is(-86401L));
+            assertThat(instant.getNano(), is(999000001));
+            assertThat(formatter.format(instant), is("-86400000.999999"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+
     }
 
     /**

@@ -43,7 +43,7 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
             if (exception instanceof ElasticsearchException e && e.getMetadata("es.failed_to_remove_retention_leases") != null) {
                 List<String> leasesNotRemoved = e.getMetadata("es.failed_to_remove_retention_leases");
                 logger.debug(
-                    "failed to remove leader retention lease(s) {} while unfollowing index [{}], " + "continuing with lifecycle execution",
+                    "failed to remove leader retention lease(s) {} while unfollowing index [{}], continuing with lifecycle execution",
                     leasesNotRemoved,
                     followerIndex
                 );

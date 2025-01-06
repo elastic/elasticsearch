@@ -21,7 +21,7 @@ RAG sits at the intersection of https://www.elastic.co/what-is/information-retri
 
 RAG has several advantages:
 
-* *Improved context:* Enables grounding the LLM with additional, up-to-date, and/or private data.
+* *Improved context:* Enables grounding the language model with additional, up-to-date, and/or private data.
 * *Reduced hallucination:* Helps minimize factual errors by enabling models to cite authoritative sources.
 * *Cost efficiency:* Requires less maintenance compared to finetuning or continuously pretraining models.
 * *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control, and field/document-level security.

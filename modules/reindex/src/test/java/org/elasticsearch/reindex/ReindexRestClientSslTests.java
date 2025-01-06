@@ -113,7 +113,6 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         final Settings settings = builder.build();

@@ -89,7 +89,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -112,7 +111,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderSetsThreadName() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             SSLContext.setDefault(getSslContext());

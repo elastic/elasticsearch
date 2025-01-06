@@ -130,7 +130,10 @@ setup:
         rest_total_hits_as_int: true
         index: test1
         body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 0}}
-  - match: { hits.hits.0.highlight: null }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer, or -1" }
 
 ---
 "Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=1 should SUCCEED":

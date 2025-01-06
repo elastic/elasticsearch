@@ -47,13 +47,13 @@ public class AllocationStatsService {
      */
     public Map<String, NodeAllocationStats> stats() {
         var clusterState = clusterService.state();
-        var nodeStats = nodeAllocationStatsCalculator.getAllocationStatsPerNode(
+        var nodesStats = nodeAllocationStatsCalculator.nodesAllocationStats(
             clusterState.metadata(),
             clusterState.getRoutingNodes(),
             clusterInfoService.getClusterInfo(),
             desiredBalanceSupplier.get()
         );
-        return nodeStats.entrySet()
+        return nodesStats.entrySet()
             .stream()
             .collect(
                 Collectors.toMap(

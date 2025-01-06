@@ -23,8 +23,8 @@ import java.io.IOException;
  *
  * @param shards count of shards on this node.
  * @param undesiredShards count of shards that we want to move off of this node.
- * @param forecastedIngestLoad the expected near future total ingest load on this node.
- * @param forecastedDiskUsage the expected near future total disk usage on this node.
+ * @param forecastedIngestLoad the predicted near future total ingest load on this node.
+ * @param forecastedDiskUsage the predicted near future total disk usage on this node.
  * @param currentDiskUsage the current total disk usage on this node.
  */
 public record NodeAllocationStats(

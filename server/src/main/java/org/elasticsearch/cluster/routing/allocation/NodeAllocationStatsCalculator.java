@@ -25,7 +25,7 @@ import org.elasticsearch.core.Nullable;
 import java.util.Map;
 
 /**
- * Calculates the balancer weights for each node ({@link NodeShardAllocationStats}).
+ * Calculates the balancer weights and usage stats for each node: see {@link NodeShardAllocationStats} for details.
  */
 public class NodeAllocationStatsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
@@ -62,9 +62,9 @@ public class NodeAllocationStatsCalculator {
     }
 
     /**
-     * Returns a map of node ID to {@link NodeShardAllocationStats}.
+     * Returns a map of node IDs to {@link NodeShardAllocationStats}.
      */
-    public Map<String, NodeShardAllocationStats> getAllocationStatsPerNode(
+    public Map<String, NodeShardAllocationStats> nodesAllocationStats(
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
@@ -122,7 +122,7 @@ public class NodeAllocationStatsCalculator {
     }
 
     /**
-     * Checks whether the current shard assignment is desired by the balancer. Undesired shards are moved off ASAP.
+     * Checks whether a shard is currently allocated to a node that is wanted by the desired balance decision.
      */
     private static boolean isDesiredAllocation(@Nullable DesiredBalance desiredBalance, ShardRouting shardRouting) {
         if (desiredBalance == null) {

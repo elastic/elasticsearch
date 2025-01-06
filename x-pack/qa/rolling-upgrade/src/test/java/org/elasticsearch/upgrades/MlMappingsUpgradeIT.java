@@ -66,6 +66,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+                assertNotificationsIndexAliasCreated();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -235,6 +236,17 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
             );
+        });
+    }
+
+    private void assertNotificationsIndexAliasCreated() throws Exception {
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", "_alias/.ml-notifications-write");
+            Response response = client().performRequest(getMappings);
+
+            Map<String, Object> responseLevel = entityAsMap(response);
+            assertNotNull(responseLevel);
+            fail(responseLevel.toString());
         });
     }
 }

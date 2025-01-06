@@ -30,7 +30,7 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
     protected AbstractMlAuditor(Client client, AbstractAuditMessageFactory<T> messageFactory, ClusterService clusterService) {
         super(
             new OriginSettingClient(client, ML_ORIGIN),
-            NotificationsIndex.NOTIFICATIONS_INDEX,
+            NotificationsIndex.NOTIFICATIONS_INDEX_WRITE_ALIAS,
             MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE,
             clusterService.getNodeName(),
             messageFactory,

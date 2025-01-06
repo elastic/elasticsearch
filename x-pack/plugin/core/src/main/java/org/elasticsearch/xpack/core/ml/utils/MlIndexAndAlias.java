@@ -328,7 +328,7 @@ public final class MlIndexAndAlias {
         String templateName = templateConfig.getTemplateName();
 
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateName)) {
+        if (hasIndexTemplate(clusterState, templateName, templateConfig.getVersion())) {
             listener.onResponse(true);
             return;
         }
@@ -342,7 +342,7 @@ public final class MlIndexAndAlias {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
         }
 
-        installIndexTemplateIfRequired(clusterState, client, request, listener);
+        installIndexTemplateIfRequired(clusterState, client, templateConfig.getVersion(), request, listener);
     }
 
     /**
@@ -358,11 +358,12 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
+        int templateVersion,
         TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateRequest.name())) {
+        if (hasIndexTemplate(clusterState, templateRequest.name(), templateVersion)) {
             listener.onResponse(true);
             return;
         }
@@ -377,7 +378,19 @@ public final class MlIndexAndAlias {
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
-    public static boolean hasIndexTemplate(ClusterState state, String templateName) {
-        return state.getMetadata().templatesV2().containsKey(templateName);
+    public static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
+        var template = state.getMetadata().templatesV2().get(templateName);
+        return template != null && Long.valueOf(version).equals(template.version());
+    }
+
+    /**
+     * True if the index exists
+     * @param state
+     * @param alias
+     * @param index
+     * @return
+     */
+    public static boolean indexIsMissingAlias(ClusterState state, String alias, String index) {
+        return state.metadata().hasAlias(alias);
     }
 }

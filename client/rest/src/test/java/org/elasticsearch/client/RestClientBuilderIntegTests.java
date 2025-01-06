@@ -53,6 +53,7 @@ import javax.net.ssl.TrustManagerFactory;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -96,7 +97,13 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(SSLHandshakeException.class));
+                    if (inFipsJvm()) {
+                        // Bouncy Castle throw a different exception
+                        assertThat(e, instanceOf(IOException.class));
+                        assertThat(e.getCause().getClass(), is(javax.net.ssl.SSLException.class));
+                    } else {
+                        assertThat(e, instanceOf(SSLHandshakeException.class));
+                    }
                 }
             }
 

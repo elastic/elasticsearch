@@ -468,10 +468,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
 
-            MutableSearchResponse mutableSearchResponse = new MutableSearchResponse(clusters, threadPool.getThreadContext());
-            mutableSearchResponse.updateShardsCount(shards.size() + skipped.size(), skipped.size());
+            MutableSearchResponse mutableSearchResponse = searchResponse.get();
+            if (mutableSearchResponse == null) {
+                mutableSearchResponse = new MutableSearchResponse(clusters, threadPool.getThreadContext());
+                searchResponse.set(mutableSearchResponse);
+            }
 
-            searchResponse.set(mutableSearchResponse);
+            mutableSearchResponse.updateShardsCount(shards.size() + skipped.size(), skipped.size());
             executeInitListeners();
         }
 

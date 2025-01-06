@@ -29,6 +29,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class DockerRun {
 
+    // Use less secure entropy source to avoid hanging when generating certificates
+    private static final String DEFAULT_JAVA_OPTS = "-Djava.security.egd=file:/dev/urandom";
+
     private Distribution distribution;
     private final Map<String, String> envVars = new HashMap<>();
     private final Map<Path, Path> volumes = new HashMap<>();
@@ -111,6 +114,13 @@ public class DockerRun {
 
         // Limit container memory
         cmd.add("--memory " + memory);
+
+        // Add default java opts
+        if (this.envVars.containsKey("CLI_JAVA_OPTS")) {
+            this.envVars.put("CLI_JAVA_OPTS", this.envVars.get("CLI_JAVA_OPTS") + " " + DEFAULT_JAVA_OPTS);
+        } else {
+            this.envVars.put("CLI_JAVA_OPTS", DEFAULT_JAVA_OPTS);
+        }
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 

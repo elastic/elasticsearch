@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -443,25 +442,27 @@ public final class IndicesPermission {
         FieldPermissionsCache fieldPermissionsCache
     ) {
         // Short circuit if the indicesPermission allows all access to every index
-        if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
-            return IndicesAccessControl.allowAll();
+        for (Group group : groups) {
+            if (group.isTotal()) {
+                return IndicesAccessControl.allowAll();
+            }
         }
 
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
-        final AtomicInteger totalResourceCountHolder = new AtomicInteger(0);
+        int totalResourceCount = 0;
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias));
             resources.put(resource.name, resource);
-            totalResourceCountHolder.getAndAdd(resource.size());
+            totalResourceCount += resource.size();
         }
 
         final boolean overallGranted = isActionGranted(action, resources);
-
+        final int finalTotalResourceCount = totalResourceCount;
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
-            totalResourceCountHolder.get(),
+            finalTotalResourceCount,
             fieldPermissionsCache
         );
 

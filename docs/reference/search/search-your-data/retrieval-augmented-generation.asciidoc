@@ -24,7 +24,7 @@ RAG has several advantages:
 * *Improved context:* Enables grounding the language model with additional, up-to-date, and/or private data.
 * *Reduced hallucination:* Helps minimize factual errors by enabling models to cite authoritative sources.
 * *Cost efficiency:* Requires less maintenance compared to finetuning or continuously pretraining models.
-* *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control, and field/document-level security.
+* *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control and field/document-level security.
 * *Simplified response parsing:* Eliminates the need for custom parsing logic by letting the language model handle parsing {es} responses and formatting the retrieved context.
 * *Flexible implementation:* Works with basic 
 // TODO: uncomment when page is live <<full-text-search,full-text search>> 

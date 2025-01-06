@@ -447,23 +447,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         }
 
         /**
-         * onSearchStart is guaranteed to be the first SearchProgressListener method called and
+         * onListShards is guaranteed to be the first SearchProgressListener method called and
          * the search will not progress until this returns, so this is a safe place to initialize state
          * that is needed for handling subsequent callbacks.
          */
-        @Override
-        public void onSearchStart(Clusters clusters) {
-            checkCancellation();
-            assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
-            ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
-            if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
-                delegate = new CCSSingleCoordinatorSearchProgressListener();
-                delegate.onSearchStart(clusters);
-            }
-
-            searchResponse.set(new MutableSearchResponse(clusters, threadPool.getThreadContext()));
-        }
-
         @Override
         protected void onListShards(
             List<SearchShard> shards,
@@ -477,10 +464,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
+                delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
 
-            searchResponse.get().updateShardsCount(shards.size() + skipped.size(), skipped.size());
+            MutableSearchResponse mutableSearchResponse = new MutableSearchResponse(clusters, threadPool.getThreadContext());
+            mutableSearchResponse.updateShardsCount(shards.size() + skipped.size(), skipped.size());
+
+            searchResponse.set(mutableSearchResponse);
             executeInitListeners();
         }
 
@@ -534,6 +525,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
             // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
+            if (searchResponse.get() == null) {
+                searchResponse.set(new MutableSearchResponse(getResponseClusters(), threadPool.getThreadContext()));
+            }
+
             searchResponse.get().updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
         }
 

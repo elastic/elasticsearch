@@ -34,9 +34,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     private SearchResponse.Clusters clusters;
     private TransportSearchAction.SearchTimeProvider timeProvider;
 
-    @Override
-    public void onSearchStart(SearchResponse.Clusters clusters) {}
-
     /**
      * Executed when shards are ready to be queried (after can-match)
      *

@@ -150,7 +150,7 @@ setup:
   - match: { hits.hits.0.highlight: null }
 
 ---
-"Plain highlighter with max_analyzed_offset = -1 should default to index analyze offset":
+"Plain highlighter with max_analyzed_offset = -1 default to index analyze offset should SUCCEED":
 
   - requires:
       test_runner_features: [capabilities]

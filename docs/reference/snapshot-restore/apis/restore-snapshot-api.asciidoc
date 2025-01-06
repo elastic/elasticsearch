@@ -4,6 +4,12 @@
 <titleabbrev>Restore snapshot</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Restores a <<snapshot-restore,snapshot>> of a cluster or specified data streams and indices.
 
 ////

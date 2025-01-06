@@ -2,6 +2,12 @@
 [[migration-api]]
 == Migration APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-migration[Migration APIs].
+--
+
 The migration APIs power {kib}'s **Upgrade Assistant** feature.
 
 include::apis/shared-migration-apis-tip.asciidoc[]

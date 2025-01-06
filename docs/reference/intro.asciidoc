@@ -1,6 +1,7 @@
 [[elasticsearch-intro]]
 == {es} basics
 
+I want to add a new line.
 This guide covers the core concepts you need to understand to get started with {es}.
 If you'd prefer to start working with {es} right away, set up a <<run-elasticsearch-locally,local development environment>> and jump to <<quickstart,hands-on code examples>>.
 

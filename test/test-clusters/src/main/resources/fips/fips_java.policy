@@ -5,6 +5,7 @@ grant {
      permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
      permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
      permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
+     permission java.security.SecurityPermission "getProperty.org.bouncycastle.ec.max_f2m_field_size";
      permission java.lang.RuntimePermission "getProtectionDomain";
      permission java.util.PropertyPermission "java.runtime.name", "read";
      permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
@@ -20,6 +21,6 @@ grant {
 };
 
 // rely on the caller's socket permissions, the JSSE TLS implementation here is always allowed to connect
-grant codeBase "file:${jdk.module.path}/bctls-fips-1.0.17.jar" {
+grant codeBase "file:${jdk.module.path}/bctls-fips-1.0.19.jar" {
   permission java.net.SocketPermission "*", "connect";
 };

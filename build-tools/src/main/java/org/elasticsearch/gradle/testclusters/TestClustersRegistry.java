@@ -42,6 +42,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {
         if (runningClusters.contains(cluster)) {
+            System.out.println("cluster = " + cluster + " is already running");
             return;
         }
         runningClusters.add(cluster);
@@ -81,6 +82,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         } else {
             int currentClaims = cluster.removeClaim();
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
+                System.out.println("stopping cluster = " + cluster);
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }
@@ -93,6 +95,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             .filter(c -> c.getName().equals(clusterName))
             .findFirst()
             .orElseThrow();
+        System.out.println("getClusterDetails cluster = " + cluster + " hash " + System.identityHashCode(cluster));
         return new TestClusterInfo(
             cluster.getAllHttpSocketURI(),
             cluster.getAllTransportPortURI(),
@@ -107,6 +110,23 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             .findFirst()
             .orElseThrow();
         cluster.restart();
+    }
+
+    public void nextNodeToNextVersion(Provider<ElasticsearchCluster> cluster) {
+        nextNodeToNextVersion(cluster.get());
+    }
+
+    public void nextNodeToNextVersion(ElasticsearchCluster cluster) {
+        nextNodeToNextVersion(cluster.getPath(), cluster.getName());
+    }
+
+    public void nextNodeToNextVersion(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
+        cluster.nextNodeToNextVersion();
     }
 
     public void storeProcess(String id, Process esProcess) {

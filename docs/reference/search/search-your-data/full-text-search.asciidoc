@@ -12,27 +12,29 @@ Full-text search, also known as lexical search, is a technique for fast, efficie
 Documents and search queries are transformed to enable returning https://www.elastic.co/what-is/search-relevance[relevant] results instead of simply exact term matches.
 Fields of type <<text-field-type,`text`>> are analyzed and indexed for full-text search.
 
-Built on decades of information retrieval research, full-text search in {es} is a compute-efficient, deterministic approach that scales predictably with data volume.
-Full-text search is the cornerstone of production-grade search solutions.
-Combine full-text search with <<semantic-search,semantic search using vectors>> to build modern hybrid search applications.
+Built on decades of information retrieval research, full-text search delivers reliable results that scale predictably as your data grows. Because it runs efficiently on CPUs, {es}'s full-text search requires minimal computational resources compared to GPU-intensive vector operations.
+
+This translates to lower infrastructure costs and predictable scaling requirements. You can scale horizontally by adding more nodes with standard CPU cores and RAM - no specialized hardware needed. A typical deployment will start with 2-3 nodes and grow incrementally as search volume increases. Learn more about <<scalability, moving to production>>.
+
+You can combine full-text search with <<semantic-search,semantic search using vectors>> to build modern hybrid search applications. While vector search may require additional GPU resources, the full-text component remains cost-effective by leveraging existing CPU infrastructure.
 
 [discrete]
 [[full-text-search-how-it-works]]
 === How full-text search works
 
-The following diagram illustrates the components of full-text search. Note that the query text also undergoes text analysis, so that it's transformed in the same way as the indexed text. 
+The following diagram illustrates the components of full-text search.
 
 image::images/search/full-text-search-overview.svg[Components of full-text search from analysis to relevance scoring, align=center, width=500]
 
 At a high level, full-text search involves the following:
 
-* <<analysis-overview,*Text analysis*>>: Analysis consists of a pipeline of sequential transformations. Text is transformed into a format optimized for searching by stemming, lowercasing, stop word elimination, etc. {es} contains a number of built-in <<analysis-analyzers,analyzers>> (including language-specific analyzers) and tokenizers, and you can also create custom analyzers.
+* <<analysis-overview,*Text analysis*>>: Analysis consists of a pipeline of sequential transformations. Text is transformed into a format optimized for searching using techniques such as stemming, lowercasing, and stop word elimination. {es} contains a number of built-in <<analysis-analyzers,analyzers>> and tokenizers, including options to analyze specific language text. You can also create custom analyzers.
 +
 [TIP]
 ====
 Refer to <<test-analyzer,Test an analyzer>> to learn how to test an analyzer and inspect the tokens and metadata it generates.
 ====
-* *Inverted index*: After analysis is complete, {es} builds an inverted index from the resulting tokens.
+* *Inverted index creation*: After analysis is complete, {es} builds an inverted index from the resulting tokens.
 An inverted index is a data structure that maps each token to the documents that contain it.
 It's made up of two key components:
 ** *Dictionary*: A sorted list of all unique terms in the collection of documents in your index.
@@ -48,22 +50,34 @@ Query DSL supports a number of <<full-text-queries,full-text queries>>.
 As of 8.17, {esql} also supports <<esql-search-functions,full-text search>> functions.
 
 [discrete]
+[[full-text-search-getting-started]]
+=== Getting started
+
+For a hands-on introduction to full-text search, refer to the <<full-text-filter-tutorial,full-text search tutorial>>.
+
+[discrete]
 [[full-text-search-learn-more]]
 === Learn more
 
-.Getting Started
-* <<full-text-filter-tutorial,Hands-on full-text search tutorial>> 
+Here are some resources to help you learn more about full-text search with {es}.
 
-.Core Concepts
+.Core concepts
+
+Learn about the core components of full-text search:
+
+
 * <<text,Text fields>>
 * <<analysis,Text analysis>>
-* <<analysis-tokenizers,Tokenizers>>
-* <<analysis-analyzers,Analyzers>>
+** <<analysis-tokenizers,Tokenizers>>
+** <<analysis-analyzers,Analyzers>>
 
-.Search APIs
+.Using {es} query languages
+
+Learn how to build full-text search queries using {es}'s query languages:
+
 * <<full-text-queries,Full-text queries using Query DSL>> 
 * <<esql-search-functions,Full-text search functions in {esql}>>
 
-.Advanced Topics
-* https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables[Practical BM25: Part 2 - The BM25 Algorithm and its Variables]
-* <<recipes,Search relevance optimization recipes>>
+.Advanced topics
+* For a technical deep dive into {es}'s BM25 implementation read this blog post: https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables[The BM25 Algorithm and its Variables]
+* To learn how to optimize the relevance of your search results, refer to <<Search relevance optimizations>>"

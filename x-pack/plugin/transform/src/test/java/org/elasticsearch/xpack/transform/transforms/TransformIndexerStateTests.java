@@ -145,7 +145,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 /* TransformProgress */ null,
                 TransformCheckpoint.EMPTY,
                 TransformCheckpoint.EMPTY,
-                context
+                context,
+                EventHook.NOOP
             );
             this.threadPool = threadPool;
 
@@ -345,7 +346,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 /* TransformProgress */ null,
                 TransformCheckpoint.EMPTY,
                 TransformCheckpoint.EMPTY,
-                context
+                context,
+                EventHook.NOOP
             );
         }
 

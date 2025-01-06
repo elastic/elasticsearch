@@ -110,7 +110,8 @@ class ClientTransformIndexer extends TransformIndexer {
         TransformCheckpoint nextCheckpoint,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         TransformContext context,
-        boolean shouldStopAtCheckpoint
+        boolean shouldStopAtCheckpoint,
+        EventHook eventHook
     ) {
         super(
             ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
@@ -123,7 +124,8 @@ class ClientTransformIndexer extends TransformIndexer {
             transformProgress,
             lastCheckpoint,
             nextCheckpoint,
-            context
+            context,
+            eventHook
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.clusterService = clusterService;

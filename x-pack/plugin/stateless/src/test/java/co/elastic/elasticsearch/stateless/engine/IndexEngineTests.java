@@ -512,4 +512,35 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             0
         );
     }
+
+    public void testHollowEngineUserData() throws Exception {
+        try (var engine = newIndexEngine(indexConfig())) {
+            engine.index(randomDoc(String.valueOf(0)));
+            assertFalse(engine.isLastCommitHollow());
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+            assertTrue(engine.isLastCommitHollow());
+        }
+    }
+
+    public void testHollowEngineCannotIngest() throws Exception {
+        try (var engine = newIndexEngine(indexConfig())) {
+            var indexedDoc = randomDoc(String.valueOf(0));
+            engine.index(indexedDoc);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+            final var maxSeqNo = engine.getMaxSeqNo();
+
+            expectThrows(IllegalStateException.class, () -> {
+                if (randomBoolean()) {
+                    engine.index(randomDoc(String.valueOf(1)));
+                } else {
+                    engine.delete(new Engine.Delete(indexedDoc.id(), indexedDoc.uid(), 1L));
+                }
+            });
+            assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
+        }
+    }
 }

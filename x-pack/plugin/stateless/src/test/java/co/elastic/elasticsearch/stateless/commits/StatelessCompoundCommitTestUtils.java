@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
@@ -49,18 +50,38 @@ public final class StatelessCompoundCommitTestUtils {
     }
 
     public static StatelessCompoundCommit randomCompoundCommit(ShardId shardId, PrimaryTermAndGeneration termAndGeneration) {
+        return randomCompoundCommit(shardId, termAndGeneration, randomBoolean());
+    }
+
+    public static StatelessCompoundCommit randomCompoundCommit(
+        ShardId shardId,
+        PrimaryTermAndGeneration termAndGeneration,
+        boolean hollow
+    ) {
         Map<String, BlobLocation> commitFiles = randomCommitFiles();
-        return new StatelessCompoundCommit(
-            shardId,
-            termAndGeneration,
-            randomNonZeroPositiveLong(),
-            randomNodeEphemeralId(),
-            commitFiles,
-            randomNonZeroPositiveLong(),
-            Set.copyOf(randomSubsetOf(commitFiles.keySet())),
-            randomNonZeroPositiveLong(),
-            randomInternalFilesReplicatedRanges()
-        );
+        if (hollow) {
+            return StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                shardId,
+                termAndGeneration,
+                commitFiles,
+                randomNonZeroPositiveLong(),
+                Set.copyOf(randomSubsetOf(commitFiles.keySet())),
+                randomNonZeroPositiveLong(),
+                randomInternalFilesReplicatedRanges()
+            );
+        } else {
+            return new StatelessCompoundCommit(
+                shardId,
+                termAndGeneration,
+                randomNonZeroPositiveLong(),
+                randomNodeEphemeralId(),
+                commitFiles,
+                randomNonZeroPositiveLong(),
+                Set.copyOf(randomSubsetOf(commitFiles.keySet())),
+                randomNonZeroPositiveLong(),
+                randomInternalFilesReplicatedRanges()
+            );
+        }
     }
 
     public static ShardId randomShardId() {

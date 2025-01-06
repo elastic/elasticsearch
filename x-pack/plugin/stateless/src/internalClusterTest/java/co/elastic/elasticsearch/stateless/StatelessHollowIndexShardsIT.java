@@ -18,7 +18,9 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -28,6 +30,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
@@ -41,6 +44,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.IngestTestPlugin;
@@ -65,8 +69,10 @@ import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STA
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL;
 import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -236,6 +242,43 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         } else {
             assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(false));
         }
+    }
+
+    public void testHollowEngineAndCompoundCommit() throws Exception {
+        startMasterAndIndexNode();
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        final var indexShard = findIndexShard(indexName);
+        final var shardId = indexShard.shardId();
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var statelessCommitService = indexEngine.getStatelessCommitService();
+
+        indexDocs(indexName, randomIntBetween(1, 10));
+        assertFalse(indexEngine.isLastCommitHollow());
+        flush(indexName);
+        assertFalse(indexEngine.isLastCommitHollow());
+        assertFalse(statelessCommitService.getLatestUploadedBcc(shardId).lastCompoundCommit().hollow());
+
+        indexDocs(indexName, randomIntBetween(1, 10));
+        final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+        indexEngine.flushHollow(future);
+        if (randomBoolean()) {
+            indicesAdmin().prepareFlush(indexName).setForce(true).get(TimeValue.timeValueSeconds(10)); // competing flush
+        }
+        safeGet(future);
+        assertTrue(indexEngine.isLastCommitHollow());
+        assertTrue(statelessCommitService.getLatestUploadedBcc(shardId).lastCompoundCommit().hollow());
+
+        var indexRequest = client().prepareIndex();
+        indexRequest.setIndex(indexName);
+        indexRequest.setSource("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+        Exception exception = expectThrows(Exception.class, () -> indexRequest.execute().get());
+        Throwable cause = ExceptionsHelper.unwrapCause(exception.getCause());
+        assertThat(cause, instanceOf(IllegalStateException.class));
+        assertThat(cause.getMessage(), containsString("cannot ingest"));
     }
 
     protected void createDataStreamWithMultipleBackingIndices(String dataStream, boolean failureStore) throws Exception {

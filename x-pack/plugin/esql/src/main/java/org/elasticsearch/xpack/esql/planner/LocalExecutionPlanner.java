@@ -345,6 +345,8 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        final Integer rowSize = topNExec.estimatedRowSize();
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
@@ -385,24 +387,8 @@ public class LocalExecutionPlanner {
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
-
-        // TODO Replace page size with passing estimatedRowSize down
-        /*
-         * The 2000 below is a hack to account for incoming size and to make
-         * sure the estimated row size is never 0 which'd cause a divide by 0.
-         * But we should replace this with passing the estimate into the real
-         * topn and letting it actually measure the size of rows it produces.
-         * That'll be more accurate. And we don't have a path for estimating
-         * incoming rows. And we don't need one because we can estimate.
-         */
         return source.with(
-            new TopNOperatorFactory(
-                limit,
-                asList(elementTypes),
-                asList(encoders),
-                orders,
-                context.pageSize(2000 + topNExec.estimatedRowSize())
-            ),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
             source.layout
         );
     }

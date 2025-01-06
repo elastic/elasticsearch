@@ -57,7 +57,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -444,7 +443,11 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + Stream.of(builderParams.multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {

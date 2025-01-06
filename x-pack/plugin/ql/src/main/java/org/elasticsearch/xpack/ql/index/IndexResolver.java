@@ -1037,7 +1037,7 @@ public class IndexResolver {
     /**
      * Preserve the properties (sub fields) of an existing field even when marking it as invalid.
      */
-    public static ExistingFieldInvalidCallback PRESERVE_PROPERTIES = (oldField, newField) -> {
+    public static final ExistingFieldInvalidCallback PRESERVE_PROPERTIES = (oldField, newField) -> {
         var oldProps = oldField.getProperties();
         if (oldProps.size() > 0) {
             newField.getProperties().putAll(oldProps);

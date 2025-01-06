@@ -16,11 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class PolicyParserTests extends ESTestCase {
 
@@ -39,21 +35,21 @@ public class PolicyParserTests extends ESTestCase {
     public void testPolicyBuilder() throws IOException {
         Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", false)
             .parsePolicy();
-        Policy builtPolicy = new Policy(
+        Policy expected = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
         );
-        assertEquals(parsedPolicy, builtPolicy);
+        assertEquals(expected, parsedPolicy);
     }
 
     public void testPolicyBuilderOnExternalPlugin() throws IOException {
         Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", true)
             .parsePolicy();
-        Policy builtPolicy = new Policy(
+        Policy expected = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", List.of("read", "write")))))
         );
-        assertEquals(parsedPolicy, builtPolicy);
+        assertEquals(expected, parsedPolicy);
     }
 
     public void testParseCreateClassloader() throws IOException {
@@ -61,17 +57,22 @@ public class PolicyParserTests extends ESTestCase {
             entitlement-module-name:
               - create_class_loader
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
-        Policy builtPolicy = new Policy(
+        Policy expected = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new CreateClassLoaderEntitlement())))
         );
-        assertThat(
-            parsedPolicy.scopes,
-            contains(
-                both(transformedMatch((Scope scope) -> scope.name, equalTo("entitlement-module-name"))).and(
-                    transformedMatch(scope -> scope.entitlements, contains(instanceOf(CreateClassLoaderEntitlement.class)))
-                )
-            )
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseSetHttpsConnectionProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - set_https_connection_properties
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new SetHttpsConnectionPropertiesEntitlement())))
         );
+        assertEquals(expected, parsedPolicy);
     }
 }

@@ -5,6 +5,12 @@
 <titleabbrev>Delegate PKI authentication</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Implements the exchange of an _X509Certificate_ chain into an {es} access
 token.
 

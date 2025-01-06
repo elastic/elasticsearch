@@ -23,12 +23,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
+import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(PolicyManager.class);
@@ -93,13 +96,13 @@ public class PolicyManager {
         this.agentEntitlements = agentEntitlements;
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
+            .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
         this.entitlementsModule = entitlementsModule;
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
-        return policy.scopes().stream().collect(Collectors.toUnmodifiableMap(scope -> scope.moduleName(), scope -> scope.entitlements()));
+        return policy.scopes().stream().collect(toUnmodifiableMap(Scope::moduleName, Scope::entitlements));
     }
 
     public void checkStartProcess(Class<?> callerClass) {
@@ -122,6 +125,26 @@ public class PolicyManager {
         );
     }
 
+    /**
+     * @param operationDescription is only called when the operation is not trivially allowed, meaning the check is about to fail;
+     *                            therefore, its performance is not a major concern.
+     */
+    private void neverEntitled(Class<?> callerClass, Supplier<String> operationDescription) {
+        var requestingModule = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingModule)) {
+            return;
+        }
+
+        throw new NotEntitledException(
+            Strings.format(
+                "Not entitled: caller [%s], module [%s], operation [%s]",
+                callerClass,
+                requestingModule.getName(),
+                operationDescription.get()
+            )
+        );
+    }
+
     public void checkExitVM(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, ExitVMEntitlement.class);
     }
@@ -134,8 +157,23 @@ public class PolicyManager {
         checkEntitlementPresent(callerClass, SetHttpsConnectionPropertiesEntitlement.class);
     }
 
-    public void checkSetGlobalHttpsConnectionProperties(Class<?> callerClass) {
-        neverEntitled(callerClass, "set global https connection properties");
+    public void checkChangeJVMGlobalState(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> {
+            // Look up the check$ method to compose an informative error message.
+            // This way, we don't need to painstakingly describe every individual global-state change.
+            Optional<String> checkMethodName = StackWalker.getInstance()
+                .walk(
+                    frames -> frames.map(StackFrame::getMethodName)
+                        .dropWhile(not(methodName -> methodName.startsWith("check$")))
+                        .findFirst()
+                );
+            return checkMethodName.map(this::operationDescription).orElse("change JVM global state");
+        });
+    }
+
+    private String operationDescription(String methodName) {
+        // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
+        return methodName.substring(methodName.indexOf('$'));
     }
 
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {

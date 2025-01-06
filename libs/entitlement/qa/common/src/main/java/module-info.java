@@ -12,5 +12,8 @@ module org.elasticsearch.entitlement.qa.common {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
 
+    // Modules we'll attempt to use in order to exercise entitlements
+    requires java.logging;
+
     exports org.elasticsearch.entitlement.qa.common;
 }

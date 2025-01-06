@@ -32,7 +32,7 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsDeniedIT.xml
-        .setting("logger.org.elasticsearch.entitlement", "TRACE")
+        // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
         .build();
 
     @Override

@@ -9,6 +9,13 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.net.ContentHandlerFactory;
+import java.net.DatagramSocketImplFactory;
+import java.net.FileNameMap;
+import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 import java.util.List;
@@ -88,5 +95,74 @@ public interface EntitlementChecker {
     void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder that);
 
     void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
+
+    ////////////////////
+    //
+    // JVM-wide state changes
+    //
+
+    void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in);
+
+    void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
+
+    void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
+
+    void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
+
+    void check$java_lang_Runtime$removeShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
+
+    void check$jdk_tools_jlink_internal_Jlink$(Class<?> callerClass);
+
+    void check$jdk_tools_jlink_internal_Main$$run(Class<?> callerClass, PrintWriter out, PrintWriter err, String... args);
+
+    void check$jdk_vm_ci_services_JVMCIServiceLocator$$getProviders(Class<?> callerClass, Class<?> service);
+
+    void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
+
+    void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
+
+    void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass);
+
+    void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh);
+
+    void check$java_util_spi_LocaleServiceProvider$(Class<?> callerClass);
+
+    void check$java_text_spi_BreakIteratorProvider$(Class<?> callerClass);
+
+    void check$java_text_spi_CollatorProvider$(Class<?> callerClass);
+
+    void check$java_text_spi_DateFormatProvider$(Class<?> callerClass);
+
+    void check$java_text_spi_DateFormatSymbolsProvider$(Class<?> callerClass);
+
+    void check$java_text_spi_DecimalFormatSymbolsProvider$(Class<?> callerClass);
+
+    void check$java_text_spi_NumberFormatProvider$(Class<?> callerClass);
+
+    void check$java_util_spi_CalendarDataProvider$(Class<?> callerClass);
+
+    void check$java_util_spi_CalendarNameProvider$(Class<?> callerClass);
+
+    void check$java_util_spi_CurrencyNameProvider$(Class<?> callerClass);
+
+    void check$java_util_spi_LocaleNameProvider$(Class<?> callerClass);
+
+    void check$java_util_spi_TimeZoneNameProvider$(Class<?> callerClass);
+
+    void check$java_util_logging_LogManager$(Class<?> callerClass);
+
+    void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
+
+    void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set);
+
+    void check$java_net_ServerSocket$$setSocketFactory(Class<?> callerClass, SocketImplFactory fac);
+
+    void check$java_net_Socket$$setSocketImplFactory(Class<?> callerClass, SocketImplFactory fac);
+
+    void check$java_net_URL$$setURLStreamHandlerFactory(Class<?> callerClass, URLStreamHandlerFactory fac);
+
+    void check$java_net_URLConnection$$setFileNameMap(Class<?> callerClass, FileNameMap map);
+
+    void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
 }

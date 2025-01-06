@@ -1,11 +1,12 @@
 [[analysis-tokenizers]]
 == Tokenizer reference
 
+.Difference between {es} tokenization and neural tokenization
 [NOTE]
 ====
-{es}'s text analysis produces meaningful _linguistic_ tokens (like words and phrases) optimized for search relevance scoring.
-This differs from neural tokenizers, which break text into smaller subword units and numerical vectors for machine learning models.
-For example, "searching" becomes the searchable word token "search" in {es}, while a neural tokenizer might split it into ["sea", "##rch", "##ing"] for model consumption.
+{es}'s tokenization process produces linguistic tokens, optimized for search and retrieval.
+This differs from neural tokenization in the context of machine learning and natural language processing. Neural tokenizers translate strings into smaller, subword tokens, which are encoded into vectors for consumptions by neural networks.
+{es} does not have built-in neural tokenizers.
 ====
 
 A _tokenizer_ receives a stream of characters, breaks it up into individual

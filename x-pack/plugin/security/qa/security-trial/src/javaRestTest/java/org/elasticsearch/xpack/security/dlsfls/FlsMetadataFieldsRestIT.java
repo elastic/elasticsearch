@@ -32,7 +32,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
     private static final String FLS_FILE_ROLE_USER = "fls_file_role_user";
     // defined in resources/roles.yml
     private static final String FLS_LEGACY_METADATA_FIELDS_ROLE = "fls_legacy_metadata_fields_role";
-    private static final String INDEX_NAME = "index_allowed";
+    private static final String INDEX_NAME = "index-001";
     public static final Set<String> EXPECTED_METADATA_FIELDS = Set.of(
         "_routing",
         "_doc_count",
@@ -87,7 +87,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               "indices": [
                 {
                   "names": [
-                    "index_allowed"
+                    "index-001"
                   ],
                   "privileges": [
                     "read",
@@ -112,7 +112,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               "indices": [
                 {
                   "names": [
-                    "index_allowed"
+                    "index-001"
                   ],
                   "privileges": [
                     "read",
@@ -137,7 +137,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               "indices": [
                 {
                   "names": [
-                    "index_allowed"
+                    "index-001"
                   ],
                   "privileges": [
                     "read",
@@ -159,7 +159,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               "indices": [
                 {
                   "names": [
-                    "index_allowed"
+                    "index-001"
                   ],
                   "privileges": [
                     "read",
@@ -185,7 +185,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               "indices": [
                 {
                   "names": [
-                    "index_allowed"
+                    "index-001"
                   ],
                   "privileges": [
                     "read",
@@ -218,7 +218,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                   "indices": [
                     {
                       "names": [
-                        "index_allowed"
+                        "index-001"
                       ],
                       "privileges": [
                         "read",
@@ -240,7 +240,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               }
             }""");
 
-        searchAndAssertWithAuthzHeader(k, Set.of("field1"));
+        queryAndAssertWithAuthzHeader(k, Set.of("field1"));
 
         k = createApiKey("x_pack_rest_user", """
             {
@@ -250,7 +250,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                   "indices": [
                     {
                       "names": [
-                        "index_allowed"
+                        "index-001"
                       ],
                       "privileges": [
                         "read",
@@ -269,7 +269,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                 }
               }
             }""");
-        searchAndAssertWithAuthzHeader(k, Set.of("field1", "field2"));
+        queryAndAssertWithAuthzHeader(k, Set.of("field1", "field2"));
 
         k = createApiKey("x_pack_rest_user", """
             {
@@ -279,7 +279,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                   "indices": [
                     {
                       "names": [
-                        "index_allowed"
+                        "index-001"
                       ],
                       "privileges": [
                         "read",
@@ -299,7 +299,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                 }
               }
             }""");
-        searchAndAssertWithAuthzHeader(k, Set.of("field1", "field2"));
+        queryAndAssertWithAuthzHeader(k, Set.of("field1", "field2"));
 
         k = createApiKey("x_pack_rest_user", """
             {
@@ -309,7 +309,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                   "indices": [
                     {
                       "names": [
-                        "index_allowed"
+                        "index-001"
                       ],
                       "privileges": [
                         "read",
@@ -328,7 +328,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                 }
               }
             }""");
-        searchAndAssertWithAuthzHeader(k, Set.of("hidden_field", "field1", "field2"));
+        queryAndAssertWithAuthzHeader(k, Set.of("hidden_field", "field1", "field2"));
 
         k = createApiKey("x_pack_rest_user", """
             {
@@ -338,7 +338,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
                   "indices": [
                     {
                       "names": [
-                        "index_allowed"
+                        "index-001"
                       ],
                       "privileges": [
                         "read",
@@ -359,7 +359,7 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
               }
             }""");
 
-        searchAndAssertWithAuthzHeader(k, Set.of("hidden_field", "field1", "field2"));
+        queryAndAssertWithAuthzHeader(k, Set.of("hidden_field", "field1", "field2"));
     }
 
     private static Response createRole(String role, String payload) throws IOException {
@@ -383,26 +383,21 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
         return ApiKeyService.withApiKeyPrefix(responseAsMap(response).get("encoded").toString());
     }
 
-    // TODO this should be query and assert with authz header
     private void queryAndAssert(String user, Set<String> expectedFields) throws IOException {
-        searchAndAssertWithAuthzHeader(basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING), expectedFields);
+        queryAndAssertWithAuthzHeader(basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING), expectedFields);
+    }
 
-        getAndAssertWithAuthzHeader(basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING), expectedFields);
+    private void queryAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedFields) throws IOException {
+        searchAndAssertWithAuthzHeader(authzHeader, expectedFields);
+
+        getAndAssertWithAuthzHeader(authzHeader, expectedFields);
 
         var expectedFieldsWithMetadataFields = new HashSet<>(EXPECTED_METADATA_FIELDS);
         expectedFieldsWithMetadataFields.addAll(expectedFields);
 
-        getFieldMappingsAndAssertWithAuthzHeader(
-            basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
-            expectedFieldsWithMetadataFields
-        );
+        getFieldMappingsAndAssertWithAuthzHeader(authzHeader, expectedFieldsWithMetadataFields);
 
-        getFieldCapsAndAssertWithAuthzHeader(
-            basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING),
-            expectedFieldsWithMetadataFields
-        );
-
-        // search with `fields`?
+        getFieldCapsAndAssertWithAuthzHeader(authzHeader, expectedFieldsWithMetadataFields);
     }
 
     private void searchAndAssertWithAuthzHeader(String authzHeader, Set<String> expectedFields) throws IOException {

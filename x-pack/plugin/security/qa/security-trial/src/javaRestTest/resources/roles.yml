@@ -25,7 +25,7 @@ fls_legacy_metadata_fields_role:
   cluster:
     - manage_api_key
   indices:
-    - names: [ "index_allowed" ]
+    - names: [ "index-001" ]
       privileges: [ "read", "view_index_metadata" ]
       field_security:
         grant: [ "field*" ]

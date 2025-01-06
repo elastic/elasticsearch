@@ -87,7 +87,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
             mode = Enrich.Mode.ANY;
-            EsIndex esIndex = new EsIndex(in);
+            EsIndex esIndex = EsIndex.readFrom(in);
             if (esIndex.concreteIndices().size() != 1) {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
             }

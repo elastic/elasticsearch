@@ -56,7 +56,7 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
 
     @Override
     protected Writeable.Reader<EsIndex> instanceReader() {
-        return a -> new EsIndex(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
+        return a -> EsIndex.readFrom(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
     }
 
     @Override

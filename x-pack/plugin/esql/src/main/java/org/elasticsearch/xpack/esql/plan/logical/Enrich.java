@@ -116,7 +116,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
-            EsIndex esIndex = new EsIndex(in);
+            EsIndex esIndex = EsIndex.readFrom(in);
             if (esIndex.concreteIndices().size() > 1) {
                 throw new IllegalStateException("expected a single enrich index; got " + esIndex);
             }

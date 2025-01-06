@@ -2579,7 +2579,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         List<Attribute> emptyAttrList = List.of();
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query(), IndexMode.STANDARD)
+            node -> new EsSourceExec(node.source(), null /*TODO 112998*/, emptyAttrList, node.query(), IndexMode.STANDARD)
         );
 
         var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));

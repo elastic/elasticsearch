@@ -73,7 +73,10 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         switch (between(0, 2)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(5));
             case 1 -> mapping = randomValueOtherThan(mapping, EsIndexSerializationTests::randomMapping);
-            case 2 -> indexedNameWithModes = randomValueOtherThan(indexedNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
+            case 2 -> indexedNameWithModes = randomValueOtherThan(
+                indexedNameWithModes,
+                EsIndexSerializationTests::randomIndexNameWithModes
+            );
             default -> throw new IllegalArgumentException();
         }
         return new EsIndex(name, mapping, indexedNameWithModes);

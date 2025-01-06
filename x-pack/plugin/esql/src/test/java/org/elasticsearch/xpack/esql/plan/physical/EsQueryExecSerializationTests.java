@@ -71,7 +71,17 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
         }
-        return new EsQueryExec(instance.source(), indexName, indexMode, indexNameWithModes, attrs, query, limit, EsQueryExec.NO_SORTS, estimatedRowSize);
+        return new EsQueryExec(
+            instance.source(),
+            indexName,
+            indexMode,
+            indexNameWithModes,
+            attrs,
+            query,
+            limit,
+            EsQueryExec.NO_SORTS,
+            estimatedRowSize
+        );
     }
 
     @Override

@@ -186,7 +186,14 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.indexName(), query.indexMode(), query.indexNameWithModes(), filter, query.output())
+                    query -> new EsSourceExec(
+                        Source.EMPTY,
+                        query.indexName(),
+                        query.indexMode(),
+                        query.indexNameWithModes(),
+                        filter,
+                        query.output()
+                    )
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);

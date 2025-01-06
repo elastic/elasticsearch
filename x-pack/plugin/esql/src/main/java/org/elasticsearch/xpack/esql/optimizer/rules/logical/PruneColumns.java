@@ -110,7 +110,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet. That means 1 field in total (key field + lookup).
                     // https://github.com/elastic/elasticsearch/issues/118778
                     if (remaining != null && remaining.size() > 1) {
-                        p = new EsRelation(esr.source(), esr.indexName(), esr.indexMode(), esr.indexNameWithModes(), remaining, esr.frozen());
+                        p = new EsRelation(
+                            esr.source(),
+                            esr.indexName(),
+                            esr.indexMode(),
+                            esr.indexNameWithModes(),
+                            remaining,
+                            esr.frozen()
+                        );
                     }
                 }
             } while (recheck);

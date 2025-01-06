@@ -268,7 +268,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex.name(), plan.indexMode(), esIndex.indexNameWithModes(), attributes.isEmpty() ? NO_FIELDS : attributes);
+            return new EsRelation(
+                plan.source(),
+                esIndex.name(),
+                plan.indexMode(),
+                esIndex.indexNameWithModes(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
         }
     }
 
@@ -1366,7 +1372,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(esr.source(), esr.indexName(), esr.indexMode(), esr.indexNameWithModes(), CollectionUtils.combine(esr.output(), missing), esr.frozen());
+                    return new EsRelation(
+                        esr.source(),
+                        esr.indexName(),
+                        esr.indexMode(),
+                        esr.indexNameWithModes(),
+                        CollectionUtils.combine(esr.output(), missing),
+                        esr.frozen()
+                    );
                 }
                 return esr;
             });

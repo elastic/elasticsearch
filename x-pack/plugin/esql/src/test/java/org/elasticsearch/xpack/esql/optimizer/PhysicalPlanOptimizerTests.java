@@ -2578,7 +2578,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Transform the verified plan so that it is invalid (i.e. no source attributes)
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.indexName(), IndexMode.STANDARD, node.indexNameWithModes(), node.query(), List.of())
+            node -> new EsSourceExec(
+                node.source(),
+                node.indexName(),
+                IndexMode.STANDARD,
+                node.indexNameWithModes(),
+                node.query(),
+                List.of()
+            )
         );
 
         var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));

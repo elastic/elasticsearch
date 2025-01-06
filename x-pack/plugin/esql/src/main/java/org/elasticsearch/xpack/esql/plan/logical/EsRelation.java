@@ -48,11 +48,24 @@ public class EsRelation extends LeafPlan {
         this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()), frozen);
     }
 
-    public EsRelation(Source source, String indexName, IndexMode indexMode, Map<String, IndexMode> indexNameWithModes, List<Attribute> attributes) {
+    public EsRelation(
+        Source source,
+        String indexName,
+        IndexMode indexMode,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes
+    ) {
         this(source, indexName, indexMode, indexNameWithModes, attributes, false);
     }
 
-    public EsRelation(Source source, String indexName, IndexMode indexMode, Map<String, IndexMode> indexNameWithModes, List<Attribute> attributes, boolean frozen) {
+    public EsRelation(
+        Source source,
+        String indexName,
+        IndexMode indexMode,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes,
+        boolean frozen
+    ) {
         super(source);
         this.indexName = indexName;
         this.indexMode = indexMode;

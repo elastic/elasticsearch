@@ -16,9 +16,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
-  name 'vector-tile'
-  description 'A plugin for mapbox vector tile features'
-  classname 'org.elasticsearch.xpack.vectortile.VectorTilePlugin'
+  name = 'vector-tile'
+  description = 'A plugin for mapbox vector tile features'
+  classname ='org.elasticsearch.xpack.vectortile.VectorTilePlugin'
   extendedPlugins = ['spatial']
 }
 

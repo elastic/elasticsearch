@@ -388,10 +388,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (original.pointInTimeBuilder() != null) {
                         tl.setFeature(CCSUsageTelemetry.PIT_FEATURE);
                     }
-                    String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-                    if (client != null) {
-                        tl.setClient(client);
-                    }
+                    tl.setClient(task);
                     // Check if any of the index patterns are wildcard patterns
                     var localIndices = resolvedIndices.getLocalIndices();
                     if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
@@ -508,6 +505,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         });
+
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {
             // disabling shard reordering for request
@@ -1883,7 +1881,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         void setFeature(String feature);
 
-        void setClient(String client);
+        void setClient(Task task);
     }
 
     private class SearchResponseActionListener extends DelegatingActionListener<SearchResponse, SearchResponse>
@@ -1917,8 +1915,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         @Override
-        public void setClient(String client) {
-            usageBuilder.setClient(client);
+        public void setClient(Task task) {
+            usageBuilder.setClientFromTask(task);
         }
 
         @Override

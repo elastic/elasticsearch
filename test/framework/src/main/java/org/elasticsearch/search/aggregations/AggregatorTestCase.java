@@ -357,8 +357,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList()),
-            List.of(),
-            indexSettings
+            List.of()
         );
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
             .fielddataBuilder(
@@ -466,7 +465,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), indexSettings);
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
             .when(subContext)
             .getNestedDocuments();

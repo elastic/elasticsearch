@@ -23,13 +23,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
+public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRestartIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public LuceneCompatibilityIT(Version version) {
+    public FullClusterRestartLuceneIndexCompatibilityIT(Version version) {
         super(version);
     }
 
@@ -42,7 +42,7 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
         final String index = suffix("index");
         final int numDocs = 1234;
 
-        if (VERSION_MINUS_2.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             logger.debug("--> registering repository [{}]", repository);
             registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
 
@@ -65,7 +65,7 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
             return;
         }
 
-        if (VERSION_MINUS_1.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
             ensureGreen(index);
 
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
@@ -76,7 +76,7 @@ public class LuceneCompatibilityIT extends AbstractLuceneIndexCompatibilityTestC
             return;
         }
 
-        if (VERSION_CURRENT.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
             var restoredIndex = suffix("index-restored");
             logger.debug("--> restoring index [{}] as [{}]", index, restoredIndex);
 

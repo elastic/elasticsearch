@@ -9,15 +9,19 @@
 
 package org.elasticsearch.lucene;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompatibilityTestCase {
+public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends RollingUpgradeIndexCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial")
@@ -25,20 +29,21 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
             .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB");
     }
 
-    public SearchableSnapshotCompatibilityIT(Version version) {
-        super(version);
+    public RollingUpgradeSearchableSnapshotIndexCompatibilityIT(List<Version> nodesVersion) {
+        super(nodesVersion);
     }
 
     /**
-     * Creates an index and a snapshot on N-2, then mounts the snapshot on N.
+     * Creates an index and a snapshot on N-2, then mounts the snapshot during rolling upgrades.
      */
-    public void testSearchableSnapshot() throws Exception {
+    public void testMountSearchableSnapshot() throws Exception {
         final String repository = suffix("repository");
         final String snapshot = suffix("snapshot");
-        final String index = suffix("index");
-        final int numDocs = 1234;
+        final String index = suffix("index-rolling-upgrade");
+        final var mountedIndex = suffix("index-rolling-upgrade-mounted");
+        final int numDocs = 3145;
 
-        if (VERSION_MINUS_2.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             logger.debug("--> registering repository [{}]", repository);
             registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
 
@@ -58,47 +63,51 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
-            return;
-        }
-
-        if (VERSION_MINUS_1.equals(clusterVersion())) {
-            ensureGreen(index);
-
-            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
-            assertDocCount(client(), index, numDocs);
 
             logger.debug("--> deleting index [{}]", index);
             deleteIndex(index);
             return;
         }
 
-        if (VERSION_CURRENT.equals(clusterVersion())) {
-            var mountedIndex = suffix("index-mounted");
+        boolean success = false;
+        try {
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
 
             ensureGreen(mountedIndex);
 
+            updateRandomIndexSettings(mountedIndex);
+            updateRandomMappings(mountedIndex);
+
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
 
-            logger.debug("--> adding replica to test peer-recovery");
-            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-            ensureGreen(mountedIndex);
+            logger.debug("--> deleting mounted index [{}]", mountedIndex);
+            deleteIndex(mountedIndex);
+
+            success = true;
+        } finally {
+            if (success == false) {
+                try {
+                    client().performRequest(new Request("DELETE", "/" + mountedIndex));
+                } catch (ResponseException e) {
+                    logger.warn("Failed to delete mounted index [" + mountedIndex + ']', e);
+                }
+            }
         }
     }
 
     /**
-     * Creates an index and a snapshot on N-2, mounts the snapshot on N -1 and then upgrades to N.
+     * Creates an index and a snapshot on N-2, mounts the snapshot and ensures it remains searchable during rolling upgrades.
      */
     public void testSearchableSnapshotUpgrade() throws Exception {
-        final String mountedIndex = suffix("index-mounted");
+        final String mountedIndex = suffix("index-rolling-upgraded-mounted");
         final String repository = suffix("repository");
         final String snapshot = suffix("snapshot");
-        final String index = suffix("index");
-        final int numDocs = 4321;
+        final String index = suffix("index-rolling-upgraded");
+        final int numDocs = 2143;
 
-        if (VERSION_MINUS_2.equals(clusterVersion())) {
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             logger.debug("--> registering repository [{}]", repository);
             registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
 
@@ -121,29 +130,17 @@ public class SearchableSnapshotCompatibilityIT extends AbstractLuceneIndexCompat
 
             logger.debug("--> deleting index [{}]", index);
             deleteIndex(index);
-            return;
-        }
 
-        if (VERSION_MINUS_1.equals(clusterVersion())) {
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
-
-            ensureGreen(mountedIndex);
-
-            assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
-            assertDocCount(client(), mountedIndex, numDocs);
-            return;
         }
 
-        if (VERSION_CURRENT.equals(clusterVersion())) {
-            ensureGreen(mountedIndex);
+        ensureGreen(mountedIndex);
 
-            assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
-            assertDocCount(client(), mountedIndex, numDocs);
+        updateRandomIndexSettings(mountedIndex);
+        updateRandomMappings(mountedIndex);
 
-            logger.debug("--> adding replica to test peer-recovery");
-            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-            ensureGreen(mountedIndex);
-        }
+        assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
+        assertDocCount(client(), mountedIndex, numDocs);
     }
 }

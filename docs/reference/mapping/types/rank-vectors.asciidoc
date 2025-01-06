@@ -32,6 +32,7 @@ PUT my-rank-vectors-float/_doc/1
 }
 
 --------------------------------------------------
+// TESTSETUP
 
 In addition to the `float` element type, `byte` and `bit` element types are also supported.
 
@@ -73,13 +74,12 @@ PUT my-rank-vectors-bit
   }
 }
 
-POST /my-bit-vectors/_bulk?refresh
+POST /my-rank-vectors-bit/_bulk?refresh
 {"index": {"_id" : "1"}}
 {"my_vector": [127, -127, 0, 1, 42]}
 {"index": {"_id" : "2"}}
 {"my_vector": "8100012a7f"}
 --------------------------------------------------
-
 
 [role="child_attributes"]
 [[rank-vectors-params]]
@@ -135,7 +135,7 @@ For example, the following query scores documents based on the maxSim similarity
 
 [source,console]
 --------------------------------------------------
-GET my-index/_search
+GET my-rank-vectors-float/_search
 {
   "query": {
     "script_score": {
@@ -157,7 +157,25 @@ Additionally, asymmetric similarity functions can be used to score against `bit`
 
 [source,console]
 --------------------------------------------------
-GET my-index/_search
+PUT my-rank-vectors-bit
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "rank_vectors",
+        "element_type": "bit"
+      }
+    }
+  }
+}
+
+POST /my-rank-vectors-bit/_bulk?refresh
+{"index": {"_id" : "1"}}
+{"my_vector": [127, -127, 0, 1, 42]}
+{"index": {"_id" : "2"}}
+{"my_vector": "8100012a7f"}
+
+GET my-rank-vectors-bit/_search
 {
   "query": {
     "script_score": {

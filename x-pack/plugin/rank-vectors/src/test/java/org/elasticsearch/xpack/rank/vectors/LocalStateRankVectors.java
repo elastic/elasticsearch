@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.rank.vectors;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Map;
@@ -17,6 +19,10 @@ import java.util.Map;
 public class LocalStateRankVectors extends LocalStateCompositeXPackPlugin {
 
     private final RankVectorsPlugin rankVectorsPlugin;
+    private final XPackLicenseState licenseState = new XPackLicenseState(
+        System::currentTimeMillis,
+        new XPackLicenseStatus(License.OperationMode.TRIAL, true, null)
+    );
 
     public LocalStateRankVectors(Settings settings) {
         super(settings, null);
@@ -24,7 +30,7 @@ public class LocalStateRankVectors extends LocalStateCompositeXPackPlugin {
         rankVectorsPlugin = new RankVectorsPlugin() {
             @Override
             protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
+                return licenseState;
             }
         };
     }

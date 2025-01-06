@@ -42,7 +42,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {
         if (runningClusters.contains(cluster)) {
-            System.out.println("cluster = " + cluster + " is already running");
             return;
         }
         runningClusters.add(cluster);
@@ -82,7 +81,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         } else {
             int currentClaims = cluster.removeClaim();
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
-                System.out.println("stopping cluster = " + cluster);
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }
@@ -95,7 +93,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             .filter(c -> c.getName().equals(clusterName))
             .findFirst()
             .orElseThrow();
-        System.out.println("getClusterDetails cluster = " + cluster + " hash " + System.identityHashCode(cluster));
         return new TestClusterInfo(
             cluster.getAllHttpSocketURI(),
             cluster.getAllTransportPortURI(),

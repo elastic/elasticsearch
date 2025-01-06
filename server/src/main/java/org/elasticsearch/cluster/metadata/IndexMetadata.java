@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -944,21 +943,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * @param timestampRange new @timestamp range
      * @param eventIngestedRange new 'event.ingested' range
-     * @param minClusterTransportVersion minimum transport version used between nodes of this cluster
      * @return copy of this instance with updated timestamp range
      */
-    public IndexMetadata withTimestampRanges(
-        IndexLongFieldRange timestampRange,
-        IndexLongFieldRange eventIngestedRange,
-        TransportVersion minClusterTransportVersion
-    ) {
+    public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
-        }
-        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove this check when 8.15 is no longer communicable
-        IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
-        if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-            allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }
         return new IndexMetadata(
             this.index,
@@ -990,7 +979,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             timestampRange,
-            allowedEventIngestedRange,
+            eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,

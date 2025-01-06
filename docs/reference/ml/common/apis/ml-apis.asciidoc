@@ -2,6 +2,12 @@
 [[ml-apis]]
 = {ml-cap} APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml[{ml-cap} APIs].
+--
+
 You can use the following APIs to retrieve information related to the
 {stack-ml-features}:
 

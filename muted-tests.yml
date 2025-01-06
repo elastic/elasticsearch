@@ -143,11 +143,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117349
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference_bwc/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/117349
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_reset/Test reset running transform}
   issue: https://github.com/elastic/elasticsearch/issues/117473
-- class: org.elasticsearch.repositories.s3.RepositoryS3EcsClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/117525
 - class: org.elasticsearch.search.ccs.CrossClusterIT
   method: testCancel
   issue: https://github.com/elastic/elasticsearch/issues/108061
@@ -168,9 +169,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
   method: testQueryBuilderBWC {p0=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116989
-- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
-  method: testReindexWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/118040
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
@@ -228,22 +226,62 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
-  issue: https://github.com/elastic/elasticsearch/issues/118414
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  issue: https://github.com/elastic/elasticsearch/issues/119086
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
   issue: https://github.com/elastic/elasticsearch/issues/119155
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=indices.create/20_synthetic_source/create index with use_synthetic_source}
-  issue: https://github.com/elastic/elasticsearch/issues/119191
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
+  issue: https://github.com/elastic/elasticsearch/issues/119332
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/119191
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testEsqlTermsAggregationByMethod
+  issue: https://github.com/elastic/elasticsearch/issues/119355
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119432
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/119486
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
+  issue: https://github.com/elastic/elasticsearch/issues/119508
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/119510
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/119548
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119549
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119550
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119551
+- class: org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshotTests
+  method: testSkipNonRootOfNestedDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/119553
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119560
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119561
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119562
+- class: org.elasticsearch.xpack.ml.integration.ForecastIT
+  method: testOverflowToDisk
+  issue: https://github.com/elastic/elasticsearch/issues/117740
 
 # Examples:
 #

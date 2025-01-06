@@ -36,6 +36,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.function.UnaryOperator;
 
+import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 
@@ -46,12 +47,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
     private static volatile String repositoryAccessKey;
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
-        true,
-        BUCKET,
-        BASE_PATH,
-        S3HttpFixture.mutableAccessKey(() -> repositoryAccessKey)
-    );
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, mutableAccessKey(() -> repositoryAccessKey));
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 

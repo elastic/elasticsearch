@@ -1,10 +1,15 @@
 [role="xpack"]
 [[security-api-create-cross-cluster-api-key]]
 === Create Cross-Cluster API key API
-
 ++++
 <titleabbrev>Create Cross-Cluster API key</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
 
 Creates an API key of the `cross_cluster` type for the <<remote-clusters-api-key,API key based remote cluster>> access.
 A `cross_cluster` API key cannot be used to authenticate through the REST interface.

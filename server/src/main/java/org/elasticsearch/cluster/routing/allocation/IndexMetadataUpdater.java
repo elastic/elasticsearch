@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -108,10 +107,9 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
      *
      * @param oldMetadata {@link Metadata} object from before the routing nodes was changed.
      * @param newRoutingTable {@link RoutingTable} object after routing changes were applied.
-     * @param minClusterTransportVersion minimum TransportVersion used between nodes of this cluster
      * @return adapted {@link Metadata}, potentially the original one if no change was needed.
      */
-    public Metadata applyChanges(Metadata oldMetadata, GlobalRoutingTable newRoutingTable, TransportVersion minClusterTransportVersion) {
+    public Metadata applyChanges(Metadata oldMetadata, GlobalRoutingTable newRoutingTable) {
         final Map<Index, List<Map.Entry<ShardId, Updates>>> changesGroupedByIndex = shardChanges.entrySet()
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
@@ -119,7 +117,6 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
         final Map<ProjectMetadata, List<Index>> indicesByProject = changesGroupedByIndex.keySet()
             .stream()
             .collect(Collectors.groupingBy(oldMetadata::projectFor));
-
         final Metadata.Builder updatedMetadata = Metadata.builder(oldMetadata);
         indicesByProject.forEach((projectMetadata, indices) -> {
             final Map<String, IndexMetadata> updatedIndices = Maps.newHashMapWithExpectedSize(indices.size());
@@ -135,8 +132,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                         oldIndexMetadata,
                         updatedIndexMetadata,
                         shardId,
-                        updates,
-                        minClusterTransportVersion
+                        updates
                     );
                     updatedIndexMetadata = updates.increaseTerm
                         ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
@@ -159,8 +155,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
         IndexMetadata oldIndexMetadata,
         IndexMetadata updatedIndexMetadata,
         ShardId shardId,
-        Updates updates,
-        TransportVersion minClusterTransportVersion
+        Updates updates
     ) {
         assert Sets.haveEmptyIntersection(updates.addedAllocationIds, updates.removedAllocationIds)
             : "allocation ids cannot be both added and removed in the same allocation round, added ids: "
@@ -192,8 +187,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
                     updatedIndexMetadata = updatedIndexMetadata.withTimestampRanges(
                         updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards()),
-                        updatedIndexMetadata.getEventIngestedRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards()),
-                        minClusterTransportVersion
+                        updatedIndexMetadata.getEventIngestedRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
                     );
                 } else {
                     assert recoverySource instanceof RecoverySource.SnapshotRecoverySource

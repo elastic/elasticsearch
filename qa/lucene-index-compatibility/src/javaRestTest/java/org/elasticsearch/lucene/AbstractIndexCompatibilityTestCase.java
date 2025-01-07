@@ -9,14 +9,20 @@
 
 package org.elasticsearch.lucene;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -153,9 +159,9 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         var request = new Request("POST", "/_bulk");
         var docs = new StringBuilder();
         IntStream.range(0, numDocs).forEach(n -> docs.append(Strings.format("""
-            {"index":{"_id":"%s","_index":"%s"}}
-            {"test":"test"}
-            """, n, indexName)));
+            {"index":{"_index":"%s"}}
+            {"field_0":"%s","field_1":%d,"field_2":"%s"}
+            """, indexName, Integer.toString(n), n, randomFrom(Locale.getAvailableLocales()).getDisplayName())));
         request.setJsonEntity(docs.toString());
         var response = assertOK(client().performRequest(request));
         assertThat(entityAsMap(response).get("errors"), allOf(notNullValue(), is(false)));
@@ -192,4 +198,38 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.failed")));
         assertThat(responseBody.evaluate("snapshot.shards.successful"), equalTo(0));
     }
+
+    protected static void updateRandomIndexSettings(String indexName) throws IOException {
+        final var settings = Settings.builder();
+        int updates = randomIntBetween(1, 3);
+        for (int i = 0; i < updates; i++) {
+            switch (i) {
+                case 0 -> settings.putList(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "field_" + randomInt(2));
+                case 1 -> settings.put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), randomIntBetween(1, 100));
+                case 2 -> settings.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), randomLongBetween(0L, 1000L));
+                case 3 -> settings.put(IndexSettings.MAX_SLICES_PER_SCROLL.getKey(), randomIntBetween(1, 1024));
+                default -> throw new IllegalStateException();
+            }
+        }
+        updateIndexSettings(indexName, settings);
+    }
+
+    protected static void updateRandomMappings(String indexName) throws IOException {
+        final var runtime = new HashMap<>();
+        runtime.put("field_" + randomInt(2), Map.of("type", "keyword"));
+        final var properties = new HashMap<>();
+        properties.put(randomIdentifier(), Map.of("type", "long"));
+        var body = XContentTestUtils.convertToXContent(Map.of("runtime", runtime, "properties", properties), XContentType.JSON);
+        var request = new Request("PUT", indexName + "/_mappings");
+        request.setEntity(
+            new InputStreamEntity(
+                body.streamInput(),
+                body.length(),
+
+                ContentType.create(XContentType.JSON.mediaTypeWithoutParameters())
+            )
+        );
+        assertOK(client().performRequest(request));
+    }
+
 }

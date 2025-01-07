@@ -29,3 +29,15 @@ tasks.withType(Test).configureEach {
   // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1
 }
+
+tasks.named("v8.5.3#bwcTest").configure { task ->
+  // There is no sensible and reliable way to test the health endpoint in a cluster with a mix of 8.5.3 nodes, which serve it at _internal/_health,
+  // and 8.last nodes, which serve it at _health_report. So we exclude these tests.
+  task.exclude("**/HealthNodeUpgradeIT.class")
+}
+
+tasks.named("v8.6.2#bwcTest").configure { task ->
+  // There is no sensible and reliable way to test the health endpoint in a cluster with a mix of 8.6.2 nodes, which serve it at _internal/_health,
+  // and 8.last nodes, which serve it at _health_report. So we exclude these tests.
+  task.exclude("**/HealthNodeUpgradeIT.class")
+}

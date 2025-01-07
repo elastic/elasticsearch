@@ -53,7 +53,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        final int TOTAL_METRICS = 48;
+        final int TOTAL_METRICS = 52;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();
@@ -149,20 +149,19 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongsGauge(
+                registry.registerLongGauge(
                     "es.indices." + name + ".indexing.failure.total",
                     "current indexing failures of " + name + " indices",
                     "unit",
-                    () -> List.of(
-                        diffGauge(
-                            () -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedCount(),
-                            Map.of("es.indices." + name + ".indexing.failure.cause", "any")
-                        ).get(),
-                        diffGauge(
-                            () -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToVersionConflictCount(),
-                            Map.of("es.indices." + name + ".indexing.failure.cause", "version_conflict")
-                        ).get()
-                    )
+                    diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedCount())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".indexing.failure.version_conflict.total",
+                    "current indexing failures due to version conflict of " + name + " indices",
+                    "unit",
+                    diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToVersionConflictCount())
                 )
             );
         }
@@ -171,15 +170,11 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     static Supplier<LongWithAttributes> diffGauge(Supplier<Long> currentValue) {
-        return diffGauge(currentValue, Map.of());
-    }
-
-    static Supplier<LongWithAttributes> diffGauge(Supplier<Long> currentValue, Map<String, Object> attributes) {
         final AtomicLong counter = new AtomicLong();
         return () -> {
             var curr = currentValue.get();
             long prev = counter.getAndUpdate(v -> Math.max(curr, v));
-            return new LongWithAttributes(Math.max(0, curr - prev), attributes);
+            return new LongWithAttributes(Math.max(0, curr - prev));
         };
     }
 

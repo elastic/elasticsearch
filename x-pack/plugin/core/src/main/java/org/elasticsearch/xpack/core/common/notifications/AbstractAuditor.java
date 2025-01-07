@@ -8,23 +8,14 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
 import java.util.Date;
@@ -32,7 +23,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -43,62 +34,33 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     static final int MAX_BUFFER_SIZE = 1000;
-    static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueMinutes(1);
+    protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final OriginSettingClient client;
     private final String nodeName;
     private final String auditIndexWriteAlias;
-    private final String templateName;
-    private final int templateVersion;
-    private final Supplier<TransportPutComposableIndexTemplateAction.Request> templateSupplier;
     private final AbstractAuditMessageFactory<T> messageFactory;
-    private final AtomicBoolean hasLatestTemplate;
+    private final AtomicBoolean indexAndAliasCreated;
 
     private Queue<ToXContent> backlog;
-    private final ClusterService clusterService;
-    private final AtomicBoolean putTemplateInProgress;
-
-    protected AbstractAuditor(
-        OriginSettingClient client,
-        String auditIndex,
-        IndexTemplateConfig templateConfig,
-        String nodeName,
-        AbstractAuditMessageFactory<T> messageFactory,
-        ClusterService clusterService
-    ) {
-
-        this(client, auditIndex, templateConfig.getTemplateName(), templateConfig.getVersion(), () -> {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
-                return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                    ComposableIndexTemplate.parse(parser)
-                ).masterNodeTimeout(MASTER_TIMEOUT);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
-            }
-        }, nodeName, messageFactory, clusterService);
-    }
+    private final Consumer<ActionListener<Boolean>> createIndexAndAliasAction;
+    private final AtomicBoolean indexAndAliasCreationInProgress;
 
     protected AbstractAuditor(
         OriginSettingClient client,
         String auditIndexWriteAlias,
-        String templateName,
-        int templateVersion,
-        Supplier<TransportPutComposableIndexTemplateAction.Request> templateSupplier,
         String nodeName,
         AbstractAuditMessageFactory<T> messageFactory,
-        ClusterService clusterService
+        Consumer<ActionListener<Boolean>> createIndexAndAliasAction
     ) {
         this.client = Objects.requireNonNull(client);
         this.auditIndexWriteAlias = Objects.requireNonNull(auditIndexWriteAlias);
-        this.templateName = Objects.requireNonNull(templateName);
-        this.templateVersion = templateVersion;
-        this.templateSupplier = Objects.requireNonNull(templateSupplier);
         this.messageFactory = Objects.requireNonNull(messageFactory);
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.nodeName = Objects.requireNonNull(nodeName);
+        this.createIndexAndAliasAction = Objects.requireNonNull(createIndexAndAliasAction);
         this.backlog = new ConcurrentLinkedQueue<>();
-        this.hasLatestTemplate = new AtomicBoolean();
-        this.putTemplateInProgress = new AtomicBoolean();
+        this.indexAndAliasCreated = new AtomicBoolean();
+        this.indexAndAliasCreationInProgress = new AtomicBoolean();
     }
 
     public void audit(Level level, String resourceId, String message) {
@@ -122,39 +84,29 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private static void onIndexFailure(Exception exception) {
-        logger.debug("Failed to write audit message", exception);
+        logger.error("Failed to write audit message", exception);
     }
 
     protected void indexDoc(ToXContent toXContent) {
-        if (hasLatestTemplate.get()) {
+        if (indexAndAliasCreated.get()) {
+            logger.info("has template Indexing audit message");
             writeDoc(toXContent);
             return;
         }
 
-        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName, templateVersion)) {
+        // install template & create index with alias
+        var createListener = ActionListener.<Boolean>wrap(success -> {
+            indexAndAliasCreationInProgress.set(false);
             synchronized (this) {
                 // synchronized so nothing can be added to backlog while this value changes
-                hasLatestTemplate.set(true);
+                indexAndAliasCreated.set(true);
+                writeBacklog();
             }
-            writeDoc(toXContent);
-            return;
-        }
 
-        ActionListener<Boolean> putTemplateListener = ActionListener.wrap(r -> {
-            synchronized (this) {
-                // synchronized so nothing can be added to backlog while this value changes
-                hasLatestTemplate.set(true);
-            }
-            logger.info("Auditor template [{}] successfully installed", templateName);
-            putTemplateInProgress.set(false);
-            writeBacklog();
-        }, e -> {
-            logger.warn(Strings.format("Error putting latest template [%s]", templateName), e);
-            putTemplateInProgress.set(false);
-        });
+        }, e -> { indexAndAliasCreationInProgress.set(false); });
 
         synchronized (this) {
-            if (hasLatestTemplate.get() == false) {
+            if (indexAndAliasCreated.get() == false) {
                 // synchronized so that hasLatestTemplate does not change value
                 // between the read and adding to the backlog
                 assert backlog != null;
@@ -168,20 +120,12 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 }
 
                 // stop multiple invocations
-                if (putTemplateInProgress.compareAndSet(false, true)) {
-                    MlIndexAndAlias.installIndexTemplateIfRequired(
-                        clusterService.state(),
-                        client,
-                        templateVersion,
-                        templateSupplier.get(),
-                        putTemplateListener
-                    );
+                if (indexAndAliasCreationInProgress.compareAndSet(false, true)) {
+                    this.createIndexAndAliasAction.accept(createListener);
                 }
                 return;
             }
         }
-
-        indexDoc(toXContent);
     }
 
     private void writeDoc(ToXContent toXContent) {

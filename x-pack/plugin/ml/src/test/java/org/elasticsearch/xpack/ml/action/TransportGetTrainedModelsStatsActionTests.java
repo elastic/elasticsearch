@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -95,7 +96,12 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
             factoryMap.put(
                 InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client, parameters.ingestService.getClusterService(), Settings.EMPTY, true)
+                new InferenceProcessor.Factory(
+                    parameters.client,
+                    parameters.ingestService.getClusterService(),
+                    Settings.EMPTY,
+                    mock(InferenceAuditor.class)
+                )
             );
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());

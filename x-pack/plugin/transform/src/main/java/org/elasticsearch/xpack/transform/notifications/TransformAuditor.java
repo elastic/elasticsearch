@@ -60,7 +60,8 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             },
             nodeName,
             TransformAuditMessage::new,
-            clusterService
+            clusterService,
+            l -> l.onResponse(Boolean.TRUE)
         );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {

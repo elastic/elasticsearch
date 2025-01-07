@@ -109,6 +109,34 @@ public final class MlIndexAndAlias {
         ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
+        createIndexAndAliasIfNecessary(
+            client,
+            clusterState,
+            resolver,
+            indexPatternPrefix,
+            "-000001",
+            alias,
+            masterNodeTimeout,
+            waitForShardCount,
+            finalListener
+        );
+    }
+
+    /**
+     * Same as createIndexAndAliasIfNecessary but with the first concrete
+     * index number specified.
+     */
+    public static void createIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        String indexPatternPrefix,
+        String indexNumber,
+        String alias,
+        TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> finalListener
+    ) {
 
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(finalListener::onResponse, e -> {
             logger.error(() -> format("Failed to create alias and index with pattern [%s] and alias [%s]", indexPatternPrefix, alias), e);
@@ -127,7 +155,7 @@ public final class MlIndexAndAlias {
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
-        String firstConcreteIndex = indexPatternPrefix + "-000001";
+        String firstConcreteIndex = indexPatternPrefix + indexNumber;
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
         Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
             ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()

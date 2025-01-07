@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -309,7 +310,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             client,
             TestIndexNameExpressionResolver.newInstance(),
             licenseState,
-            true
+            mock(AnomalyDetectionAuditor.class)
         );
     }
 }

@@ -189,7 +189,7 @@ public class ChangeDetector {
     private TestStats testStepChangeVs(TestStats H0, double[] values, double[] weights, int[] candidateChangePoints) {
 
         double vStep = Double.MAX_VALUE;
-        int changePoint = -1;
+        int changePoint = ChangeType.NO_CHANGE_POINT;
 
         // Initialize running stats so that they are only missing the individual changepoint values
         RunningStats lowerRange = new RunningStats();
@@ -226,7 +226,7 @@ public class ChangeDetector {
     private TestStats testTrendChangeVs(TestStats H0, double[] values, double[] weights, int[] candidateChangePoints) {
 
         double vChange = Double.MAX_VALUE;
-        int changePoint = -1;
+        int changePoint = ChangeType.NO_CHANGE_POINT;
 
         // Initialize running stats so that they are only missing the individual changepoint values
         RunningStats lowerRange = new RunningStats();
@@ -349,7 +349,7 @@ public class ChangeDetector {
     ) {
 
         double maxDiff = 0.0;
-        int changePoint = -1;
+        int changePoint = ChangeType.NO_CHANGE_POINT;
 
         // Initialize running stats so that they are only missing the individual changepoint values
         RunningStats lowerRange = new RunningStats();
@@ -381,7 +381,7 @@ public class ChangeDetector {
 
         double pValue = 1;
         for (int cp : sampleData.changePoints()) {
-            if (cp == -1) {
+            if (cp == ChangeType.NO_CHANGE_POINT) {
                 continue;
             }
             double[] x = Arrays.copyOfRange(sampleValues, 0, cp);
@@ -453,7 +453,7 @@ public class ChangeDetector {
         }
 
         TestStats(Type type, double pValue, double var, double nParams, DataStats dataStats) {
-            this(type, pValue, var, nParams, -1, dataStats);
+            this(type, pValue, var, nParams, ChangeType.NO_CHANGE_POINT, dataStats);
         }
 
         boolean accept(double pValueThreshold) {

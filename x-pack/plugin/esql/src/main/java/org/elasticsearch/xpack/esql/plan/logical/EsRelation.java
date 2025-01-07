@@ -82,7 +82,7 @@ public class EsRelation extends LeafPlan {
             indexName = in.readString();
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
-            var index = new EsIndex(in);
+            var index = EsIndex.readFrom(in);
             indexName = index.name();
             indexNameWithModes = index.indexNameWithModes();
         }

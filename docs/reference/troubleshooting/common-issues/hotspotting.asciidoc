@@ -5,6 +5,13 @@
 ++++
 :keywords: hot-spotting, hotspot, hot-spot, hot spot, hotspots, hotspotting
 
+****
+AutoOps is now available!
+ 
+AutoOps for {es} significantly simplifies cluster management with performance recommendations, resource utilization and cost insights, real-time issue detection and resolution paths. By analyzing hundreds of {es} metrics, your configuration, and usage patterns, AutoOps offers operational and monitoring insights that can substantially reduce administration time and hardware costs. AutoOps is 
+https://www.elastic.co/guide/en/cloud/current/ec-autoops-regions.html[rolling out] in phases across Elastic Cloud Hosted regions and CSP. It will be automatically activated for your deployment, with no installation required. For more information, check https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 Computer link:{wikipedia}/Hot_spot_(computer_programming)[hot spotting] 
 may occur in {es} when resource utilizations are unevenly distributed across 
 <<modules-node,nodes>>. Temporary spikes are not usually considered problematic, but 

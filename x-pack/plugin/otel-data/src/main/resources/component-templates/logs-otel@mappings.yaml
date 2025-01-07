@@ -9,7 +9,7 @@ template:
       mode: logsdb
       sort:
         field: [ "resource.attributes.host.name", "@timestamp" ]
-        order: [ "desc", "desc" ]
+        order: [ "asc", "desc" ]
   mappings:
     properties:
       attributes:

@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.hamcrest.Matchers.greaterThan;
 
 public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
     protected abstract List<TestCaseSupplier> cases();
@@ -68,6 +69,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             checked++;
         }
         logger.info("checked {} signatures", checked);
+        assertThat(checked, greaterThan(0));
     }
 
     private Stream<List<DataType>> missingSignatures(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {

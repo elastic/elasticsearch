@@ -10,14 +10,17 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[
 Creates an {infer} endpoint to perform an {infer} task with the `elser` service.
 You can also deploy ELSER by using the <<infer-service-elasticsearch>>.
 
-NOTE: The API request will automatically download and deploy the ELSER model if
-it isn't already downloaded.
+[NOTE]
+====
+* Your {es} deployment contains <<default-enpoints,a preconfigured ELSER {infer} endpoint>>, you only need to create the enpoint using the API if you want to customize the settings.
+* The API request will automatically download and deploy the ELSER model if it isn't already downloaded.
+====
 
 [WARNING]
 .Deprecated in 8.16
 ====
-The elser service is deprecated and will be removed in a future release. 
-Use the <<infer-service-elasticsearch>> instead, with model_id included in the service_settings.
+The `elser` service is deprecated and will be removed in a future release. 
+Use the <<infer-service-elasticsearch>> instead, with `model_id` included in the `service_settings`.
 ====
 
 [discrete]

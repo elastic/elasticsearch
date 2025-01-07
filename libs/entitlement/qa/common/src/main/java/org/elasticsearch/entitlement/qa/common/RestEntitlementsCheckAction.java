@@ -21,6 +21,12 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.security.NoSuchAlgorithmException;
@@ -69,7 +75,13 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("set_https_connection_properties", forPlugins(RestEntitlementsCheckAction::setHttpsConnectionProperties)),
         entry("set_default_ssl_socket_factory", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
         entry("set_default_hostname_verifier", alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
-        entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext))
+        entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext)),
+        entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
+        entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
+        entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
+        entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
+        entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
+        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket))
     );
 
     private static void setDefaultSSLContext() {
@@ -129,6 +141,63 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         logger.info("Calling setSSLSocketFactory");
         var connection = new TestHttpsURLConnection();
         connection.setSSLSocketFactory(new TestSSLSocketFactory());
+    }
+
+    private static void bindDatagramSocket() {
+        logger.info("Calling DatagramSocket#bind");
+        try (var socket = new DatagramSocket(null)) {
+            socket.bind(null);
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void connectDatagramSocket() {
+        logger.info("Calling DatagramSocket#connect");
+        try (var socket = new TestDatagramSocket()) {
+            socket.connect(new InetSocketAddress(1234));
+
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void joinGroupDatagramSocket() {
+        logger.info("Calling DatagramSocket#joinGroup");
+        try (var socket = new TestDatagramSocket()) {
+            socket.joinGroup(new InetSocketAddress("230.0.0.1", 1234), NetworkInterface.getByIndex(0));
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void leaveGroupDatagramSocket() {
+        logger.info("Calling DatagramSocket#leaveGroup");
+        try (var socket = new TestDatagramSocket()) {
+            socket.leaveGroup(new InetSocketAddress("230.0.0.1", 1234), NetworkInterface.getByIndex(0));
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void sendDatagramSocket() {
+        logger.info("Calling DatagramSocket#send");
+        try (var socket = new TestDatagramSocket()) {
+            socket.send(new DatagramPacket(new byte[] { 0 }, 1, InetAddress.getLocalHost(), 1234));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void receiveDatagramSocket() {
+        logger.info("Calling DatagramSocket#receive");
+        try (var socket = new TestDatagramSocket()) {
+            socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public RestEntitlementsCheckAction(String prefix) {

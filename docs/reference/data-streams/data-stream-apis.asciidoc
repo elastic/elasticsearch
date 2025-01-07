@@ -2,7 +2,7 @@
 [[data-stream-apis]]
 == Data stream APIs
 
-..New API reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].

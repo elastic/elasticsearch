@@ -26,17 +26,17 @@ public class AllocationStatsService {
     private final ClusterService clusterService;
     private final ClusterInfoService clusterInfoService;
     private final Supplier<DesiredBalance> desiredBalanceSupplier;
-    private final NodeAllocationStatsCalculator nodeAllocationStatsCalculator;
+    private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
 
     public AllocationStatsService(
         ClusterService clusterService,
         ClusterInfoService clusterInfoService,
         ShardsAllocator shardsAllocator,
-        NodeAllocationStatsCalculator nodeAllocationStatsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         this.clusterService = clusterService;
         this.clusterInfoService = clusterInfoService;
-        this.nodeAllocationStatsCalculator = nodeAllocationStatsCalculator;
+        this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
         this.desiredBalanceSupplier = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator
             ? allocator::getDesiredBalance
             : () -> null;
@@ -47,13 +47,13 @@ public class AllocationStatsService {
      */
     public Map<String, NodeAllocationStats> stats() {
         var clusterState = clusterService.state();
-        var nodesStats = nodeAllocationStatsCalculator.nodesAllocationStats(
+        var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
             clusterState.metadata(),
             clusterState.getRoutingNodes(),
             clusterInfoService.getClusterInfo(),
             desiredBalanceSupplier.get()
         );
-        return nodesStats.entrySet()
+        return nodesStatsAndWeights.entrySet()
             .stream()
             .collect(
                 Collectors.toMap(

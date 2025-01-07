@@ -25,9 +25,9 @@ import org.elasticsearch.core.Nullable;
 import java.util.Map;
 
 /**
- * Calculates the balancer weights and usage stats for each node: see {@link NodeShardAllocationStats} for details.
+ * Calculates the allocation weights and usage stats for each node: see {@link NodeAllocationStatsAndWeight} for details.
  */
-public class NodeAllocationStatsCalculator {
+public class NodeAllocationStatsAndWeightsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
 
     private volatile float indexBalanceFactor;
@@ -36,9 +36,9 @@ public class NodeAllocationStatsCalculator {
     private volatile float diskUsageBalanceFactor;
 
     /**
-     * Node shard allocation stats, and the total node weight.
+     * Node shard allocation stats and the total node weight.
      */
-    public record NodeShardAllocationStats(
+    public record NodeAllocationStatsAndWeight(
         int shards,
         int undesiredShards,
         double forecastedIngestLoad,
@@ -47,7 +47,7 @@ public class NodeAllocationStatsCalculator {
         float currentNodeWeight
     ) {}
 
-    public NodeAllocationStatsCalculator(WriteLoadForecaster writeLoadForecaster, ClusterSettings clusterSettings) {
+    public NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster writeLoadForecaster, ClusterSettings clusterSettings) {
         this.writeLoadForecaster = writeLoadForecaster;
         clusterSettings.initializeAndWatch(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
         clusterSettings.initializeAndWatch(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
@@ -62,9 +62,9 @@ public class NodeAllocationStatsCalculator {
     }
 
     /**
-     * Returns a map of node IDs to {@link NodeShardAllocationStats}.
+     * Returns a map of node IDs to {@link NodeAllocationStatsAndWeight}.
      */
-    public Map<String, NodeShardAllocationStats> nodesAllocationStats(
+    public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
@@ -75,7 +75,7 @@ public class NodeAllocationStatsCalculator {
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
-        var nodeAllocationStats = Maps.<String, NodeShardAllocationStats>newMapWithExpectedSize(routingNodes.size());
+        var nodeAllocationStats = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
             int shards = 0;
             int undesiredShards = 0;
@@ -107,7 +107,7 @@ public class NodeAllocationStatsCalculator {
             );
             nodeAllocationStats.put(
                 node.nodeId(),
-                new NodeShardAllocationStats(
+                new NodeAllocationStatsAndWeight(
                     shards,
                     // It's part of a public API contract for an 'undesired_shards' field that -1 will be returned if an allocator other
                     // than the desired balance allocator is used.

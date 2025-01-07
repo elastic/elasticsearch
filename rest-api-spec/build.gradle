@@ -78,4 +78,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("search.vectors/130_knn_query_nested_search/nested kNN search inner_hits size > 1", "waiting for #118774 backport")
   task.skipTest("search.vectors/110_knn_query_with_filter/PRE_FILTER: pre-filter across multiple aliases", "waiting for #118774 backport")
   task.skipTest("search.vectors/160_knn_query_missing_params/kNN search in a dis_max query - missing num_candidates", "waiting for #118774 backport")
+  task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")
 })

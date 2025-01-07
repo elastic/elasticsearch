@@ -648,13 +648,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                         var bytesRefBuilder = (BlockLoader.BytesRefBuilder) builder;
 
-                        bytesRefBuilder.beginPositionEntry();
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
 
                             bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
                         }
-                        bytesRefBuilder.endPositionEntry();
                     }
                 };
 

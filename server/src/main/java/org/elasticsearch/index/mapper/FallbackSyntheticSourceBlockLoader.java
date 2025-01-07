@@ -16,6 +16,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -66,15 +71,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    private static class IgnoredSourceRowStrideReader implements RowStrideReader {
-        private final String fieldName;
-        private final Reader reader;
-
-        private IgnoredSourceRowStrideReader(String fieldName, Reader reader) {
-            this.fieldName = fieldName;
-            this.reader = reader;
-        }
-
+    private record IgnoredSourceRowStrideReader(String fieldName, Reader reader) implements RowStrideReader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
@@ -82,44 +79,125 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 return;
             }
 
-            boolean written = false;
-            for (Object value : ignoredSource) {
-                IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                if (nameValue.name().equals(fieldName)) {
-                    // Leaf field is stored directly (not as a part of a parent object), let's try to decode it.
-                    Optional<Object> singleValue = XContentDataHelper.decode(nameValue.value());
-                    if (singleValue.isPresent()) {
-                        reader.readValue(singleValue.get(), builder);
-                        written = true;
-                        continue;
-                    }
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
 
-                    // We have a value for this field but it's an array or an object
-                    var type = XContentDataHelper.decodeType(nameValue.value());
-                    assert type.isPresent();
-
-                    var filterParserConfig = XContentParserConfiguration.EMPTY.withFiltering("", Set.of(fieldName), Set.of(), true);
-                    try (
-                        XContentParser parser = type.get()
-                            .xContent()
-                            .createParser(
-                                filterParserConfig,
-                                nameValue.value().bytes,
-                                nameValue.value().offset + 1,
-                                nameValue.value().length - 1
-                            )
-                    ) {
-                        parser.nextToken();
-                        reader.parse(parser, builder);
-                    }
-                    written = true;
+            // Contains name of the field and all its parents
+            Set<String> fieldNames = new HashSet<>() {
+                {
+                    add("_doc");
                 }
-                // It is possible that the field is stored as part of the parent object, we'll need to look at those too and use something
-                // similar to reader.parse()
+            };
+
+            var current = new StringBuilder();
+            for (String part : fieldName.split("\\.")) {
+                current.append(part);
+                fieldNames.add(current.toString());
             }
 
-            if (written == false) {
-                builder.appendNull();
+            for (Object value : ignoredSource) {
+                IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                if (fieldNames.contains(nameValue.name())) {
+                    valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+                }
+            }
+
+            // TODO figure out how to handle XContentDataHelper#voidValue()
+
+            if (readFromFieldValue(valuesForFieldAndParents.get(fieldName), builder)) {
+                return;
+            }
+            if (readFromParentValue(valuesForFieldAndParents, builder)) {
+                return;
+            }
+
+            builder.appendNull();
+        }
+
+        private boolean readFromFieldValue(List<IgnoredSourceFieldMapper.NameValue> nameValues, Builder builder) throws IOException {
+            if (nameValues == null || nameValues.isEmpty()) {
+                return false;
+            }
+
+            // TODO this is not working properly
+            if (nameValues.size() > 1) {
+                builder.beginPositionEntry();
+            }
+
+            for (var nameValue : nameValues) {
+                // Leaf field is stored directly (not as a part of a parent object), let's try to decode it.
+                Optional<Object> singleValue = XContentDataHelper.decode(nameValue.value());
+                if (singleValue.isPresent()) {
+                    reader.readValue(singleValue.get(), builder);
+                    continue;
+                }
+
+                // We have a value for this field but it's an array or an object
+                var type = XContentDataHelper.decodeType(nameValue.value());
+                assert type.isPresent();
+
+                try (
+                    XContentParser parser = type.get()
+                        .xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
+                ) {
+                    parser.nextToken();
+                    reader.parse(parser, builder);
+                }
+            }
+
+            if (nameValues.size() > 1) {
+                builder.endPositionEntry();
+            }
+
+            return true;
+        }
+
+        private boolean readFromParentValue(Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents, Builder builder) throws IOException {
+            if (valuesForFieldAndParents.isEmpty()) {
+                return false;
+            }
+
+            // If a parent object is stored at a particular level its children won't be stored.
+            // So we should only ever have one parent here.
+            assert valuesForFieldAndParents.size() == 1 : "_ignored_source field contains multiple levels of the same object";
+            var parentValues = valuesForFieldAndParents.values().iterator().next();
+            if (parentValues.size() > 1) {
+                builder.beginPositionEntry();
+            }
+
+            for (var nameValue : parentValues) {
+                parseFieldFromParent(nameValue, builder);
+            }
+
+
+            if (parentValues.size() > 1) {
+                builder.endPositionEntry();
+            }
+
+            return true;
+        }
+
+        private void parseFieldFromParent(IgnoredSourceFieldMapper.NameValue nameValue, Builder builder) throws IOException {
+            var type = XContentDataHelper.decodeType(nameValue.value());
+            assert type.isPresent();
+
+            String nameAtThisLevel = fieldName.substring(nameValue.name().length() + 1);
+            var filterParserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.of(nameAtThisLevel), Set.of(), true);
+            try (
+                XContentParser parser = type.get()
+                    .xContent()
+                    .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
+            ) {
+                parser.nextToken();
+//                boolean found = false;
+//                do {
+//                    var token = parser.nextToken();
+//                    if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(fieldName)) {
+//                        found = true;
+//                    }
+//
+//                } while (found == false);
+                reader.parse(parser, builder);
             }
         }
 

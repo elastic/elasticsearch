@@ -68,7 +68,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         var fieldValue = generator.generateValue();
 
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldValue);
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldName, fieldValue);
         Object expected = expected(mapping.lookup().get(fieldName), fieldValue, syntheticSource);
         assertEquals(expected, blockLoaderResult);
     }
@@ -82,14 +82,28 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         var fieldValue = generator.generateValue();
 
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldValue);
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldName, fieldValue);
         Object expected = expected(mapping.lookup().get(fieldName), fieldValue, true);
+        assertEquals(expected, blockLoaderResult);
+    }
+
+    public void testSynthInObject() throws IOException {
+        Map<String, Object> raw = Map.of("type", "keyword", "doc_values", false, "store", false);
+        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("obj", Map.of("enabled", "false", "properties", Map.of(fieldName, raw))))), Map.of("obj", Map.of("enabled", "false", "obj." + fieldName, raw)));
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+
+        var mapperService = createSytheticSourceMapperService(mappingXContent);
+
+        var fieldValue = generator.generateValue();
+
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, "obj." + fieldName, fieldValue);
+        Object expected = expected(mapping.lookup().get("obj." + fieldName), fieldValue, true);
         assertEquals(expected, blockLoaderResult);
     }
 
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource);
 
-    private Object setupAndInvokeBlockLoader(MapperService mapperService, Object fieldValue) throws IOException {
+    private Object setupAndInvokeBlockLoader(MapperService mapperService, String fieldName, Object fieldValue) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
@@ -103,7 +117,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext context = reader.leaves().get(0);
-                return load(createBlockLoader(mapperService), context, mapperService);
+                return load(createBlockLoader(mapperService, fieldName), context, mapperService);
             }
         }
     }
@@ -137,7 +151,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         return block.get(0);
     }
 
-    private BlockLoader createBlockLoader(MapperService mapperService) {
+    private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
         SearchLookup searchLookup = new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
 
         return mapperService.fieldType(fieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {

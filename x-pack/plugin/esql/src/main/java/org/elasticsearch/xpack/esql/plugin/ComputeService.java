@@ -358,19 +358,22 @@ public class ComputeService {
                             exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
+                            final boolean sameNode = transportService.getLocalNode().getId().equals(node.connection.getNode().getId());
+                            var dataNodeRequest = new DataNodeRequest(
+                                childSessionId,
+                                configuration,
+                                clusterAlias,
+                                node.shardIds,
+                                node.aliasFilters,
+                                dataNodePlan,
+                                originalIndices.indices(),
+                                originalIndices.indicesOptions(),
+                                sameNode == false && queryPragmas.nodeLevelReduction()
+                            );
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
-                                new DataNodeRequest(
-                                    childSessionId,
-                                    configuration,
-                                    clusterAlias,
-                                    node.shardIds,
-                                    node.aliasFilters,
-                                    dataNodePlan,
-                                    originalIndices.indices(),
-                                    originalIndices.indicesOptions()
-                                ),
+                                dataNodeRequest,
                                 parentTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(dataNodeListener, ComputeResponse::new, esqlExecutor)
@@ -803,7 +806,7 @@ public class ComputeService {
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final PhysicalPlan reductionPlan;
             if (request.plan() instanceof ExchangeSinkExec plan) {
-                reductionPlan = reductionPlan(plan, request.pragmas().nodeLevelReduction());
+                reductionPlan = reductionPlan(plan, request.runNodeLevelReduction());
             } else {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
                 return;
@@ -817,7 +820,8 @@ public class ComputeService {
                 request.aliasFilters(),
                 request.plan(),
                 request.indices(),
-                request.indicesOptions()
+                request.indicesOptions(),
+                request.runNodeLevelReduction()
             );
             try (var computeListener = ComputeListener.create(transportService, (CancellableTask) task, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, computeListener);

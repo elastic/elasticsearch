@@ -109,7 +109,12 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat/completions");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
-                "Failed to create URI for completion service: " + e.getMessage(),
+                "Failed to create URI for service ["
+                    + this.getConfigurations().getService()
+                    + "] with taskType ["
+                    + this.getTaskType()
+                    + "]: "
+                    + e.getMessage(),
                 RestStatus.BAD_REQUEST,
                 e
             );

@@ -4,6 +4,12 @@
 <titleabbrev>Get script languages</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-script[Script APIs].
+--
+
 Retrieves a list of supported <<scripting-available-languages,script languages>>
 and their contexts.
 

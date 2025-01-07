@@ -1,0 +1,4 @@
+org.elasticsearch.telemetry.apm:
+  - create_class_loader
+elastic.apm.agent:
+  - set_https_connection_properties

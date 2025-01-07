@@ -1,11 +1,16 @@
 [role="xpack"]
 [[slm-api-start]]
 === Start {slm} API
-
 [subs="attributes"]
 ++++
 <titleabbrev>Start {slm}</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-slm[{slm-cap} APIs].
+--
 
 Turns on {slm} ({slm-init}).
 

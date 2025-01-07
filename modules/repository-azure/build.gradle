@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
+  description = 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname ='org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 versions << [
@@ -56,7 +56,7 @@ dependencies {
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
   api "io.projectreactor:reactor-core:3.4.38"
-  api "org.reactivestreams:reactive-streams:1.0.4"
+  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   // Others
   api "com.fasterxml.woodstox:woodstox-core:6.7.0"

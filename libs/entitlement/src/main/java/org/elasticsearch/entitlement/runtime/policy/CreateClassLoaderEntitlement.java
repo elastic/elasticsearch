@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-public class CreateClassLoaderEntitlement implements Entitlement {
+public record CreateClassLoaderEntitlement() implements Entitlement {
     @ExternalEntitlement
-    public CreateClassLoaderEntitlement() {}
+    public CreateClassLoaderEntitlement {}
 }

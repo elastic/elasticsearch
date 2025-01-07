@@ -2,12 +2,12 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'x-pack-autoscaling'
-  description 'Elasticsearch Expanded Pack Plugin - Autoscaling'
-  classname 'org.elasticsearch.xpack.autoscaling.Autoscaling'
+  name = 'x-pack-autoscaling'
+  description = 'Elasticsearch Expanded Pack Plugin - Autoscaling'
+  classname ='org.elasticsearch.xpack.autoscaling.Autoscaling'
   extendedPlugins = ['x-pack-core']
-  hasNativeController false
-  requiresKeystore true
+  hasNativeController =false
+  requiresKeystore =true
 }
 base {
   archivesName = 'x-pack-autoscaling'

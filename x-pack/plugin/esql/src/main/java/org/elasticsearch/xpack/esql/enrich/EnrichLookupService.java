@@ -52,16 +52,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        super(
-            LOOKUP_ACTION_NAME,
-            ClusterPrivilegeResolver.MONITOR_ENRICH.name(),
-            clusterService,
-            searchService,
-            transportService,
-            bigArrays,
-            blockFactory,
-            TransportRequest::readFrom
-        );
+        super(LOOKUP_ACTION_NAME, clusterService, searchService, transportService, bigArrays, blockFactory, TransportRequest::readFrom);
     }
 
     @Override
@@ -88,6 +79,11 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
+    }
+
+    @Override
+    protected String getRequiredPrivilege() {
+        return ClusterPrivilegeResolver.MONITOR_ENRICH.name();
     }
 
     private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {

@@ -1120,6 +1120,7 @@ public class MetadataIndexStateService {
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+            final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
 
             for (IndexMetadata indexMetadata : indicesToOpen) {
                 final Index index = indexMetadata.getIndex();
@@ -1137,7 +1138,11 @@ public class MetadataIndexStateService {
 
                     // The index might be closed because we couldn't import it due to an old incompatible
                     // version, so we need to verify its compatibility.
-                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
+                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                        newIndexMetadata,
+                        minIndexCompatibilityVersion,
+                        minReadOnlyIndexCompatibilityVersion
+                    );
                     try {
                         indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
                     } catch (Exception e) {

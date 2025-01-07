@@ -29,7 +29,7 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
 
     public static final ParseField NAME = RegressionConfig.NAME;
 
-    public static RegressionConfigUpdate EMPTY_PARAMS = new RegressionConfigUpdate(null, null);
+    public static final RegressionConfigUpdate EMPTY_PARAMS = new RegressionConfigUpdate(null, null);
 
     public static RegressionConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);

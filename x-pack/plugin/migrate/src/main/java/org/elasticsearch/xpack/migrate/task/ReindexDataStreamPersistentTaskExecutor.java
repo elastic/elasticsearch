@@ -240,7 +240,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTask persistentTask,
         @Nullable ReindexDataStreamPersistentTaskState state
     ) {
-        persistentTask.allReindexesCompleted(threadPool, updateCompletionTimeAndgetTimeToLive(persistentTask, state));
+        persistentTask.allReindexesCompleted(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state));
     }
 
     private void completeFailedPersistentTask(
@@ -248,10 +248,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         @Nullable ReindexDataStreamPersistentTaskState state,
         Exception e
     ) {
-        persistentTask.taskFailed(threadPool, updateCompletionTimeAndgetTimeToLive(persistentTask, state), e);
+        persistentTask.taskFailed(threadPool, updateCompletionTimeAndGetTimeToLive(persistentTask, state), e);
     }
 
-    private TimeValue updateCompletionTimeAndgetTimeToLive(
+    private TimeValue updateCompletionTimeAndGetTimeToLive(
         ReindexDataStreamTask reindexDataStreamTask,
         @Nullable ReindexDataStreamPersistentTaskState state
     ) {

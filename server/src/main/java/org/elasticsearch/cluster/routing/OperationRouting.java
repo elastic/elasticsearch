@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -122,30 +121,10 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                final List<ShardRouting> shardsThatCanHandleSearches;
-                if (isStateless) {
-                    shardsThatCanHandleSearches = statelessShardsThatHandleSearches(projectState, iterator);
-                } else {
-                    shardsThatCanHandleSearches = statefulShardsThatHandleSearches(iterator);
-                }
-                set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
+                set.add(PlainShardIterator.allSearchableShards(iterator));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
-    }
-
-    private static List<ShardRouting> statefulShardsThatHandleSearches(ShardIterator iterator) {
-        final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
-        for (ShardRouting shardRouting : iterator) {
-            if (shardRouting.isSearchable()) {
-                shardsThatCanHandleSearches.add(shardRouting);
-            }
-        }
-        return shardsThatCanHandleSearches;
-    }
-
-    private static List<ShardRouting> statelessShardsThatHandleSearches(ProjectState project, ShardIterator iterator) {
-        return iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
     }
 
     public static ShardIterator getShards(RoutingTable routingTable, ShardId shardId) {
@@ -294,7 +273,7 @@ public class OperationRouting {
         return indexMetadata;
     }
 
-    public ShardId shardId(ProjectMetadata projectMetadata, String index, String id, @Nullable String routing) {
+    public static ShardId shardId(ProjectMetadata projectMetadata, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(projectMetadata, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
     }

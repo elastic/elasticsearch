@@ -1,11 +1,7 @@
 setup:
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ rank_vectors_script_max_sim_with_bugfix ]
-      test_runner_features: capabilities
-      reason: "Support for rank vectors max-sim functions capability required"
+      cluster_features: [ "rank_vectors" ]
+      reason: "requires rank_vectors feature"
   - skip:
       features: headers
 

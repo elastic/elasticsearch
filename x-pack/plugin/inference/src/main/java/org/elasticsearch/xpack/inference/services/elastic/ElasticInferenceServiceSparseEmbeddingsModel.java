@@ -101,7 +101,13 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         switch (modelId) {
             case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
             default -> throw new ElasticsearchStatusException(
-                String.format(Locale.ROOT, "Unsupported model [%s] for service [%s] and task type [%s]", modelId, ELASTIC_INFERENCE_SERVICE_IDENTIFIER, TaskType.SPARSE_EMBEDDING),
+                String.format(
+                    Locale.ROOT,
+                    "Unsupported model [%s] for service [%s] and task type [%s]",
+                    modelId,
+                    ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
+                    TaskType.SPARSE_EMBEDDING
+                ),
                 RestStatus.BAD_REQUEST
             );
         }

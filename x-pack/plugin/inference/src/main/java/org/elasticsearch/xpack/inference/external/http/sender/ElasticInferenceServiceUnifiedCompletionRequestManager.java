@@ -74,7 +74,8 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
     private static ResponseHandler createCompletionHandler() {
         return new ElasticInferenceServiceUnifiedChatCompletionResponseHandler(
             "elastic inference service completion",
-            // We use OpenAiChatCompletionResponseEntity here as the ElasticInferenceServiceResponseEntity fields are a subset of the OpenAI one.
+            // We use OpenAiChatCompletionResponseEntity here as the ElasticInferenceServiceResponseEntity fields are a subset of the OpenAI
+            // one.
             OpenAiChatCompletionResponseEntity::fromResponse
         );
     }

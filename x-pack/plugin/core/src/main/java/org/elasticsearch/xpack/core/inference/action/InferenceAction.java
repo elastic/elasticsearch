@@ -28,6 +28,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * This action is internal. It should not be registered with an external route. It maps to the request schema with
+ * a text array input field and task_settings.
+ */
 public class InferenceAction extends ActionType<InferenceActionProxy.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
@@ -321,138 +325,4 @@ public class InferenceAction extends ActionType<InferenceActionProxy.Response> {
                 + ")";
         }
     }
-
-    // public static class Response extends ActionResponse implements ChunkedToXContentObject {
-    //
-    // private final InferenceServiceResults results;
-    // private final boolean isStreaming;
-    // private final Flow.Publisher<ChunkedToXContent> publisher;
-    //
-    // public Response(InferenceServiceResults results) {
-    // this.results = results;
-    // this.isStreaming = false;
-    // this.publisher = null;
-    // }
-    //
-    // public Response(InferenceServiceResults results, Flow.Publisher<ChunkedToXContent> publisher) {
-    // this.results = results;
-    // this.isStreaming = true;
-    // this.publisher = publisher;
-    // }
-    //
-    // public Response(StreamInput in) throws IOException {
-    // super(in);
-    // if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-    // results = in.readNamedWriteable(InferenceServiceResults.class);
-    // } else {
-    // // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
-    // // hugging face elser and elser
-    // results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
-    // }
-    // // streaming isn't supported via Writeable yet
-    // this.isStreaming = false;
-    // this.publisher = null;
-    // }
-    //
-    // @SuppressWarnings("deprecation")
-    // public static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
-    // if (parsedResults.isEmpty()) {
-    // throw new ElasticsearchStatusException(
-    // "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",
-    // RestStatus.INTERNAL_SERVER_ERROR
-    // );
-    // }
-    //
-    // if (parsedResults.get(0) instanceof LegacyTextEmbeddingResults openaiResults) {
-    // if (parsedResults.size() > 1) {
-    // throw new ElasticsearchStatusException(
-    // "Failed to transform results to response format, malformed text embedding result,"
-    // + " please remove and re-add the service",
-    // RestStatus.INTERNAL_SERVER_ERROR
-    // );
-    // }
-    //
-    // return openaiResults.transformToTextEmbeddingResults();
-    // } else if (parsedResults.get(0) instanceof TextExpansionResults) {
-    // return transformToSparseEmbeddingResult(parsedResults);
-    // } else {
-    // throw new ElasticsearchStatusException(
-    // "Failed to transform results to response format, unknown embedding type received,"
-    // + " please remove and re-add the service",
-    // RestStatus.INTERNAL_SERVER_ERROR
-    // );
-    // }
-    // }
-    //
-    // private static SparseEmbeddingResults transformToSparseEmbeddingResult(List<? extends InferenceResults> parsedResults) {
-    // List<TextExpansionResults> textExpansionResults = new ArrayList<>(parsedResults.size());
-    //
-    // for (InferenceResults result : parsedResults) {
-    // if (result instanceof TextExpansionResults textExpansion) {
-    // textExpansionResults.add(textExpansion);
-    // } else {
-    // throw new ElasticsearchStatusException(
-    // "Failed to transform results to response format, please remove and re-add the service",
-    // RestStatus.INTERNAL_SERVER_ERROR
-    // );
-    // }
-    // }
-    //
-    // return SparseEmbeddingResults.of(textExpansionResults);
-    // }
-    //
-    // public InferenceServiceResults getResults() {
-    // return results;
-    // }
-    //
-    // /**
-    // * Returns {@code true} if these results are streamed as chunks, or {@code false} if these results contain the entire payload.
-    // * Currently set to false while it is being implemented.
-    // */
-    // public boolean isStreaming() {
-    // return isStreaming;
-    // }
-    //
-    // /**
-    // * When {@link #isStreaming()} is {@code true}, the RestHandler will subscribe to this publisher.
-    // * When the RestResponse is finished with the current chunk, it will request the next chunk using the subscription.
-    // * If the RestResponse is closed, it will cancel the subscription.
-    // */
-    // public Flow.Publisher<ChunkedToXContent> publisher() {
-    // assert isStreaming() : "this should only be called after isStreaming() verifies this object is non-null";
-    // return publisher;
-    // }
-    //
-    // @Override
-    // public void writeTo(StreamOutput out) throws IOException {
-    // if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-    // out.writeNamedWriteable(results);
-    // } else {
-    // out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
-    // }
-    // // streaming isn't supported via Writeable yet
-    // }
-    //
-    // @Override
-    // public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-    // return Iterators.concat(
-    // ChunkedToXContentHelper.startObject(),
-    // results.toXContentChunked(params),
-    // ChunkedToXContentHelper.endObject()
-    // );
-    // }
-    //
-    // @Override
-    // public boolean equals(Object o) {
-    // if (this == o) return true;
-    // if (o == null || getClass() != o.getClass()) return false;
-    // Response response = (Response) o;
-    // return Objects.equals(results, response.results);
-    // }
-    //
-    // @Override
-    // public int hashCode() {
-    // return Objects.hash(results);
-    // }
-    // }
 }

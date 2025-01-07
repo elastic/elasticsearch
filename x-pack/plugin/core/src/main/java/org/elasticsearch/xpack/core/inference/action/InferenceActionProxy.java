@@ -49,7 +49,7 @@ import java.util.concurrent.Flow;
 public class InferenceActionProxy extends ActionType<InferenceActionProxy.Response> {
 
     public static final InferenceActionProxy INSTANCE = new InferenceActionProxy();
-    public static final String NAME = "cluster:monitor/xpack/inference_proxy";
+    public static final String NAME = "cluster:monitor/xpack/inference";
 
     public InferenceActionProxy() {
         super(NAME);

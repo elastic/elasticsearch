@@ -54,21 +54,10 @@ abstract class BaseInferenceAction extends BaseRestHandler {
             shouldStream()
         );
 
-        // InferenceAction.Request.Builder requestBuilder;
-        // try (var parser = restRequest.contentParser()) {
-        // requestBuilder = InferenceAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), parser);
-        // }
-        //
-        // requestBuilder.setInferenceTimeout(inferTimeout);
-        // var request = prepareInferenceRequest(requestBuilder);
         return channel -> client.execute(InferenceActionProxy.INSTANCE, request, listener(channel));
     }
 
     protected abstract boolean shouldStream();
-
-    // protected InferenceAction.Request prepareInferenceRequest(InferenceAction.Request.Builder builder) {
-    // return builder.build();
-    // }
 
     protected abstract ActionListener<InferenceActionProxy.Response> listener(RestChannel channel);
 }

@@ -94,7 +94,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceActionProxy.Res
 
             if (taskType.isAnyOrSame(TaskType.CHAT_COMPLETION) == false) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError("Field [taskType] must be [completion]");
+                e.addValidationError("Field [taskType] must be [chat_completion]");
                 return e;
             }
 

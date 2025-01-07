@@ -1,5 +1,5 @@
 pr: 119694
-summary: "[Inference API] Default eis endpoint"
+summary: "[Inference API] Add default endpoint for completion in elastic inference service"
 area: Machine Learning
 type: enhancement
 issues: []

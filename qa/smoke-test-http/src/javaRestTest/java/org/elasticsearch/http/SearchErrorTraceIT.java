@@ -13,10 +13,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
@@ -35,6 +37,22 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     private void setupMessageListener() {
         internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
             ts.addMessageListener(new TransportMessageListener() {
+
+                @Override
+                public void onResponseSent(long requestId, String action, TransportResponse response) {
+                    if (SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME.equals(action)) {
+                        Object[] res = asInstanceOf(SearchQueryThenFetchAsyncAction.NodeQueryResponse.class, response).getResults();
+                        boolean hasStackTraces = true;
+                        for (Object r : res) {
+                            if (r instanceof Exception e) {
+                                hasStackTraces &= ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t.getStackTrace().length > 0)
+                                    .isPresent();
+                            }
+                        }
+                        hasStackTrace.set(hasStackTraces);
+                    }
+                }
+
                 @Override
                 public void onResponseSent(long requestId, String action, Exception error) {
                     TransportMessageListener.super.onResponseSent(requestId, action, error);

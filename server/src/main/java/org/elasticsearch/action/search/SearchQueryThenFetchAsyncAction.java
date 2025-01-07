@@ -343,6 +343,11 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             assert Arrays.stream(results).noneMatch(Objects::isNull) : Arrays.asList(results);
         }
 
+        // public for tests
+        public Object[] getResults() {
+            return results;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeArray((o, v) -> {

@@ -33,6 +33,6 @@ public class ToUpperErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature,(v, p) -> "string"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "string"));
     }
 }

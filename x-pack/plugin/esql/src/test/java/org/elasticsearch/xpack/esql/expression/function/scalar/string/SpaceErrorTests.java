@@ -32,6 +32,6 @@ public class SpaceErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature,(v, p) -> "integer"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "integer"));
     }
 }

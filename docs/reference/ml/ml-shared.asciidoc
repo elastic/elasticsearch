@@ -1168,7 +1168,7 @@ The number of dimensions in the embedding vector produced by the model.
 end::inference-config-text-embedding-size[]
 
 tag::inference-config-text-expansion[]
-The Text expansion task works with Sparse Embedding models to transform an input sequence
+The text expansion task works with sparse embedding models to transform an input sequence
 into a vector of weighted tokens. These embeddings capture semantic meanings and
 context and can be used in a <<sparse-vector,sparse vector>> field for powerful insights.
 end::inference-config-text-expansion[]

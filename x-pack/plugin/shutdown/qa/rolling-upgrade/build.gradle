@@ -52,7 +52,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'path.repo', "['${repoFolder}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.ml.enabled', 'false'
     setting 'xpack.security.transport.ssl.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
     setting 'xpack.security.authc.token.timeout', '60m'

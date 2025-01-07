@@ -7,26 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-$endif$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$elseif(long)$
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
-$elseif(double)$
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-$elseif(BytesRef)$
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-$elseif(boolean)$
-import org.elasticsearch.compute.data.BooleanVector;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -42,7 +26,7 @@ import java.util.BitSet;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
-public class In$Name$Evaluator implements EvalOperator.ExpressionEvaluator {
+public class InNanosMillisEvaluator implements EvalOperator.ExpressionEvaluator {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -53,7 +37,7 @@ public class In$Name$Evaluator implements EvalOperator.ExpressionEvaluator {
 
     private Warnings warnings;
 
-    public In$Name$Evaluator(
+    public InNanosMillisEvaluator(
         Source source,
         EvalOperator.ExpressionEvaluator lhs,
         EvalOperator.ExpressionEvaluator[] rhs,
@@ -67,17 +51,17 @@ public class In$Name$Evaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public Block eval(Page page) {
-        try ($Type$Block lhsBlock = ($Type$Block) lhs.eval(page)) {
-            $Type$Block[] rhsBlocks = new $Type$Block[rhs.length];
+        try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+            LongBlock[] rhsBlocks = new LongBlock[rhs.length];
             try (Releasable rhsRelease = Releasables.wrap(rhsBlocks)) {
                 for (int i = 0; i < rhsBlocks.length; i++) {
-                    rhsBlocks[i] = ($Type$Block) rhs[i].eval(page);
+                    rhsBlocks[i] = (LongBlock) rhs[i].eval(page);
                 }
-                $Type$Vector lhsVector = lhsBlock.asVector();
+                LongVector lhsVector = lhsBlock.asVector();
                 if (lhsVector == null) {
                     return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
                 }
-                $Type$Vector[] rhsVectors = new $Type$Vector[rhs.length];
+                LongVector[] rhsVectors = new LongVector[rhs.length];
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     rhsVectors[i] = rhsBlocks[i].asVector();
                     if (rhsVectors[i] == null) {
@@ -89,25 +73,9 @@ public class In$Name$Evaluator implements EvalOperator.ExpressionEvaluator {
         }
     }
 
-    private BooleanBlock eval(int positionCount, $Type$Block lhsBlock, $Type$Block[] rhsBlocks) {
+    private BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-$if(int)$
-            int[] rhsValues = new int[rhs.length];
-$elseif(long)$
             long[] rhsValues = new long[rhs.length];
-$elseif(double)$
-            double[] rhsValues = new double[rhs.length];
-$elseif(boolean)$
-            boolean hasTrue = false;
-            boolean hasFalse = false;
-$elseif(BytesRef)$
-            $Type$[] rhsValues = new $Type$[rhs.length];
-            BytesRef lhsScratch = new BytesRef();
-            BytesRef[] rhsScratch = new BytesRef[rhs.length];
-            for (int i = 0; i < rhs.length; i++) {
-                rhsScratch[i] = new BytesRef();
-            }
-$endif$
             BitSet nulls = new BitSet(rhs.length);
             BitSet mvs = new BitSet(rhs.length);
             boolean foundMatch;
@@ -126,10 +94,6 @@ $endif$
                 // unpack rhsBlocks into rhsValues
                 nulls.clear();
                 mvs.clear();
-$if(boolean)$
-                hasTrue = false;
-                hasFalse = false;
-$endif$
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     if (rhsBlocks[i].isNull(p)) {
                         nulls.set(i);
@@ -140,38 +104,14 @@ $endif$
                         warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
-$if(boolean)$
-                    if (hasTrue && hasFalse) {
-                        continue;
-                    }
-$endif$
                     int o = rhsBlocks[i].getFirstValueIndex(p);
-$if(BytesRef)$
-                    rhsValues[i] = rhsBlocks[i].getBytesRef(o, rhsScratch[i]);
-$elseif(boolean)$
-                    if (rhsBlocks[i].getBoolean(o)) {
-                        hasTrue = true;
-                    } else {
-                        hasFalse = true;
-                    }
-$else$
-                    rhsValues[i] = rhsBlocks[i].get$Type$(o);
-$endif$
+                    rhsValues[i] = rhsBlocks[i].getLong(o);
                 }
                 if (nulls.cardinality() == rhsBlocks.length || mvs.cardinality() == rhsBlocks.length) {
                     result.appendNull();
                     continue;
                 }
-$if(boolean)$
-                foundMatch = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)) ? hasTrue : hasFalse;
-$elseif(BytesRef)$
-                foundMatch = In.process(nulls, mvs, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
-$elseif(NanosMillis)$
-                // Even though these are longs, they're in different units and need special handling
-                foundMatch = In.processNanosMilils(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
-$else$
-                foundMatch = In.process(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
-$endif$
+                foundMatch = In.process(nulls, mvs, lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsValues);
                 if (foundMatch) {
                     result.appendBoolean(true);
                 } else {
@@ -186,58 +126,15 @@ $endif$
         }
     }
 
-    private BooleanBlock eval(int positionCount, $Type$Vector lhsVector, $Type$Vector[] rhsVectors) {
+    private BooleanBlock eval(int positionCount, LongVector lhsVector, LongVector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-$if(int)$
-            int[] rhsValues = new int[rhs.length];
-$elseif(long)$
             long[] rhsValues = new long[rhs.length];
-$elseif(double)$
-            double[] rhsValues = new double[rhs.length];
-$elseif(boolean)$
-            boolean hasTrue = false;
-            boolean hasFalse = false;
-$elseif(BytesRef)$
-            $Type$[] rhsValues = new $Type$[rhs.length];
-            BytesRef lhsScratch = new BytesRef();
-            BytesRef[] rhsScratch = new BytesRef[rhs.length];
-            for (int i = 0; i < rhs.length; i++) {
-                rhsScratch[i] = new BytesRef();
-            }
-$endif$
             for (int p = 0; p < positionCount; p++) {
                 // unpack rhsVectors into rhsValues
-$if(boolean)$
-                hasTrue = false;
-                hasFalse = false;
-$endif$
                 for (int i = 0; i < rhsVectors.length; i++) {
-$if(boolean)$
-                    if (hasTrue && hasFalse) {
-                        continue;
-                    }
-$endif$
-$if(BytesRef)$
-                    rhsValues[i] = rhsVectors[i].getBytesRef(p, rhsScratch[i]);
-$elseif(boolean)$
-                    if (rhsVectors[i].getBoolean(p)) {
-                        hasTrue = true;
-                    } else {
-                        hasFalse = true;
-                    }
-$else$
-                    rhsValues[i] = rhsVectors[i].get$Type$(p);
-$endif$
+                    rhsValues[i] = rhsVectors[i].getLong(p);
                 }
-$if(BytesRef)$
-                result.appendBoolean(In.process(null, null, lhsVector.getBytesRef(p, lhsScratch), rhsValues));
-$elseif(boolean)$
-                result.appendBoolean(lhsVector.getBoolean(p) ? hasTrue : hasFalse);
-$elseif(nanosMillis)$
-                result.appendBoolean(In.processNanosMillis(null, null, lhsVector.get$Type$(p), rhsValues));
-$else$
-                result.appendBoolean(In.process(null, null, lhsVector.get$Type$(p), rhsValues));
-$endif$
+                result.appendBoolean(In.processNanosMillis(null, null, lhsVector.getLong(p), rhsValues));
             }
             return result.build();
         }
@@ -245,7 +142,7 @@ $endif$
 
     @Override
     public String toString() {
-        return "In$Name$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+        return "InNanosMillisEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
     }
 
     @Override
@@ -277,16 +174,16 @@ $endif$
         }
 
         @Override
-        public In$Name$Evaluator get(DriverContext context) {
+        public InNanosMillisEvaluator get(DriverContext context) {
             EvalOperator.ExpressionEvaluator[] rhs = Arrays.stream(this.rhs)
                 .map(a -> a.get(context))
                 .toArray(EvalOperator.ExpressionEvaluator[]::new);
-            return new In$Name$Evaluator(source, lhs.get(context), rhs, context);
+            return new InNanosMillisEvaluator(source, lhs.get(context), rhs, context);
         }
 
         @Override
         public String toString() {
-            return "In$Name$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+            return "InNanosMillisEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
         }
     }
 }

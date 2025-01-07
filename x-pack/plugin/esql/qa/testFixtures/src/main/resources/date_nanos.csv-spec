@@ -1168,6 +1168,7 @@ required_capability: to_date_nanos
 
 FROM date_nanos 
 | WHERE MV_FIRST(nanos) IN (TO_DATE_NANOS("2023-10-23T13:55:01.543123456Z"), TO_DATE_NANOS("2023-10-23T12:27:28.948Z"), TO_DATE_NANOS("2017-10-23T13:53:55.832987654Z"));
+ignoreOrder:true
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -1177,9 +1178,11 @@ millis:date              | nanos:date_nanos               | num:long
 Date Nanos IN constant date nanos, implicit casting
 required_capability: date_nanos_in_operator
 required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
 
 FROM date_nanos 
 | WHERE MV_FIRST(nanos) IN ("2023-10-23T13:55:01.543123456Z", "2023-10-23T12:27:28.948Z", "2017-10-23T13:53:55.832987654Z");
+ignoreOrder:true
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -1189,10 +1192,24 @@ millis:date              | nanos:date_nanos               | num:long
 Date Nanos IN date nanos field, implicit casting
 required_capability: date_nanos_in_operator
 required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
 
 FROM date_nanos 
 | WHERE "2023-10-23T13:55:01.543123456Z" IN (MV_FIRST(nanos));
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+;
+
+Date nanos IN millisecond date field
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+
+# Note: It is important to have two millisecond dates in the IN so the optimizer doesn't turn this into an ==
+FROM date_nanos
+| WHERE MV_FIRST(nanos) IN (TO_DATETIME("2023-10-23T12:27:28.948"), TO_DATETIME("2020-02-02"));
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
 ;

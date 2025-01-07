@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -170,6 +171,10 @@ public class In extends EsqlScalarFunction {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
+        // TODO: This is not the correct check
+        if (left.isDate() && right.isDate()) {
+            return true;
+        }
         if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
             return left == right;
         }
@@ -214,9 +219,14 @@ public class In extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var commonType = commonType();
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
+        if (value.dataType() == DATE_NANOS && list.getFirst().dataType() == DATETIME) {
+            lhs = toEvaluator.apply(value);
+            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            return new InNanosMillisEvaluator.Factory(source(), lhs, factories);
+        }
+        var commonType = commonType();
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()
@@ -298,6 +308,18 @@ public class In extends EsqlScalarFunction {
         return false;
     }
 
+    static boolean processNanosMillis(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
+        for (int i = 0; i < rhs.length; i++) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
+                continue;
+            }
+            Boolean compResult = DateUtils.compareNanosToMillis(lhs, rhs[i]) == 0;
+            if (compResult == Boolean.TRUE) {
+                return true;
+            }
+        }
+        return false;
+    }
     static boolean process(BitSet nulls, BitSet mvs, double lhs, double[] rhs) {
         for (int i = 0; i < rhs.length; i++) {
             if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {

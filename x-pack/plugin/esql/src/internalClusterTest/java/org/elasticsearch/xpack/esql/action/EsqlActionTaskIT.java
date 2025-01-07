@@ -328,7 +328,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 .get()
                 .getTasks();
             assertThat(tasks, hasSize(equalTo(3)));
-            assertThat(tasks, hasSize(equalTo(3)));
             List<TaskInfo> readTasks = tasks.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).toList();
             List<TaskInfo> mergeTasks = tasks.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).toList();
             assertThat(readTasks, hasSize(1));

@@ -27,7 +27,7 @@ RAG has several advantages:
 * *Cost efficiency:* Requires less maintenance compared to fine-tuning or continuously pre-training models.
 * *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control and field/document-level security.
 * *Simplified response parsing:* Eliminates the need for custom parsing logic by letting the language model handle parsing {es} responses and formatting the retrieved context.
-* *Flexible implementation:* Works with basic `<<full-text-search,full-text search>>``, and can be gradually updated to add more advanced and computationally intensive <<semantic-search,semantic search>> capabilities.
+* *Flexible implementation:* Works with basic <<full-text-search,full-text search>>, and can be gradually updated to add more advanced and computationally intensive <<semantic-search,semantic search>> capabilities.
 
 [discrete]
 [[rag-elasticsearch-components]]

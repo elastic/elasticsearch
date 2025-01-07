@@ -26,7 +26,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class EISCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<ElasticInferenceServiceCompletionServiceSettings> {
+public class ElasticInferenceServiceCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<ElasticInferenceServiceCompletionServiceSettings> {
 
     @Override
     protected Writeable.Reader<ElasticInferenceServiceCompletionServiceSettings> instanceReader() {

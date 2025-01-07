@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'snapshot-based-recoveries'
-  description 'A plugin that enables snapshot based recoveries'
-  classname 'org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin'
+  name = 'snapshot-based-recoveries'
+  description = 'A plugin that enables snapshot based recoveries'
+  classname ='org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

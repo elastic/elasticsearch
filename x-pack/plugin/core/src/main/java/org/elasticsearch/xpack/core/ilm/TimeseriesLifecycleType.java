@@ -27,7 +27,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -49,7 +48,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String DELETE_PHASE = "delete";
     public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
-    public static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(
+    public static final List<String> ORDERED_VALID_HOT_ACTIONS = List.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         RolloverAction.NAME,
@@ -58,8 +57,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Stream.of(
+    );
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = List.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -68,8 +67,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         MigrateAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
+    );
+    public static final List<String> ORDERED_VALID_COLD_ACTIONS = List.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -78,7 +77,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         AllocateAction.NAME,
         MigrateAction.NAME,
         FreezeAction.NAME
-    ).filter(Objects::nonNull).toList();
+    );
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 

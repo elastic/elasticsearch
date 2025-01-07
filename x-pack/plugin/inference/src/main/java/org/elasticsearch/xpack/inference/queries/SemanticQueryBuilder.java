@@ -148,6 +148,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return NAME;
     }
 
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_15_0;

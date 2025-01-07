@@ -79,7 +79,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 
@@ -91,6 +91,11 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public Boolean fold() {
+        return (Boolean) EvaluatorMapper.super.fold();
     }
 
     @Override

@@ -5,6 +5,12 @@
 <titleabbrev>OpenID Connect prepare authentication</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Creates an oAuth 2.0 authentication request as a URL string based on the
 configuration of the respective OpenID Connect authentication realm in {es}.
 

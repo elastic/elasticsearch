@@ -497,7 +497,7 @@ public class NodeStatsTests extends ESTestCase {
             + chunkIfPresent(nodeStats.getDiscoveryStats()) // <br/>
             + assertExpectedChunks(nodeStats.getIngestStats(), NodeStatsTests::expectedChunks, params) // <br/>
             + chunkIfPresent(nodeStats.getAdaptiveSelectionStats()) // <br/>
-            + assertExpectedChunks(nodeStats.getScriptCacheStats(), NodeStatsTests::expectedChunks, params);
+            + chunkIfPresent(nodeStats.getScriptCacheStats());
     }
 
     private static int chunkIfPresent(ToXContent xcontent) {
@@ -511,17 +511,8 @@ public class NodeStatsTests extends ESTestCase {
         return chunks;
     }
 
-    private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
-        var chunks = 3; // start, end, SUM
-        if (scriptCacheStats.general() == null) {
-            chunks += 2 + scriptCacheStats.context().size() * 4;
-        }
-
-        return chunks;
-    }
-
     private static int expectedChunks(ScriptStats scriptStats) {
-        return 7 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
+        return 4 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
             + (scriptStats.cacheEvictionsHistory() != null && scriptStats.cacheEvictionsHistory().areTimingsEmpty() == false ? 1 : 0)
             + scriptStats.contextStats().size();
     }
@@ -555,7 +546,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
-        return switch (level) {
+        return nodeIndicesStats == null ? 0 : switch (level) {
             case NODE -> 2;
             case INDICES -> 5; // only one index
             case SHARDS -> 9; // only one shard

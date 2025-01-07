@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -140,6 +141,20 @@ public final class Utils {
 
         function.accept(listener);
         latch.await();
+    }
+
+    public static class TestInferencePlugin extends InferencePlugin {
+        public TestInferencePlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
+            return List.of(
+                TestSparseInferenceServiceExtension.TestInferenceService::new,
+                TestDenseInferenceServiceExtension.TestInferenceService::new
+            );
+        }
     }
 
     public static Model getInvalidModel(String inferenceEntityId, String serviceName) {

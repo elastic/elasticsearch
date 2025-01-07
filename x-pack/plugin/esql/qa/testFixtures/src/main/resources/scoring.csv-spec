@@ -13,9 +13,9 @@ from books metadata _score
 | sort c_score desc, book_no asc
 | LIMIT 2;
 
-book_no:keyword | title:text                                                                                  | c_score:double
-2675            | The Lord of the Rings - Boxed Set                                                           | 6.0
-4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 6.0
+book_no:keyword | title:text                                | c_score:double
+1463            | Realms of Tolkien: Images of Middle-earth | 6.0           
+2675            | The Lord of the Rings - Boxed Set         | 6.0
 ;
 
 singleMatchWithKeywordFieldScoring
@@ -28,15 +28,15 @@ from books metadata _score
 | sort book_no;
 
 book_no:keyword | author:text | _score:double
-2713            | William Faulkner | 2.3142893314361572
-2883            | William Faulkner | 2.3142893314361572
-4724            | William Faulkner | 2.3142893314361572
-4977            | William Faulkner | 2.3142893314361572
-5119            | William Faulkner | 2.3142893314361572
-5404            | William Faulkner | 2.3142893314361572
-5578            | William Faulkner | 2.3142893314361572
-8077            | William Faulkner | 2.3142893314361572
-9896            | William Faulkner | 2.3142893314361572
+2713            | William Faulkner | 1.7589385509490967
+2883            | William Faulkner | 1.7589385509490967
+4724            | William Faulkner | 1.7589385509490967
+4977            | William Faulkner | 2.6145541667938232
+5119            | William Faulkner | 2.513157367706299 
+5404            | William Faulkner | 1.7589385509490967
+5578            | William Faulkner | 2.513157367706299 
+8077            | William Faulkner | 1.7589385509490967
+9896            | William Faulkner | 2.6145541667938232
 ;
 
 qstrWithFieldAndScoringSortedEval
@@ -51,9 +51,9 @@ from books metadata _score
 | limit 3;
 
 book_no:keyword | title:text                                                                 | _score:double 
-2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
-2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
+2675            | The Lord of the Rings - Boxed Set                                          | 2.5619282722473145
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9245924949645996
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.746896743774414
 ;
 
 qstrWithFieldAndScoringSorted
@@ -67,9 +67,9 @@ from books metadata _score
 | limit 3;
 
 book_no:keyword | title:text                                                                 | _score:double 
-2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
-2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
+2675            | The Lord of the Rings - Boxed Set                                          | 2.5619282722473145
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9245924949645996
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.746896743774414
 ;
 
 singleQstrScoringManipulated
@@ -84,8 +84,8 @@ from books metadata _score
 | LIMIT 2;
 
 book_no:keyword | author:text                                        | add_score:double
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 2.0
-2713            | William Faulkner                                   | 7.0
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 3.0
+2713            | William Faulkner                                   | 6.0
 ;
 
 testMultiValuedFieldWithConjunctionWithScore
@@ -125,7 +125,7 @@ from books metadata _score
 
 ignoreOrder:true
 book_no:keyword | title:text                                | author:text        | _score:double
-8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 11.193471908569336
 ;
 
 multipleWhereWithMatchScoring
@@ -139,7 +139,7 @@ from books metadata _score
 | sort book_no;
 
 book_no:keyword | title:text                                | author:text        | _score:double
-8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 11.193471908569336
 ;
 
 combinedMatchWithFunctionsScoring
@@ -153,7 +153,7 @@ from books metadata _score
 | sort book_no;
 
 book_no:keyword | title:text               | author:text    | year:integer | _score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.448054313659668
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.733664035797119
 ;
 
 singleQstrScoring
@@ -167,8 +167,8 @@ from books metadata _score
 | LIMIT 2;
 
 book_no:keyword | author:text                                        | _score:double
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
-2713            | William Faulkner                                   | 5.9556169509887695
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 1.3697924613952637
+2713            | William Faulkner                                   | 4.631696701049805
 ;
 
 singleQstrScoringGrok
@@ -183,9 +183,9 @@ from books metadata _score
 | LIMIT 3;
 
 book_no:keyword | title:keyword | _score:double
-8875            | The | 2.9505908489227295
-4023            | A   | 2.8327860832214355
-2675            | The | 2.7583377361297607
+8875            | The           | 2.769660472869873 
+1463            | Realms        | 2.6714818477630615
+2675            | The           | 2.5619282722473145
 ;
 
 combinedMatchWithScoringEvalNoSort
@@ -200,7 +200,7 @@ from books metadata _score
 
 ignoreOrder:true
 book_no:keyword | title:text               | author:text    | year:integer | c_score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.0
 ;
 
 singleQstrScoringRename
@@ -215,9 +215,9 @@ from books metadata _score
 | LIMIT 3;
 
 book_no:keyword | rank:double
-8875            | 2.9505908489227295
-4023            | 2.8327860832214355
-2675            | 2.7583377361297607
+8875            | 2.769660472869873 
+1463            | 2.6714818477630615
+2675            | 2.5619282722473145
 ;
 
 singleMatchWithTextFieldScoring
@@ -231,11 +231,11 @@ from books metadata _score
 | limit 5;
 
 book_no:keyword | author:text                                        | _score:double
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
-2713            | William Faulkner                                   | 4.272439002990723
-2847            | Colleen Faulkner                                   | 1.7401835918426514
-2883            | William Faulkner                                   | 4.272439002990723
-3293            | Danny Faulkner                                     | 1.7401835918426514
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 1.3697924613952637
+2713            | William Faulkner                                   | 3.2750158309936523
+2847            | Colleen Faulkner                                   | 1.593343734741211 
+2883            | William Faulkner                                   | 3.2750158309936523
+3293            | Danny Faulkner                                     | 1.593343734741211
 ;
 
 combinedMatchWithFunctionsScoringNoSort
@@ -249,7 +249,7 @@ from books metadata _score
 
 ignoreOrder:true
 book_no:keyword | title:text               | author:text    | year:integer | _score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.448054313659668
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.733664035797119
 ;
 
 combinedMatchWithScoringEval
@@ -264,7 +264,7 @@ from books metadata _score
 | sort book_no;
 
 book_no:keyword | title:text               | author:text    | year:integer | c_score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.0
 ;
 
 singleQstrScoringEval
@@ -280,7 +280,7 @@ from books metadata _score
 
 book_no:keyword | c_score:double
 8875            | 3.0
-7350            | 2.0
+7350            | 1.0
 7140            | 3.0
 ;
 
@@ -289,14 +289,16 @@ required_capability: metadata_score
 required_capability: qstr_function
 
 from books metadata _score 
-| where qstr("title:rings") 
+| where qstr("title:gentle") 
 | eval _score = _score + 1 
 | keep book_no, title, _score
-| limit 2;
+| limit 10
+;
+ignoreOrder:true
 
-book_no:keyword | title:text                                                                                  | _score:double
-4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 2.6404519081115723
-2714            | Return of the King Being the Third Part of The Lord of the Rings                            | 2.9239964485168457
+book_no:keyword | title:text                                                                                                                     | _score:double
+2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | 3.158426523208618
+5948            | That We Are Gentle Creatures                                                                                                   | 3.727346897125244 
 ;
 
 QstrScoreOverride
@@ -304,12 +306,54 @@ required_capability: metadata_score
 required_capability: qstr_function
 
 from books metadata _score 
-| where qstr("title:rings") 
+| where qstr("title:gentle") 
 | eval _score = "foobar"
 | keep book_no, title, _score 
-| limit 2;
+| limit 10
+;
+ignoreOrder:true
 
-book_no:keyword | title:text                                                                                  | _score:keyword
-4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | foobar
-2714            | Return of the King Being the Third Part of The Lord of the Rings                            | foobar
+book_no:keyword | title:text                                                                                                                     | _score:keyword
+2924            | A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) | foobar        
+5948            | That We Are Gentle Creatures                                                                                                   | foobar
+;
+
+
+semanticTextMatch
+required_capability: metadata_score
+required_capability: semantic_text_type
+required_capability: match_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+| sort _score desc
+| keep _id
+;
+
+_id:keyword
+2
+3
+1
+;
+
+semanticTextMatchWithAllTheTextFunctions
+
+required_capability: metadata_score
+required_capability: semantic_text_type
+required_capability: match_function
+required_capability: kql_function
+required_capability: qstr_function
+
+from semantic_text metadata _id, _score
+| where match(semantic_text_field, "something")
+        AND match(description, "some")
+        AND kql("description:some*")
+        AND NOT qstr("host:host1")
+| sort _score desc
+| keep _id
+;
+
+_id:keyword
+2
+3
 ;

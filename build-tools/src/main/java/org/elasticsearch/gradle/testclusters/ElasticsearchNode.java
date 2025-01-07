@@ -876,10 +876,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
-        if (cliJvmArgs.isEmpty() == false) {
-            String cliJvmArgsString = String.join(" ", cliJvmArgs);
-            environment.put("CLI_JAVA_OPTS", cliJvmArgsString);
-        }
+        String cliJvmArgsString = String.join(" ", cliJvmArgs);
+        environment.put("CLI_JAVA_OPTS", cliJvmArgsString + " " + System.getProperty("tests.jvm.argline", ""));
 
         // Direct the stderr to the ES log file. This should capture any jvm problems to start.
         // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.

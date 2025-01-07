@@ -510,14 +510,14 @@ public class EsExecutors {
 
     public static class TaskTrackingConfig {
         // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-        public static double DEFAULT_EWMA_ALPHA = 0.3;
+        public static final double DEFAULT_EWMA_ALPHA = 0.3;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
         private final double ewmaAlpha;
 
-        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
-        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
+        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
+        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
 
         public TaskTrackingConfig(boolean trackOngoingTasks, double ewmaAlpha) {
             this(true, trackOngoingTasks, ewmaAlpha);

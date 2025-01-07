@@ -216,7 +216,8 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             error.getMessage(),
             containsString(
                 "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. "
-                    + "[:] operator can't be used as part of an or condition"
+                    + "Full text functions can be used in an OR condition, "
+                    + "but only if just full text functions are used in the OR condition"
             )
         );
     }

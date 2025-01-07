@@ -9,10 +9,11 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.lang.module.Configuration;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
@@ -29,93 +31,93 @@ import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ESTestCase.WithoutSecurityManager
 public class PolicyManagerTests extends ESTestCase {
+    /**
+     * A module you can use for test cases that don't actually care about the
+     * entitlements module.
+     */
+    private static Module NO_ENTITLEMENTS_MODULE;
+
+    @BeforeClass
+    public static void beforeClass() {
+        try {
+            // Any old module will do for tests using NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE = makeClassInItsOwnModule().getModule();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+
+    }
 
     public void testGetEntitlementsThrowsOnMissingPluginUnnamedModule() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
-            c -> "plugin1"
+            c -> "plugin1",
+            NO_ENTITLEMENTS_MODULE
         );
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        var ex = assertThrows(
-            "No policy for the unnamed module",
-            NotEntitledException.class,
-            () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule)
-        );
+        assertEquals("No policy for the unnamed module", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
 
-        assertEquals(
-            "Missing entitlement policy: caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests], module [null]",
-            ex.getMessage()
-        );
-        assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1");
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        var ex = assertThrows(
-            "No policy for this plugin",
-            NotEntitledException.class,
-            () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule)
-        );
+        assertEquals("No policy for this plugin", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
 
-        assertEquals(
-            "Missing entitlement policy: caller [class org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests], module [null]",
-            ex.getMessage()
-        );
-        assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsFailureIsCached() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), Map.of(), c -> "plugin1");
+        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertThrows(NotEntitledException.class, () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule));
-        assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
+        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
 
         // A second time
-        var ex = assertThrows(NotEntitledException.class, () -> policyManager.getEntitlementsOrThrow(callerClass, requestingModule));
+        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
 
-        assertThat(ex.getMessage(), endsWith("[CACHED]"));
         // Nothing new in the map
-        assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsReturnsEntitlementsForPluginUnnamedModule() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2"
+            c -> "plugin2",
+            NO_ENTITLEMENTS_MODULE
         );
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
-        var requestingModule = callerClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
+        var entitlements = policyManager.getEntitlements(callerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("example"), Map.of(), c -> null);
+        var policyManager = new PolicyManager(createTestServerPolicy("example"), List.of(), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -124,21 +126,19 @@ public class PolicyManagerTests extends ESTestCase {
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
-        var ex = assertThrows(
-            "No policy for this module in server",
-            NotEntitledException.class,
-            () -> policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule)
-        );
+        assertEquals("No policy for this module in server", ModuleEntitlements.NONE, policyManager.getEntitlements(mockServerClass));
 
-        assertEquals(
-            "Missing entitlement policy: caller [class com.sun.net.httpserver.HttpServer], module [jdk.httpserver]",
-            ex.getMessage()
-        );
-        assertThat(policyManager.moduleEntitlementsMap, hasEntry(requestingModule, PolicyManager.ModuleEntitlements.NONE));
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("jdk.httpserver"), Map.of(), c -> null);
+        var policyManager = new PolicyManager(
+            createTestServerPolicy("jdk.httpserver"),
+            List.of(),
+            Map.of(),
+            c -> null,
+            NO_ENTITLEMENTS_MODULE
+        );
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -147,7 +147,7 @@ public class PolicyManagerTests extends ESTestCase {
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(mockServerClass, requestingModule);
+        var entitlements = policyManager.getEntitlements(mockServerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(entitlements.hasEntitlement(ExitVMEntitlement.class), is(true));
     }
@@ -155,19 +155,21 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsReturnsEntitlementsForPluginModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
-        Path jar = creteMockPluginJar(home);
+        Path jar = createMockPluginJar(home);
 
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
-            c -> "mock-plugin"
+            c -> "mock-plugin",
+            NO_ENTITLEMENTS_MODULE
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
         var mockPluginClass = layer.findLoader("org.example.plugin").loadClass("q.B");
         var requestingModule = mockPluginClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(mockPluginClass, requestingModule);
+        var entitlements = policyManager.getEntitlements(mockPluginClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(
             entitlements.getEntitlements(FileEntitlement.class).toList(),
@@ -178,23 +180,66 @@ public class PolicyManagerTests extends ESTestCase {
     public void testGetEntitlementsResultIsCached() {
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
+            List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
-            c -> "plugin2"
+            c -> "plugin2",
+            NO_ENTITLEMENTS_MODULE
         );
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
-        var requestingModule = callerClass.getModule();
 
-        var entitlements = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
+        var entitlements = policyManager.getEntitlements(callerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         var cachedResult = policyManager.moduleEntitlementsMap.values().stream().findFirst().get();
-        var entitlementsAgain = policyManager.getEntitlementsOrThrow(callerClass, requestingModule);
+        var entitlementsAgain = policyManager.getEntitlements(callerClass);
 
         // Nothing new in the map
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         assertThat(entitlementsAgain, sameInstance(cachedResult));
+    }
+
+    public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
+        var callerClass = makeClassInItsOwnModule();
+        assertEquals(callerClass, policyManagerWithEntitlementsModule(NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
+    }
+
+    public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
+        var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
+        var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
+        var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
+        var ignorableClass = makeClassInItsOwnModule();
+
+        var policyManager = policyManagerWithEntitlementsModule(entitlementsClass.getModule());
+
+        assertEquals(
+            "Skip entitlement library and the instrumented method",
+            requestingClass,
+            policyManager.findRequestingClass(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass)).orElse(null)
+        );
+        assertEquals(
+            "Skip multiple library frames",
+            requestingClass,
+            policyManager.findRequestingClass(Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass))
+                .orElse(null)
+        );
+        assertThrows(
+            "Non-modular caller frames are not supported",
+            NullPointerException.class,
+            () -> policyManager.findRequestingClass(Stream.of(entitlementsClass, null))
+        );
+    }
+
+    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
+        final Path home = createTempDir();
+        Path jar = createMockPluginJar(home);
+        var layer = createLayerForJar(jar, "org.example.plugin");
+        return layer.findLoader("org.example.plugin").loadClass("q.B");
+    }
+
+    private static PolicyManager policyManagerWithEntitlementsModule(Module entitlementsModule) {
+        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", entitlementsModule);
     }
 
     private static Policy createEmptyTestServerPolicy() {
@@ -219,7 +264,7 @@ public class PolicyManagerTests extends ESTestCase {
         );
     }
 
-    private static Path creteMockPluginJar(Path home) throws IOException {
+    private static Path createMockPluginJar(Path home) throws IOException {
         Path jar = home.resolve("mock-plugin.jar");
 
         Map<String, CharSequence> sources = Map.ofEntries(

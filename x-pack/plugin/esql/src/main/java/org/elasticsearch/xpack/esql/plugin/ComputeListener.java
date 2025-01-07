@@ -135,25 +135,24 @@ final class ComputeListener implements Releasable {
 
     private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
-            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
-                EsqlExecutionInfo.Cluster.Status newStatus = v.getStatus();
-                // Do not update the status if it is already set to e.g. PARTIAL
-                if (newStatus == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                    newStatus = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                }
-                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(newStatus)
-                    /*
-                     * Total and skipped shard counts are set early in execution (after can-match).
-                     * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
-                     * as successful and none are failed.
-                     */
-                    .setSuccessfulShards(v.getTotalShards())
-                    .setFailedShards(0)
-                    .build();
-            } else {
-                return v;
+            // Here we either on remote side - where skipping doesn't happen - or we are processing local cluster
+            // which can not be skipped
+            assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED : "Skipped clusters should not appear here";
+            assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
+            EsqlExecutionInfo.Cluster.Status newStatus = v.getStatus();
+            // Do not update the status if it is already set to e.g. PARTIAL
+            if (newStatus == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                newStatus = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
             }
+            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(newStatus)
+                /*
+                 * Total and skipped shard counts are set early in execution (after can-match).
+                 * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
+                 * as successful and none are failed.
+                 */
+                .setSuccessfulShards(v.getTotalShards())
+                .setFailedShards(0)
+                .build();
         });
     }
 
@@ -227,7 +226,6 @@ final class ComputeListener implements Releasable {
             if (isCCSListener(computeClusterAlias)) {
                 // this is the callback for the listener on the primary coordinator that receives a remote ComputeResponse
                 updateExecutionInfoWithRemoteResponse(computeClusterAlias, resp);
-
             } else if (shouldRecordTookTime()) {
                 Long relativeStartNanos = esqlExecutionInfo.getRelativeStartNanos();
                 // handler for this cluster's data node and coordinator completion (runs on "local" and remote clusters)
@@ -240,8 +238,10 @@ final class ComputeListener implements Releasable {
                     if (v.getTook() == null && esqlExecutionInfo.isPartial()) {
                         resultStatus = EsqlExecutionInfo.Cluster.Status.PARTIAL;
                     }
-                    if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
-                        && (v.getTook() == null || v.getTook().nanos() < tookTime.nanos())) {
+                    // Here we either on remote side - where skipping doesn't happen - or we are processing local cluster
+                    // which can not be skipped
+                    assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED : "Skipped clusters should not appear here";
+                    if ((v.getTook() == null || v.getTook().nanos() < tookTime.nanos())) {
                         return new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime).setStatus(resultStatus).build();
                     } else {
                         return v;

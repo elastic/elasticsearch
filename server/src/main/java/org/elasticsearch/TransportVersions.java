@@ -149,7 +149,7 @@ public class TransportVersions {
     public static final TransportVersion TRANSFORMS_UPGRADE_MODE = def(8_814_00_0);
     public static final TransportVersion NODE_SHUTDOWN_EPHEMERAL_ID_ADDED = def(8_815_00_0);
     public static final TransportVersion ESQL_CCS_TELEMETRY_STATS = def(8_816_00_0);
-    public static final TransportVersion TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRICS = def(8_817_00_0);
+    public static final TransportVersion TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC = def(8_817_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

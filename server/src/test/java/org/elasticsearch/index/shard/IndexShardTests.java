@@ -1774,22 +1774,39 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         });
         long nbIndexedDocs = randomIntBetween(1, 10);
-        AtomicLong nbFailed = new AtomicLong();
+        AtomicLong indexingFailedCount = new AtomicLong();
+        AtomicLong indexingFailedWithVersionConflictCount = new AtomicLong();
+        AtomicLong indexingSuccessCount = new AtomicLong();
         for (int id = 0; id < nbIndexedDocs; id++) {
-            throwOnIndex.set(randomBoolean());
-            int finalId = id;
-            if (throwOnIndex.get()) {
-                nbFailed.incrementAndGet();
-                expectThrows(IOException.class, () -> indexDoc(shard, "_doc", "test" + finalId));
-            } else {
-                Engine.IndexResult indexResult = indexDoc(shard, "test" + finalId, 10L, "{}", XContentType.JSON, null);
+            if (randomBoolean()) {
+                // version conflict
+                throwOnIndex.set(false);
+                indexingFailedWithVersionConflictCount.incrementAndGet();
+                indexingFailedCount.incrementAndGet();
+                Engine.IndexResult indexResult = indexDoc(shard, "test" + id, 10L, "{}", XContentType.JSON, null);
                 assertThat(indexResult.isCreated(), is(false));
                 assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
+            } else {
+                throwOnIndex.set(randomBoolean());
+                int finalId = id;
+                if (throwOnIndex.get()) {
+                    // indexing failure
+                    indexingFailedCount.incrementAndGet();
+                    expectThrows(IOException.class, () -> indexDoc(shard, "_doc", "test" + finalId));
+                } else {
+                    // indexing successful
+                    indexingSuccessCount.incrementAndGet();
+                    Engine.IndexResult indexResult = indexDoc(shard, "_doc", "test" + id);
+                    assertThat(indexResult.isCreated(), is(true));
+                }
             }
         }
-        assertThat(shard.indexingStats().getTotal().getIndexCount(), equalTo(0L));
-        assertThat(shard.indexingStats().getTotal().getIndexFailedCount(), equalTo(nbIndexedDocs));
-        assertThat(shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(), equalTo(nbIndexedDocs - nbFailed.get()));
+        assertThat(shard.indexingStats().getTotal().getIndexCount(), equalTo(indexingSuccessCount.get()));
+        assertThat(shard.indexingStats().getTotal().getIndexFailedCount(), equalTo(indexingFailedCount.get()));
+        assertThat(
+            shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(),
+            equalTo(indexingFailedWithVersionConflictCount.get())
+        );
         closeShards(shard);
     }
 

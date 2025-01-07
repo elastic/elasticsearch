@@ -34,8 +34,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -281,25 +279,13 @@ public class AbstractAuditorTests extends ESTestCase {
 
     public static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
 
-        TestAuditor(Client client, String nodeName, ClusterService clusterService) {
+        TestAuditor(Client client, String nodeName, ClusterService clusterService) { // TODO remove clusterservice
             super(
                 new OriginSettingClient(client, TEST_ORIGIN),
                 TEST_INDEX,
-                new IndexTemplateConfig(
-                    TEST_INDEX,
-                    "/ml/notifications_index_template.json",
-                    TEST_TEMPLATE_VERSION,
-                    "xpack.ml.version",
-                    Map.of(
-                        "xpack.ml.version.id",
-                        String.valueOf(TEST_TEMPLATE_VERSION),
-                        "xpack.ml.notifications.mappings",
-                        NotificationsIndex.mapping()
-                    )
-                ),
                 nodeName,
                 AbstractAuditMessageTests.TestAuditMessage::new,
-                clusterService
+                l -> { l.onResponse(Boolean.TRUE); }
             );
         }
     }

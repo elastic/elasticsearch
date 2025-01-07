@@ -567,7 +567,7 @@ public class MachineLearning extends Plugin
             parameters.client,
             parameters.ingestService.getClusterService(),
             this.settings,
-            machineLearningExtension.get().includeNodeInfo()
+            inferenceAuditor.get()
         );
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Map.of(InferenceProcessor.TYPE, inferenceFactory);
@@ -764,6 +764,8 @@ public class MachineLearning extends Plugin
     private final SetOnce<DatafeedRunner> datafeedRunner = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
+    private final SetOnce<AnomalyDetectionAuditor> anomalyDetectionAuditor = new SetOnce<>();
+    private final SetOnce<InferenceAuditor> inferenceAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
     private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
@@ -943,15 +945,24 @@ public class MachineLearning extends Plugin
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(
             client,
             clusterService,
+            indexNameExpressionResolver,
             machineLearningExtension.get().includeNodeInfo()
         );
+        this.anomalyDetectionAuditor.set(anomalyDetectionAuditor);
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(
             client,
             clusterService,
+            indexNameExpressionResolver,
             machineLearningExtension.get().includeNodeInfo()
         );
-        InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService, machineLearningExtension.get().includeNodeInfo());
-        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService);
+        InferenceAuditor inferenceAuditor = new InferenceAuditor(
+            client,
+            clusterService,
+            indexNameExpressionResolver,
+            machineLearningExtension.get().includeNodeInfo()
+        );
+        this.inferenceAuditor.set(inferenceAuditor);
+        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService, indexNameExpressionResolver);
 
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
@@ -1353,7 +1364,7 @@ public class MachineLearning extends Plugin
                 client,
                 expressionResolver,
                 getLicenseState(),
-                machineLearningExtension.get().includeNodeInfo()
+                anomalyDetectionAuditor.get()
             ),
             new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver, threadPool),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
@@ -1374,7 +1385,7 @@ public class MachineLearning extends Plugin
                 expressionResolver,
                 client,
                 getLicenseState(),
-                machineLearningExtension.get().includeNodeInfo()
+                anomalyDetectionAuditor.get()
             )
         );
     }

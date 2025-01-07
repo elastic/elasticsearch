@@ -82,7 +82,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     def baseCluster = testClusters.register(baseName) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'path.repo', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
       setting "xpack.license.self_generated.type", "trial"
       /* There is a chance we have more master changes than "normal", so to avoid this test from failing,

@@ -94,7 +94,8 @@ public class Latest extends AbstractCompositeAggFunction {
         }
 
         // We don't use #getSourceAsMap here because we don't want to cache the object as we
-        // only need it here. More over we are modifying the map of maps so it would be incorrect,
+        // only need it here. More over we are modifying the map of maps so we will be holding
+        // the wrong map.
         BytesReference bytes = topHits.getHits().getHits()[0].getSourceRef();
         Map<String, Object> document = XContentHelper.convertToMap(bytes, true).v2();
 

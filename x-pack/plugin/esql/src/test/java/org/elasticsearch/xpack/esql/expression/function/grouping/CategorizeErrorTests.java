@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -20,19 +19,19 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToLowerErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class CategorizeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(ToLowerTests.parameters());
+        return paramsToSuppliers(CategorizeTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToLower(source, args.get(0), EsqlTestUtils.TEST_CFG);
+        return new Categorize(source, args.get(0));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "string"));
+        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> "string"));
     }
 }

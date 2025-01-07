@@ -69,7 +69,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             checked++;
         }
         logger.info("checked {} signatures", checked);
-        assertThat(checked, greaterThan(0));
+        assertThat("didn't check any signatures", checked, greaterThan(0));
     }
 
     private Stream<List<DataType>> missingSignatures(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {

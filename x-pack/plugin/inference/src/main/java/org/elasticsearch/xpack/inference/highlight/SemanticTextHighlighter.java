@@ -124,7 +124,7 @@ public class SemanticTextHighlighter implements Highlighter {
                 fieldType.getChunksField().fullPath(),
                 fieldContext.hitContext.source().source()
             );
-            offsetToContent = entry -> getContentFromNestedSourcesLegacy(fieldType.name(), entry, nestedSources);
+            offsetToContent = entry -> getContentFromLegacyNestedSources(fieldType.name(), entry, nestedSources);
         } else {
             Map<String, String> fieldToContent = new HashMap<>();
             offsetToContent = entry -> {
@@ -233,7 +233,7 @@ public class SemanticTextHighlighter implements Highlighter {
                 var offset = offsetReader.advanceTo(scorer.docID());
                 if (offset == null) {
                     throw new IllegalStateException(
-                        "Cannot highlight field [" + fieldType.name() + "], missing embeddings for doc [" + docId + "]"
+                        "Cannot highlight field [" + fieldType.name() + "], missing offsets for doc [" + docId + "]"
                     );
                 }
                 results.add(new OffsetAndScore(index++, offset, scorer.score()));

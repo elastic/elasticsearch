@@ -2,7 +2,6 @@ setup:
   - requires:
       cluster_features: "semantic_text.highlighter"
       reason: a new highlighter for semantic text field
-      test_runner_features: [ capabilities ]
 
   - do:
       inference.put:

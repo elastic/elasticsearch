@@ -303,7 +303,21 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         if (DEFAULT_EIS_COMPLETION_ENDPOINT_ID.equals(inferenceEntityId)) {
-            return V1_EIS_COMPLETION_MODEL;
+            var defaultServiceSettings = new HashMap<String, Object>(1);
+            var serviceSettings = ElasticInferenceServiceCompletionServiceSettings.fromMap(
+                defaultServiceSettings,
+                ConfigurationParseContext.PERSISTENT
+            );
+
+            return new ElasticInferenceServiceCompletionModel(
+                V1_EIS_COMPLETION_MODEL_ID,
+                TaskType.COMPLETION,
+                NAME,
+                serviceSettings,
+                EmptyTaskSettings.INSTANCE,
+                null,
+                null
+            );
         } else {
             return createModelFromPersistent(
                 inferenceEntityId,
@@ -316,15 +330,7 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
-    private static final Model V1_EIS_COMPLETION_MODEL = new ElasticInferenceServiceCompletionModel(
-        V1_EIS_COMPLETION_MODEL_ID,
-        TaskType.COMPLETION,
-        NAME,
-        (ElasticInferenceServiceCompletionServiceSettings) Map.of(MODEL_ID, DEFAULT_EIS_COMPLETION_ENDPOINT_ID),
-        EmptyTaskSettings.INSTANCE,
-        null,
-        null
-    );
+
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {

@@ -203,6 +203,7 @@ class IndicesAndAliasesResolver {
         final List<String> localIndices = new ArrayList<>(split.getLocal().size());
         for (String localName : split.getLocal()) {
             // TODO: Shard level requests should already have their selectors resolved to concrete indices by their parent requests
+            // see https://github.com/elastic/elasticsearch/issues/119629
             // Resolve them here as long as they are non-wildcard, or missing from the expression
             Tuple<String, String> expressionTuple = IndexNameExpressionResolver.splitSelectorExpression(localName);
             String selector = expressionTuple.v2();

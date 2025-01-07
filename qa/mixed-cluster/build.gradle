@@ -64,6 +64,9 @@ excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry 
 // Excluded because they create dot-prefixed indices on older versions
 excludeList.add('indices.resolve_index/20_resolve_system_index/*')
 
+// Can't work until auto-expand replicas is 0-1 for synonyms index
+excludeList.add("synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set")
+
 def clusterPath = getPath()
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {

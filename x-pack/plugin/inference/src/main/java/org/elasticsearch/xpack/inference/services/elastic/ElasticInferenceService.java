@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -71,6 +72,10 @@ public class ElasticInferenceService extends SenderService {
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
+
+    public static final String V1_EIS_COMPLETION_MODEL_ID = "temp1";
+
+    public static final String DEFAULT_EIS_COMPLETION_ENDPOINT_ID = "eis-alpha-1";
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -210,6 +215,32 @@ public class ElasticInferenceService extends SenderService {
         return supportedTaskTypes;
     }
 
+    @Override
+    public List<DefaultConfigId> defaultConfigIds() {
+        return List.of(new DefaultConfigId(DEFAULT_EIS_COMPLETION_ENDPOINT_ID, TaskType.COMPLETION, this));
+    }
+
+    @Override
+    public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
+        var serviceSettings = new HashMap<String, Object>(1);
+        serviceSettings.put(MODEL_ID, "elastic-model"); // TODO
+
+        defaultsListener.onResponse(
+            List.of(
+                new ElasticInferenceServiceCompletionModel(
+                    DEFAULT_EIS_COMPLETION_ENDPOINT_ID,
+                    TaskType.COMPLETION,
+                    NAME,
+                    serviceSettings,
+                    null,
+                    null,
+                    new ElasticInferenceServiceComponents("http://localhost:8080"), // TODO
+                    ConfigurationParseContext.PERSISTENT
+                )
+            )
+        );
+    }
+
     private static ElasticInferenceServiceModel createModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -271,15 +302,29 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
-        );
+        if (DEFAULT_EIS_COMPLETION_ENDPOINT_ID.equals(inferenceEntityId)) {
+            return V1_EIS_COMPLETION_MODEL;
+        } else {
+            return createModelFromPersistent(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                taskSettingsMap,
+                null,
+                parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            );
+        }
     }
+
+    private static final Model V1_EIS_COMPLETION_MODEL = new ElasticInferenceServiceCompletionModel(
+        V1_EIS_COMPLETION_MODEL_ID,
+        TaskType.COMPLETION,
+        NAME,
+        (ElasticInferenceServiceCompletionServiceSettings) Map.of(MODEL_ID, DEFAULT_EIS_COMPLETION_ENDPOINT_ID),
+        EmptyTaskSettings.INSTANCE,
+        null,
+        null
+    );
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {

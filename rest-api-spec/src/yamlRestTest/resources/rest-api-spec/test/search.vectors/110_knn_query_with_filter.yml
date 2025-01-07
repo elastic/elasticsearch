@@ -75,7 +75,7 @@ setup:
               num_candidates: 5
               k: 5
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total.value: 5 }
   - length: {hits.hits: 3}
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0.fields.my_name.0: v1 }

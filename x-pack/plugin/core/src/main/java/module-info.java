@@ -126,6 +126,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;
     exports org.elasticsearch.xpack.core.ml.utils;
+    exports org.elasticsearch.xpack.core.ml.vectors;
     exports org.elasticsearch.xpack.core.ml;
     exports org.elasticsearch.xpack.core.monitoring.action;
     exports org.elasticsearch.xpack.core.monitoring.exporter;

@@ -39,7 +39,7 @@ public class RelativeByteSizeValueTests extends ESTestCase {
         assertNull(origin1.getRatio());
         assertNull(target1.getRatio());
         assertEquals(origin1.getAbsolute(), target1.getAbsolute());
-        assertEquals(origin1.getAbsolute().getUnit(), target1.getAbsolute().getUnit());
+        assertEquals(origin1.getAbsolute().preferredUnit, target1.getAbsolute().preferredUnit);
 
         assertFalse(origin2.isAbsolute());
         assertFalse(target2.isAbsolute());

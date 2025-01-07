@@ -21,6 +21,10 @@ import java.io.IOException;
  * A {@code SizeUnit} does not maintain size information, but only
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
+ * <p>
+ * These are arranged in order of increasing magnitude, so you can get
+ * a larger (or smaller) unit by looking up a {@link #values() value}
+ * with a larger (or smaller) {@link #ordinal() ordinal}.
  */
 public enum ByteSizeUnit implements Writeable {
     BYTES {

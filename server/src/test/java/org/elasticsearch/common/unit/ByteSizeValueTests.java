@@ -17,13 +17,15 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
+import static org.elasticsearch.common.unit.ByteSizeValue.format2Decimals;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
     public void testActualPeta() {
-        MatcherAssert.assertThat(ByteSizeValue.of(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));
+        MatcherAssert.assertThat(ByteSizeValue.of(4, PB).getBytes(), equalTo(4503599627370496L));
     }
 
     public void testActualTera() {
@@ -40,7 +42,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(ByteSizeUnit.MB.toMB(10), is(ByteSizeValue.of(10, ByteSizeUnit.MB).getMb()));
         assertThat(ByteSizeUnit.GB.toGB(10), is(ByteSizeValue.of(10, ByteSizeUnit.GB).getGb()));
         assertThat(ByteSizeUnit.TB.toTB(10), is(ByteSizeValue.of(10, ByteSizeUnit.TB).getTb()));
-        assertThat(ByteSizeUnit.PB.toPB(10), is(ByteSizeValue.of(10, ByteSizeUnit.PB).getPb()));
+        assertThat(PB.toPB(10), is(ByteSizeValue.of(10, PB).getPb()));
     }
 
     public void testToIntBytes() {
@@ -70,7 +72,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat("1.5gb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));
         assertThat("1.5tb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.GB).toString()));
         assertThat("1.5pb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.TB).toString()));
-        assertThat("1536pb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.PB).toString()));
+        assertThat("1536pb", is(ByteSizeValue.of((long) (1024 * 1.5), PB).toString()));
     }
 
     public void testParsing() {
@@ -175,10 +177,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testCompareUnits() {
-        long number = randomLongBetween(1, Long.MAX_VALUE / ByteSizeUnit.PB.toBytes(1));
-        ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, () -> randomFrom(ByteSizeUnit.values()));
+        long number = randomLongBetween(1, Long.MAX_VALUE / PB.toBytes(1));
+        ByteSizeUnit randomUnit = randomValueOtherThan(PB, () -> randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = ByteSizeValue.of(number, randomUnit);
-        ByteSizeValue secondByteValue = ByteSizeValue.of(number, ByteSizeUnit.PB);
+        ByteSizeValue secondByteValue = ByteSizeValue.of(number, PB);
         assertTrue(firstByteValue.compareTo(secondByteValue) < 0);
         assertTrue(secondByteValue.compareTo(firstByteValue) > 0);
     }
@@ -233,18 +235,18 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     @Override
     protected ByteSizeValue mutateInstance(final ByteSizeValue instance) {
-        final long instanceSize = instance.getSize();
-        final ByteSizeUnit instanceUnit = instance.getUnit();
+        final long originalBytes = instance.sizeInBytes;
+        final ByteSizeUnit originalUnit = instance.preferredUnit;
         final long mutateSize;
         final ByteSizeUnit mutateUnit;
         switch (between(0, 1)) {
             case 0 -> {
-                final long unitBytes = instanceUnit.toBytes(1);
-                mutateSize = randomValueOtherThan(instanceSize, () -> randomNonNegativeLong() / unitBytes);
-                mutateUnit = instanceUnit;
+                final long unitBytes = originalUnit.toBytes(1);
+                mutateSize = randomValueOtherThan(originalBytes, () -> randomNonNegativeLong() / unitBytes);
+                mutateUnit = originalUnit;
             }
             case 1 -> {
-                mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
+                mutateUnit = randomValueOtherThan(originalUnit, () -> randomFrom(ByteSizeUnit.values()));
                 final long newUnitBytes = mutateUnit.toBytes(1);
                 /*
                  * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other
@@ -252,13 +254,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                  * the representation would be such that the number of represented bytes would exceed Long.Max_VALUE, we
                  * have to randomize a new size too.
                  */
-                if (instanceSize == 0 || instanceSize >= Long.MAX_VALUE / newUnitBytes) {
+                if (originalBytes == 0 || originalBytes >= Long.MAX_VALUE / newUnitBytes) {
                     mutateSize = randomValueOtherThanMany(
-                        v -> v == instanceSize && v >= Long.MAX_VALUE / newUnitBytes,
+                        v -> v == originalBytes && v >= Long.MAX_VALUE / newUnitBytes,
                         () -> randomNonNegativeLong() / newUnitBytes
                     );
                 } else {
-                    mutateSize = instanceSize;
+                    mutateSize = originalBytes;
                 }
             }
             default -> throw new AssertionError("Invalid randomisation branch");
@@ -372,7 +374,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testOfPb() {
-        testOf(ByteSizeUnit.PB, ByteSizeValue::ofPb);
+        testOf(PB, ByteSizeValue::ofPb);
     }
 
     private void testOf(ByteSizeUnit unit, Function<Long, ByteSizeValue> byteSizeValueFunction) {
@@ -407,11 +409,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             is(ByteSizeValue.ofBytes(13194139533312L))
         );
         assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.PB), ByteSizeValue.of(4, ByteSizeUnit.PB)),
+            ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)),
             is(ByteSizeValue.ofBytes(13510798882111488L))
         );
         assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
+            ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
             is(ByteSizeValue.ofBytes(9007203549708288L))
         );
 
@@ -455,11 +457,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             is(ByteSizeValue.ofBytes(4398046511104L))
         );
         assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.PB), ByteSizeValue.of(4, ByteSizeUnit.PB)),
+            ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)),
             is(ByteSizeValue.ofBytes(4503599627370496L))
         );
         assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
+            ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
             is(ByteSizeValue.ofBytes(9007194959773696L))
         );
 
@@ -510,21 +512,21 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             is(ByteSizeValue.of(90, ByteSizeUnit.TB))
         );
         assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(2, ByteSizeUnit.PB), ByteSizeValue.of(1, ByteSizeUnit.PB)),
-            is(ByteSizeValue.of(1, ByteSizeUnit.PB))
+            ByteSizeValue.min(ByteSizeValue.of(2, PB), ByteSizeValue.of(1, PB)),
+            is(ByteSizeValue.of(1, PB))
         );
         assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(1, ByteSizeUnit.PB), ByteSizeValue.of(1, ByteSizeUnit.GB)),
+            ByteSizeValue.min(ByteSizeValue.of(1, PB), ByteSizeValue.of(1, ByteSizeUnit.GB)),
             is(ByteSizeValue.of(1, ByteSizeUnit.GB))
         );
 
         ByteSizeValue equalityResult = ByteSizeValue.min(ByteSizeValue.of(1024, ByteSizeUnit.MB), ByteSizeValue.of(1, ByteSizeUnit.GB));
         assertThat(equalityResult, is(ByteSizeValue.of(1024, ByteSizeUnit.MB)));
-        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.MB));
+        assertThat(equalityResult.preferredUnit, is(ByteSizeUnit.MB));
 
         equalityResult = ByteSizeValue.min(ByteSizeValue.of(1, ByteSizeUnit.GB), ByteSizeValue.of(1024, ByteSizeUnit.MB));
         assertThat(equalityResult, is(ByteSizeValue.of(1, ByteSizeUnit.GB)));
-        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.GB));
+        assertThat(equalityResult.preferredUnit, is(ByteSizeUnit.GB));
 
         String exceptionMessage = "one of the arguments has -1 bytes";
         Exception e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
@@ -535,6 +537,42 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
         e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
         assertThat(e.getMessage(), containsString(exceptionMessage));
+    }
+
+    public void testFormat2DecimalsWithIntegers() {
+        assertEquals("0", format2Decimals(0, 0));
+        assertEquals("123", format2Decimals(123, 0));
+        assertEquals("-123", format2Decimals(-123, 0));
+        assertEquals(Long.toString(Long.MAX_VALUE), format2Decimals(Long.MAX_VALUE, 0));
+    }
+
+    public void testFormat2DecimalsWithHundredths() {
+        for (int hundredths = 1; hundredths < 10; hundredths++) {
+            assertEquals("0.0" + hundredths, format2Decimals(hundredths / 100.0));
+        }
+        for (int tenths = 1; tenths < 10; tenths++) {
+            assertEquals("0." + tenths, format2Decimals(tenths / 10.0));
+            for (int hundredths = 1; hundredths < 10; hundredths++) {
+                assertEquals("0." + tenths + hundredths, format2Decimals(tenths / 10.0 + hundredths / 100.0));
+            }
+        }
+    }
+
+    public void testFormat2DecimalsWithRounding() {
+        assertEquals("0.01", format2Decimals(0.0149999));
+        assertEquals("0.02", format2Decimals(0.0151000));
+    }
+
+    public void testFormat2DecimalsWithHugeNumbers() {
+        // With enough digits, floating-point values can lose their bottom digits.
+        // Ensure this doesn't cause double-rounding, where x.xx4999...999 becomes the
+        // double value x.xx5 which then rounds up.
+
+        // Try to induce double-rounding
+        double pointFourNine = 90000000000000.49 * 1024;
+
+        // Ensure we can still tell .49 from .50
+        assertEquals("90000000000000.49", format2Decimals(pointFourNine / 1024));
     }
 
     @Override

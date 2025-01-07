@@ -10,12 +10,10 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,20 +22,22 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
+
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * leading to a runtime failure (see {@code LogConfigurator.checkErrorListener()} ). The premature construction would come from any
      * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
     }
 
-    public static final ByteSizeValue ZERO = of(0, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue ONE = of(1, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue MINUS_ONE = of(-1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ZERO = of(0, BYTES);
+    public static final ByteSizeValue ONE = of(1, BYTES);
+    public static final ByteSizeValue MINUS_ONE = of(-1, BYTES);
 
     public static ByteSizeValue of(long size, ByteSizeUnit unit) {
         return new ByteSizeValue(size, unit);
@@ -53,7 +53,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         if (size == -1) {
             return MINUS_ONE;
         }
-        return of(size, ByteSizeUnit.BYTES);
+        return of(size, BYTES);
     }
 
     public static ByteSizeValue ofKb(long size) {
@@ -76,13 +76,13 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         return of(size, ByteSizeUnit.PB);
     }
 
-    private final long size;
-    private final ByteSizeUnit unit;
+    final long sizeInBytes;
+    final ByteSizeUnit preferredUnit;
 
     public static ByteSizeValue readFrom(StreamInput in) throws IOException {
         long size = in.readZLong();
         ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
-        if (unit == ByteSizeUnit.BYTES) {
+        if (unit == BYTES) {
             return ofBytes(size);
         }
         return of(size, unit);
@@ -90,12 +90,16 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZLong(size);
-        unit.writeTo(out);
+//        out.writeZLong(size);
+//        unit.writeTo(out);
+        throw new IllegalStateException("NOT YET IMPLEMENTED!");
     }
 
+    /**
+     * @param size denominated in the given {@code unit}
+     */
     private ByteSizeValue(long size, ByteSizeUnit unit) {
-        if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
+        if (size < -1 || (size == -1 && unit != BYTES)) {
             throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
@@ -103,18 +107,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
             );
         }
-        this.size = size;
-        this.unit = unit;
-    }
-
-    // For testing
-    long getSize() {
-        return size;
-    }
-
-    // For testing
-    ByteSizeUnit getUnit() {
-        return unit;
+        this.sizeInBytes = unit.toBytes(size);
+        this.preferredUnit = unit;
     }
 
     @Deprecated
@@ -127,27 +121,27 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public long getBytes() {
-        return unit.toBytes(size);
+        return sizeInBytes;
     }
 
     public long getKb() {
-        return unit.toKB(size);
+        return BYTES.toKB(sizeInBytes);
     }
 
     public long getMb() {
-        return unit.toMB(size);
+        return BYTES.toMB(sizeInBytes);
     }
 
     public long getGb() {
-        return unit.toGB(size);
+        return BYTES.toGB(sizeInBytes);
     }
 
     public long getTb() {
-        return unit.toTB(size);
+        return BYTES.toTB(sizeInBytes);
     }
 
     public long getPb() {
-        return unit.toPB(size);
+        return BYTES.toPB(sizeInBytes);
     }
 
     public double getKbFrac() {
@@ -179,34 +173,62 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      *         serialising the value to JSON.
      */
     public String getStringRep() {
-        if (size <= 0) {
-            return String.valueOf(size);
+        if (sizeInBytes <= 0) {
+            return String.valueOf(sizeInBytes);
         }
-        return size + unit.getSuffix();
+        if (preferredUnit == BYTES) {
+            return sizeInBytes + BYTES.getSuffix();
+        }
+        long fractionalPart = sizeInBytes % preferredUnit.toBytes(1);
+        if (fractionalPart == 0) {
+            // Already an integer number of the preferred unit
+            return sizeInBytes / preferredUnit.toBytes(1) + preferredUnit.getSuffix();
+        } else if (fractionalPart % (preferredUnit.toBytes(1) / 1024) == 0) {
+            // For some fractions like, we can use the next unit down, which is preferable to bytes.
+            // For example, 0.75 TB can be "768 GB" instead of "805306368 B".
+            var smallerUnit = ByteSizeUnit.values()[preferredUnit.ordinal()-1];
+            return sizeInBytes / smallerUnit.toBytes(1) + smallerUnit.getSuffix();
+        } else {
+            // It's hopeless: no suffix besides BYTES can make this an integer.
+            // For example, 0.33 GB = 337.92 MB = 346030.08 KB.
+            // Bytes are special because we always round to the nearest byte anyway.
+            return sizeInBytes + BYTES.getSuffix();
+        }
     }
 
     @Override
     public String toString() {
-        long bytes = getBytes();
-        double value = bytes;
-        String suffix = ByteSizeUnit.BYTES.getSuffix();
-        if (bytes >= ByteSizeUnit.C5) {
-            value = getPbFrac();
-            suffix = ByteSizeUnit.PB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C4) {
-            value = getTbFrac();
-            suffix = ByteSizeUnit.TB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C3) {
-            value = getGbFrac();
-            suffix = ByteSizeUnit.GB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C2) {
-            value = getMbFrac();
-            suffix = ByteSizeUnit.MB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C1) {
-            value = getKbFrac();
-            suffix = ByteSizeUnit.KB.getSuffix();
+        // Because we limit fractional values to 2 decimal places, they have a granularity of one part in 100.
+        // The binary prefixes offer a much finer granularity of one part in 1024. Therefore, if we compute the
+        // size in the preferred unit as a floating-point fraction and then round to 2 decimals, we exactly
+        // recover the correct fractional value, even accounting for the double-rounding that can occur when
+        // we first convert to a double and then round to two decimals.
+        long granularity = preferredUnit.toBytes(1);
+        assert granularity < Long.MAX_VALUE / 100: "Units must be small enough that multiplying them by 100 doesn't overflow";
+        return format2Decimals(sizeInBytes / granularity, (sizeInBytes % granularity) * 100 / granularity);
+    }
+
+    /**
+     * Format the double value with at most 2 decimal places, rounding using {@link java.math.RoundingMode#HALF_UP}.
+     * <p>
+     * <strong>Double-rounding</strong>:
+     * Because {@code value} is a floating-point number, presumably produced by some sort of calculation,
+     * it could already have been rounded, and this string formatting operation will round it again, which could
+     * in theory produce incorrect results. For example, 0.114999999999999999 would be represented as the {@code double}
+     * value {@code 0.115}, which when passed to this function, would produce the incorrect string {@code 0.12}
+     * instead of the correctly rounded string {@code 0.11}.
+     * <p>
+     * However, in the specific use case of this class, where the original input is limited to two decimal places
+     * and has a limited magnitude, then this sort of double-rounding is impossible.
+     */
+    static String format2Decimals(long units, long hundredths) {
+        assert 0 <= hundredths && hundredths <= 99;
+        if (hundredths == 0) {
+            return String.valueOf(units);
+        } else {
+            String fraction = String.valueOf(hundredths * 0.01);
+            return units + " " + fraction.substring(1); // Skip the zero
         }
-        return Strings.format1Decimals(value, suffix);
     }
 
     public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
@@ -332,7 +354,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public int hashCode() {
-        return Long.hashCode(size * unit.toBytes(1));
+        return Long.hashCode(sizeInBytes);
     }
 
     @Override

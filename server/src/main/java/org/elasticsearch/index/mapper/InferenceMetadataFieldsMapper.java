@@ -86,8 +86,12 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
      * @return {@code true} if the new format is enabled; {@code false} otherwise
      */
     public static boolean isEnabled(Settings settings) {
-        return IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-            && USE_LEGACY_SEMANTIC_TEXT_FORMAT.get(settings) == false;
+        var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        if (version.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && version.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
+            return false;
+        }
+        return USE_LEGACY_SEMANTIC_TEXT_FORMAT.get(settings) == false;
     }
 
     /**

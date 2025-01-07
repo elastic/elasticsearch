@@ -268,7 +268,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 indexTimeInMillis,
                 indexCurrent,
                 indexFailedCount,
-                    indexFailedDueToVersionConflictCount,
+                indexFailedDueToVersionConflictCount,
                 deleteCount,
                 deleteTimeInMillis,
                 deleteCurrent,

@@ -51,7 +51,7 @@ public class EsSourceExec extends LeafExec {
     private EsSourceExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            new EsIndex(in),
+            EsIndex.readFrom(in),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             EsRelation.readIndexMode(in)

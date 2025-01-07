@@ -23,12 +23,17 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+
 import static java.util.Map.entry;
+import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.forPlugins;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -49,6 +54,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         static CheckAction forPlugins(Runnable action) {
             return new CheckAction(action, false);
         }
+
+        static CheckAction alwaysDenied(Runnable action) {
+            return new CheckAction(action, true);
+        }
     }
 
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
@@ -56,8 +65,31 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
         entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
         entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
-        entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline))
+        entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
+        entry("set_https_connection_properties", forPlugins(RestEntitlementsCheckAction::setHttpsConnectionProperties)),
+        entry("set_default_ssl_socket_factory", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
+        entry("set_default_hostname_verifier", alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
+        entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext))
     );
+
+    private static void setDefaultSSLContext() {
+        logger.info("Calling SSLContext.setDefault");
+        try {
+            SSLContext.setDefault(SSLContext.getDefault());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setDefaultHostnameVerifier() {
+        logger.info("Calling HttpsURLConnection.setDefaultHostnameVerifier");
+        HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> false);
+    }
+
+    private static void setDefaultSSLSocketFactory() {
+        logger.info("Calling HttpsURLConnection.setDefaultSSLSocketFactory");
+        HttpsURLConnection.setDefaultSSLSocketFactory(new TestSSLSocketFactory());
+    }
 
     @SuppressForbidden(reason = "Specifically testing Runtime.exit")
     private static void runtimeExit() {
@@ -93,11 +125,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
+    private static void setHttpsConnectionProperties() {
+        logger.info("Calling setSSLSocketFactory");
+        var connection = new TestHttpsURLConnection();
+        connection.setSSLSocketFactory(new TestSSLSocketFactory());
+    }
+
     public RestEntitlementsCheckAction(String prefix) {
         this.prefix = prefix;
     }
 
-    public static Set<String> getServerAndPluginsCheckActions() {
+    public static Set<String> getCheckActionsAllowedInPlugins() {
         return checkActions.entrySet()
             .stream()
             .filter(kv -> kv.getValue().isAlwaysDeniedToPlugins() == false)

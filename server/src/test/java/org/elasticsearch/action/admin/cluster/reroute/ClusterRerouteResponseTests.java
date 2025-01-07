@@ -312,15 +312,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             fail(e);
         }
 
-        int[] expectedChunks = new int[] { 3 };
-        if (Objects.equals(params.param("metric"), "none") == false) {
-            expectedChunks[0] += 2 + ClusterStateTests.expectedChunkCount(params, response.getState());
-        }
-        if (params.paramAsBoolean("explain", false)) {
-            expectedChunks[0]++;
-        }
+        final var expectedChunks = Objects.equals(params.param("metric"), "none")
+            ? 2
+            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks[0]);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks);
         assertCriticalWarnings(criticalDeprecationWarnings);
     }
 

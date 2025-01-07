@@ -164,22 +164,19 @@ public class SearchQueryIT extends ESIntegTestCase {
         forceMerge();
         refresh();
         assertHitCount(
+            3L,
             prepareSearch().setQuery(matchAllQuery())
                 .setPostFilter(
                     boolQuery().must(matchAllQuery())
                         .must(boolQuery().mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
                 ),
-            3L
-        );
-        assertHitCount(
             prepareSearch().setQuery(
                 boolQuery().must(
                     boolQuery().should(termQuery("field1", "value1"))
                         .should(termQuery("field1", "value2"))
                         .should(termQuery("field1", "value3"))
                 ).filter(boolQuery().mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
-            ),
-            3L
+            )
         );
         assertHitCount(prepareSearch().setQuery(matchAllQuery()).setPostFilter(boolQuery().mustNot(termQuery("field1", "value3"))), 2L);
     }
@@ -309,11 +306,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("value*")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("*ue*")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("*ue_1")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("val*e_1")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("v?l*e?1")), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch().setQuery(queryStringQuery("value*")),
+            prepareSearch().setQuery(queryStringQuery("*ue*")),
+            prepareSearch().setQuery(queryStringQuery("*ue_1")),
+            prepareSearch().setQuery(queryStringQuery("val*e_1")),
+            prepareSearch().setQuery(queryStringQuery("v?l*e?1"))
+        );
     }
 
     public void testLowercaseExpandedTerms() {
@@ -322,10 +322,13 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
 
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("VALUE_3~1")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("ValUE_*")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("vAl*E_1")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch().setQuery(queryStringQuery("VALUE_3~1")),
+            prepareSearch().setQuery(queryStringQuery("ValUE_*")),
+            prepareSearch().setQuery(queryStringQuery("vAl*E_1")),
+            prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]"))
+        );
     }
 
     // Issue #3540
@@ -340,8 +343,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]")), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")),
+            prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]"))
+        );
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
@@ -377,21 +383,17 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         // Timezone set with dates
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00+0200 TO 2015-04-06T23:00:00+0200]")), 2L);
-
-        // Same timezone set with time_zone
         assertHitCount(
-            prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00 TO 2015-04-06T23:00:00]").timeZone("+0200")),
-            2L
+            2L,
+            prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00+0200 TO 2015-04-06T23:00:00+0200]")),
+            prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00 TO 2015-04-06T23:00:00]").timeZone("+0200"))
         );
 
         // We set a timezone which will give no result
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]")), 0L);
-
-        // Same timezone set with time_zone but another timezone is set directly within dates which has the precedence
         assertHitCount(
-            prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]").timeZone("+0200")),
-            0L
+            0L,
+            prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]")),
+            prepareSearch().setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]").timeZone("+0200"))
         );
     }
 
@@ -502,13 +504,12 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").setRefreshPolicy(IMMEDIATE).get();
 
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
-        assertHitCount(prepareSearch().setQuery(wrapper), 1L);
-
-        BoolQueryBuilder bool = boolQuery().must(wrapper).must(new TermQueryBuilder("field2", "value2_1"));
-        assertHitCount(prepareSearch().setQuery(bool), 1L);
-
-        WrapperQueryBuilder wrapperFilter = wrapperQuery("{ \"term\" : { \"field1\" : \"value1_1\" } }");
-        assertHitCount(prepareSearch().setPostFilter(wrapperFilter), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch().setQuery(wrapper),
+            prepareSearch().setQuery(boolQuery().must(wrapper).must(new TermQueryBuilder("field2", "value2_1"))),
+            prepareSearch().setPostFilter(wrapperQuery("{ \"term\" : { \"field1\" : \"value1_1\" } }"))
+        );
     }
 
     public void testFiltersWithCustomCacheKey() throws Exception {
@@ -516,10 +517,13 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         prepareIndex("test").setId("1").setSource("field1", "value1").get();
         refresh();
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))), 1L);
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))), 1L);
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))), 1L);
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1")))
+        );
     }
 
     public void testMatchQueryNumeric() throws Exception {
@@ -994,13 +998,14 @@ public class SearchQueryIT extends ESIntegTestCase {
             "4"
         );
 
-        assertHitCount(prepareSearch("test").setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term"))), 0L);
-
-        // index "lookup" id "missing" document does not exist: ignore the lookup terms
-        assertHitCount(prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "missing", "terms"))), 0L);
-
-        // index "lookup3" has the source disabled: ignore the lookup terms
-        assertHitCount(prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))), 0L);
+        assertHitCount(
+            0L,
+            prepareSearch("test").setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term"))),
+            // index "lookup" id "missing" document does not exist: ignore the lookup terms
+            prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup", "missing", "terms"))),
+            // index "lookup3" has the source disabled: ignore the lookup terms
+            prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms")))
+        );
     }
 
     public void testBasicQueryById() throws Exception {
@@ -1120,18 +1125,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         assertHitCount(
+            4L,
             prepareSearch("test").setPostFilter(
                 boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4))
             ),
-            4L
-        );
-
-        // This made 2826 fail! (only with bit based filters)
-        assertHitCount(
+            // This made 2826 fail! (only with bit based filters)
             prepareSearch("test").setPostFilter(
                 boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4))
-            ),
-            4L
+            )
         );
 
         // This made #2979 fail!
@@ -1697,11 +1698,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         {
-            WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
-            assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
-
-            wildCardQuery = wildcardQuery("field1", "bb*");
-            assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
+            assertHitCount(
+                1L,
+                prepareSearch().setQuery(wildcardQuery("field1", "Bb*")),
+                prepareSearch().setQuery(wildcardQuery("field1", "bb*"))
+            );
         }
     }
 
@@ -1725,12 +1726,12 @@ public class SearchQueryIT extends ESIntegTestCase {
             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
             assertHitCount(prepareSearch().setQuery(wildCardQuery), 0L);
 
-            // the following works not because of normalization but because of the `case_insensitive` parameter
-            wildCardQuery = wildcardQuery("field1", "Bb*").caseInsensitive(true);
-            assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
-
-            wildCardQuery = wildcardQuery("field1", "bb*");
-            assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
+            assertHitCount(
+                1L,
+                // the following works not because of normalization but because of the `case_insensitive` parameter
+                prepareSearch().setQuery(wildcardQuery("field1", "Bb*").caseInsensitive(true)),
+                prepareSearch().setQuery(wildcardQuery("field1", "bb*"))
+            );
         }
     }
 
@@ -1751,11 +1752,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field", "label-1").get();
         refresh();
 
-        WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
-        assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
-
-        wildCardQuery = wildcardQuery("field", "la*el-?");
-        assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch().setQuery(wildcardQuery("field", "la*")),
+            prepareSearch().setQuery(wildcardQuery("field", "la*el-?"))
+        );
     }
 
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {

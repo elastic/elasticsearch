@@ -40,7 +40,7 @@ setup:
         index: test-sparse-index
         body:
           settings:
-            index.mapping.semantic_text.use_legacy_format: false
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               body:
@@ -52,7 +52,7 @@ setup:
         index: test-dense-index
         body:
           settings:
-            index.mapping.semantic_text.use_legacy_format: false
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               body:

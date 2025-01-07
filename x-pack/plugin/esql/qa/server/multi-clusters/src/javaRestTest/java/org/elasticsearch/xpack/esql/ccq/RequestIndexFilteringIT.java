@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -40,12 +41,12 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         return localCluster.getHttpAddresses();
     }
 
-    private RestClient remoteClusterClient() throws IOException {
+    @Before
+    public void setRemoteClient() throws IOException {
         if (remoteClient == null) {
             var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
             remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
-        return remoteClient;
     }
 
     @AfterClass
@@ -60,7 +61,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     @Override
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
         indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName);
-        indexTimestampDataForClient(remoteClusterClient(), docs, indexName, date, differentiatorFieldName);
+        indexTimestampDataForClient(remoteClient, docs, indexName, date, differentiatorFieldName);
     }
 
     @Override
@@ -75,7 +76,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     @After
     public void wipeRemoteTestData() throws IOException {
         try {
-            var response = remoteClusterClient().performRequest(new Request("DELETE", "/test*"));
+            var response = remoteClient.performRequest(new Request("DELETE", "/test*"));
             assertEquals(200, response.getStatusLine().getStatusCode());
         } catch (ResponseException re) {
             assertEquals(404, re.getResponse().getStatusLine().getStatusCode());

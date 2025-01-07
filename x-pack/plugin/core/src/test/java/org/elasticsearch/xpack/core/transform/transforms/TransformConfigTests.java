@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Remote
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -46,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -61,8 +58,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     private String transformId;
     private boolean runWithHeaders;
-    private static final String DATA_FRAME_TRANSFORMS_ADMIN_ROLE = "data_frame_transforms_admin";
-    private static final String DATA_FRAME_TRANSFORMS_USER_ROLE = "data_frame_transforms_user";
 
     public static TransformConfig randomTransformConfigWithoutHeaders() {
         return randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
@@ -1019,44 +1014,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
-                        false,
-                        null
-                    )
-                )
-            )
-        );
-    }
-
-    public void testCheckForDeprecations_WithDeprecatedTransformUserAdmin() throws IOException {
-        testCheckForDeprecations_WithDeprecatedRoles(List.of(DATA_FRAME_TRANSFORMS_ADMIN_ROLE));
-    }
-
-    public void testCheckForDeprecations_WithDeprecatedTransformUserRole() throws IOException {
-        testCheckForDeprecations_WithDeprecatedRoles(List.of(DATA_FRAME_TRANSFORMS_USER_ROLE));
-    }
-
-    public void testCheckForDeprecations_WithDeprecatedTransformRoles() throws IOException {
-        testCheckForDeprecations_WithDeprecatedRoles(List.of(DATA_FRAME_TRANSFORMS_ADMIN_ROLE, DATA_FRAME_TRANSFORMS_USER_ROLE));
-    }
-
-    private void testCheckForDeprecations_WithDeprecatedRoles(List<String> roles) throws IOException {
-        var authentication = AuthenticationTestHelper.builder()
-            .realm()
-            .user(new User(randomAlphaOfLength(10), roles.toArray(String[]::new)))
-            .build();
-        Map<String, String> headers = Map.of(AUTHENTICATION_KEY, authentication.encode());
-        TransformConfig deprecatedConfig = randomTransformConfigWithHeaders(headers);
-
-        // important: checkForDeprecations does _not_ create new deprecation warnings
-        assertThat(
-            deprecatedConfig.checkForDeprecations(xContentRegistry()),
-            equalTo(
-                List.of(
-                    new DeprecationIssue(
-                        Level.CRITICAL,
-                        "Transform [" + deprecatedConfig.getId() + "] uses deprecated transform roles " + roles,
-                        TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_BREAKING_CHANGES_URL,
-                        TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_IS_DEPRECATED,
                         false,
                         null
                     )

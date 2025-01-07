@@ -24,13 +24,11 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -43,7 +41,6 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -52,7 +49,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * This class holds the configuration details of a data frame transform
@@ -69,10 +65,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
     private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
-    private static final List<String> DEPRECATED_DATA_FRAME_TRANSFORMS_ROLES = List.of(
-        "data_frame_transforms_admin",
-        "data_frame_transforms_user"
-    );
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -413,35 +405,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
         }
 
-        var deprecatedTransformRoles = getRolesFromHeaders().stream().filter(DEPRECATED_DATA_FRAME_TRANSFORMS_ROLES::contains).toList();
-        if (deprecatedTransformRoles.isEmpty() == false) {
-            deprecations.add(
-                new DeprecationIssue(
-                    Level.CRITICAL,
-                    "Transform [" + id + "] uses deprecated transform roles " + deprecatedTransformRoles,
-                    TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_BREAKING_CHANGES_URL,
-                    TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_IS_DEPRECATED,
-                    false,
-                    null
-                )
-            );
-        }
-
         return deprecations;
-    }
-
-    private List<String> getRolesFromHeaders() throws IOException {
-        if (headers == null) {
-            return Collections.emptyList();
-        }
-
-        var encodedAuthenticationHeader = ClientHelper.filterSecurityHeaders(headers).getOrDefault(AUTHENTICATION_KEY, "");
-        if (encodedAuthenticationHeader.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        var decodedAuthenticationHeader = AuthenticationContextSerializer.decode(encodedAuthenticationHeader);
-        return Arrays.asList(decodedAuthenticationHeader.getEffectiveSubject().getUser().roles());
     }
 
     @Override

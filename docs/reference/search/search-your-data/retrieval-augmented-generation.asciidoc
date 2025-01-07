@@ -6,9 +6,10 @@
 Check out https://www.youtube.com/watch?v=OS4ZefUPAks[this short video] from the Elastic Snackable Series.
 ***********************
 
-Retrieval augmented generation (RAG) is a technique where additional context is retrieved from an external datastore before prompting a language model to generate a response using the retrieved context.
-This grounds the model with in-context learning.
-Compared to finetuning or continuous pretraining, RAG can be implemented faster and cheaper, and it has several advantages.
+Retrieval Augmented Generation (RAG) is a technique for improving language model responses by grounding the model with additional, verifiable sources of information. It works by first retrieving relevant context from an external datastore, which is then added to the model's context window.
+
+RAG is a form of https://arxiv.org/abs/2301.00234[in-context learning], where the model learns from information provided at inference time.
+Compared to fine-tuning or continuous pre-training, RAG can be implemented more quickly and cheaply, and offers several advantages.
 
 image::images/search/rag-venn-diagram.svg[RAG sits at the intersection of information retrieval and generative AI, align=center, width=500]
 
@@ -23,12 +24,10 @@ RAG has several advantages:
 
 * *Improved context:* Enables grounding the language model with additional, up-to-date, and/or private data.
 * *Reduced hallucination:* Helps minimize factual errors by enabling models to cite authoritative sources.
-* *Cost efficiency:* Requires less maintenance compared to finetuning or continuously pretraining models.
+* *Cost efficiency:* Requires less maintenance compared to fine-tuning or continuously pre-training models.
 * *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control and field/document-level security.
 * *Simplified response parsing:* Eliminates the need for custom parsing logic by letting the language model handle parsing {es} responses and formatting the retrieved context.
-* *Flexible implementation:* Works with basic 
-// TODO: uncomment when page is live <<full-text-search,full-text search>> 
-full-text search and can be gradually updated to add more advanced and computationally intensive <<semantic-search,semantic search>> capabilities.
+* *Flexible implementation:* Works with basic `<<full-text-search,full-text search>>``, and can be gradually updated to add more advanced and computationally intensive <<semantic-search,semantic search>> capabilities.
 
 [discrete]
 [[rag-elasticsearch-components]]
@@ -36,14 +35,14 @@ full-text search and can be gradually updated to add more advanced and computati
 
 The following diagram illustrates a simple RAG system using {es}.
 
-image::images/search/rag-schema.svg[Components of a simple RAG system using Elasticsearch, align=center, width=800]
+image::images/search/rag-schema.svg[Components of a simple RAG system using Elasticsearch, align=center, role="stretch"]
 
-The system consists of the following components:
+The workflow is as follows:
 
-. User submits a query
-. Elasticsearch retrieves relevant documents, using full-text search, vector search, or hybrid search
-. Language model processes the context and generates a response, using custom instructions, such as "Cite a source" or "Provide a concise summary of the `content` field in markdown format"
-. Model returns final response to the user
+. The user submits a query.
+. Elasticsearch retrieves relevant documents using full-text search, vector search, or hybrid search.
+. The language model processes the context and generates a response, using custom instructions. Examples of custom instructions include "Cite a source" or "Provide a concise summary of the `content` field in markdown format."
+. The model returns the final response to the user.
 
 [TIP]
 ====
@@ -60,7 +59,7 @@ The Playground UI enables you to build, test, and deploy RAG interfaces on top o
 Playground automatically selects the best retrieval methods for your data, while providing full control over the final {es} queries and language model instructions.
 You can also download the underlying Python code to integrate with your existing applications.
 
-Learn more in the {kibana-ref}/playground.html[documentation] and 
+Learn more in the {kibana-ref}/playground.html[Playground documentation] and 
 try the https://www.elastic.co/demo-gallery/ai-playground[interactive lab] for hands-on experience.
 
 [discrete]

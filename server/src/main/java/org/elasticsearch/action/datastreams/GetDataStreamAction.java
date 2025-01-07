@@ -234,6 +234,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
+            private final boolean failureStoreEffectivelyEnabled; // Must be serialized independently of dataStream as depends on settings
             @Nullable
             private final String indexTemplate;
             @Nullable
@@ -247,6 +248,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             public DataStreamInfo(
                 DataStream dataStream,
+                boolean failureStoreEffectivelyEnabled,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
                 @Nullable String ilmPolicyName,
@@ -256,6 +258,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable Long maximumTimestamp
             ) {
                 this.dataStream = dataStream;
+                this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
@@ -267,20 +270,30 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
-                this(
-                    DataStream.read(in),
-                    ClusterHealthStatus.readFrom(in),
-                    in.readOptionalString(),
-                    in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true,
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null
-                );
+                this.dataStream = DataStream.read(in);
+                this.failureStoreEffectivelyEnabled = in.getTransportVersion()
+                    .onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
+                        ? in.readBoolean()
+                        : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
+                this.dataStreamStatus = ClusterHealthStatus.readFrom(in);
+                this.indexTemplate = in.readOptionalString();
+                this.ilmPolicyName = in.readOptionalString();
+                this.timeSeries = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)
+                    ? in.readOptionalWriteable(TimeSeries::new)
+                    : null;
+                this.indexSettingsValues = in.getTransportVersion().onOrAfter(V_8_11_X)
+                    ? in.readMap(Index::new, IndexProperties::new)
+                    : Map.of();
+                this.templatePreferIlmValue = in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true;
+                this.maximumTimestamp = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null;
             }
 
             public DataStream getDataStream() {
                 return dataStream;
+            }
+
+            public boolean isFailureStoreEffectivelyEnabled() {
+                return failureStoreEffectivelyEnabled;
             }
 
             public ClusterHealthStatus getDataStreamStatus() {
@@ -318,6 +331,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeBoolean(failureStoreEffectivelyEnabled);
+                }
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
@@ -398,7 +414,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
+                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                     builder.field(
                         DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
                         dataStream.getFailureIndices().isRolloverOnWrite()
@@ -477,6 +493,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 DataStreamInfo that = (DataStreamInfo) o;
                 return templatePreferIlmValue == that.templatePreferIlmValue
                     && Objects.equals(dataStream, that.dataStream)
+                    && failureStoreEffectivelyEnabled == that.failureStoreEffectivelyEnabled
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
@@ -490,6 +507,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return Objects.hash(
                     dataStream,
                     dataStreamStatus,
+                    failureStoreEffectivelyEnabled,
                     indexTemplate,
                     ilmPolicyName,
                     timeSeries,

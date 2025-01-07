@@ -10,9 +10,9 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  name 'rank-rrf'
-  description 'Reciprocal rank fusion in search.'
-  classname 'org.elasticsearch.xpack.rank.rrf.RRFRankPlugin'
+  name = 'rank-rrf'
+  description = 'Reciprocal rank fusion in search.'
+  classname ='org.elasticsearch.xpack.rank.rrf.RRFRankPlugin'
   extendedPlugins = ['x-pack-core']
 }
 

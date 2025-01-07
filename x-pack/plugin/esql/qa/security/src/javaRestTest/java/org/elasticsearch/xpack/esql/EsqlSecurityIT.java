@@ -26,10 +26,13 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,9 +90,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
+        Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
         String mapping = """
             "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}}
             """;
+
         createIndex("index", Settings.EMPTY, mapping);
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
@@ -110,6 +115,16 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
 
+        createIndex("lookup-user1", lookupSettings, mapping);
+        indexDocument("lookup-user1", 1, 12.0, "engineering");
+        indexDocument("lookup-user1", 2, 31.0, "sales");
+        refresh("lookup-user1");
+
+        createIndex("lookup-user2", lookupSettings, mapping);
+        indexDocument("lookup-user2", 1, 32.0, "marketing");
+        indexDocument("lookup-user2", 2, 40.0, "sales");
+        refresh("lookup-user2");
+
         if (aliasExists("second-alias") == false) {
             Request aliasRequest = new Request("POST", "_aliases");
             aliasRequest.setJsonEntity("""
@@ -119,6 +134,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
                           "add": {
                             "alias": "first-alias",
                             "index": "index-user1",
+                            "filter": {
+                                "term": {
+                                    "org": "sales"
+                                }
+                            }
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "lookup-first-alias",
+                            "index": "lookup-user1",
                             "filter": {
                                 "term": {
                                     "org": "sales"
@@ -229,22 +255,30 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testUnauthorizedIndices() throws IOException {
         ResponseException error;
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
 
         error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testInsufficientPrivilege() {
-        Exception error = expectThrows(Exception.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"));
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)")
+        );
         logger.info("error", error);
         assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
@@ -509,6 +543,73 @@ public class EsqlSecurityIT extends ESRestTestCase {
         } finally {
             removeEnrichPolicy();
         }
+    }
+
+    public void testLookupJoinIndexAllowed() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName()))
+        );
+
+        Response resp = runESQLCommand(
+            "metadata1_read2",
+            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
+
+        // Alias, should find the index and the row
+        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
+
+        // Alias, for a row that's filtered out
+        resp = runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(123.0, null))));
+    }
+
+    public void testLookupJoinIndexForbidden() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName()))
+        );
+
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     private void createEnrichPolicy() throws Exception {

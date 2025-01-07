@@ -5,6 +5,12 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-searchable_snapshots[Searchable snapshots APIs].
+--
+
 experimental::[]
 
 Clears indices and data streams from the shared cache for

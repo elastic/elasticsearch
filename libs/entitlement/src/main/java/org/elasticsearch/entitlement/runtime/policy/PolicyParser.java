@@ -34,8 +34,11 @@ import java.util.stream.Stream;
  */
 public class PolicyParser {
 
-    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(FileEntitlement.class, CreateClassLoaderEntitlement.class)
-        .collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
+    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(
+        FileEntitlement.class,
+        CreateClassLoaderEntitlement.class,
+        SetHttpsConnectionPropertiesEntitlement.class
+    ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;
     protected final String policyName;

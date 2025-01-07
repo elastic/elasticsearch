@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
@@ -24,13 +25,16 @@ import java.util.Map;
 
 public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+
     @Inject
     public DataStreamUsageTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         super(
             XPackUsageFeatureAction.DATA_STREAMS.name(),
@@ -40,6 +44,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
             actionFilters,
             indexNameExpressionResolver
         );
+        this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
     }
 
     @Override
@@ -51,13 +56,17 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
     ) {
         final Map<String, DataStream> dataStreams = state.metadata().dataStreams();
         long backingIndicesCounter = 0;
-        long failureStoreEnabledCounter = 0;
+        long failureStoreExplicitlyEnabledCounter = 0;
+        long failureStoreEffectivelyEnabledCounter = 0;
         long failureIndicesCounter = 0;
         for (DataStream ds : dataStreams.values()) {
             backingIndicesCounter += ds.getIndices().size();
             if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                if (ds.isFailureStoreEnabled()) {
-                    failureStoreEnabledCounter++;
+                if (ds.isFailureStoreExplicitlyEnabled()) {
+                    failureStoreExplicitlyEnabledCounter++;
+                }
+                if (ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)) {
+                    failureStoreEffectivelyEnabledCounter++;
                 }
                 if (ds.getFailureIndices().getIndices().isEmpty() == false) {
                     failureIndicesCounter += ds.getFailureIndices().getIndices().size();
@@ -67,7 +76,8 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         final DataStreamFeatureSetUsage.DataStreamStats stats = new DataStreamFeatureSetUsage.DataStreamStats(
             dataStreams.size(),
             backingIndicesCounter,
-            failureStoreEnabledCounter,
+            failureStoreExplicitlyEnabledCounter,
+            failureStoreEffectivelyEnabledCounter,
             failureIndicesCounter
         );
         final DataStreamFeatureSetUsage usage = new DataStreamFeatureSetUsage(stats);

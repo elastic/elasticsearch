@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -111,11 +110,7 @@ public class IndexMetadataUpdaterTests extends ESTestCase {
         final String p2i2s0p = startShard(updater, node2, clusterState.metadata().getProject(project2).index("index2"), 0, true);
         final String p3i3s0p = startShard(updater, node3, clusterState.metadata().getProject(project3).index("index3"), 0, true);
 
-        final Metadata updatedMetadata = updater.applyChanges(
-            clusterState.metadata(),
-            clusterState.globalRoutingTable(),
-            TransportVersion.current()
-        );
+        final Metadata updatedMetadata = updater.applyChanges(clusterState.metadata(), clusterState.globalRoutingTable());
         assertThat(updatedMetadata, not(sameInstance(clusterState.metadata())));
 
         assertThat(

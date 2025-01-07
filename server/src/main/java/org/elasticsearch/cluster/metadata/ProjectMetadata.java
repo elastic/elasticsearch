@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -256,7 +255,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     /**
      * Creates a copy of this instance updated with the given {@link IndexMetadata} that must only contain changes to primary terms
      * and in-sync allocation ids relative to the existing entries. This method is only used by
-     * {@link IndexMetadataUpdater#applyChanges(Metadata, GlobalRoutingTable, TransportVersion)}.
+     * {@link IndexMetadataUpdater#applyChanges(Metadata, GlobalRoutingTable)}.
      * @param updates map of index name to {@link IndexMetadata}.
      * @return updated metadata instance
      */

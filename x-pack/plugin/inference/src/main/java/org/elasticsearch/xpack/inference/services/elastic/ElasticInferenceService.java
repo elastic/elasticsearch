@@ -304,6 +304,7 @@ public class ElasticInferenceService extends SenderService {
 
         if (DEFAULT_EIS_COMPLETION_ENDPOINT_ID.equals(inferenceEntityId)) {
             var defaultServiceSettings = new HashMap<String, Object>(1);
+            defaultServiceSettings.put(MODEL_ID, "elastic-model"); // TODO
             var serviceSettings = ElasticInferenceServiceCompletionServiceSettings.fromMap(
                 defaultServiceSettings,
                 ConfigurationParseContext.PERSISTENT

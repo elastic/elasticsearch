@@ -53,7 +53,6 @@ import javax.net.ssl.TrustManagerFactory;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -100,7 +99,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     if (inFipsJvm()) {
                         // Bouncy Castle throw a different exception
                         assertThat(e, instanceOf(IOException.class));
-                        assertThat(e.getCause().getClass(), is(javax.net.ssl.SSLException.class));
+                        assertThat(e.getCause(), instanceOf(javax.net.ssl.SSLException.class));
                     } else {
                         assertThat(e, instanceOf(SSLHandshakeException.class));
                     }

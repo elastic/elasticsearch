@@ -119,7 +119,12 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             );
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
-                "Failed to create URI for sparse embeddings service: " + e.getMessage(),
+                "Failed to create URI for taskType ["
+                    + getTaskType()
+                    + "] with model ["
+                    + this.getServiceSettings().modelId()
+                    + "]: "
+                    + e.getMessage(),
                 RestStatus.BAD_REQUEST,
                 e
             );

@@ -34,8 +34,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String ROLE = "user";
 
-    // 1. Basic Serialization
-    // Test with minimal required fields to ensure basic serialization works.
     public void testBasicSerialization() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
@@ -76,10 +74,8 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-    // 2. Serialization with All Fields
-    // Test with all possible fields populated to ensure complete serialization.
+
     public void testSerializationWithAllFields() throws IOException {
-        // Create a message with all fields populated
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
@@ -94,7 +90,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             )
         );
 
-        // Create a tool with all fields populated
         UnifiedCompletionRequest.Tool tool = new UnifiedCompletionRequest.Tool(
             "type",
             new UnifiedCompletionRequest.Tool.FunctionField(
@@ -106,7 +101,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
-        // Create the unified request with all fields populated
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
             "model",
@@ -118,19 +112,15 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             0.8f // topP
         );
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Serialize to XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        // Convert to string and verify
         String jsonString = Strings.toString(builder);
         String expectedJson = """
             {
@@ -195,10 +185,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     }
 
-    // 3. Serialization with Null Optional Fields
-    // Test with optional fields set to null to ensure they are correctly omitted from the output.
     public void testSerializationWithNullOptionalFields() throws IOException {
-        // Create a message with minimal required fields
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
@@ -209,7 +196,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
 
-        // Create the unified request with optional fields set to null
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
             null, // model
@@ -221,19 +207,15 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             null  // topP
         );
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Serialize to XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        // Convert to string and verify
         String jsonString = Strings.toString(builder);
         String expectedJson = """
             {
@@ -254,10 +236,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-    // 4. Serialization with Empty Lists
-    // Test with fields that are lists set to empty lists to ensure they are correctly serialized.
     public void testSerializationWithEmptyLists() throws IOException {
-        // Create a message with minimal required fields
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
@@ -267,7 +246,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
-        // Create the unified request with empty lists
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
             null, // model
@@ -279,19 +257,15 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             null  // topP
         );
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Serialize to XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        // Convert to string and verify
         String jsonString = Strings.toString(builder);
         String expectedJson = """
             {
@@ -313,12 +287,10 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-    // 5. Serialization with Nested Objects
-    // Test with nested objects (e.g., toolCalls, toolChoice, tool) to ensure they are correctly serialized.
+
     public void testSerializationWithNestedObjects() throws IOException {
         Random random = Randomness.get();
 
-        // Generate random values
         String randomContent = "Hello, world! " + random.nextInt(1000);
         String randomName = "name" + random.nextInt(1000);
         String randomToolCallId = "tool_call_id" + random.nextInt(1000);
@@ -330,7 +302,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         float randomTemperature = (float) ((float) Math.round(0.5d + (double) random.nextFloat() * 0.5d * 100000d) / 100000d);
         float randomTopP = (float) ((float) Math.round(0.5d + (double) random.nextFloat() * 0.5d * 100000d) / 100000d);
 
-        // Create a message with nested toolCalls
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(randomContent),
             ROLE,
@@ -345,7 +316,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             )
         );
 
-        // Create a tool with nested function fields
         UnifiedCompletionRequest.Tool tool = new UnifiedCompletionRequest.Tool(
             randomType,
             new UnifiedCompletionRequest.Tool.FunctionField(
@@ -357,7 +327,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
-        // Create the unified request with nested objects
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
             randomModel,
@@ -372,21 +341,16 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             randomTopP // topP
         );
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", randomModel, null);
 
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Serialize to XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        // Convert to string and verify
         String jsonString = Strings.toString(builder);
-        // Expected JSON should be dynamically generated based on random values
         String expectedJson = String.format(
             Locale.US,
             """
@@ -470,15 +434,12 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-    // 6. Serialization with Different Content Types
-    // Test with different content types in messages (e.g., ContentString, ContentObjects) to ensure they are correctly serialized.
+
     public void testSerializationWithDifferentContentTypes() throws IOException {
         Random random = Randomness.get();
 
-        // Generate random values for ContentString
         String randomContentString = "Hello, world! " + random.nextInt(1000);
 
-        // Generate random values for ContentObjects
         String randomText = "Random text " + random.nextInt(1000);
         String randomType = "type" + random.nextInt(1000);
         UnifiedCompletionRequest.ContentObject contentObject = new UnifiedCompletionRequest.ContentObject(randomText, randomType);
@@ -487,7 +448,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         contentObjectsList.add(contentObject);
         UnifiedCompletionRequest.ContentObjects contentObjects = new UnifiedCompletionRequest.ContentObjects(contentObjectsList);
 
-        // Create messages with different content types
         UnifiedCompletionRequest.Message messageWithString = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(randomContentString),
             ROLE,
@@ -501,22 +461,17 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         messageList.add(messageWithString);
         messageList.add(messageWithObjects);
 
-        // Create the unified request with both types of messages
         UnifiedCompletionRequest unifiedRequest = UnifiedCompletionRequest.of(messageList);
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Serialize to XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        // Convert to string and verify
         String jsonString = Strings.toString(builder);
         String expectedJson = String.format(Locale.US, """
             {
@@ -546,10 +501,8 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-    // 7. Serialization with Special Characters
-    // Test with special characters in string fields to ensure they are correctly escaped and serialized.
+
     public void testSerializationWithSpecialCharacters() throws IOException {
-        // Create a message with special characters
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world! \n \"Special\" characters: \t \\ /"),
             ROLE,
@@ -565,7 +518,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
-        // Create the unified request
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
             null, // model
@@ -577,19 +529,15 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             null  // topP
         );
 
-        // Create the unified chat input
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
-        // Create the entity
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
-        // Serialize to XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        // Convert to string and verify
         String jsonString = Strings.toString(builder);
         String expectedJson = """
             {
@@ -622,10 +570,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-    // 8. Serialization with Boolean Fields
-    // Test with boolean fields (stream) set to both true and false to ensure they are correctly serialized.
     public void testSerializationWithBooleanFields() throws IOException {
-        // Create a message with minimal required fields
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
@@ -635,7 +580,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
-        // Create the unified request
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
             null, // model
@@ -649,7 +593,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
-        // Test with stream set to true
         UnifiedChatInput unifiedChatInputTrue = new UnifiedChatInput(unifiedRequest, true);
         OpenAiUnifiedChatCompletionRequestEntity entityTrue = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInputTrue, model);
 
@@ -675,7 +618,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             """;
         assertJsonEquals(expectedJsonTrue, jsonStringTrue);
 
-        // Test with stream set to false
         UnifiedChatInput unifiedChatInputFalse = new UnifiedChatInput(unifiedRequest, false);
         OpenAiUnifiedChatCompletionRequestEntity entityFalse = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInputFalse, model);
 
@@ -699,7 +641,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(expectedJsonFalse, jsonStringFalse);
     }
 
-    // 9. a test without the content field to show that the content field is optional
     public void testSerializationWithoutContentField() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             null,

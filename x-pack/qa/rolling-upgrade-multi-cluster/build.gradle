@@ -38,11 +38,8 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     useCluster baseLeaderCluster
     useCluster baseFollowerCluster
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-    def clusterPrefix = getName().substring(0, getName().lastIndexOf("#")).replace('#', '-')
-    println "clusterPrefix = $clusterPrefix"
-
-    def baseCluster = testClusters.named(clusterPrefix)
-
+    def baseClusterName = getName().substring(0, getName().lastIndexOf("#")).replace('#', '-')
+    def baseCluster = testClusters.named(baseClusterName)
     doFirst {
       if (name.endsWith("#clusterTest") == false) {
         println "Upgrade node $it"
@@ -61,28 +58,24 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     tasks.register("${baseName}#${kind}#clusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'one_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'two_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
-      ext.kindExt = kind
     }
   }
 

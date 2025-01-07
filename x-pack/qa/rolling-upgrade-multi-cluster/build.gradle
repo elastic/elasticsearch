@@ -38,9 +38,12 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     useCluster baseLeaderCluster
     useCluster baseFollowerCluster
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    def clusterPrefix = getName().substring(0, getName().lastIndexOf("#")).replace('#', '-')
+    println "clusterPrefix = $clusterPrefix"
+
+    def baseCluster = testClusters.named(clusterPrefix)
 
     doFirst {
-      def baseCluster = testClusters.named("${baseName}-${kindExt}").get()
       if (name.endsWith("#clusterTest") == false) {
         println "Upgrade node $it"
         getRegistry().get().nextNodeToNextVersion(baseCluster)

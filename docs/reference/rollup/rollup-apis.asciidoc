@@ -4,6 +4,12 @@
 
 deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-rollup[Rollup APIs].
+--
+
 [discrete]
 [[rollup-jobs-endpoint]]
 === Jobs

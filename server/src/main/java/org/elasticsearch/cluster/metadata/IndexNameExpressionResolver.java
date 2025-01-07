@@ -66,6 +66,7 @@ import java.util.function.Predicate;
  * Note: This class is performance sensitive, so we pay extra attention on the data structure usage and we avoid streams and iterators
  * when possible in favor of the classic for-i loops.
  */
+@SuppressWarnings("ForLoopReplaceableByForEach")
 public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 
@@ -620,13 +621,11 @@ public class IndexNameExpressionResolver {
         IndicesOptions options = context.getOptions();
         if (DataStream.isFailureStoreFeatureFlagEnabled() && context.options.allowFailureIndices() == false) {
             DataStream parentDataStream = context.getState().metadata().getIndicesLookup().get(index.getName()).getParentDataStream();
-            if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
-                if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                    if (options.ignoreUnavailable()) {
-                        return false;
-                    } else {
-                        throw new FailureIndexNotSupportedException(index);
-                    }
+            if (parentDataStream != null && parentDataStream.isFailureStoreIndex(index.getName())) {
+                if (options.ignoreUnavailable()) {
+                    return false;
+                } else {
+                    throw new FailureIndexNotSupportedException(index);
                 }
             }
         }

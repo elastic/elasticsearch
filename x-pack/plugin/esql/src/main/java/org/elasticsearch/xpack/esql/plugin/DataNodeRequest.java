@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -32,17 +34,24 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
+
 final class DataNodeRequest extends TransportRequest implements IndicesRequest.Replaceable {
+    private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
+
     private final String sessionId;
     private final Configuration configuration;
     private final String clusterAlias;
-    private final List<ShardId> shardIds;
     private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
+    private List<ShardId> shardIds;
     private String[] indices;
     private final IndicesOptions indicesOptions;
 
@@ -115,6 +124,10 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     @Override
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
+        if (Arrays.equals(NO_INDICES_OR_ALIASES_ARRAY, indices) || Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
+            logger.trace(() -> format("Indices empty after index resolution, also clearing shardIds %s", shardIds));
+            this.shardIds = Collections.emptyList();
+        }
         return this;
     }
 

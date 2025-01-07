@@ -94,5 +94,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"unnecessary to test compatibility")
   task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
   task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
+  task.skipTest("esql/180_match_operator/match with functions", "Error message changed")
+  task.skipTest("esql/40_unsupported_types/semantic_text declared in mapping", "The semantic text field format changed")
 })
 

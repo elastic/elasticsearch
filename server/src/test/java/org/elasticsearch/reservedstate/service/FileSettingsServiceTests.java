@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -315,7 +316,13 @@ public class FileSettingsServiceTests extends ESTestCase {
         writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
-        verify(fileSettingsService, times(1)).onProcessFileChangesException(
+        // These checks use atLeast(1) because the initial JSON is also invalid,
+        // and so we sometimes get two calls to these error-reporting methods
+        // depending on timing. Rather than trace down the root cause and fix
+        // it, we tolerate this for now because, hey, invalid JSON is invalid JSON
+        // and this is still testing what we want to test.
+
+        verify(fileSettingsService, Mockito.atLeast(1)).onProcessFileChangesException(
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
 
@@ -324,7 +331,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
 
         assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService).failureOccurred(contains(XContentParseException.class.getName()));
+        verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
     }
 
     /**

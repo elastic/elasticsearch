@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Arrays;
@@ -84,6 +86,15 @@ public class CCSUsage {
             return this;
         }
 
+        public Builder setClientFromTask(Task task) {
+            String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+            if (client != null) {
+                return setClient(client);
+            } else {
+                return this;
+            }
+        }
+
         public Builder skippedRemote(String remote) {
             this.skippedRemotes.add(remote);
             return this;
@@ -132,6 +143,10 @@ public class CCSUsage {
             }
             if (ExceptionsHelper.unwrapCorruption(e) != null) {
                 return Result.CORRUPTION;
+            }
+            ElasticsearchStatusException se = (ElasticsearchStatusException) ExceptionsHelper.unwrap(e, ElasticsearchStatusException.class);
+            if (se != null && se.getDetailedMessage().contains("license")) {
+                return Result.LICENSE;
             }
             // This is kind of last resort check - if we still don't know the reason but all shard failures are remote,
             // we assume it's remote's fault somehow.

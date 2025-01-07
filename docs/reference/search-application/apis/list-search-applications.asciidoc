@@ -1,12 +1,17 @@
 [role="xpack"]
 [[list-search-applications]]
 === List Search Applications
-
-beta::[]
-
 ++++
 <titleabbrev>List Search Applications</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
+beta::[]
 
 Returns information about Search Applications.
 

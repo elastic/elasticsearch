@@ -10,14 +10,17 @@ steps:
               - debian-12
               - opensuse-leap-15
               - oraclelinux-8
+              - oraclelinux-9
               - sles-15
               - ubuntu-2004
               - ubuntu-2204
+              - ubuntu-2404
               - rocky-8
               - rocky-9
               - rhel-8
               - rhel-9
               - almalinux-8
+              - almalinux-9
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -60,6 +63,7 @@ steps:
             image:
               - almalinux-8-aarch64
               - ubuntu-2004-aarch64
+              - ubuntu-2404-aarch64
             GRADLE_TASK:
               - checkPart1
               - checkPart2

@@ -12,10 +12,12 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractChunkedBWCSerializationTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestCase<RankedDocsResults> {
 
@@ -35,6 +37,16 @@ public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestC
 
     public static RankedDocsResults.RankedDoc createRandomDoc() {
         return new RankedDocsResults.RankedDoc(randomIntBetween(0, 100), randomFloat(), randomBoolean() ? null : randomAlphaOfLength(10));
+    }
+
+    public void test_asMap() {
+        var index = randomIntBetween(0, 100);
+        var score = randomFloat();
+        var mapNullText = new RankedDocsResults.RankedDoc(index, score, null).asMap();
+        assertThat(mapNullText, Matchers.is(Map.of("ranked_doc", Map.of("index", index, "relevance_score", score))));
+
+        var mapWithText = new RankedDocsResults.RankedDoc(index, score, "Sample text").asMap();
+        assertThat(mapWithText, Matchers.is(Map.of("ranked_doc", Map.of("index", index, "relevance_score", score, "text", "Sample text"))));
     }
 
     @Override

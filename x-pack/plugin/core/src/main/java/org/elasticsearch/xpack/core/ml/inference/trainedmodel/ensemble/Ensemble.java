@@ -286,7 +286,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return models.stream()
             .map(TrainedModel::getMinimalCompatibilityVersion)
             .max(TransportVersion::compareTo)
-            .orElse(TransportVersions.V_7_6_0);
+            .orElse(TransportVersions.ZERO);
     }
 
     public static class Builder {

@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -396,11 +395,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putAlias(AliasMetadata.builder(rolloverAlias))
             .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(
-                new RolloverInfo(
-                    rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
-                    System.currentTimeMillis()
-                )
+                new RolloverInfo(rolloverAlias, List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))), System.currentTimeMillis())
             )
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -432,7 +427,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putRolloverInfo(
                 new RolloverInfo(
                     randomAlphaOfLength(5),
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
+                    List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )

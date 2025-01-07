@@ -1,0 +1,5 @@
+pr: 119516
+summary: "Fix: do not let `_resolve/cluster` hang if remote is unresponsive"
+area: Search
+type: bug
+issues: []

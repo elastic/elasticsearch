@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -98,7 +97,7 @@ public class FreezeAction implements LifecycleAction {
         );
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, freezeStepKey);
         FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);
-        return Arrays.asList(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
+        return List.of(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
     }
 
     @Override

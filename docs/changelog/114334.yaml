@@ -1,7 +1,0 @@
-pr: 114334
-summary: Don't return TEXT type for functions that take TEXT
-area: ES|QL
-type: bug
-issues:
- - 111537
- - 114333

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 
 /**
  * Abstract base class for action requests targeting the connectors index. Implements {@link org.elasticsearch.action.IndicesRequest}
@@ -48,6 +49,32 @@ public abstract class ConnectorActionRequest extends ActionRequest implements In
             } catch (InvalidIndexNameException e) {
                 return addValidationError(e.toString(), validationException);
             }
+        }
+        return validationException;
+    }
+
+    /**
+     * Validates that the given index name starts with the required prefix for Elastic-managed connectors.
+     * If the index name does not start with the required prefix, the validation exception is updated with an error message.
+     *
+     * @param indexName The index name to validate. If null, no validation is performed.
+     * @param validationException The exception to accumulate validation errors.
+     * @return The updated or original {@code validationException} with any new validation errors added,
+     *         if the index name does not start with the required prefix.
+     */
+    public ActionRequestValidationException validateManagedConnectorIndexPrefix(
+        String indexName,
+        ActionRequestValidationException validationException
+    ) {
+        if (indexName != null && indexName.startsWith(MANAGED_CONNECTOR_INDEX_PREFIX) == false) {
+            return addValidationError(
+                "Index ["
+                    + indexName
+                    + "] is invalid. Index attached to an Elastic-managed connector must start with the prefix: ["
+                    + MANAGED_CONNECTOR_INDEX_PREFIX
+                    + "]",
+                validationException
+            );
         }
         return validationException;
     }

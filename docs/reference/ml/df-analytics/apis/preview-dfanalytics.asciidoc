@@ -7,6 +7,12 @@
 <titleabbrev>Preview {dfanalytics}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-data-frame[{ml-cap}  {dfanalytics} APIs].
+--
+
 Previews the features used by a {dataframe-analytics-config}.
 
 

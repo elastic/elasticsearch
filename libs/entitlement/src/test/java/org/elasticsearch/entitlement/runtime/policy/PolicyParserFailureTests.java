@@ -19,7 +19,7 @@ public class PolicyParserFailureTests extends ESTestCase {
     public void testParserSyntaxFailures() {
         PolicyParserException ppe = expectThrows(
             PolicyParserException.class,
-            () -> new PolicyParser(new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml")
+            () -> new PolicyParser(new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false)
                 .parsePolicy()
         );
         assertEquals("[1:1] policy parsing error for [test-failure-policy.yaml]: expected object <scope name>", ppe.getMessage());
@@ -29,7 +29,7 @@ public class PolicyParserFailureTests extends ESTestCase {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - does_not_exist: {}
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name]: "
                 + "unknown entitlement type [does_not_exist]",
@@ -41,7 +41,7 @@ public class PolicyParserFailureTests extends ESTestCase {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - file: {}
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:12] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
                 + "for entitlement type [file]: missing entitlement parameter [path]",
@@ -52,7 +52,7 @@ public class PolicyParserFailureTests extends ESTestCase {
             entitlement-module-name:
               - file:
                   path: test-path
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[4:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
                 + "for entitlement type [file]: missing entitlement parameter [actions]",
@@ -68,10 +68,21 @@ public class PolicyParserFailureTests extends ESTestCase {
                   actions:
                     - read
                   extra: test
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[7:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
                 + "for entitlement type [file]: extraneous entitlement parameter(s) {extra=test}",
+            ppe.getMessage()
+        );
+    }
+
+    public void testEntitlementIsNotForExternalPlugins() {
+        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - create_class_loader
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", true).parsePolicy());
+        assertEquals(
+            "[2:5] policy parsing error for [test-failure-policy.yaml]: entitlement type [create_class_loader] is allowed only on modules",
             ppe.getMessage()
         );
     }

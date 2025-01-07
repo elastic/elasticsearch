@@ -17,7 +17,6 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
@@ -95,8 +94,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     private final FileSystemOperations fileSystemOperations;
 
     private final ProjectLayout projectLayout;
-
-    private FileCollection classpath;
 
     @Inject
     public ThirdPartyAuditTask(
@@ -198,9 +195,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     public abstract Property<JavaVersion> getRuntimeJavaVersion();
 
     @Classpath
-    public FileCollection getClasspath() {
-        return classpath;
-    }
+    public abstract ConfigurableFileCollection getThirdPartyClasspath();
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
@@ -345,7 +340,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             if (javaHome.isPresent()) {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
-            spec.classpath(getForbiddenAPIsClasspath(), classpath);
+            spec.classpath(getForbiddenAPIsClasspath(), getThirdPartyClasspath());
             // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23 for now, and just the vector module.
             if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22) || isJavaVersion(VERSION_23)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
@@ -383,7 +378,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = execOperations.javaexec(spec -> {
-            spec.classpath(getJdkJarHellClasspath(), classpath);
+            spec.classpath(getJdkJarHellClasspath(), getThirdPartyClasspath());
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
@@ -400,10 +395,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8.name());
         }
         return new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")));
-    }
-
-    public void setClasspath(FileCollection classpath) {
-        this.classpath = classpath;
     }
 
 }

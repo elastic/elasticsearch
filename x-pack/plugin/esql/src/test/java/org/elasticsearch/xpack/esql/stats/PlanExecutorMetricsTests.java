@@ -123,6 +123,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Result result) {
@@ -152,6 +153,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Result result) {}

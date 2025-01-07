@@ -16,7 +16,7 @@ import java.util.Map;
  * The SPI service entry point for instrumentation.
  */
 public interface InstrumentationService {
-    Instrumenter newInstrumenter(Map<MethodKey, CheckMethod> checkMethods);
+    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
-    Map<MethodKey, CheckMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException, IOException;
+    Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws IOException;
 }

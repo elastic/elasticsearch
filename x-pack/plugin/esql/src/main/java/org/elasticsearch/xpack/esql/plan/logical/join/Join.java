@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -95,6 +96,16 @@ public class Join extends BinaryPlan {
             lazyOutput = computeOutput(left().output(), right().output(), config);
         }
         return lazyOutput;
+    }
+
+    @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(config().leftFields());
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        return Expressions.references(config().rightFields());
     }
 
     public List<Attribute> rightOutputFields() {

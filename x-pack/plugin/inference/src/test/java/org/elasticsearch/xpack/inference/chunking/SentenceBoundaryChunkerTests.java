@@ -43,6 +43,41 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         return chunkPositions.stream().map(offset -> input.substring(offset.start(), offset.end())).collect(Collectors.toList());
     }
 
+    public void testEmptyString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is(""));
+    }
+
+    public void testBlankString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   ", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is("   "));
+    }
+
+    public void testSingleChar() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("   b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), "b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), ". ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(". "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " , ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" , "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " ,", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" ,"));
+    }
+
+    public void testSingleCharRepeated() {
+        var input = "a".repeat(32_000);
+        var chunks = textChunks(new SentenceBoundaryChunker(), input, 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(input));
+    }
+
     public void testChunkSplitLargeChunkSizes() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();

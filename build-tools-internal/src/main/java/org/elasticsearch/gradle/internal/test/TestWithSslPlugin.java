@@ -35,7 +35,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         File keyStoreDir = new File(project.getBuildDir(), "keystore");
-        BuildParameterExtension buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        var buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         TaskProvider<ExportElasticsearchBuildResourcesTask> exportKeyStore = project.getTasks()
             .register("copyTestCertificates", ExportElasticsearchBuildResourcesTask.class, (t) -> {
                 t.copy("test/ssl/test-client.crt");

@@ -1,5 +1,0 @@
-pr: 116346
-summary: "[ESQL] Fix Binary Comparisons on Date Nanos"
-area: ES|QL
-type: bug
-issues: []

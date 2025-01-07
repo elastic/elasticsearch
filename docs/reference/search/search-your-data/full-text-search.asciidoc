@@ -45,7 +45,10 @@ Refer to this https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorit
 + 
 Query DSL supports a number of <<full-text-queries,full-text queries>>.
 + 
-As of 8.17, {esql} also supports <<esql-search-functions,full-text search>> functions.
+[INFO]
+====
+As of 8.17, {esql} also supports full-text search functions.
+====
 
 [discrete]
 [[full-text-search-getting-started]]
@@ -70,10 +73,9 @@ Learn about the core components of full-text search:
 
 *{es} query languages*
 
-Learn how to build full-text search queries using {es}'s query languages:
+Learn how to build full-text search queries using Query DSL:
 
 * <<full-text-queries,Full-text queries using Query DSL>> 
-* <<esql-search-functions,Full-text search functions in {esql}>>
 
 *Advanced topics*
 

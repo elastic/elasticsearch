@@ -264,6 +264,7 @@ Refer to <<getting-started,first steps with Elasticsearch>> for a hands-on examp
 Look forward to new {esql} features and functionalities in each release.
 
 Refer to <<search-analyze-query-languages>> for a full overview of the query languages available in {es}.
+{esql} does not yet support all the features of Query DSL, like full-text search and semantic search.
 
 [discrete]
 [[search-analyze-query-dsl]]

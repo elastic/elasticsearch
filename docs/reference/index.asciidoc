@@ -76,7 +76,11 @@ include::autoscaling/index.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
 
+include::ccr/index.asciidoc[leveloffset=-1]
+
 // reference
+
+include::data-store-architecture.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

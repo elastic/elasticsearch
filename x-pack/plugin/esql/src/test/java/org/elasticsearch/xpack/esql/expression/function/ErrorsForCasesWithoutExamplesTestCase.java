@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -24,7 +22,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
     protected abstract List<TestCaseSupplier> cases();

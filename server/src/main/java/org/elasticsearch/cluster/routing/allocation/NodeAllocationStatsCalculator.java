@@ -109,7 +109,9 @@ public class NodeAllocationStatsCalculator {
                 node.nodeId(),
                 new NodeShardAllocationStats(
                     shards,
-                    undesiredShards,
+                    // It's part of a public API contract for an 'undesired_shards' field that -1 will be returned if an allocator other
+                    // than the desired balance allocator is used.
+                    desiredBalance != null ? undesiredShards : -1,
                     forecastedWriteLoad,
                     forecastedDiskUsage,
                     currentDiskUsage,

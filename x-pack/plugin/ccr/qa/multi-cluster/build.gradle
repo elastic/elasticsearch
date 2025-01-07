@@ -64,16 +64,7 @@ tasks.register("middle-cluster", RestIntegTestTask) {
   systemProperty 'tests.target_cluster', 'middle'
   systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
 
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-
-  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.allHttpSocketURI.get(0) }
+  def leaderUri = getClusterInfo('leader-cluster').map { it.allHttpSocketURI.get(0) }
   nonInputProperties.systemProperty 'tests.leader_host', leaderUri
 }
 
@@ -84,22 +75,8 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   systemProperty 'tests.target_cluster', 'follow'
   systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
 
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-
-  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.allHttpSocketURI.get(0) }
-
-  def middleUri = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("middle-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.allHttpSocketURI.get(0) }
+  def leaderUri = getClusterInfo('leader-cluster').map { it.allHttpSocketURI.get(0) }
+  def middleUri = getClusterInfo('middle-cluster').map { it.allHttpSocketURI.get(0) }
   nonInputProperties.systemProperty 'tests.leader_host', leaderUri
   nonInputProperties.systemProperty 'tests.middle_host', middleUri
 }

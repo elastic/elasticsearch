@@ -419,6 +419,7 @@ FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | SORT emp_no
+| EVAL language_name = MV_SORT(language_name)
 | KEEP emp_no, language_code, language_name
 ;
 

@@ -1,5 +1,5 @@
 pr: 118871
-summary: "Add EIS Unified `ChatCompletions` Integration"
+summary: "[Elastic Inference Service] Add ElasticInferenceService Unified ChatCompletions Integration"
 area: Inference
 type: enhancement
 issues: []

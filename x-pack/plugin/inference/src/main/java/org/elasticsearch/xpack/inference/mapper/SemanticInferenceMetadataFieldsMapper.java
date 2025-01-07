@@ -12,6 +12,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -37,6 +38,8 @@ import java.util.function.Function;
  */
 public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFieldsMapper {
     private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
+
+    public static final NodeFeature EXPLICIT_NULL_FIXES = new NodeFeature("semantic_text.inference_metadata_fields.explicit_null_fixes");
 
     public static final TypeParser PARSER = new FixedTypeParser(
         c -> InferenceMetadataFieldsMapper.isEnabled(c.getSettings()) ? INSTANCE : null

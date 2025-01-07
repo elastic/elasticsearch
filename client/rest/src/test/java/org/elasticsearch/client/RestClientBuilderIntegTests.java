@@ -105,7 +105,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     }
                 }
             }
-
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));

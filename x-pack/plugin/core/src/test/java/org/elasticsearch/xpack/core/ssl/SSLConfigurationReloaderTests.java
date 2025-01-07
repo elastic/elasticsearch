@@ -343,7 +343,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                         );
                         assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
                     }
-
                 } catch (Exception e) {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }

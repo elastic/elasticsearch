@@ -103,7 +103,6 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
-
         final Settings settings = getPemSSLSettings(
             HTTP_SERVER_SSL,
             "not-this-host.crt",

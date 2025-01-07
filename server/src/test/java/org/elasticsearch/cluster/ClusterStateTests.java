@@ -213,7 +213,6 @@ public class ClusterStateTests extends ESTestCase {
                               ],
                               "version": "%s",
                               "min_index_version":%s,
-                              "min_read_only_index_version":%s,
                               "max_index_version":%s
                             }
                           },
@@ -390,7 +389,6 @@ public class ClusterStateTests extends ESTestCase {
                     ephemeralId,
                     Version.CURRENT,
                     IndexVersions.MINIMUM_COMPATIBLE,
-                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
                     IndexVersion.current(),
@@ -490,7 +488,6 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "version" : "%s",
                           "min_index_version" : %s,
-                          "min_read_only_index_version" : %s,
                           "max_index_version" : %s
                         }
                       },
@@ -666,7 +663,6 @@ public class ClusterStateTests extends ESTestCase {
                 ephemeralId,
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -766,7 +762,6 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "version" : "%s",
                           "min_index_version" : %s,
-                          "min_read_only_index_version" : %s,
                           "max_index_version" : %s
                         }
                       },
@@ -948,7 +943,6 @@ public class ClusterStateTests extends ESTestCase {
                 ephemeralId,
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),

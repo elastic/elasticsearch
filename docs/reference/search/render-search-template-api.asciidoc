@@ -4,6 +4,12 @@
 <titleabbrev>Render search template</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Renders a <<search-template,search
 template>> as a <<search-search,search request body>>.
 

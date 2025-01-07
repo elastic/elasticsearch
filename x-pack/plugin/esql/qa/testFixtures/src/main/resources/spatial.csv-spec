@@ -1797,6 +1797,47 @@ extent:cartesian_shape
 BBOX (0.0, 3.0, 3.0, 0.0)
 ;
 
+stExtentCartesianShapesGrouping
+required_capability: st_extent_agg
+
+FROM cartesian_multipolygons
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
+8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
+4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesNoDocValues
+required_capability: st_extent_agg
+FROM cartesian_multipolygons_no_doc_values | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesGroupingNoDocValues
+required_capability: st_extent_agg
+
+FROM cartesian_multipolygons_no_doc_values
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
+8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
+4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
 ###############################################
 # Tests for ST_INTERSECTS on CARTESIAN_POINT type
 

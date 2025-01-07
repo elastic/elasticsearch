@@ -1049,6 +1049,9 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         if (recoverySourceSyntheticEnabled) {
+            if (DiscoveryNode.isStateless(settings)) {
+                throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
+            }
             // Verify that all nodes can handle this setting
             if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
                 && version.between(

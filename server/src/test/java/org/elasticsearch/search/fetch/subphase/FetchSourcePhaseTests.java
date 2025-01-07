@@ -11,8 +11,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -190,6 +194,12 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(fetchContext.getIndexName()).thenReturn("index");
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
         when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
+            Settings.EMPTY
+        );
+        when(sec.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());
+        when(sec.getIndexSettings()).thenReturn(indexSettings);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
         final SearchHit searchHit = SearchHit.unpooled(1, null, nestedIdentity);

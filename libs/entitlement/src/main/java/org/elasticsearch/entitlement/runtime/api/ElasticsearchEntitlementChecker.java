@@ -14,6 +14,12 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
+import java.util.List;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
@@ -21,6 +27,7 @@ import java.net.URLStreamHandlerFactory;
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
+
     private final PolicyManager policyManager;
 
     public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
@@ -28,13 +35,43 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$$exit(Class<?> callerClass, Runtime runtime, int status) {
+    public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
     }
 
     @Override
-    public void check$$halt(Class<?> callerClass, Runtime runtime, int status) {
+    public void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
     }
 
     @Override
@@ -66,5 +103,39 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         URLStreamHandlerFactory factory
     ) {
         policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder processBuilder) {
+        policyManager.checkStartProcess(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
+        policyManager.checkStartProcess(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(
+        Class<?> callerClass,
+        HttpsURLConnection connection,
+        SSLSocketFactory sf
+    ) {
+        policyManager.checkSetHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
+        policyManager.checkSetGlobalHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
+        policyManager.checkSetGlobalHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
+        policyManager.checkSetGlobalHttpsConnectionProperties(callerClass);
     }
 }

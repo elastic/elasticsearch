@@ -384,6 +384,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper = this;
         }
 
+        if (mapper.fieldType().getModelSettings() == null) {
+            for (var chunkList : field.inference().chunks().values()) {
+                if (chunkList.isEmpty() == false) {
+                    throw new DocumentParsingException(
+                        xContentLocation,
+                        "[" + MODEL_SETTINGS_FIELD + "] must be set for field [" + fullFieldName + "] when chunks are provided"
+                    );
+                }
+            }
+        }
+
         var chunksField = mapper.fieldType().getChunksField();
         var embeddingsField = mapper.fieldType().getEmbeddingsField();
         var offsetsField = mapper.fieldType().getOffsetsField();
@@ -895,7 +906,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (Objects.equals(previous, current)) {
             return true;
         }
-        if (previous == null) {
+        if (previous == null || current == null) {
             return true;
         }
         conflicts.addConflict("model_settings", "");

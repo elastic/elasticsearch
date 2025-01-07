@@ -400,6 +400,8 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testStats() throws IOException {
+        assumeTrue("capabilities endpoint is not available", capabilitiesEndpointAvailable());
+
         Request caps = new Request("GET", "_capabilities?method=GET&path=_cluster/stats&capabilities=esql-stats");
         Response capsResponse = client().performRequest(caps);
         Map<String, Object> capsResult = entityAsMap(capsResponse.getEntity());
@@ -437,6 +439,10 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean ccsMetadataAvailable() {
         return Clusters.localClusterVersion().onOrAfter(Version.V_8_16_0);
+    }
+
+    private static boolean capabilitiesEndpointAvailable() {
+        return Clusters.localClusterVersion().onOrAfter(Version.V_8_15_0);
     }
 
     private static boolean includeCCSMetadata() {

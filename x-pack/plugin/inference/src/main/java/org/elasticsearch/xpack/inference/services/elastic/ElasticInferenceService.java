@@ -331,8 +331,6 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
-
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_16_0;

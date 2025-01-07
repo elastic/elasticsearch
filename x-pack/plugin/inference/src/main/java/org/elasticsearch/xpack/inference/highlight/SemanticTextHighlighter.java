@@ -136,7 +136,7 @@ public class SemanticTextHighlighter implements Highlighter {
                             entry.offset.field()
                         );
                     } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                        throw new UncheckedIOException("Error extracting field content from field " + entry.offset.field(), e);
                     }
                 });
                 return content.substring(entry.offset().start(), entry.offset().end());

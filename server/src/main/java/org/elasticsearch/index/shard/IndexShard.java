@@ -3605,6 +3605,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Acquire all primary operation permits for a special case where we don't need to checkt that the shard is in primary mode.
+     * Once all permits are acquired, the provided ActionListener is called.
+     * It is the responsibility of the caller to close the {@link Releasable}.
+     */
+    public void acquireAllPrimaryOperationsPermitsWithNoPrimaryModeCheck(
+        final ActionListener<Releasable> onPermitAcquired,
+        final TimeValue timeout
+    ) {
+        verifyNotClosed();
+        assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
+
+        asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
+    }
+
+    /**
      * Wraps the action to run on a primary after acquiring permit. This wrapping is used to check if the shard is in primary mode before
      * executing the action.
      *

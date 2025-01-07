@@ -16,9 +16,6 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,11 +28,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -43,9 +38,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
@@ -578,57 +570,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 - foo""");
         Exception e = expectThrows(IllegalArgumentException.class, () -> DoSection.parse(parser));
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove
-    public void testLegacyNodeSelectorByVersionRange() throws IOException {
-        parser = createParser(YamlXContent.yamlXContent, """
-            node_selector:
-                version: 5.2.0-6.0.0
-            indices.get_field_mapping:
-                index: test_index""");
-
-        DoSection doSection = DoSection.parseWithLegacyNodeSelectorSupport(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        Node v170 = nodeWithVersion("1.7.0");
-        Node v521 = nodeWithVersion("5.2.1");
-        Node v550 = nodeWithVersion("5.5.0");
-        Node v612 = nodeWithVersion("6.1.2");
-        List<Node> nodes = new ArrayList<>();
-        nodes.add(v170);
-        nodes.add(v521);
-        nodes.add(v550);
-        nodes.add(v612);
-        doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(Arrays.asList(v521, v550), nodes);
-        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
-        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
-        when(
-            context.callApi(
-                "indices.get_field_mapping",
-                singletonMap("index", "test_index"),
-                emptyList(),
-                emptyMap(),
-                doSection.getApiCallSection().getNodeSelector()
-            )
-        ).thenReturn(mockResponse);
-        when(context.nodesVersions()).thenReturn(Set.of(randomAlphaOfLength(10)));
-        when(mockResponse.getHeaders("X-elastic-product")).thenReturn(List.of("Elasticsearch"));
-        doSection.execute(context);
-        verify(context).callApi(
-            "indices.get_field_mapping",
-            singletonMap("index", "test_index"),
-            emptyList(),
-            emptyMap(),
-            doSection.getApiCallSection().getNodeSelector()
-        );
-
-        {
-            List<Node> badNodes = new ArrayList<>();
-            badNodes.add(new Node(new HttpHost("dummy")));
-            Exception e = expectThrows(IllegalStateException.class, () -> doSection.getApiCallSection().getNodeSelector().select(badNodes));
-            assertEquals("expected [version] metadata to be set but got [host=http://dummy]", e.getMessage());
-        }
     }
 
     public void testNodeSelectorByVersionRangeFails() throws IOException {

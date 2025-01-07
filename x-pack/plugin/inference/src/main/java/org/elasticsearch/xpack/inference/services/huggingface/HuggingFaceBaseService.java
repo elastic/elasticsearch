@@ -23,11 +23,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -69,7 +69,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 serviceSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -103,7 +103,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
             serviceSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ServiceUtils::parsePersistedConfigErrorMsg,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -123,7 +123,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
             serviceSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ServiceUtils::parsePersistedConfigErrorMsg,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -134,7 +134,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> serviceSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     );
 

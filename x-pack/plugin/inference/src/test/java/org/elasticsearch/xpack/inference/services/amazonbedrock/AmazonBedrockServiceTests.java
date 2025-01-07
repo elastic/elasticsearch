@@ -707,7 +707,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [amazonbedrock] service, please delete and add the service again")
+                is(
+                    "Failed to parse stored model [id] for [amazonbedrock] service. Task type: [sparse_embedding] "
+                        + "is not valid for the service, please delete and add the service again"
+                )
             );
         }
     }
@@ -955,7 +958,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [amazonbedrock] service, please delete and add the service again")
+                is(
+                    "Failed to parse stored model [id] for [amazonbedrock] service. Task type: [sparse_embedding] "
+                        + "is not valid for the service, please delete and add the service again"
+                )
             );
         }
     }

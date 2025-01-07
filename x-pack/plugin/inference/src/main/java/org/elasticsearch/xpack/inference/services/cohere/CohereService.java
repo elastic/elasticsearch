@@ -54,7 +54,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -106,7 +105,7 @@ public class CohereService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -127,7 +126,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor
     ) {
         return createModel(
             inferenceEntityId,
@@ -136,7 +135,7 @@ public class CohereService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
+            modelErrorMessageConstructor,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -148,7 +147,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
@@ -172,7 +171,10 @@ public class CohereService extends SenderService {
                 secretSettings,
                 context
             );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(
+                modelErrorMessageConstructor.createErrorMessage(inferenceEntityId, NAME, taskType),
+                RestStatus.BAD_REQUEST
+            );
         };
     }
 
@@ -199,7 +201,7 @@ public class CohereService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -220,7 +222,7 @@ public class CohereService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 

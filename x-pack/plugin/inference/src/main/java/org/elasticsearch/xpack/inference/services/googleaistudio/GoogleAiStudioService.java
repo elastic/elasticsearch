@@ -60,7 +60,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -108,7 +107,7 @@ public class GoogleAiStudioService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -130,7 +129,7 @@ public class GoogleAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
@@ -153,7 +152,10 @@ public class GoogleAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(
+                modelErrorMessageConstructor.createErrorMessage(inferenceEntityId, NAME, taskType),
+                RestStatus.BAD_REQUEST
+            );
         };
     }
 
@@ -180,7 +182,7 @@ public class GoogleAiStudioService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -191,7 +193,7 @@ public class GoogleAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor
     ) {
         return createModel(
             inferenceEntityId,
@@ -200,7 +202,7 @@ public class GoogleAiStudioService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
+            modelErrorMessageConstructor,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -222,7 +224,7 @@ public class GoogleAiStudioService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 

@@ -22,7 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
@@ -54,10 +54,14 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     private BaseTransportInferenceAction<Request> action;
 
     protected static final String serviceId = "serviceId";
-    protected static final TaskType taskType = TaskType.COMPLETION;
+    protected final TaskType taskType;
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
+
+    public BaseTransportInferenceActionTestCase(TaskType taskTypeForTests) {
+        this.taskType = taskTypeForTests;
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -104,16 +108,16 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         }));
     }
 
-    protected ActionListener<InferenceAction.Response> doExecute(TaskType taskType) {
+    protected ActionListener<InferenceActionProxy.Response> doExecute(TaskType taskType) {
         return doExecute(taskType, false);
     }
 
-    protected ActionListener<InferenceAction.Response> doExecute(TaskType taskType, boolean stream) {
+    protected ActionListener<InferenceActionProxy.Response> doExecute(TaskType taskType, boolean stream) {
         Request request = createRequest();
         when(request.getInferenceEntityId()).thenReturn(inferenceId);
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(stream);
-        ActionListener<InferenceAction.Response> listener = mock();
+        ActionListener<InferenceActionProxy.Response> listener = mock();
         action.doExecute(mock(), request, listener);
         return listener;
     }
@@ -307,7 +311,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         });
 
         var listener = doExecute(taskType, true);
-        var captor = ArgumentCaptor.forClass(InferenceAction.Response.class);
+        var captor = ArgumentCaptor.forClass(InferenceActionProxy.Response.class);
         verify(listener).onResponse(captor.capture());
         assertTrue(captor.getValue().isStreaming());
         assertNotNull(captor.getValue().publisher());

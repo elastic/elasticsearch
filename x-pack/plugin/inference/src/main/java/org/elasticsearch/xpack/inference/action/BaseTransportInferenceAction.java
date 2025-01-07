@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.respons
 
 public abstract class BaseTransportInferenceAction<Request extends BaseInferenceActionRequest> extends HandledTransportAction<
     Request,
-    InferenceAction.Response> {
+    InferenceActionProxy.Response> {
 
     private static final Logger log = LogManager.getLogger(BaseTransportInferenceAction.class);
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
@@ -71,7 +71,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<InferenceActionProxy.Response> listener) {
         var timer = InferenceTimer.start();
 
         var getModelListener = ActionListener.wrap((UnparsedModel unparsedModel) -> {
@@ -135,7 +135,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         Request request,
         InferenceService service,
         InferenceTimer timer,
-        ActionListener<InferenceAction.Response> listener
+        ActionListener<InferenceActionProxy.Response> listener
     ) {
         inferenceStats.requestCount().incrementBy(1, modelAttributes(model));
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
@@ -146,10 +146,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 var instrumentedStream = new PublisherWithMetrics(timer, model);
                 taskProcessor.subscribe(instrumentedStream);
 
-                listener.onResponse(new InferenceAction.Response(inferenceResults, instrumentedStream));
+                listener.onResponse(new InferenceActionProxy.Response(inferenceResults, instrumentedStream));
             } else {
                 recordMetrics(model, timer, null);
-                listener.onResponse(new InferenceAction.Response(inferenceResults));
+                listener.onResponse(new InferenceActionProxy.Response(inferenceResults));
             }
         }, e -> {
             recordMetrics(model, timer, e);

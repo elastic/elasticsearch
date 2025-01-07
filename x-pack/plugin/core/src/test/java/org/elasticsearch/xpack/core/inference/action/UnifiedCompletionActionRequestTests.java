@@ -25,7 +25,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
     public void testValidation_ReturnsException_When_UnifiedCompletionRequestMessage_Is_Null() {
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
-            TaskType.COMPLETION,
+            TaskType.CHAT_COMPLETION,
             UnifiedCompletionRequest.of(null),
             TimeValue.timeValueSeconds(10)
         );
@@ -36,7 +36,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
     public void testValidation_ReturnsException_When_UnifiedCompletionRequest_Is_EmptyArray() {
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
-            TaskType.COMPLETION,
+            TaskType.CHAT_COMPLETION,
             UnifiedCompletionRequest.of(List.of()),
             TimeValue.timeValueSeconds(10)
         );

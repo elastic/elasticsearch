@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
@@ -18,6 +19,10 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import static org.mockito.Mockito.mock;
 
 public class TransportInferenceActionTests extends BaseTransportInferenceActionTestCase<InferenceAction.Request> {
+
+    public TransportInferenceActionTests() {
+        super(TaskType.COMPLETION);
+    }
 
     @Override
     protected BaseTransportInferenceAction<InferenceAction.Request> createAction(

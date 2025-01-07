@@ -54,7 +54,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -168,7 +167,7 @@ public class MistralService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -205,7 +204,7 @@ public class MistralService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -226,7 +225,7 @@ public class MistralService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -242,7 +241,7 @@ public class MistralService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -258,7 +257,10 @@ public class MistralService extends SenderService {
             );
         }
 
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        throw new ElasticsearchStatusException(
+            modelErrorMessageConstructor.createErrorMessage(modelId, NAME, taskType),
+            RestStatus.BAD_REQUEST
+        );
     }
 
     private MistralEmbeddingsModel createModelFromPersistent(
@@ -268,7 +270,7 @@ public class MistralService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor
     ) {
         return createModel(
             inferenceEntityId,
@@ -277,7 +279,7 @@ public class MistralService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
+            modelErrorMessageConstructor,
             ConfigurationParseContext.PERSISTENT
         );
     }

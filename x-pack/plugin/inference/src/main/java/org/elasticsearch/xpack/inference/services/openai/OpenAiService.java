@@ -30,6 +30,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.UnifiedCompletionFeature;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -61,18 +62,33 @@ import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiAct
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateTaskType;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_STREAMING_TASK_TYPES = EnumSet.of(TaskType.COMPLETION, TaskType.ANY);
+    // This is a temporary field that is modified by the feature flag to include the CHAT_COMPLETION task type
+    // once we remove the feature flag we should remove this field too
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    // This dictates which task types we have defined configurations for that are returned by the get services API
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_EXTERNAL_CONFIGURATION = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION
+    );
+
+    static {
+        if (UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()) {
+            SUPPORTED_STREAMING_TASK_TYPES.add(TaskType.CHAT_COMPLETION);
+            SUPPORTED_TASK_TYPES.add(TaskType.CHAT_COMPLETION);
+        }
+    }
 
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -110,7 +126,7 @@ public class OpenAiService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -131,7 +147,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor
     ) {
         return createModel(
             inferenceEntityId,
@@ -140,7 +156,7 @@ public class OpenAiService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
+            modelErrorMessageConstructor,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -152,9 +168,11 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
+        validateTaskType(inferenceEntityId, taskType, SUPPORTED_TASK_TYPES, NAME, modelErrorMessageConstructor);
+
         return switch (taskType) {
             case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(
                 inferenceEntityId,
@@ -166,7 +184,7 @@ public class OpenAiService extends SenderService {
                 secretSettings,
                 context
             );
-            case COMPLETION -> new OpenAiChatCompletionModel(
+            case COMPLETION, CHAT_COMPLETION -> new OpenAiChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -175,7 +193,10 @@ public class OpenAiService extends SenderService {
                 secretSettings,
                 context
             );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(
+                modelErrorMessageConstructor.createErrorMessage(inferenceEntityId, NAME, taskType),
+                RestStatus.BAD_REQUEST
+            );
         };
     }
 
@@ -204,7 +225,7 @@ public class OpenAiService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -227,7 +248,7 @@ public class OpenAiService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -238,7 +259,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES_FOR_EXTERNAL_CONFIGURATION;
     }
 
     @Override
@@ -358,7 +379,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return SUPPORTED_STREAMING_TASK_TYPES;
     }
 
     /**
@@ -447,15 +468,18 @@ public class OpenAiService extends SenderService {
                     )
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = OpenAiEmbeddingsModel.Configuration.get();
-                        case COMPLETION -> taskSettingsConfig = OpenAiChatCompletionModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_EXTERNAL_CONFIGURATION.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            case TEXT_EMBEDDING -> taskSettingsConfig = OpenAiEmbeddingsModel.Configuration.get();
+                            case COMPLETION -> taskSettingsConfig = OpenAiChatCompletionModel.Configuration.get();
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

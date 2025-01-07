@@ -54,7 +54,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -104,7 +103,7 @@ public class IbmWatsonxService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -126,7 +125,7 @@ public class IbmWatsonxService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
@@ -140,7 +139,10 @@ public class IbmWatsonxService extends SenderService {
                 secretSettings,
                 context
             );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(
+                modelErrorMessageConstructor.createErrorMessage(inferenceEntityId, NAME, taskType),
+                RestStatus.BAD_REQUEST
+            );
         };
     }
 
@@ -167,7 +169,7 @@ public class IbmWatsonxService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -188,7 +190,7 @@ public class IbmWatsonxService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor
     ) {
         return createModel(
             inferenceEntityId,
@@ -197,7 +199,7 @@ public class IbmWatsonxService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
+            modelErrorMessageConstructor,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -219,7 +221,7 @@ public class IbmWatsonxService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 

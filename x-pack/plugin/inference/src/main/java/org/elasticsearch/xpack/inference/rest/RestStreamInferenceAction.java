@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 
 import java.util.List;
 import java.util.Objects;
@@ -42,12 +42,12 @@ public class RestStreamInferenceAction extends BaseInferenceAction {
     }
 
     @Override
-    protected InferenceAction.Request prepareInferenceRequest(InferenceAction.Request.Builder builder) {
-        return builder.setStream(true).build();
+    protected boolean shouldStream() {
+        return true;
     }
 
     @Override
-    protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
+    protected ActionListener<InferenceActionProxy.Response> listener(RestChannel channel) {
         return new ServerSentEventsRestActionListener(channel, threadPool);
     }
 }

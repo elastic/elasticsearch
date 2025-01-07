@@ -59,7 +59,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -165,7 +164,7 @@ public class AzureAiStudioService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                ServiceUtils::unsupportedTaskTypeErrorMsg,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -202,7 +201,7 @@ public class AzureAiStudioService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -223,7 +222,7 @@ public class AzureAiStudioService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            ServiceUtils::parsePersistedConfigErrorMsg
         );
     }
 
@@ -259,7 +258,7 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
+        ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
 
@@ -300,7 +299,10 @@ public class AzureAiStudioService extends SenderService {
             return completionModel;
         }
 
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        throw new ElasticsearchStatusException(
+            modelErrorMessageConstructor.createErrorMessage(inferenceEntityId, NAME, taskType),
+            RestStatus.BAD_REQUEST
+        );
     }
 
     private AzureAiStudioModel createModelFromPersistent(
@@ -310,7 +312,7 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        ServiceUtils.ModelErrorMessageConstructor errorMessageConstructor
     ) {
         return createModel(
             inferenceEntityId,
@@ -319,7 +321,7 @@ public class AzureAiStudioService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
+            errorMessageConstructor,
             ConfigurationParseContext.PERSISTENT
         );
     }

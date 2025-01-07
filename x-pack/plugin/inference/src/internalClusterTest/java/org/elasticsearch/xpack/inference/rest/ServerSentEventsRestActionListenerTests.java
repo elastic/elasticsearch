@@ -48,7 +48,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -134,7 +134,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                     var withError = request.paramAsBoolean(WITH_ERROR, false);
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
-                    var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
+                    var inferenceResponse = new InferenceActionProxy.Response(inferenceServiceResults, inferenceServiceResults.publisher());
                     new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
@@ -155,7 +155,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
+                    var inferenceResponse = new InferenceActionProxy.Response(new SingleInferenceServiceResults());
                     new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             });

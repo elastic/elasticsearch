@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
@@ -23,9 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.TransportVersions.V_8_12_0;
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Response.transformToServiceResults;
+import static org.elasticsearch.xpack.core.inference.action.InferenceActionProxy.Response.transformToServiceResults;
 
-public class InferenceActionResponseTests extends AbstractBWCWireSerializationTestCase<InferenceAction.Response> {
+public class InferenceActionProxyResponseTests extends AbstractBWCWireSerializationTestCase<InferenceActionProxy.Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -36,31 +36,31 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     }
 
     @Override
-    protected Writeable.Reader<InferenceAction.Response> instanceReader() {
-        return InferenceAction.Response::new;
+    protected Writeable.Reader<InferenceActionProxy.Response> instanceReader() {
+        return InferenceActionProxy.Response::new;
     }
 
     @Override
-    protected InferenceAction.Response createTestInstance() {
+    protected InferenceActionProxy.Response createTestInstance() {
         var result = switch (randomIntBetween(0, 2)) {
             case 0 -> TextEmbeddingResultsTests.createRandomResults();
             case 1 -> LegacyMlTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
             default -> SparseEmbeddingResultsTests.createRandomResults();
         };
 
-        return new InferenceAction.Response(result);
+        return new InferenceActionProxy.Response(result);
     }
 
     @Override
-    protected InferenceAction.Response mutateInstance(InferenceAction.Response instance) throws IOException {
+    protected InferenceActionProxy.Response mutateInstance(InferenceActionProxy.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override
-    protected InferenceAction.Response mutateInstanceForVersion(InferenceAction.Response instance, TransportVersion version) {
+    protected InferenceActionProxy.Response mutateInstanceForVersion(InferenceActionProxy.Response instance, TransportVersion version) {
         if (version.before(V_8_12_0)) {
             var singleResultList = instance.getResults().transformToLegacyFormat().subList(0, 1);
-            return new InferenceAction.Response(transformToServiceResults(singleResultList));
+            return new InferenceActionProxy.Response(transformToServiceResults(singleResultList));
         }
 
         return instance;
@@ -74,28 +74,28 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
 
     public void testSerializesOpenAiAddedVersion_UsingLegacyTextEmbeddingResult() throws IOException {
         var embeddingResults = LegacyMlTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
-        var instance = new InferenceAction.Response(embeddingResults);
+        var instance = new InferenceActionProxy.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);
     }
 
     public void testSerializesOpenAiAddedVersion_UsingSparseEmbeddingResult() throws IOException {
         var embeddingResults = SparseEmbeddingResultsTests.createRandomResults();
-        var instance = new InferenceAction.Response(embeddingResults);
+        var instance = new InferenceActionProxy.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);
     }
 
     public void testSerializesMultipleInputsVersion_UsingLegacyTextEmbeddingResult() throws IOException {
         var embeddingResults = TextEmbeddingResultsTests.createRandomResults();
-        var instance = new InferenceAction.Response(embeddingResults);
+        var instance = new InferenceActionProxy.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);
     }
 
     public void testSerializesMultipleInputsVersion_UsingSparseEmbeddingResult() throws IOException {
         var embeddingResults = SparseEmbeddingResultsTests.createRandomResults();
-        var instance = new InferenceAction.Response(embeddingResults);
+        var instance = new InferenceActionProxy.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);
     }
@@ -104,14 +104,14 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     // for it wasn't added until openai
     public void testSerializesSingleInputVersion_UsingLegacyTextEmbeddingResult() throws IOException {
         var embeddingResults = TextEmbeddingResultsTests.createRandomResults();
-        var instance = new InferenceAction.Response(embeddingResults);
+        var instance = new InferenceActionProxy.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);
     }
 
     public void testSerializesSingleVersion_UsingSparseEmbeddingResult() throws IOException {
         var embeddingResults = SparseEmbeddingResultsTests.createRandomResults().transformToLegacyFormat().subList(0, 1);
-        var instance = new InferenceAction.Response(transformToServiceResults(embeddingResults));
+        var instance = new InferenceActionProxy.Response(transformToServiceResults(embeddingResults));
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), V_8_12_0);
         assertOnBWCObject(copy, instance, V_8_12_0);
     }

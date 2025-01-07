@@ -15,7 +15,7 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.junit.After;
 import org.junit.Before;
 
@@ -42,9 +42,9 @@ public class RestStreamInferenceActionTests extends RestActionTestCase {
     public void testStreamIsTrue() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceAction.Request.class));
+            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
 
-            var request = (InferenceAction.Request) actionRequest;
+            var request = (InferenceActionProxy.Request) actionRequest;
             assertThat(request.isStreaming(), is(true));
 
             executeCalled.set(true);

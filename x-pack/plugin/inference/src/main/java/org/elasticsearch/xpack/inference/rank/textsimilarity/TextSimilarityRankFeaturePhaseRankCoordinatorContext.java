@@ -16,6 +16,7 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
@@ -56,7 +57,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
         // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
         // and then pass the results
-        final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+        final ActionListener<InferenceActionProxy.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
             assert results instanceof RankedDocsResults;
 
@@ -108,7 +109,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
             // Short circuit on empty results after request validation
             if (featureDocs.length == 0) {
-                inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
+                inferenceListener.onResponse(new InferenceActionProxy.Response(new RankedDocsResults(List.of())));
             } else {
                 List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
                 InferenceAction.Request inferenceRequest = generateRequest(featureData);

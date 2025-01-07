@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
@@ -164,7 +165,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                 for (int i = 0; i < resultCount; i++) {
                     rankedDocsResults.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(inputs.get(i)), inputs.get(i)));
                 }
-                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(rankedDocsResults));
+                ActionResponse response = new InferenceActionProxy.Response(new RankedDocsResults(rankedDocsResults));
                 listener.onResponse((Response) response);
             }
         }

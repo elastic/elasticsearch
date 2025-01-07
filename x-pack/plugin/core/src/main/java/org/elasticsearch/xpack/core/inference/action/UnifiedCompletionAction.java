@@ -19,9 +19,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UnifiedCompletionAction extends ActionType<InferenceAction.Response> {
+public class UnifiedCompletionAction extends ActionType<InferenceActionProxy.Response> {
     public static final UnifiedCompletionAction INSTANCE = new UnifiedCompletionAction();
-    public static final String NAME = "cluster:monitor/xpack/inference/unified";
+    public static final String NAME = "cluster:internal/xpack/inference/unified";
 
     public UnifiedCompletionAction() {
         super(NAME);
@@ -92,7 +92,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
                 return e;
             }
 
-            if (taskType.isAnyOrSame(TaskType.COMPLETION) == false) {
+            if (taskType.isAnyOrSame(TaskType.CHAT_COMPLETION) == false) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError("Field [taskType] must be [completion]");
                 return e;

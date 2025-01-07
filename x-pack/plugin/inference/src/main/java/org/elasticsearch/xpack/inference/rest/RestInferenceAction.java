@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 
 import java.util.List;
 
@@ -33,7 +33,12 @@ public class RestInferenceAction extends BaseInferenceAction {
     }
 
     @Override
-    protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
+    protected boolean shouldStream() {
+        return false;
+    }
+
+    @Override
+    protected ActionListener<InferenceActionProxy.Response> listener(RestChannel channel) {
         return new RestChunkedToXContentListener<>(channel);
     }
 }

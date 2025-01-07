@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.junit.Before;
 
@@ -43,8 +44,13 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     public void setUpAction() {
         controller().registerHandler(new BaseInferenceAction() {
             @Override
-            protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
+            protected ActionListener<InferenceActionProxy.Response> listener(RestChannel channel) {
                 return new RestChunkedToXContentListener<>(channel);
+            }
+
+            @Override
+            protected boolean shouldStream() {
+                return false;
             }
 
             @Override
@@ -56,6 +62,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
             public List<Route> routes() {
                 return List.of(new Route(POST, route("{task_type_or_id}")));
             }
+
         });
     }
 
@@ -102,10 +109,10 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     public void testUsesDefaultTimeout() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceAction.Request.class));
+            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
 
-            var request = (InferenceAction.Request) actionRequest;
-            assertThat(request.getInferenceTimeout(), is(InferenceAction.Request.DEFAULT_TIMEOUT));
+            var request = (InferenceActionProxy.Request) actionRequest;
+            assertThat(request.getTimeout(), is(InferenceAction.Request.DEFAULT_TIMEOUT));
 
             executeCalled.set(true);
             return createResponse();
@@ -122,10 +129,10 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     public void testUses3SecondTimeoutFromParams() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceAction.Request.class));
+            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
 
-            var request = (InferenceAction.Request) actionRequest;
-            assertThat(request.getInferenceTimeout(), is(TimeValue.timeValueSeconds(3)));
+            var request = (InferenceActionProxy.Request) actionRequest;
+            assertThat(request.getTimeout(), is(TimeValue.timeValueSeconds(3)));
 
             executeCalled.set(true);
             return createResponse();
@@ -140,8 +147,8 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         assertThat(executeCalled.get(), equalTo(true));
     }
 
-    static InferenceAction.Response createResponse() {
-        return new InferenceAction.Response(
+    static InferenceActionProxy.Response createResponse() {
+        return new InferenceActionProxy.Response(
             new InferenceTextEmbeddingByteResults(
                 List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) -1 }))
             )

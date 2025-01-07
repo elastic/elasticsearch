@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -274,32 +275,32 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(input.size(), equalTo(1));
         String query = input.get(0);
 
-        InferenceAction.Response response = switch (inferenceResultType) {
+        InferenceActionProxy.Response response = switch (inferenceResultType) {
             case NONE -> randomBoolean() ? generateSparseEmbeddingInferenceResponse(query) : generateTextEmbeddingInferenceResponse();
             case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
             case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
         };
 
         @SuppressWarnings("unchecked")  // We matched the method above.
-        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
+        ActionListener<InferenceActionProxy.Response> listener = (ActionListener<InferenceActionProxy.Response>) args[2];
         listener.onResponse(response);
 
         return null;
     }
 
-    private InferenceAction.Response generateSparseEmbeddingInferenceResponse(String query) {
+    private InferenceActionProxy.Response generateSparseEmbeddingInferenceResponse(String query) {
         List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+")).map(s -> new WeightedToken(s, TOKEN_WEIGHT)).toList();
         TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
 
-        return new InferenceAction.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));
+        return new InferenceActionProxy.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));
     }
 
-    private InferenceAction.Response generateTextEmbeddingInferenceResponse() {
+    private InferenceActionProxy.Response generateTextEmbeddingInferenceResponse() {
         double[] inference = new double[TEXT_EMBEDDING_DIMENSION_COUNT];
         Arrays.fill(inference, 1.0);
         MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(InferenceTextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
+        return new InferenceActionProxy.Response(InferenceTextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override

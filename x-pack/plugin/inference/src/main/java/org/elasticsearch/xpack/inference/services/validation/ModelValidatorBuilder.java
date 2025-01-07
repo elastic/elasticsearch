@@ -20,13 +20,13 @@ public class ModelValidatorBuilder {
             case TEXT_EMBEDDING -> {
                 return new TextEmbeddingModelValidator(new SimpleServiceIntegrationValidator());
             }
-            case COMPLETION -> {
+            case COMPLETION, CHAT_COMPLETION -> {
                 return new ChatCompletionModelValidator(new SimpleServiceIntegrationValidator());
             }
             case SPARSE_EMBEDDING, RERANK, ANY -> {
                 return new SimpleModelValidator(new SimpleServiceIntegrationValidator());
             }
-            default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model of for task type %s ", taskType));
+            default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model for task type %s", taskType));
         }
     }
 }

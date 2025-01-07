@@ -34,7 +34,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -53,7 +53,7 @@ import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
  * A version of {@link org.elasticsearch.rest.action.RestChunkedToXContentListener} that reads from a {@link Flow.Publisher} and encodes
  * the response in Server-Sent Events.
  */
-public class ServerSentEventsRestActionListener implements ActionListener<InferenceAction.Response> {
+public class ServerSentEventsRestActionListener implements ActionListener<InferenceActionProxy.Response> {
     private static final Logger logger = LogManager.getLogger(ServerSentEventsRestActionListener.class);
     private final StreamingSubscriber subscriber = new StreamingSubscriber();
     private final AtomicBoolean isLastPart = new AtomicBoolean(false);
@@ -64,7 +64,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     /**
      * A listener for the first part of the next entry to become available for transmission.
      * Chunks are sent one at a time through the completion of this listener.
-     * This listener is initialized in {@link #initializeStream(InferenceAction.Response)} before the first chunk is requested.
+     * This listener is initialized in {@link #initializeStream(InferenceActionProxy.Response)} before the first chunk is requested.
      * When a chunk is ready, this listener is completed with the converted {@link ChunkedRestResponseBodyPart}.
      * After transmitting the chunk, {@link #requestNextChunk(ActionListener)} will set the next listener and request the next
      * chunk. This cycle will repeat until this listener completes with the DONE chunk and the stream closes.
@@ -82,7 +82,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     }
 
     @Override
-    public void onResponse(InferenceAction.Response response) {
+    public void onResponse(InferenceActionProxy.Response response) {
         try {
             ensureOpen();
             if (response.isStreaming()) {
@@ -104,7 +104,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         }
     }
 
-    private void initializeStream(InferenceAction.Response response) {
+    private void initializeStream(InferenceActionProxy.Response response) {
         ActionListener<ChunkedRestResponseBodyPart> chunkedResponseBodyActionListener = ActionListener.wrap(bodyPart -> {
             // this is the first response, so we need to send the RestResponse to open the stream
             // all subsequent bytes will be delivered through the nextBodyPartListener
@@ -457,11 +457,11 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     }
 
     /**
-     * Special ChunkedRestResponseBodyPart that writes a single InferenceAction.Response followed by a DONE chunk.
+     * Special ChunkedRestResponseBodyPart that writes a single {@link InferenceActionProxy.Response} followed by a DONE chunk.
      * This covers when a provider does not have streaming support but the request asked for it.
      */
     private class SingleServerSentEventBodyPart extends ServerSentEventResponseBodyPart {
-        private SingleServerSentEventBodyPart(ServerSentEvents event, InferenceAction.Response item) {
+        private SingleServerSentEventBodyPart(ServerSentEvents event, InferenceActionProxy.Response item) {
             super(event, item);
         }
 

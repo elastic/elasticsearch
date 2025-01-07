@@ -703,11 +703,22 @@ public final class ServiceUtils {
         E apply(String name) throws IllegalArgumentException;
     }
 
-    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
+    @FunctionalInterface
+    public interface ModelErrorMessageConstructor {
+        String createErrorMessage(String inferenceEntityId, String serviceName, TaskType taskType);
+    }
+
+    public static String unsupportedTaskTypeErrorMsg(String inferenceEntityId, String serviceName, TaskType requestTaskType) {
+        return TaskType.unsupportedTaskTypeErrorMsg(requestTaskType, serviceName);
+    }
+
+    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName, TaskType taskType) {
         return format(
-            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
+            "Failed to parse stored model [%s] for [%s] service. Task type: "
+                + "[%s] is not valid for the service, please delete and add the service again",
             inferenceEntityId,
-            serviceName
+            serviceName,
+            taskType
         );
     }
 
@@ -778,6 +789,21 @@ public final class ServiceUtils {
 
     public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+    }
+
+    public static void validateTaskType(
+        String inferenceEntityId,
+        TaskType taskType,
+        EnumSet<TaskType> supportedTaskTypes,
+        String serviceName,
+        ModelErrorMessageConstructor errorConstructor
+    ) {
+        if (supportedTaskTypes.contains(taskType) == false) {
+            throw new ElasticsearchStatusException(
+                errorConstructor.createErrorMessage(inferenceEntityId, serviceName, taskType),
+                RestStatus.BAD_REQUEST
+            );
+        }
     }
 
     private ServiceUtils() {}

@@ -140,7 +140,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     private static void setDefaultSSLSocketFactory() {
-        HttpsURLConnection.setDefaultSSLSocketFactory(new TestSSLSocketFactory());
+        HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
     @SuppressForbidden(reason = "Specifically testing Runtime.exit")
@@ -178,7 +178,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     }
 
     private static void setHttpsConnectionProperties() {
-        new TestHttpsURLConnection().setSSLSocketFactory(new TestSSLSocketFactory());
+        new DummyImplementations.DummyHttpsURLConnection().setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
     private static void system$$setIn() {

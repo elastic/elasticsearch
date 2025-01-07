@@ -9,6 +9,9 @@
 
 package org.elasticsearch.entitlement.qa.common;
 
+import java.net.InetAddress;
+import java.net.Socket;
+import java.security.cert.Certificate;
 import java.text.BreakIterator;
 import java.text.Collator;
 import java.text.DateFormat;
@@ -29,6 +32,9 @@ import java.util.spi.CurrencyNameProvider;
 import java.util.spi.LocaleNameProvider;
 import java.util.spi.LocaleServiceProvider;
 import java.util.spi.TimeZoneNameProvider;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * A collection of concrete subclasses that we can instantiate but that don't actually work.
@@ -244,6 +250,79 @@ class DummyImplementations {
 
         @Override
         public Locale[] getAvailableLocales() {
+            throw unexpected();
+        }
+    }
+
+    static class DummyHttpsURLConnection extends HttpsURLConnection {
+        DummyHttpsURLConnection() {
+            super(null);
+        }
+
+        @Override
+        public void connect() {
+            throw unexpected();
+        }
+
+        @Override
+        public void disconnect() {
+            throw unexpected();
+        }
+
+        @Override
+        public boolean usingProxy() {
+            throw unexpected();
+        }
+
+        @Override
+        public String getCipherSuite() {
+            throw unexpected();
+        }
+
+        @Override
+        public Certificate[] getLocalCertificates() {
+            throw unexpected();
+        }
+
+        @Override
+        public Certificate[] getServerCertificates() {
+            throw unexpected();
+        }
+    }
+
+    static class DummySSLSocketFactory extends SSLSocketFactory {
+        @Override
+        public Socket createSocket(String host, int port) {
+            throw unexpected();
+        }
+
+        @Override
+        public Socket createSocket(String host, int port, InetAddress localHost, int localPort) {
+            throw unexpected();
+        }
+
+        @Override
+        public Socket createSocket(InetAddress host, int port) {
+            throw unexpected();
+        }
+
+        @Override
+        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) {
+            throw unexpected();
+        }
+
+        @Override
+        public String[] getDefaultCipherSuites() {
+            throw unexpected();
+        }
+
+        @Override
+        public String[] getSupportedCipherSuites() {
+            throw unexpected();
+        }
+
+        @Override
+        public Socket createSocket(Socket s, String host, int port, boolean autoClose) {
             throw unexpected();
         }
     }

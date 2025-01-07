@@ -104,6 +104,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     FieldAttribute.class,
                     // Do not use the attribute name, this can deviate from the field name for union types.
                     // Also skip fields from lookup indices because we do not have stats for these.
+                    // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
                     f -> stats.exists(f.fieldName()) || lookupFields.contains(f) ? f : Literal.of(f, null)
                 );
             }

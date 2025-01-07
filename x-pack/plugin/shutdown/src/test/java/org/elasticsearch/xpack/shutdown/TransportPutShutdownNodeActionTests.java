@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -32,6 +34,8 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
@@ -96,14 +100,16 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             targetNodeName,
             null
         );
-        action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
+        var dummyNode = new DiscoveryNode(targetNodeName, "node1", "eph-node1", "abc", "abc", null, Map.of(), Set.of(), null);
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(dummyNode).build()).build();
+        action.masterOperation(null, request, state, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
         verify(clusterService).createTaskQueue(any(), any(), taskExecutor.capture());
         verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState stableState = taskExecutor.getValue()
-            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null));
 
         // run the request again, there should be no call to submit an update task
         clearTaskQueueInvocations();

@@ -5,6 +5,12 @@
 <titleabbrev>SAML service provider metadata</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Generate SAML metadata for a SAML 2.0 Service Provider.
 
 [[security-api-saml-sp-metadata-request]]

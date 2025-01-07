@@ -59,10 +59,10 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         final String dataNodeName = internalCluster().startDataOnlyNode();
 
         /* Maximum time to wait for reindexing tasks to complete before shutdown */
-        final Settings COORD_SETTINGS = Settings.builder()
+        final Settings coordSettings = Settings.builder()
             .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(60))
             .build();
-        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(coordSettings);
 
         ensureStableCluster(3);
 

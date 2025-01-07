@@ -398,9 +398,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
+    public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(
             n,
@@ -410,9 +408,9 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    }, MINIMUM_COMPATIBILITY_VERSION);
+    });
 
-    public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
+    public static final TypeParser NANOS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(
             n,
@@ -422,7 +420,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    }, MINIMUM_COMPATIBILITY_VERSION);
+    });
 
     public static final class DateFieldType extends MappedFieldType {
         final DateFormatter dateTimeFormatter;

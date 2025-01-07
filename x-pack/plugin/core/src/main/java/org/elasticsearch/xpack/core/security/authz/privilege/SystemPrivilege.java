@@ -20,7 +20,7 @@ import java.util.function.Predicate;
 
 public final class SystemPrivilege extends Privilege {
 
-    public static SystemPrivilege INSTANCE = new SystemPrivilege();
+    public static final SystemPrivilege INSTANCE = new SystemPrivilege();
 
     private static final Predicate<String> ALLOWED_ACTIONS = StringMatcher.of(
         "internal:*",

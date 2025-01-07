@@ -211,6 +211,7 @@ class IndicesAndAliasesResolver {
             }
             String localExpression = expressionTuple.v1();
             // TODO: Shard level requests have wildcard expanded already and do not need go through this check
+            // see https://github.com/elastic/elasticsearch/issues/119629
             if (Regex.isSimpleMatchPattern(localExpression)) {
                 throwOnUnexpectedWildcards(action, split.getLocal());
             }

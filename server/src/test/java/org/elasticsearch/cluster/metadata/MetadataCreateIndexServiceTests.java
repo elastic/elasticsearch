@@ -48,7 +48,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -1569,8 +1568,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "looks like a test that's not applicable to 9.0 after version bump")
     public void testDeprecateTranslogRetentionSettings() {
         request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "test", "test");
         final Settings.Builder settings = Settings.builder();
@@ -1663,7 +1660,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(nbReplicas)
                     .build()
-                    .withTimestampRanges(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.UNKNOWN, minTransportVersion),
+                    .withTimestampRanges(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.UNKNOWN),
                 null,
                 MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(settings),
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

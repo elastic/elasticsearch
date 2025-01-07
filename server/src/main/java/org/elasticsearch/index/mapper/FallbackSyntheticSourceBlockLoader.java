@@ -15,7 +15,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.

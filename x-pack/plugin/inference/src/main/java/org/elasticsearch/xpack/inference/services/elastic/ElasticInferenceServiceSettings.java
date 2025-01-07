@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * Encapsulates settings using {@link Setting}. This does not represent service settings that are persisted
- * via {@link org.elasticsearch.inference.ServiceSettings}.
+ * via {@link org.elasticsearch.inference.ServiceSettings}, but rather Elasticsearch settings passed on startup.
  */
 public class ElasticInferenceServiceSettings {
 

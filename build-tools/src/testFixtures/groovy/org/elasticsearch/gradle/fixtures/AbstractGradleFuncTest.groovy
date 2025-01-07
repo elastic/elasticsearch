@@ -183,7 +183,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         ]
 
         BwcVersions versions = new BwcVersions(currentVersion, versionList, ['main', '8.x', '8.3', '8.2', '8.1', '7.16'])
-        buildParams.getBwcVersionsProperty().set(versions)
+        buildParams.setBwcVersions(project.provider { versions} )
         """
     }
 

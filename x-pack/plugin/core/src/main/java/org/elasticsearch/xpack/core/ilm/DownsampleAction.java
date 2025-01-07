@@ -200,8 +200,7 @@ public class DownsampleAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            Instant::now,
-            client
+            Instant::now
         );
         // Mark source index as read-only
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client);

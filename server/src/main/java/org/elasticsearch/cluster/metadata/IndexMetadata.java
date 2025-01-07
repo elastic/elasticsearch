@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -944,21 +943,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * @param timestampRange new @timestamp range
      * @param eventIngestedRange new 'event.ingested' range
-     * @param minClusterTransportVersion minimum transport version used between nodes of this cluster
      * @return copy of this instance with updated timestamp range
      */
-    public IndexMetadata withTimestampRanges(
-        IndexLongFieldRange timestampRange,
-        IndexLongFieldRange eventIngestedRange,
-        TransportVersion minClusterTransportVersion
-    ) {
+    public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
-        }
-        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove this check when 8.15 is no longer communicable
-        IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
-        if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-            allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }
         return new IndexMetadata(
             this.index,
@@ -990,7 +979,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             timestampRange,
-            allowedEventIngestedRange,
+            eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -1116,10 +1105,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Return the {@link IndexVersion} that this index provides compatibility for.
-     * This is typically compared to the {@link IndexVersions#MINIMUM_COMPATIBLE} to figure out whether the index can be handled
-     * by the cluster.
-     * By default, this is equal to the {@link #getCreationVersion()}, but can also be a newer version if the index has been imported as
-     * a legacy index from an older snapshot, and its metadata has been converted to be handled by newer version nodes.
+     * This is typically compared to the {@link IndexVersions#MINIMUM_COMPATIBLE} or {@link IndexVersions#MINIMUM_READONLY_COMPATIBLE}
+     * to figure out whether the index can be handled by the cluster.
+     * By default, this is equal to the {@link #getCreationVersion()}, but can also be a newer version if the index has been created by
+     * a legacy version, and imported archive, in which case its metadata has been converted to be handled by newer version nodes.
      */
     public IndexVersion getCompatibilityVersion() {
         return indexCompatibilityVersion;
@@ -1618,11 +1607,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                aliasesVersion = in.readVLong();
-            } else {
-                aliasesVersion = 1;
-            }
+            aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
             if (in.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
                 settings = null;
@@ -1688,9 +1673,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-                out.writeVLong(aliasesVersion);
-            }
+            out.writeVLong(aliasesVersion);
             out.writeByte(state.id);
             assert settings != null
                 : "settings should always be non-null since this instance is not expected to have been read from another node";
@@ -1776,9 +1759,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            builder.aliasesVersion(in.readVLong());
-        }
+        builder.aliasesVersion(in.readVLong());
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -1848,9 +1829,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeVLong(aliasesVersion);
-        }
+        out.writeVLong(aliasesVersion);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         settings.writeTo(out);

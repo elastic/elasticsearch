@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {
 
-    private static final PlanConsistencyChecker<LogicalPlan> DEPENDENCY_CHECK = new PlanConsistencyChecker<>();
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
 
     private LogicalVerifier() {}
@@ -25,7 +24,7 @@ public final class LogicalVerifier {
         Failures dependencyFailures = new Failures();
 
         plan.forEachUp(p -> {
-            DEPENDENCY_CHECK.checkPlan(p, dependencyFailures);
+            PlanConsistencyChecker.checkPlan(p, dependencyFailures);
 
             if (failures.hasFailures() == false) {
                 p.forEachExpression(ex -> {

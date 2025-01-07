@@ -11,16 +11,28 @@ package org.elasticsearch.entitlement.tools;
 
 import java.io.IOException;
 import java.lang.module.ModuleDescriptor;
+import java.net.URI;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Utils {
 
-    public static Map<String, Set<String>> findModuleExports(FileSystem fs) throws IOException {
+    private static final Set<String> EXCLUDED_MODULES = Set.of(
+        "java.desktop",
+        "jdk.jartool",
+        "jdk.jdi",
+        "java.security.jgss",
+        "jdk.jshell"
+    );
+
+    private static Map<String, Set<String>> findModuleExports(FileSystem fs) throws IOException {
         var modulesExports = new HashMap<String, Set<String>>();
         try (var stream = Files.walk(fs.getPath("modules"))) {
             stream.filter(p -> p.getFileName().toString().equals("module-info.class")).forEach(x -> {
@@ -42,4 +54,27 @@ public class Utils {
         return modulesExports;
     }
 
+    public interface JdkModuleConsumer {
+        void accept(String moduleName, List<Path> moduleClasses, Set<String> moduleExports);
+    }
+
+    public static void walkJdkModules(JdkModuleConsumer c) throws IOException {
+
+        FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/"));
+
+        var moduleExports = Utils.findModuleExports(fs);
+
+        try (var stream = Files.walk(fs.getPath("modules"))) {
+            var modules = stream.filter(x -> x.toString().endsWith(".class"))
+                .collect(Collectors.groupingBy(x -> x.subpath(1, 2).toString()));
+
+            for (var kv : modules.entrySet()) {
+                var moduleName = kv.getKey();
+                if (Utils.EXCLUDED_MODULES.contains(moduleName) == false) {
+                    var thisModuleExports = moduleExports.get(moduleName);
+                    c.accept(moduleName, kv.getValue(), thisModuleExports);
+                }
+            }
+        }
+    }
 }

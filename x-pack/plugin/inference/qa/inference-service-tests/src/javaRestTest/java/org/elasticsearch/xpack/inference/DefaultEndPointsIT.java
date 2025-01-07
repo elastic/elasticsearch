@@ -57,6 +57,9 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
         assertDefaultE5Config(e5Model);
+
+        var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(rerankModel);
     }
 
     @SuppressWarnings("unchecked")
@@ -126,6 +129,42 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     }
 
     @SuppressWarnings("unchecked")
+    public void testInferDeploysDefaultRerank() throws IOException {
+        var model = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(model);
+
+        var inputs = List.of("Hello World", "Goodnight moon");
+        var query = "but why";
+        var queryParams = Map.of("timeout", "120s");
+        var results = infer(ElasticsearchInternalService.DEFAULT_RERANK_ID, TaskType.RERANK, inputs, query, queryParams);
+        var embeddings = (List<Map<String, Object>>) results.get("rerank");
+        assertThat(results.toString(), embeddings, hasSize(2));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDefaultRerankConfig(Map<String, Object> modelConfig) {
+        assertEquals(modelConfig.toString(), ElasticsearchInternalService.DEFAULT_RERANK_ID, modelConfig.get("inference_id"));
+        assertEquals(modelConfig.toString(), ElasticsearchInternalService.NAME, modelConfig.get("service"));
+        assertEquals(modelConfig.toString(), TaskType.RERANK.toString(), modelConfig.get("task_type"));
+
+        var serviceSettings = (Map<String, Object>) modelConfig.get("service_settings");
+        assertThat(modelConfig.toString(), serviceSettings.get("model_id"), is(".rerank-v1"));
+        assertEquals(modelConfig.toString(), 1, serviceSettings.get("num_threads"));
+
+        var adaptiveAllocations = (Map<String, Object>) serviceSettings.get("adaptive_allocations");
+        assertThat(
+            modelConfig.toString(),
+            adaptiveAllocations,
+            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
+        );
+
+        var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
+        assertNull(chunkingSettings);
+        var taskSettings = (Map<String, Object>) modelConfig.get("task_settings");
+        assertThat(modelConfig.toString(), taskSettings, Matchers.is(Map.of("return_documents", true)));
+    }
+
+    @SuppressWarnings("unchecked")
     private static void assertDefaultChunkingSettings(Map<String, Object> modelConfig) {
         var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
         assertThat(
@@ -159,6 +198,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             var request = createInferenceRequest(
                 Strings.format("_inference/%s", ElasticsearchInternalService.DEFAULT_ELSER_ID),
                 inputs,
+                null,
                 queryParams
             );
             client().performRequestAsync(request, listener);

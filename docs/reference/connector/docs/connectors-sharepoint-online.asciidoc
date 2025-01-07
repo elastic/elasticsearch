@@ -133,6 +133,58 @@ The application name will appear in the Title box.
 </AppPermissionRequests>
 ----
 
+[discrete#es-connectors-sharepoint-online-sites-selected-permissions]
+====== Granting `Sites.Selected` permissions
+
+To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
+
+. Sign in to the https://portal.azure.com/[Azure Active Directory portal^].
+. Navigate to **App registrations** and locate the application created for the connector.
+. Under **API permissions**, click **Add permission**.
+. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.
+. Click **Grant admin consent** to approve the permission.
+
+[TIP]
+====
+Refer to the official https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft documentation] for managing permissions in Azure AD.
+====
+
+To assign access to specific SharePoint sites using `Sites.Selected`:
+
+. Use Microsoft Graph Explorer or PowerShell to grant access.
+. To fetch the site ID, run the following Graph API query:
++
+[source, http]
+----
+GET https://graph.microsoft.com/v1.0/sites?select=webUrl,Title,Id&$search="<Name of the site>*"
+----
++
+This will return the `id` of the site.
+
+. Use the `id` to assign read or write access:
++
+[source, http]
+----
+POST https://graph.microsoft.com/v1.0/sites/<siteId>/permissions
+{
+    "roles": ["read"], // or "write"
+    "grantedToIdentities": [
+        {
+            "application": {
+                "id": "<App_Client_ID>",
+                "displayName": "<App_Display_Name>"
+            }
+        }
+    ]
+}
+----
+
+[NOTE]
+====
+When using the `Comma-separated list of sites` configuration field, ensure the sites specified match those granted `Sites.Selected` permission in SharePoint.
+If the `Comma-separated list of sites` field is set to `*` or the `Enumerate all sites` toggle is enabled, the connector will attempt to access all sites. This requires broader permissions, which are not supported with `Sites.Selected`.
+====
+
 .Graph API permissions
 ****
 Microsoft recommends using Graph API for all operations with Sharepoint Online. Graph API is well-documented and more efficient at fetching data, which helps avoid throttling.
@@ -593,6 +645,59 @@ The application name will appear in the Title box.
 <AppPermissionRequest Scope="http://sharepoint/social/tenant" Right="Read" />
 </AppPermissionRequests>
 ----
+
+[discrete#es-connectors-sharepoint-online-sites-selected-permissions-self-managed]
+====== Granting `Sites.Selected` permissions
+
+To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
+
+. Sign in to the https://portal.azure.com/[Azure Active Directory portal^].
+. Navigate to **App registrations** and locate the application created for the connector.
+. Under **API permissions**, click **Add permission**.
+. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.
+. Click **Grant admin consent** to approve the permission.
+
+[TIP]
+====
+Refer to the official https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft documentation] for managing permissions in Azure AD.
+====
+
+
+To assign access to specific SharePoint sites using `Sites.Selected`:
+
+. Use Microsoft Graph Explorer or PowerShell to grant access.
+. To fetch the site ID, run the following Graph API query:
++
+[source, http]
+----
+GET https://graph.microsoft.com/v1.0/sites?select=webUrl,Title,Id&$search="<Name of the site>*"
+----
++
+This will return the `id` of the site.
+
+. Use the `id` to assign read or write access:
++
+[source, http]
+----
+POST https://graph.microsoft.com/v1.0/sites/<siteId>/permissions
+{
+    "roles": ["read"], // or "write"
+    "grantedToIdentities": [
+        {
+            "application": {
+                "id": "<App_Client_ID>",
+                "displayName": "<App_Display_Name>"
+            }
+        }
+    ]
+}
+----
+
+[NOTE]
+====
+When using the `Comma-separated list of sites` configuration field, ensure the sites specified match those granted `Sites.Selected` permission in SharePoint.
+If the `Comma-separated list of sites` field is set to `*` or the `Enumerate all sites` toggle is enabled, the connector will attempt to access all sites. This requires broader permissions, which are not supported with `Sites.Selected`.
+====
 
 .Graph API permissions
 ****

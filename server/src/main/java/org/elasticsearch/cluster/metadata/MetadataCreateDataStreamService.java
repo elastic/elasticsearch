@@ -205,7 +205,8 @@ public class MetadataCreateDataStreamService {
      * @param request The create data stream request
      * @param backingIndices List of backing indices. May be empty
      * @param writeIndex Write index for the data stream. If null, a new write index will be created.
-     * @param initializeFailureStore Whether the failure store should be initialized
+     * @param initializeFailureStore Whether the failure store should be initialized (N.B. if true, failure store index creation will be
+     *     performed regardless of whether the template indicates that the failure store is enabled)
      * @return Cluster state containing the new data stream
      */
     static ClusterState createDataStream(
@@ -265,12 +266,13 @@ public class MetadataCreateDataStreamService {
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveDataStreamOptions(template, metadata.componentTemplates());
         final DataStreamOptions dataStreamOptions = dataStreamOptionsTemplate.mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
-        var isFailureStoreEnabled = dataStreamOptions != null && dataStreamOptions.isFailureStoreEnabled();
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do
-        // that as part of creating the backing index if required.
+        // that as part of creating the backing index if required. N.B. This is done if initializeFailureStore,
+        // regardless of whether the template indicates that the failure store is enabled: it is the caller's
+        // responsibility to check that before setting.
         IndexMetadata failureStoreIndex = null;
-        if (isFailureStoreEnabled && initializeFailureStore) {
+        if (initializeFailureStore) {
             if (isSystem) {
                 throw new IllegalArgumentException("Failure stores are not supported on system data streams");
             }
@@ -308,8 +310,7 @@ public class MetadataCreateDataStreamService {
         }
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
-        assert isFailureStoreEnabled == false || initializeFailureStore == false || failureStoreIndex != null
-            : "failure store should have an initial index";
+        assert initializeFailureStore == false || failureStoreIndex != null : "failure store should have an initial index";
         assert failureStoreIndex == null || failureStoreIndex.mapping() != null
             : "no mapping found for failure store [" + failureStoreIndex.getIndex().getName() + "]";
 

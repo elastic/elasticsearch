@@ -115,6 +115,7 @@ public class Constants {
         "cluster:admin/transform/schedule_now",
         "cluster:admin/transform/update",
         "cluster:admin/transform/upgrade",
+        "cluster:admin/transform/upgrade_mode",
         "cluster:admin/transform/validate",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",
@@ -638,7 +639,10 @@ public class Constants {
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/index/reindex" : null,
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex_cancel" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/create_from_source" : null,
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

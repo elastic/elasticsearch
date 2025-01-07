@@ -48,11 +48,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -65,6 +67,7 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
+import org.elasticsearch.xpack.core.transform.action.SetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -82,6 +85,7 @@ import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportResetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportScheduleNowTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAction;
+import org.elasticsearch.xpack.transform.action.TransportSetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
@@ -101,6 +105,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestPreviewTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestResetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestScheduleNowTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestSetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
@@ -178,6 +183,45 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
+    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        if (TransformMetadata.upgradeMode(clusterService.state())) {
+            // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
+            listener.onResponse(Map.of("already_in_upgrade_mode", true));
+            return;
+        }
+
+        // Enable Transform upgrade mode before upgrading the system indices to ensure nothing writes to them during the upgrade
+        var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
+        originClient.execute(
+            SetTransformUpgradeModeAction.INSTANCE,
+            new SetUpgradeModeActionRequest(true),
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", false)))
+        );
+    }
+
+    @Override
+    public void indicesMigrationComplete(
+        Map<String, Object> preUpgradeMetadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
+        var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
+        if (wasAlreadyInUpgradeMode) {
+            // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
+            listener.onResponse(true);
+            return;
+        }
+
+        var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
+        originClient.execute(
+            SetTransformUpgradeModeAction.INSTANCE,
+            new SetUpgradeModeActionRequest(false),
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
+        );
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         final Settings unused,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -203,7 +247,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
             new RestScheduleNowTransformAction(),
-            new RestGetTransformNodeStatsAction()
+            new RestGetTransformNodeStatsAction(),
+            new RestSetTransformUpgradeModeAction()
         );
     }
 
@@ -224,6 +269,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
             new ActionHandler<>(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
             new ActionHandler<>(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
+            new ActionHandler<>(SetTransformUpgradeModeAction.INSTANCE, TransportSetTransformUpgradeModeAction.class),
 
             // internal, no rest endpoint
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),

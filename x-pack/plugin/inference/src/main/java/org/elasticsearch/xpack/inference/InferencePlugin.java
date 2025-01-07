@@ -25,6 +25,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -35,6 +36,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -73,8 +76,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorSer
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -151,6 +157,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
+    // This is mainly so that the rest handlers can access the ThreadPool in a way that avoids potential null pointers from it
+    // not being initialized yet
+    private final SetOnce<ThreadPool> threadPoolSetOnce = new SetOnce<>();
     private final SetOnce<ElasticInferenceServiceComponents> elasticInferenceServiceComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
@@ -196,7 +205,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     ) {
         var availableRestActions = List.of(
             new RestInferenceAction(),
-            new RestStreamInferenceAction(),
+            new RestStreamInferenceAction(threadPoolSetOnce),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
             new RestUpdateInferenceModelAction(),
@@ -205,7 +214,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestGetInferenceServicesAction()
         );
         List<RestHandler> conditionalRestActions = UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()
-            ? List.of(new RestUnifiedCompletionInferenceAction())
+            ? List.of(new RestUnifiedCompletionInferenceAction(threadPoolSetOnce))
             : List.of();
 
         return Stream.concat(availableRestActions.stream(), conditionalRestActions.stream()).toList();
@@ -216,6 +225,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
+        threadPoolSetOnce.set(services.threadPool());
 
         var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
@@ -280,7 +290,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         }
         inferenceServiceRegistry.set(registry);
 
-        var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
+        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
@@ -410,6 +420,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(SemanticInferenceMetadataFieldsMapper.NAME, SemanticInferenceMetadataFieldsMapper.PARSER);
+    }
+
+    @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(
             SemanticTextFieldMapper.CONTENT_TYPE,
@@ -426,6 +441,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     public List<QuerySpec<?>> getQueries() {
         return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        return List.of(new SemanticMatchQueryRewriteInterceptor(), new SemanticSparseVectorQueryRewriteInterceptor());
     }
 
     @Override

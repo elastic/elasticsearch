@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
 
@@ -63,8 +62,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
                 }
             }
         } else if (limit.child() instanceof Join join) {
-            if (join.config().type() == JoinTypes.LEFT && join.right() instanceof LocalRelation) {
-                // This is a hash join from something like a lookup.
+            if (join.config().type() == JoinTypes.LEFT) {
+                // NOTE! This is only correct because our LEFT JOINs preserve the number of rows from the left hand side.
+                // This deviates from SQL semantics. In SQL, multiple matches on the right hand side lead to multiple rows in the output.
+                // For us, multiple matches on the right hand side are collected into multi-values.
                 return join.replaceChildren(limit.replaceChild(join.left()), join.right());
             }
         }

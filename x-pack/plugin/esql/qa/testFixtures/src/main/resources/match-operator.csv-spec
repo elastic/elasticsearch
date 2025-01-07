@@ -102,6 +102,81 @@ book_no:keyword | title:text
 7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
 ;
 
+
+matchWithDisjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where author : "Vonnegut" or author : "Guinane" 
+| keep book_no, author;
+ignoreOrder:true
+
+book_no:keyword | author:text
+2464            | Kurt Vonnegut  
+6970            | Edith Vonnegut 
+8956            | Kurt Vonnegut  
+3950            | Kurt Vonnegut  
+4382            | Carole Guinane 
+;
+
+matchWithDisjunctionAndFiltersConjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (author : "Vonnegut" or author : "Guinane") and year > 1997
+| keep book_no, author, year;
+ignoreOrder:true
+
+book_no:keyword | author:text       | year:integer
+6970            | Edith Vonnegut    | 1998
+4382            | Carole Guinane    | 2001
+;
+
+matchWithDisjunctionAndConjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (author : "Vonnegut" or author : "Marquez") and description : "realism"
+| keep book_no;
+
+book_no:keyword
+4814
+;
+
+matchWithMoreComplexDisjunctionAndConjunction
+required_capability: match_function
+required_capability: full_text_functions_disjunctions
+
+from books
+| where (author : "Vonnegut" and description : "charming") or (author : "Marquez" and description : "realism")
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+6970
+4814
+;
+
+matchWithDisjunctionIncludingConjunction
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions
+
+from books
+| where author : "Vonnegut" or (author : "Marquez" and description : "realism")
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2464
+6970
+4814
+8956
+3950
+;
+
 matchWithFunctionPushedToLucene
 required_capability: match_operator_colon
 
@@ -219,7 +294,7 @@ count(*): long  | author.keyword:keyword
 ;
 
 testMatchBooleanField
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -235,7 +310,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerField
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -247,7 +322,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleField
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -259,7 +334,7 @@ emp_no:integer | salary_change:double
 ;  
 
 testMatchLongField
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -271,7 +346,7 @@ num:long
 ;
 
 testMatchUnsignedLongField
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from ul_logs
@@ -283,7 +358,7 @@ bytes_out:unsigned_long
 ;
 
 testMatchIpFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from sample_data
@@ -295,7 +370,7 @@ client_ip:ip   | message:keyword
 ;
 
 testMatchDateFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -307,7 +382,7 @@ millis:date
 ;
 
 testMatchDateNanosFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -319,7 +394,7 @@ nanos:date_nanos
 ;
 
 testMatchBooleanFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -335,7 +410,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -347,7 +422,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -359,7 +434,7 @@ emp_no:integer | salary_change:double
 ;
 
 testMatchLongFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -371,7 +446,7 @@ num:long
 ;
 
 testMatchUnsignedLongFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from ul_logs
@@ -383,7 +458,7 @@ bytes_out:unsigned_long
 ;
 
 testMatchVersionFieldAsString
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from apps 
@@ -395,7 +470,7 @@ bbbbb        | 2.1
 ;
 
 testMatchIntegerAsDouble
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -408,7 +483,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleAsIntegerField
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees
@@ -423,7 +498,7 @@ emp_no:integer | height:double
 ;
 
 testMatchMultipleFieldTypes
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible 
@@ -440,7 +515,7 @@ emp_as_int:integer | name_as_kw:keyword
 
 
 testMatchMultipleFieldTypesKeywordText
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible 
@@ -455,7 +530,7 @@ Kazuhito
 ;
 
 testMatchMultipleFieldTypesDoubleFloat
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -474,7 +549,7 @@ emp_no:integer | height_dbl:double
 ;
 
 testMatchMultipleFieldTypesBooleanKeyword
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -491,7 +566,7 @@ true
 ;
 
 testMatchMultipleFieldTypesLongUnsignedLong
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible  
@@ -506,7 +581,7 @@ avg_worked_seconds_ul:unsigned_long
 ;
 
 testMatchMultipleFieldTypesDateNanosDate
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -521,7 +596,7 @@ hire_date_nanos:date_nanos
 ;
 
 testMatchWithWrongFieldValue
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees,employees_incompatible
@@ -533,3 +608,73 @@ from employees,employees_incompatible
 emp_no_bool:boolean
 ;
 
+testMatchWithSemanticText
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+
+from semantic_text
+| where semantic_text_field:"something"
+| keep semantic_text_field
+| sort semantic_text_field asc
+;
+
+semantic_text_field:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+testMatchWithSemanticTextAndKeyword
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+
+from semantic_text
+| where semantic_text_field:"something" AND host:"host1"
+| keep semantic_text_field, host
+;
+
+semantic_text_field:semantic_text | host:keyword
+live long and prosper             | host1
+;
+
+testMatchWithSemanticTextMultiValueField
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+
+from semantic_text metadata _id
+| where st_multi_value:"something" AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:semantic_text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where semantic_text_field:"something" AND size > 1 AND match(host, "host1")
+| STATS result = count(*)
+;
+
+result:long
+1
+;
+
+testMatchWithSemanticTextAndKql
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+required_capability: kql_function
+
+from semantic_text
+| where kql("host:host1") AND semantic_text_field:"something"
+| KEEP host, semantic_text_field
+;
+
+host:keyword | semantic_text_field:semantic_text
+"host1"      | live long and prosper
+;

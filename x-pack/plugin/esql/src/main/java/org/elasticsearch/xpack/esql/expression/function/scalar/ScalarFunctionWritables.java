@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
@@ -64,6 +65,7 @@ public class ScalarFunctionWritables {
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
         entries.add(Greatest.ENTRY);
+        entries.add(Hash.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
         entries.add(InsensitiveEquals.ENTRY);

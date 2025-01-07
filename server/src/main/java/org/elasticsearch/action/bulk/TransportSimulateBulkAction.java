@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.post.TransportSimulateIndexTemplateAction;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -40,6 +43,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -60,6 +65,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +91,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS = new NodeFeature("simulate.index.template.substitutions");
     public static final NodeFeature SIMULATE_MAPPING_ADDITION = new NodeFeature("simulate.mapping.addition");
     public static final NodeFeature SIMULATE_SUPPORT_NON_TEMPLATE_MAPPING = new NodeFeature("simulate.support.non.template.mapping");
+    public static final NodeFeature SIMULATE_IGNORED_FIELDS = new NodeFeature("simulate.ignored.fields");
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -137,12 +144,13 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
             IndexRequest request = (IndexRequest) docRequest;
-            Exception mappingValidationException = validateMappings(
+            Tuple<Collection<String>, Exception> validationResult = validateMappings(
                 componentTemplateSubstitutions,
                 indexTemplateSubstitutions,
                 mappingAddition,
                 request
             );
+            Exception mappingValidationException = validationResult.v2();
             responses.set(
                 i,
                 BulkItemResponse.success(
@@ -155,6 +163,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         request.source(),
                         request.getContentType(),
                         request.getExecutedPipelines(),
+                        validationResult.v1(),
                         mappingValidationException
                     )
                 )
@@ -168,11 +177,12 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     /**
      * This creates a temporary index with the mappings of the index in the request, and then attempts to index the source from the request
      * into it. If there is a mapping exception, that exception is returned. On success the returned exception is null.
-     * @parem componentTemplateSubstitutions The component template definitions to use in place of existing ones for validation
+     * @param componentTemplateSubstitutions The component template definitions to use in place of existing ones for validation
      * @param request The IndexRequest whose source will be validated against the mapping (if it exists) of its index
-     * @return a mapping exception if the source does not match the mappings, otherwise null
+     * @return a Tuple containing: (1) in v1 the names of any fields that would be ignored upon indexing and (2) in v2 the mapping
+     * exception if the source does not match the mappings, otherwise null
      */
-    private Exception validateMappings(
+    private Tuple<Collection<String>, Exception> validateMappings(
         Map<String, ComponentTemplate> componentTemplateSubstitutions,
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions,
         Map<String, Object> mappingAddition,
@@ -189,6 +199,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
 
         ClusterState state = clusterService.state();
         Exception mappingValidationException = null;
+        Collection<String> ignoredFields = List.of();
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
         try {
             if (indexAbstraction != null
@@ -275,7 +286,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     );
                     CompressedXContent mappings = template.mappings();
                     CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
-                    validateUpdatedMappings(mappings, mergedMappings, request, sourceToParse);
+                    ignoredFields = validateUpdatedMappings(mappings, mergedMappings, request, sourceToParse);
                 } else {
                     List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedState.metadata(), request.index(), false);
                     if (matchingTemplates.isEmpty() == false) {
@@ -289,7 +300,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                             xContentRegistry
                         );
                         final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                        validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
                     } else if (indexAbstraction != null && mappingAddition.isEmpty() == false) {
                         /*
                          * The index matched no templates of any kind, including the substitutions. But it might have a mapping. So we
@@ -298,7 +309,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         MappingMetadata mappingFromIndex = clusterService.state().metadata().index(indexAbstraction.getName()).mapping();
                         CompressedXContent currentIndexCompressedXContent = mappingFromIndex == null ? null : mappingFromIndex.source();
                         CompressedXContent combinedMappings = mergeMappings(currentIndexCompressedXContent, mappingAddition);
-                        validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
                     } else {
                         /*
                          * The index matched no templates and had no mapping of its own. If there were component template substitutions
@@ -306,27 +317,28 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                          * and validate.
                          */
                         final CompressedXContent combinedMappings = mergeMappings(null, mappingAddition);
-                        validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
+                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
                     }
                 }
             }
         } catch (Exception e) {
             mappingValidationException = e;
         }
-        return mappingValidationException;
+        return Tuple.tuple(ignoredFields, mappingValidationException);
     }
 
     /*
-     * Validates that when updatedMappings are applied
+     * Validates that when updatedMappings are applied. If any fields would be ignored while indexing, then those field names are returned.
+     * Otherwise the returned Collection is empty.
      */
-    private void validateUpdatedMappings(
+    private Collection<String> validateUpdatedMappings(
         @Nullable CompressedXContent originalMappings,
         @Nullable CompressedXContent updatedMappings,
         IndexRequest request,
         SourceToParse sourceToParse
     ) throws IOException {
         if (updatedMappings == null) {
-            return; // no validation to do
+            return List.of(); // no validation to do
         }
         Settings dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -343,7 +355,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             .settings(dummySettings)
             .putMapping(new MappingMetadata(updatedMappings))
             .build();
-        indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
+        Engine.Index result = indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
             indexService.mapperService().merge(updatedIndexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
             return IndexShard.prepareIndex(
                 indexService.mapperService(),
@@ -360,6 +372,24 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 0
             );
         });
+        final Collection<String> ignoredFields;
+        if (result == null) {
+            ignoredFields = List.of();
+        } else {
+            List<LuceneDocument> luceneDocuments = result.parsedDoc().docs();
+            assert luceneDocuments == null || luceneDocuments.size() == 1 : "Expected a single lucene document from index attempt";
+            if (luceneDocuments != null && luceneDocuments.size() == 1) {
+                ignoredFields = luceneDocuments.getFirst()
+                    .getFields()
+                    .stream()
+                    .filter(field -> field.name().equals(IgnoredFieldMapper.NAME) && field instanceof StringField)
+                    .map(IndexableField::stringValue)
+                    .toList();
+            } else {
+                ignoredFields = List.of();
+            }
+        }
+        return ignoredFields;
     }
 
     private static CompressedXContent mergeMappings(@Nullable CompressedXContent originalMapping, Map<String, Object> mappingAddition)

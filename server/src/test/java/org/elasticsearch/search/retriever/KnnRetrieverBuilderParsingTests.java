@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -51,8 +52,19 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
         Float similarity = randomBoolean() ? null : randomFloat();
+        RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
+            ? null
+            : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
 
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(field, vector, null, k, numCands, similarity);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            field,
+            vector,
+            null,
+            k,
+            numCands,
+            rescoreVectorBuilder,
+            similarity
+        );
 
         List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();
 
@@ -93,6 +105,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
             assertNull(source.query());
             assertThat(source.knnSearch().size(), equalTo(1));
             assertThat(source.knnSearch().get(0).getFilterQueries().size(), equalTo(knnRetriever.preFilterQueryBuilders.size()));
+            assertThat(source.knnSearch().get(0).getRescoreVectorBuilder(), equalTo(knnRetriever.rescoreVectorBuilder()));
             for (int j = 0; j < knnRetriever.preFilterQueryBuilders.size(); j++) {
                 assertThat(
                     source.knnSearch().get(0).getFilterQueries().get(j),

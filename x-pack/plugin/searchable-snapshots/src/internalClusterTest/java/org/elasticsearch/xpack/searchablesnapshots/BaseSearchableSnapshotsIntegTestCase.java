@@ -74,7 +74,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
@@ -241,7 +240,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
     }
 
-    protected void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
+    protected void assertShardFolders(String indexName, boolean isSearchableSnapshot) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
         final String customDataPath = resolveCustomDataPath(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
@@ -261,16 +260,16 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     translogExists
                 );
                 assertThat(
-                    snapshotDirectory ? "Index file should not exist" : "Index file should exist",
+                    isSearchableSnapshot ? "Index file should not exist" : "Index file should exist",
                     indexExists,
-                    not(snapshotDirectory)
+                    not(isSearchableSnapshot)
                 );
-                assertThat("Translog should exist", translogExists, is(true));
-                try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
-                    final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
-                    if (snapshotDirectory) {
-                        assertThat("There should be 2 translog files for a snapshot directory", translogFiles, equalTo(2L));
-                    } else {
+                if (isSearchableSnapshot) {
+                    assertThat("Translog should not exist", translogExists, equalTo(false));
+                } else {
+                    assertThat("Translog should exist", translogExists, equalTo(true));
+                    try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
+                        final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                         assertThat(
                             "There should be 2+ translog files for a non-snapshot directory",
                             translogFiles,

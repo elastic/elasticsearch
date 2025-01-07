@@ -59,7 +59,7 @@ public class RepositoryVerifyIntegrityTask extends CancellableTask {
         long throttledNanos
     ) implements org.elasticsearch.tasks.Task.Status {
 
-        public static String NAME = "verify_repository_integrity_status";
+        public static final String NAME = "verify_repository_integrity_status";
 
         public Status(StreamInput in) throws IOException {
             this(

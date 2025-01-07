@@ -13,16 +13,15 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.rest.RestStatus;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.function.BiPredicate;
-import java.util.function.Supplier;
+
+import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
+import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
 
 public class S3HttpFixture extends ExternalResource {
 
@@ -49,14 +48,9 @@ public class S3HttpFixture extends ExternalResource {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
-                    if (authorizationPredicate.test(
-                        exchange.getRequestHeaders().getFirst("Authorization"),
-                        exchange.getRequestHeaders().getFirst("x-amz-security-token")
-                    ) == false) {
-                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Access denied by " + authorizationPredicate);
-                        return;
+                    if (checkAuthorization(authorizationPredicate, exchange)) {
+                        super.handle(exchange);
                     }
-                    super.handle(exchange);
                 } catch (Error e) {
                     // HttpServer catches Throwable, so we must throw errors on another thread
                     ExceptionsHelper.maybeDieOnAnotherThread(e);
@@ -76,10 +70,8 @@ public class S3HttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         if (enabled) {
-            InetSocketAddress inetSocketAddress = resolveAddress();
-            this.server = HttpServer.create(inetSocketAddress, 0);
-            HttpHandler handler = createHandler();
-            this.server.createContext("/", Objects.requireNonNull(handler));
+            this.server = HttpServer.create(getLocalFixtureAddress(), 0);
+            this.server.createContext("/", Objects.requireNonNull(createHandler()));
             server.start();
         }
     }
@@ -89,29 +81,5 @@ public class S3HttpFixture extends ExternalResource {
         if (enabled) {
             stop(0);
         }
-    }
-
-    private static InetSocketAddress resolveAddress() {
-        try {
-            return new InetSocketAddress(InetAddress.getByName("localhost"), 0);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static BiPredicate<String, String> fixedAccessKey(String accessKey) {
-        return mutableAccessKey(() -> accessKey);
-    }
-
-    public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier) {
-        return (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
-            && authorizationHeader.contains(accessKeySupplier.get());
-    }
-
-    public static BiPredicate<String, String> fixedAccessKeyAndToken(String accessKey, String sessionToken) {
-        Objects.requireNonNull(sessionToken);
-        final var accessKeyPredicate = fixedAccessKey(accessKey);
-        return (authorizationHeader, sessionTokenHeader) -> accessKeyPredicate.test(authorizationHeader, sessionTokenHeader)
-            && sessionToken.equals(sessionTokenHeader);
     }
 }

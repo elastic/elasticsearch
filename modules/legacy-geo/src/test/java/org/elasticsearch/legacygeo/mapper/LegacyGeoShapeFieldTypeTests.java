@@ -8,9 +8,7 @@
  */
 package org.elasticsearch.legacygeo.mapper;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -23,8 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
-@LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
 
     /**

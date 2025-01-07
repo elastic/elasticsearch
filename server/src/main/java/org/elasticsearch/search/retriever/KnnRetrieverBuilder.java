@@ -20,8 +20,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -52,6 +54,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
+    public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<KnnRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -73,6 +76,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 (QueryVectorBuilder) args[2],
                 (int) args[3],
                 (int) args[4],
+                (RescoreVectorBuilder) args[6],
                 (Float) args[5]
             );
         }
@@ -89,6 +93,12 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> RescoreVectorBuilder.fromXContent(p),
+            RESCORE_VECTOR_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
@@ -104,6 +114,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     private final QueryVectorBuilder queryVectorBuilder;
     private final int k;
     private final int numCands;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
     private final Float similarity;
 
     public KnnRetrieverBuilder(
@@ -112,6 +123,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
+        RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
         if (queryVector == null && queryVectorBuilder == null) {
@@ -137,6 +149,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.k = k;
         this.numCands = numCands;
         this.similarity = similarity;
+        this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
 
     private KnnRetrieverBuilder(KnnRetrieverBuilder clone, Supplier<float[]> queryVector, QueryVectorBuilder queryVectorBuilder) {
@@ -148,6 +161,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.similarity = clone.similarity;
         this.retrieverName = clone.retrieverName;
         this.preFilterQueryBuilders = clone.preFilterQueryBuilders;
+        this.rescoreVectorBuilder = clone.rescoreVectorBuilder;
     }
 
     @Override
@@ -228,6 +242,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             null,
             k,
             numCands,
+            rescoreVectorBuilder,
             similarity
         );
         if (preFilterQueryBuilders != null) {
@@ -239,6 +254,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(searchSourceBuilder.knnSearch());
         knnSearchBuilders.add(knnSearchBuilder);
         searchSourceBuilder.knnSearch(knnSearchBuilders);
+    }
+
+    RescoreVectorBuilder rescoreVectorBuilder() {
+        return rescoreVectorBuilder;
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----
@@ -260,6 +279,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         if (similarity != null) {
             builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
         }
+
+        if (rescoreVectorBuilder != null) {
+            builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
+        }
     }
 
     @Override
@@ -271,12 +294,13 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             && ((queryVector == null && that.queryVector == null)
                 || (queryVector != null && that.queryVector != null && Arrays.equals(queryVector.get(), that.queryVector.get())))
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
-            && Objects.equals(similarity, that.similarity);
+            && Objects.equals(similarity, that.similarity)
+            && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder);
     }
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(field, queryVectorBuilder, k, numCands, similarity);
+        int result = Objects.hash(field, queryVectorBuilder, k, numCands, rescoreVectorBuilder, similarity);
         result = 31 * result + Arrays.hashCode(queryVector != null ? queryVector.get() : null);
         return result;
     }

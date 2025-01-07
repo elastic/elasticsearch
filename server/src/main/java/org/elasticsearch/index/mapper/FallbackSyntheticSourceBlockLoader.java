@@ -15,6 +15,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -167,16 +169,9 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             // So we should only ever have one parent here.
             assert valuesForFieldAndParents.size() == 1 : "_ignored_source field contains multiple levels of the same object";
             var parentValues = valuesForFieldAndParents.values().iterator().next();
-            if (parentValues.size() > 1) {
-                builder.beginPositionEntry();
-            }
 
             for (var nameValue : parentValues) {
                 parseFieldFromParent(nameValue, builder);
-            }
-
-            if (parentValues.size() > 1) {
-                builder.endPositionEntry();
             }
 
             return true;
@@ -194,14 +189,18 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
             ) {
                 parser.nextToken();
-                // boolean found = false;
-                // do {
-                // var token = parser.nextToken();
-                // if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(fieldName)) {
-                // found = true;
-                // }
-                //
-                // } while (found == false);
+                var fieldNameInParser = new StringBuilder(nameValue.name());
+                while (true) {
+                    if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                        fieldNameInParser.append('.').append(parser.currentName());
+                        if (fieldNameInParser.toString().equals(fieldName)) {
+                            parser.nextToken();
+                            break;
+                        }
+                    }
+                    parser.nextToken();
+                }
+
                 reader.parse(parser, builder);
             }
         }

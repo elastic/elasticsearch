@@ -644,15 +644,21 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                     @Override
                     public void parse(XContentParser parser, BlockLoader.Builder builder) throws IOException {
-                        assert parser.currentToken() == XContentParser.Token.START_ARRAY;
-
                         var bytesRefBuilder = (BlockLoader.BytesRefBuilder) builder;
 
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
+                        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                            builder.beginPositionEntry(); // TODO not fully correct
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
 
-                            bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
+                                bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
+                            }
+                            builder.endPositionEntry();
+                            return;
                         }
+
+                        assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
+                        bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
                     }
                 };
 

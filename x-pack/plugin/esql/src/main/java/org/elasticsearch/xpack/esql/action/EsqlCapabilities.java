@@ -600,7 +600,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be used in disjunctions
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        /**
+         * Change field caps response for semantic_text fields to be reported as text
+         */
+        SEMANTIC_TEXT_FIELD_CAPS;
 
         private final boolean enabled;
 

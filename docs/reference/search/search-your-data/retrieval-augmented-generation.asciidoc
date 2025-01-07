@@ -14,18 +14,18 @@ Compared to fine-tuning or continuous pre-training, RAG can be implemented more 
 image::images/search/rag-venn-diagram.svg[RAG sits at the intersection of information retrieval and generative AI, align=center, width=500]
 
 RAG sits at the intersection of https://www.elastic.co/what-is/information-retrieval[information retrieval] and generative AI.
-{es} is an excellent tool for implementing RAG, because it offers various retrieval capabilities, such as full-text search, vector search, and hybrid search.
+{es} is an excellent tool for implementing RAG, because it offers various retrieval capabilities, such as full-text search, vector search, and hybrid search, as well as other tools like filtering, aggregations, and security features.
 
 [discrete]
 [[rag-elasticsearch-advantages]]
 === Advantages of RAG
 
-RAG has several advantages:
+Implementing RAG with {es} has several advantages:
 
 * *Improved context:* Enables grounding the language model with additional, up-to-date, and/or private data.
 * *Reduced hallucination:* Helps minimize factual errors by enabling models to cite authoritative sources.
 * *Cost efficiency:* Requires less maintenance compared to fine-tuning or continuously pre-training models.
-* *Enhanced security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control and field/document-level security.
+* *Built-in security:* Controls data access by leveraging {es}'s <<authorization, user authorization>> features, such as role-based access control and field/document-level security.
 * *Simplified response parsing:* Eliminates the need for custom parsing logic by letting the language model handle parsing {es} responses and formatting the retrieved context.
 * *Flexible implementation:* Works with basic <<full-text-search,full-text search>>, and can be gradually updated to add more advanced and computationally intensive <<semantic-search,semantic search>> capabilities.
 

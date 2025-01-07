@@ -60,7 +60,15 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
+        // TODO: Don't hard-code gFields
+        return prepare(request, indexShard, nowInMillis, new String[] { RoutingFieldMapper.NAME });
+    }
+
+    /**
+     * Prepares an update request by converting it into an index or delete request or an update response (no action).
+     */
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, String[] gFields) throws IOException {
+        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), gFields);
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 

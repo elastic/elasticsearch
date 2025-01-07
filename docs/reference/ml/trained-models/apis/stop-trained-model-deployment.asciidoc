@@ -6,6 +6,12 @@
 <titleabbrev>Stop trained model deployment</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Stops a trained model deployment.
 
 [[stop-trained-model-deployment-request]]

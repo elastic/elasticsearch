@@ -13,7 +13,7 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
 licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 configurations {
@@ -60,14 +60,4 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
   task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
-  task.skipTest("tsdb/20_mapping/stored source is supported", "no longer serialize source_mode")
-  task.skipTest("tsdb/20_mapping/Synthetic source", "no longer serialize source_mode")
-  task.skipTest("logsdb/10_settings/create logs index", "no longer serialize source_mode")
-  task.skipTest("logsdb/20_source_mapping/stored _source mode is supported", "no longer serialize source_mode")
-  task.skipTest("logsdb/20_source_mapping/include/exclude is supported with stored _source", "no longer serialize source_mode")
-  task.skipTest("logsdb/20_source_mapping/synthetic _source is default", "no longer serialize source_mode")
-  task.skipTest("search/520_fetch_fields/fetch _seq_no via fields", "error code is changed from 5xx to 400 in 9.0")
-  task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Test knn search", "Scoring has changed in latest versions")
-  task.skipTest("search.vectors/42_knn_search_bbq_flat/Test knn search", "Scoring has changed in latest versions")
-  task.skipTest("search/90_search_after/_shard_doc sort", "restriction has been lifted in latest versions")
 })

@@ -59,12 +59,6 @@ public class QueryBuilderResolver {
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
-        // TODO: remove once SEMANTIC_TEXT_TYPE is enabled outside of snapshots
-        if (false == EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            callback.accept(plan, listener);
-            return;
-        }
-
         if (plan.optimized() == false) {
             listener.onFailure(new IllegalStateException("Expected optimized plan before query builder rewrite."));
             return;

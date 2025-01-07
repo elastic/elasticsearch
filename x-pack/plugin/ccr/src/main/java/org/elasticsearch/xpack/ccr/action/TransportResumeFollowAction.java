@@ -532,7 +532,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
-        IndexMetadata.IGNORE_INDEX_DEPRECATION_WARNING_FOR_VERSION_SETTING
+        IndexMetadata.IGNORE_MIGRATION_REINDEX_WHILE_READABLE_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

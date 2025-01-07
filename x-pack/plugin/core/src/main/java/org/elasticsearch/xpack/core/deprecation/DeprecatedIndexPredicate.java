@@ -18,6 +18,7 @@ import java.util.function.Predicate;
 public class DeprecatedIndexPredicate {
 
     public static final IndexVersion MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE = IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
+    public static final IndexVersion MINIMUM_READABLE_VERSION_AFTER_UPGRADE = IndexVersions.MINIMUM_COMPATIBLE;
 
     /*
      * This predicate allows through only indices that were created with a previous lucene version, meaning that they need to be reindexed
@@ -34,23 +35,20 @@ public class DeprecatedIndexPredicate {
 
     public static boolean reindexRequired(IndexMetadata indexMetadata) {
         return creationVersionBeforeMinimumWritableVersion(indexMetadata)
-            && isNotSearchableSnapshot(indexMetadata)
-            && isNotIgnored(indexMetadata);
+            && isSearchableSnapshot(indexMetadata) == false
+            && isIgnored(indexMetadata) == false;
     }
 
     private static boolean creationVersionBeforeMinimumWritableVersion(IndexMetadata metadata) {
         return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
     }
 
-    private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {
-        return indexMetadata.isSearchableSnapshot() == false;
+    private static boolean isSearchableSnapshot(IndexMetadata indexMetadata) {
+        return indexMetadata.isSearchableSnapshot();
     }
 
-    private static boolean isNotIgnored(IndexMetadata indexMetadata) {
-        IndexVersion ignoreVersion = indexMetadata.getSettings()
-            .getAsVersionId(IndexMetadata.INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY, IndexVersion::fromId);
-
-        return ignoreVersion == null || ignoreVersion.before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
+    private static boolean isIgnored(IndexMetadata indexMetadata) {
+        Boolean ignoreFlag = IndexMetadata.IGNORE_MIGRATION_REINDEX_WHILE_READABLE_SETTING.get(indexMetadata.getSettings());
+        return ignoreFlag && indexMetadata.getCreationVersion().onOrAfter(MINIMUM_READABLE_VERSION_AFTER_UPGRADE);
     }
-
 }

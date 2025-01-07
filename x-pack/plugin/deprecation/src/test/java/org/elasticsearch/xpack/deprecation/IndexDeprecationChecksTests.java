@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -30,11 +31,9 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Map.entry;
-import static java.util.Map.ofEntries;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_IGNORE_MIGRATION_REINDEX_WHILE_READABLE;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,10 +57,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
             "This index has version: " + createdWith.toReleaseVersion(),
             false,
-            ofEntries(
-                entry("reindex_required", true),
-                entry("minimum_writable_version_after_upgrade", DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id())
-            )
+            singletonMap("reindex_required", true)
+
         );
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
         assertEquals(singletonList(expected), issues);
@@ -124,9 +121,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testIgnoredIndex() {
-        IndexVersion createdWith = IndexVersion.fromId(7170099);
+        IndexVersion createdWith = IndexVersion.fromId(DeprecatedIndexPredicate.MINIMUM_READABLE_VERSION_AFTER_UPGRADE.id());
         Settings.Builder settings = settings(createdWith);
-        settings.put(INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY, MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id());
+        settings.put(INDEX_IGNORE_MIGRATION_REINDEX_WHILE_READABLE, true);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
@@ -135,6 +132,30 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
 
         assertThat(issues, empty());
+    }
+
+    public void testIgnoredIndex_withUnreadableVersionAfterUpgrade_thenStillAlerts() {
+        IndexVersion createdWith = IndexVersions.MINIMUM_READONLY_COMPATIBLE;
+        Settings.Builder settings = settings(createdWith);
+        settings.put(INDEX_IGNORE_MIGRATION_REINDEX_WHILE_READABLE, true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Old index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "This index has version: " + createdWith.toReleaseVersion(),
+            false,
+            singletonMap("reindex_required", true)
+
+        );
+
+        assertThat(issues, equalTo(singletonList(expected)));
     }
 
     public void testTranslogRetentionSettings() {

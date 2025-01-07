@@ -1346,11 +1346,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.InternalIndex
     );
 
-    public static final String INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY = "index.ignore_deprecation_warning_for_version";
-    public static final Setting<IndexVersion> IGNORE_INDEX_DEPRECATION_WARNING_FOR_VERSION_SETTING = Setting.versionIdSetting(
-        INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY,
-        IndexVersions.ZERO,
-        IndexVersion::fromId,
+    public static final String INDEX_IGNORE_MIGRATION_REINDEX_WHILE_READABLE = "index.ignore_migration_reindex_while_readable";
+    public static final Setting<Boolean> IGNORE_MIGRATION_REINDEX_WHILE_READABLE_SETTING = Setting.boolSetting(
+        INDEX_IGNORE_MIGRATION_REINDEX_WHILE_READABLE,
+        false,
         Property.IndexScope,
         Property.Dynamic,
         Property.NotCopyableOnResize

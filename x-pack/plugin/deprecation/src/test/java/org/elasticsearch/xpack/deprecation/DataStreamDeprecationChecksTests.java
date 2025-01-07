@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -32,7 +33,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE;
+import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.MINIMUM_READABLE_VERSION_AFTER_UPGRADE;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,14 +48,21 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
         Set<String> expectedIndices = new HashSet<>();
 
         for (int i = 0; i < oldIndexCount; i++) {
-            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+            Settings.Builder settings;
+            boolean readableAfterUpgrade = randomBoolean();
+
+            settings = settings(
+                expectedIndices.isEmpty() == false && readableAfterUpgrade
+                    ? MINIMUM_READABLE_VERSION_AFTER_UPGRADE
+                    : IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            );
 
             String indexName = "old-data-stream-index-" + i;
             int randomInt = randomIntBetween(0, 2);
             if (expectedIndices.isEmpty() == false && randomInt == 0) {
                 settings.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
-            } else if (expectedIndices.isEmpty() == false && randomInt == 1) {
-                settings.put(IndexMetadata.INDEX_IGNORE_DEPRECATION_WARNING_FOR_VERSION_KEY, MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id());
+            } else if (expectedIndices.isEmpty() == false && randomInt == 1 && readableAfterUpgrade) {
+                settings.put(IndexMetadata.INDEX_IGNORE_MIGRATION_REINDEX_WHILE_READABLE, true);
             } else {
                 expectedIndices.add(indexName);
             }
@@ -107,7 +115,6 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             false,
             ofEntries(
                 entry("reindex_required", true),
-                entry("minimum_writable_version_after_upgrade", MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE.id()),
                 entry("total_backing_indices", oldIndexCount + newIndexCount),
                 entry("indices_requiring_upgrade_count", expectedIndices.size()),
                 entry("indices_requiring_upgrade", expectedIndices)

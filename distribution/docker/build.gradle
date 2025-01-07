@@ -45,7 +45,7 @@ if (useDra == false) {
         ivy {
           name = 'beats'
           if (useLocalArtifacts) {
-            url getLayout().getBuildDirectory().dir("artifacts").get().asFile
+            url = getLayout().getBuildDirectory().dir("artifacts").get().asFile
             patternLayout {
               artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
             }

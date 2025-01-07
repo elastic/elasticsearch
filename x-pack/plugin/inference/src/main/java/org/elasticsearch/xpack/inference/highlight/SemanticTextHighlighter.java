@@ -178,7 +178,7 @@ public class SemanticTextHighlighter implements Highlighter {
         return DefaultHighlighter.mergeFieldValues(values, MULTIVAL_SEP_CHAR);
     }
 
-    private String getContentFromNestedSourcesLegacy(String fieldName, OffsetAndScore cand, List<Map<?, ?>> nestedSources) {
+    private String getContentFromLegacyNestedSources(String fieldName, OffsetAndScore cand, List<Map<?, ?>> nestedSources) {
         if (nestedSources.size() <= cand.index) {
             throw new IllegalStateException(
                 String.format(

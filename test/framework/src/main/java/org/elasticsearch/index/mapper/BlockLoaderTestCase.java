@@ -89,7 +89,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public void testSynthInObject() throws IOException {
         Map<String, Object> raw = Map.of("type", "keyword", "doc_values", false, "store", false);
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("obj", Map.of("enabled", "false", "properties", Map.of(fieldName, raw))))), Map.of("obj", Map.of("enabled", "false", "obj." + fieldName, raw)));
+        var mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("obj", Map.of("enabled", "false", "properties", Map.of(fieldName, raw))))),
+            Map.of("obj", Map.of("enabled", "false", "obj." + fieldName, raw))
+        );
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
         var mapperService = createSytheticSourceMapperService(mappingXContent);

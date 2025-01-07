@@ -138,7 +138,12 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 try (
                     XContentParser parser = type.get()
                         .xContent()
-                        .createParser(XContentParserConfiguration.EMPTY, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
+                        .createParser(
+                            XContentParserConfiguration.EMPTY,
+                            nameValue.value().bytes,
+                            nameValue.value().offset + 1,
+                            nameValue.value().length - 1
+                        )
                 ) {
                     parser.nextToken();
                     reader.parse(parser, builder);
@@ -152,7 +157,8 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             return true;
         }
 
-        private boolean readFromParentValue(Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents, Builder builder) throws IOException {
+        private boolean readFromParentValue(Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents, Builder builder)
+            throws IOException {
             if (valuesForFieldAndParents.isEmpty()) {
                 return false;
             }
@@ -168,7 +174,6 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             for (var nameValue : parentValues) {
                 parseFieldFromParent(nameValue, builder);
             }
-
 
             if (parentValues.size() > 1) {
                 builder.endPositionEntry();
@@ -189,14 +194,14 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     .createParser(filterParserConfig, nameValue.value().bytes, nameValue.value().offset + 1, nameValue.value().length - 1)
             ) {
                 parser.nextToken();
-//                boolean found = false;
-//                do {
-//                    var token = parser.nextToken();
-//                    if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(fieldName)) {
-//                        found = true;
-//                    }
-//
-//                } while (found == false);
+                // boolean found = false;
+                // do {
+                // var token = parser.nextToken();
+                // if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(fieldName)) {
+                // found = true;
+                // }
+                //
+                // } while (found == false);
                 reader.parse(parser, builder);
             }
         }

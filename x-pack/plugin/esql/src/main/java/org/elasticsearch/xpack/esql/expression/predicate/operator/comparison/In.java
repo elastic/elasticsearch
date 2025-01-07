@@ -171,10 +171,6 @@ public class In extends EsqlScalarFunction {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        // TODO: This is not the correct check
-        if (left.isDate() && right.isDate()) {
-            return true;
-        }
         if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
             return left == right;
         }
@@ -189,20 +185,46 @@ public class In extends EsqlScalarFunction {
         }
 
         DataType dt = value.dataType();
-        for (int i = 0; i < list.size(); i++) {
-            Expression listValue = list.get(i);
-            if (areCompatible(dt, listValue.dataType()) == false) {
-                return new TypeResolution(
-                    format(
-                        null,
-                        "{} argument of [{}] must be [{}], found value [{}] type [{}]",
-                        ordinal(i + 1),
-                        sourceText(),
-                        dt.typeName(),
-                        Expressions.name(listValue),
-                        listValue.dataType().typeName()
-                    )
-                );
+        if (dt.isDate()) {
+            // If value is a date (nanos or millis), list cannot contain both nanos and millis
+            DataType seenDateType = null;
+            for (int i = 0; i < list.size(); i++) {
+                Expression listValue = list.get(i);
+                if (seenDateType == null && listValue.dataType().isDate()) {
+                    seenDateType = listValue.dataType();
+                }
+                if ((listValue.dataType().isDate() && listValue.dataType() != seenDateType)
+                    || (listValue.dataType().isDate() == false &&areCompatible(dt, listValue.dataType()) == false)) {
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                            ordinal(i + 1),
+                            sourceText(),
+                            dt.typeName(),
+                            Expressions.name(listValue),
+                            listValue.dataType().typeName()
+                        )
+                    );
+                }
+            }
+
+        } else {
+            for (int i = 0; i < list.size(); i++) {
+                Expression listValue = list.get(i);
+                if (areCompatible(dt, listValue.dataType()) == false) {
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                            ordinal(i + 1),
+                            sourceText(),
+                            dt.typeName(),
+                            Expressions.name(listValue),
+                            listValue.dataType().typeName()
+                        )
+                    );
+                }
             }
         }
 
@@ -320,6 +342,7 @@ public class In extends EsqlScalarFunction {
         }
         return false;
     }
+
     static boolean process(BitSet nulls, BitSet mvs, double lhs, double[] rhs) {
         for (int i = 0; i < rhs.length; i++) {
             if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {

@@ -60,13 +60,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Return an upper bound of the maximum bucket ordinal seen so far.
-     */
-    public final long maxBucketOrd() {
-        return docCounts.size();
-    }
-
-    /**
      * Ensure there are at least <code>maxBucketOrd</code> buckets available.
      */
     public final void grow(long maxBucketOrd) {

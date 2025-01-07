@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -201,14 +202,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
             )
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
-        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date");
+        if (settings.get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey()).equals("true")) {
+            mapping.field("ignore_malformed", false);
+        }
+        mapping.endObject();
 
         // Dimensions
         mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();

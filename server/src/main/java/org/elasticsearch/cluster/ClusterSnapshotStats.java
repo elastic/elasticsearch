@@ -36,7 +36,7 @@ public record ClusterSnapshotStats(
     List<PerRepositoryStats> statsByRepository
 ) implements ToXContentObject, Writeable {
 
-    public static ClusterSnapshotStats EMPTY = new ClusterSnapshotStats(0, 0, 0, 0, List.of());
+    public static final ClusterSnapshotStats EMPTY = new ClusterSnapshotStats(0, 0, 0, 0, List.of());
 
     public static ClusterSnapshotStats of(ClusterState clusterState, long currentTimeMillis) {
         return of(

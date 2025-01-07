@@ -7,15 +7,49 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction.Request;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
 public class CreateFromSourceIndexRequestTests extends AbstractWireSerializingTestCase<Request> {
+
+    public void testToAndFromXContent() throws IOException {
+        var request = createTestInstance();
+
+        boolean humanReadable = randomBoolean();
+        final XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(request, xContentType, EMPTY_PARAMS, humanReadable);
+
+        var parsedRequest = new Request(
+            randomValueOtherThan(request.sourceIndex(), () -> randomAlphanumericOfLength(30)),
+            randomValueOtherThan(request.sourceIndex(), () -> randomAlphanumericOfLength(30))
+        );
+        try (XContentParser xParser = createParser(xContentType.xContent(), originalBytes)) {
+            parsedRequest.fromXContent(xParser);
+        }
+
+        // source and dest won't be equal
+        assertNotEquals(request, parsedRequest);
+        assertNotEquals(request.sourceIndex(), parsedRequest.sourceIndex());
+        assertNotEquals(request.destIndex(), parsedRequest.destIndex());
+
+        // but fields in xcontent will be equal
+        assertEquals(request.settingsOverride(), parsedRequest.settingsOverride());
+        assertEquals(request.mappingsOverride(), parsedRequest.mappingsOverride());
+
+        BytesReference finalBytes = toShuffledXContent(parsedRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+    }
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
@@ -51,10 +85,11 @@ public class CreateFromSourceIndexRequestTests extends AbstractWireSerializingTe
     }
 
     public static Map<String, Object> randomMappings() {
-        return Map.of("properties", Map.of(randomAlphaOfLength(5), Map.of("type", "keyword")));
+        var randMappings = Map.of("properties", Map.of(randomAlphaOfLength(5), Map.of("type", "keyword")));
+        return randomBoolean() ? Map.of() : Map.of("_doc", randMappings);
     }
 
     public static Settings randomSettings() {
-        return indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).build();
+        return randomBoolean() ? Settings.EMPTY : indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).build();
     }
 }

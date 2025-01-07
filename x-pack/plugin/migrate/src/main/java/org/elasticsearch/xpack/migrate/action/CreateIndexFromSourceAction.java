@@ -17,6 +17,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -33,24 +35,25 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest implements IndicesRequest, ToXContent {
         private final String sourceIndex;
         private final String destIndex;
         private Settings settingsOverride = Settings.EMPTY;
         private Map<String, Object> mappingsOverride = Map.of();
-
+        private static final ParseField SETTINGS_OVERRIDE = new ParseField("settings_override");
+        private static final ParseField MAPPINGS_OVERRIDE = new ParseField("mappings_override");
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("create_index_from_source_request");
 
         static {
             PARSER.declareField(
                 (parser, request, context) -> request.settingsOverride(Settings.fromXContent(parser)),
-                new ParseField("settings_override"),
+                SETTINGS_OVERRIDE,
                 ObjectParser.ValueType.OBJECT
             );
 
             PARSER.declareField(
                 (parser, request, context) -> request.mappingsOverride(Map.of("_doc", parser.map())),
-                new ParseField("mappings_override"),
+                MAPPINGS_OVERRIDE,
                 ObjectParser.ValueType.OBJECT
             );
         }
@@ -60,6 +63,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         }
 
         public Request(String sourceIndex, String destIndex, Settings settingsOverride, Map<String, Object> mappingsOverride) {
+            Objects.requireNonNull(settingsOverride);
             Objects.requireNonNull(mappingsOverride);
             this.sourceIndex = sourceIndex;
             this.destIndex = destIndex;
@@ -116,6 +120,24 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
 
         public void fromXContent(XContentParser parser) throws IOException {
             PARSER.parse(parser, this, null);
+        }
+
+        /*
+         * This only exists for the sake of testing the xcontent parser
+         */
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            if (mappingsOverride.containsKey("_doc")) {
+                builder.field(MAPPINGS_OVERRIDE.getPreferredName(), mappingsOverride.get("_doc"));
+            }
+
+            if (settingsOverride.isEmpty() == false) {
+                builder.startObject(SETTINGS_OVERRIDE.getPreferredName());
+                settingsOverride.toXContent(builder, params);
+                builder.endObject();
+            }
+
+            return builder;
         }
 
         @Override

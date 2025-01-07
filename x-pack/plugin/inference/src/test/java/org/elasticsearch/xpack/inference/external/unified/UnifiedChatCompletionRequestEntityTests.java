@@ -74,7 +74,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-
     public void testSerializationWithAllFields() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
@@ -287,7 +286,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-
     public void testSerializationWithNestedObjects() throws IOException {
         Random random = Randomness.get();
 
@@ -434,7 +432,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         assertJsonEquals(jsonString, expectedJson);
     }
 
-
     public void testSerializationWithDifferentContentTypes() throws IOException {
         Random random = Randomness.get();
 
@@ -500,7 +497,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             """, randomContentString, randomText, randomType);
         assertJsonEquals(jsonString, expectedJson);
     }
-
 
     public void testSerializationWithSpecialCharacters() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(

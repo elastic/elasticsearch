@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-public class EISCompletionModelTests extends ESTestCase {
+public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testOverridingModelId() {
         var originalModel = new ElasticInferenceServiceCompletionModel(

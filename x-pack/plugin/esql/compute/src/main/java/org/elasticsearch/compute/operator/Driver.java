@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -176,8 +174,6 @@ public class Driver implements Releasable, Describable {
         return driverContext;
     }
 
-    private static final Logger LOGGER = LogManager.getLogger(Driver.class);
-
     /**
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
@@ -190,15 +186,7 @@ public class Driver implements Releasable, Describable {
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            IsBlockedResult isBlocked;
-            try {
-                isBlocked = runSingleLoopIteration();
-            } catch (DriverEarlyTerminationException e) {
-                drainAndCloseOperators(null);
-                finishNanos = nowSupplier.getAsLong();
-                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE, "early termination");
-                return Operator.NOT_BLOCKED.listener();
-            }
+            IsBlockedResult isBlocked = runSingleLoopIteration();
             iter++;
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
@@ -239,18 +227,6 @@ public class Driver implements Releasable, Describable {
         drainAndCloseOperators(null);
     }
 
-    private void checkForEarlyTermination() throws DriverEarlyTerminationException {
-        if (activeOperators.size() >= 2 && activeOperators.getLast().isFinished()) {
-            for (int i = activeOperators.size() - 2; i >= 0; i--) {
-                Operator op = activeOperators.get(i);
-                if (op.isFinished() == false) {
-                    LOGGER.debug("Early terminated!");
-                    throw new DriverEarlyTerminationException();
-                }
-            }
-        }
-    }
-
     /**
      * Abort the driver and wait for it to finish
      */
@@ -277,7 +253,6 @@ public class Driver implements Releasable, Describable {
             if (op.isBlocked().listener().isDone() == false) {
                 continue;
             }
-            checkForEarlyTermination();
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
@@ -290,7 +265,6 @@ public class Driver implements Releasable, Describable {
                     // Non-empty result from the previous operation, move it to the next operation
                     boolean terminated = true;
                     try {
-                        checkForEarlyTermination();
                         terminated = false;
                     } finally {
                         if (terminated) {
@@ -324,7 +298,6 @@ public class Driver implements Releasable, Describable {
                     itr.remove();
                 }
 
-                checkForEarlyTermination();
                 // Finish the next operator, which is now the first operator.
                 if (activeOperators.isEmpty() == false) {
                     Operator newRootOperator = activeOperators.get(0);

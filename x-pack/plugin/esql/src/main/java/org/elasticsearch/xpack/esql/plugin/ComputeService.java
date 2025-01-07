@@ -897,7 +897,6 @@ public class ComputeService {
             computeListener.acquireAvoid()
         );
         exchangeSink.setSource(exchangeSource);
-        exchangeSource.onFinishEarly(() -> executionInfo.markClusterAsPartial(clusterAlias));
         try (Releasable ignored = exchangeSource.addEmptySink()) {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
             runCompute(

@@ -1,33 +1,23 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- * Copyright Elasticsearch B.V. All rights reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch B.V. and its suppliers, if any.
- * The intellectual and technical concepts contained herein
- * are proprietary to Elasticsearch B.V. and its suppliers and
- * may be covered by U.S. and Foreign Patents, patents in
- * process, and are protected by trade secret or copyright
- * law.  Dissemination of this information or reproduction of
- * this material is strictly forbidden unless prior written
- * permission is obtained from Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.idea;
 
 import groovy.util.Node;
-
 import groovy.util.NodeList;
 
-import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.ParserConfigurationException;
-
 import java.io.IOException;
+
+import javax.xml.parsers.ParserConfigurationException;
 
 public class EnablePreviewFeaturesTask extends DefaultTask {
 

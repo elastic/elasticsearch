@@ -195,7 +195,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     public static UnifiedCompletionRequest.Message randomMessage() {
         return new UnifiedCompletionRequest.Message(
             randomContent(),
-            randomAlphaOfLengthOrNull(10),
+            randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
             randomToolCallListOrNull()
         );

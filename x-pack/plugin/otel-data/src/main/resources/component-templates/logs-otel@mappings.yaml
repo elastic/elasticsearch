@@ -39,6 +39,8 @@ template:
       log.level:
         type: alias
         path: severity_text
+      event_name:
+        type: keyword
       body:
         type: object
         properties:

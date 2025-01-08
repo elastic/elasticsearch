@@ -141,7 +141,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                     clusterAlias,
                     searchCoordinationExecutor,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                    RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
                 );
                 var remoteRequest = new ResolveClusterActionRequest(originalIndices.indices(), request.indicesOptions());
                 // allow cancellation requests to propagate to remote clusters

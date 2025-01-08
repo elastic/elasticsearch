@@ -12,10 +12,6 @@ import org.elasticsearch.test.cluster.util.Version;
 public class RestoreFromVersion6IT extends ArchiveIndexTestCase {
 
     public RestoreFromVersion6IT(Version version) {
-        super(version);
-    }
-
-    public void testArchiveIndex() throws Exception {
-        verifyCompatibility("6");
+        super(version, "6");
     }
 }

@@ -263,14 +263,6 @@ public class Driver implements Releasable, Describable {
                     page.releaseBlocks();
                 } else {
                     // Non-empty result from the previous operation, move it to the next operation
-                    boolean terminated = true;
-                    try {
-                        terminated = false;
-                    } finally {
-                        if (terminated) {
-                            page.releaseBlocks();
-                        }
-                    }
                     nextOp.addInput(page);
                     movedPage = true;
                 }

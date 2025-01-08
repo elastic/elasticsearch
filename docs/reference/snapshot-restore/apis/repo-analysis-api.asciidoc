@@ -5,6 +5,12 @@
 <titleabbrev>Repository analysis</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Analyzes a repository, reporting its performance characteristics and any
 incorrect behaviour found.
 

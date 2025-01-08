@@ -5,6 +5,12 @@
 <titleabbrev>Delete roles</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Removes roles in the native realm.
 
 [[security-api-delete-role-request]]

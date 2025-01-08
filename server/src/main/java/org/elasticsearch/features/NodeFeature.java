@@ -17,7 +17,7 @@ import java.util.Objects;
  * @param id        The feature id. Must be unique in the node.
  * @param assumedAfterNextCompatibilityBoundary
  *              {@code true} if this feature is removed at the next compatibility boundary (ie next major version),
- *              and so should be assumed to be true for all nodes after that boundary.
+ *              and so should be assumed to be met by all nodes after that boundary, even if they don't publish it.
  */
 public record NodeFeature(String id, boolean assumedAfterNextCompatibilityBoundary) {
 

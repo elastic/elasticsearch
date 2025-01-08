@@ -5,6 +5,12 @@
 <titleabbrev>SAML logout</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Submits a request to invalidate an access token and refresh token.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.

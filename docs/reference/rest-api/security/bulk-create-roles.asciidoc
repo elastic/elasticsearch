@@ -5,6 +5,12 @@
 <titleabbrev>Bulk create or update roles API</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Bulk adds and updates roles in the native realm.
 
 [[security-api-bulk-put-role-request]]

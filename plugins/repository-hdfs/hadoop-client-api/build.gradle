@@ -35,7 +35,6 @@ def patchTask = tasks.register("patchClasses", JavaExec) {
   }
 }
 
-
 interface InjectedArchiveOps {
   @Inject ArchiveOperations getArchiveOperations()
 }

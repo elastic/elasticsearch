@@ -10,8 +10,8 @@ subprojects {
   // see: https://wiki.shibboleth.net/confluence/display/DEV/Use+of+Maven+Central
   repositories {
     maven {
-      name "opensaml"
-      url "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
+      name = "opensaml"
+      url = "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
       content {
         includeGroup "org.opensaml"
         includeGroup "net.shibboleth.utilities"

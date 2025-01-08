@@ -240,13 +240,13 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             // Report the status after every action
             .put("status_interval", "0ms");
 
-        if (nodeLevelReduction == false) {
-            // explicitly set the default (false) or don't
+        if (nodeLevelReduction) {
+            // explicitly set the default (true) or don't
             if (randomBoolean()) {
-                settingsBuilder.put("node_level_reduction", nodeLevelReduction);
+                settingsBuilder.put("node_level_reduction", true);
             }
         } else {
-            settingsBuilder.put("node_level_reduction", nodeLevelReduction);
+            settingsBuilder.put("node_level_reduction", false);
         }
 
         var pragmas = new QueryPragmas(settingsBuilder.build());
@@ -273,14 +273,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     private List<TaskInfo> getTasksStarting() throws Exception {
         List<TaskInfo> foundTasks = new ArrayList<>();
         assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .setDetailed(true)
-                .get()
-                .getTasks();
-            assertThat(tasks, hasSize(equalTo(3)));
+            List<TaskInfo> tasks = getDriverTasks();
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 DriverStatus status = (DriverStatus) task.status();
@@ -305,14 +298,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     private List<TaskInfo> getTasksRunning() throws Exception {
         List<TaskInfo> foundTasks = new ArrayList<>();
         assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .setDetailed(true)
-                .get()
-                .getTasks();
-            assertThat(tasks, hasSize(equalTo(3)));
+            List<TaskInfo> tasks = getDriverTasks();
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 DriverStatus status = (DriverStatus) task.status();
@@ -323,6 +309,37 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     assertThat(status.status(), equalTo(DriverStatus.Status.ASYNC));
                 }
             }
+            foundTasks.addAll(tasks);
+        });
+        return foundTasks;
+    }
+
+    /**
+     * Fetches tasks until all three driver tasks have started
+     */
+    private List<TaskInfo> getDriverTasks() throws Exception {
+        List<TaskInfo> foundTasks = new ArrayList<>();
+        assertBusy(() -> {
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(DriverTaskRunner.ACTION_NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks();
+            assertThat(tasks, hasSize(equalTo(3)));
+            List<TaskInfo> readTasks = tasks.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).toList();
+            List<TaskInfo> mergeTasks = tasks.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).toList();
+            assertThat(readTasks, hasSize(1));
+            assertThat(mergeTasks, hasSize(1));
+            // node-level reduction is disabled when the target data node is also the coordinator
+            if (readTasks.get(0).node().equals(mergeTasks.get(0).node())) {
+                REDUCE_DESCRIPTION = """
+                    \\_ExchangeSourceOperator[]
+                    \\_ExchangeSinkOperator""";
+            }
+            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().equals(REDUCE_DESCRIPTION)).toList();
+            assertThat(reduceTasks, hasSize(1));
             foundTasks.addAll(tasks);
         });
         return foundTasks;

@@ -12,6 +12,7 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -232,4 +233,9 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         assertOK(client().performRequest(request));
     }
 
+    protected static boolean isIndexClosed(String indexName) throws Exception {
+        var responseBody = createFromResponse(client().performRequest(new Request("GET", "_cluster/state/metadata/" + indexName)));
+        var state = responseBody.evaluate("metadata.indices." + indexName + ".state");
+        return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
+    }
 }

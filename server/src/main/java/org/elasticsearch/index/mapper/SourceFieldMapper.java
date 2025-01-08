@@ -69,6 +69,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
         final IndexMode indexMode = IndexSettings.MODE.get(settings);
+        if (indexMode == null) {
+            return Mode.DISABLED.name();
+        }
         return indexMode.defaultSourceMode().name();
     }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 

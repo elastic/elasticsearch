@@ -342,7 +342,11 @@ public class JinaAIService extends SenderService {
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setService(NAME).setName(SERVICE_NAME).setTaskTypes(supportedTaskTypes).setConfigurations(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

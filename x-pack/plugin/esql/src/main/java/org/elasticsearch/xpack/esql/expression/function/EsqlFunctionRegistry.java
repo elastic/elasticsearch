@@ -464,25 +464,43 @@ public class EsqlFunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(
-        String name,
-        String[] type,
-        String description,
-        boolean optional,
-        DataType targetDataType,
-        Map<String, MapArgSignature> mapParams
-    ) {
-
-        public ArgSignature(String name, String[] type, String description, boolean optional) {
-            this(name, type, description, optional, UNSUPPORTED, Map.of());
-        }
+    public static class ArgSignature {
+        protected final String name;
+        protected final String[] type;
+        protected final String description;
+        protected final boolean optional;
+        protected final DataType targetDataType;
 
         public ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
-            this(name, type, description, optional, targetDataType, Map.of());
+            this.name = name;
+            this.type = type;
+            this.description = description;
+            this.optional = optional;
+            this.targetDataType = targetDataType;
         }
 
-        public ArgSignature(String name, String[] type, String description, boolean optional, Map<String, MapArgSignature> mapParams) {
-            this(name, type, description, optional, UNSUPPORTED, mapParams);
+        public ArgSignature(String name, String[] type, String description, boolean optional) {
+            this(name, type, description, optional, UNSUPPORTED);
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String[] type() {
+            return type;
+        }
+
+        public String description() {
+            return description;
+        }
+
+        public boolean optional() {
+            return optional;
+        }
+
+        public DataType targetDataType() {
+            return targetDataType;
         }
 
         @Override
@@ -498,13 +516,39 @@ public class EsqlFunctionRegistry {
                 + optional
                 + ", targetDataType="
                 + targetDataType
-                + ", mapParams={"
+                + "}}";
+        }
+    }
+
+    public static class MapArgSignature extends ArgSignature {
+        private final Map<String, MapEntryArgSignature> mapParams;
+
+        public MapArgSignature(String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
+            super("map", new String[] { "map" }, description, optional);
+            this.mapParams = mapParams;
+        }
+
+        public Map<String, MapEntryArgSignature> mapParams() {
+            return mapParams;
+        }
+
+        @Override
+        public String toString() {
+            return "MapArgSignature{"
+                + "name='map', type='map', description='"
+                + description
+                + "', optional="
+                + optional
+                + ", targetDataType=unsupported, mapParams={"
                 + mapParams.values().stream().map(mapArg -> "{" + mapArg + "}").collect(Collectors.joining(", "))
                 + "}}";
         }
+    }
 
-        public boolean mapParam() {
-            return type.length == 1 && type[0].equalsIgnoreCase("map");
+    public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
+        @Override
+        public String toString() {
+            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
         }
     }
 
@@ -528,13 +572,6 @@ public class EsqlFunctionRegistry {
          */
         public List<String> argDescriptions() {
             return args.stream().map(ArgSignature::description).toList();
-        }
-    }
-
-    public record MapArgSignature(String name, String valueHint, String type, String description) {
-        @Override
-        public String toString() {
-            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
         }
     }
 
@@ -598,16 +635,16 @@ public class EsqlFunctionRegistry {
 
     public static ArgSignature mapParam(MapParam mapParam) {
         String desc = mapParam.description().replace('\n', ' ');
-        Map<String, MapArgSignature> params = new HashMap<>(mapParam.params().length);
+        Map<String, MapEntryArgSignature> params = new HashMap<>(mapParam.params().length);
         for (MapParam.MapParamEntry param : mapParam.params()) {
             String valueHint = param.valueHint().length <= 1
                 ? Arrays.toString(param.valueHint())
                 : "[" + String.join(", ", param.valueHint()) + "]";
             String type = param.type().length <= 1 ? Arrays.toString(param.type()) : "[" + String.join(", ", param.type()) + "]";
-            MapArgSignature mapArg = new MapArgSignature(param.name(), valueHint, type, param.description());
+            MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description());
             params.put(param.name(), mapArg);
         }
-        return new EsqlFunctionRegistry.ArgSignature("map", new String[] { "map" }, desc, mapParam.optional(), params);
+        return new EsqlFunctionRegistry.MapArgSignature(desc, mapParam.optional(), params);
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {

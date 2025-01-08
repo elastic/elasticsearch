@@ -2470,6 +2470,136 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
         UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
+
+        // map entry values provided in named parameter, arrays are not supported by named parameters yet
+        assertEquals(
+            new Filter(
+                EMPTY,
+                new Eval(
+                    EMPTY,
+                    relation("test"),
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "x",
+                            function(
+                                "fn1",
+                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
+                            )
+                        )
+                    )
+                ),
+                new Equals(
+                    EMPTY,
+                    attribute("y"),
+                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | eval x = ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]})
+                    | where y == ?fn2(?n2, {"option1":["string1","string2"],"option2":[1,2,3],"option3":?n5,"option4":?n6})
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("fn1", "fn1"),
+                        paramAsIdentifier("fn2", "fn2"),
+                        paramAsIdentifier("n1", "f1"),
+                        paramAsConstant("n2", "testString"),
+                        paramAsConstant("n3", "string"),
+                        paramAsConstant("n4", 1),
+                        paramAsConstant("n5", 2.0),
+                        paramAsConstant("n6", true)
+                    )
+                )
+            )
+        );
+
+        assertEquals(
+            new OrderBy(
+                EMPTY,
+                new Aggregate(
+                    EMPTY,
+                    relation("test"),
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "?fn2(?n7, {\"option1\":[\"string1\",\"string2\"],\"option2\":[1,2,3],\"option3\":?n5,\"option4\":?n6})",
+                            function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2)))
+                        )
+                    ),
+                    List.of(
+                        new Alias(EMPTY, "x", function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1)))),
+                        attribute("?fn2(?n7, {\"option1\":[\"string1\",\"string2\"],\"option2\":[1,2,3],\"option3\":?n5,\"option4\":?n6})")
+                    )
+                ),
+                List.of(
+                    new Order(
+                        EMPTY,
+                        function("fn3", List.of(attribute("f4"), mapExpression(expectedMap3))),
+                        Order.OrderDirection.ASC,
+                        Order.NullsPosition.LAST
+                    )
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | stats x = ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]})
+                      by ?fn2(?n7, {"option1":["string1","string2"],"option2":[1,2,3],"option3":?n5,"option4":?n6})
+                    | sort ?fn3(?n8, {"option1":?n3,"option2":?n5,"option3":[1,2,3],"option4":[true,false]})
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("fn1", "fn1"),
+                        paramAsIdentifier("fn2", "fn2"),
+                        paramAsIdentifier("fn3", "fn3"),
+                        paramAsIdentifier("n1", "f1"),
+                        paramAsIdentifier("n2", "f2"),
+                        paramAsConstant("n3", "string"),
+                        paramAsConstant("n4", 1),
+                        paramAsConstant("n5", 2.0),
+                        paramAsConstant("n6", true),
+                        paramAsIdentifier("n7", "f3"),
+                        paramAsIdentifier("n8", "f4")
+                    )
+                )
+            )
+        );
+
+        plan = statement(
+            """
+                from test
+                | dissect ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
+                | grok ?fn2(?n7, {"option1":["string1","string2"],"option2":[1,2,3],"option3":?n5,"option4":?n6}) "%{WORD:foo}"
+                """,
+            new QueryParams(
+                List.of(
+                    paramAsIdentifier("fn1", "fn1"),
+                    paramAsIdentifier("fn2", "fn2"),
+                    paramAsIdentifier("n1", "f1"),
+                    paramAsIdentifier("n2", "f2"),
+                    paramAsConstant("n3", "string"),
+                    paramAsConstant("n4", 1),
+                    paramAsConstant("n5", 2.0),
+                    paramAsConstant("n6", true),
+                    paramAsIdentifier("n7", "f3")
+                )
+            )
+        );
+        grok = as(plan, Grok.class);
+        assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
+        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        dissect = as(grok.child(), Dissect.class);
+        assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
+        assertEquals("%{bar}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        ur = as(dissect.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
     }
 
     public void testMultipleNamedFunctionArgumentsNotAllowed() {

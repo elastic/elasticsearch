@@ -17,6 +17,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.function.Function;
 
+import static java.lang.Math.multiplyExact;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
@@ -532,6 +533,23 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(e.getMessage(), containsString(exceptionMessage));
     }
 
+    public void testParseFractionsExhaustively() {
+        for (var unit : ByteSizeUnit.values()) {
+            if (unit == BYTES) {
+                // Can't specify fractions of a byte
+                continue;
+            }
+            var granularity = unit.toBytes(1);
+            long wholeUnits = Long.MAX_VALUE / granularity - 1; // Try to provoke a failure by exceeding double precision
+            for (var percent = 0; percent < 100; percent++) {
+                String stringToParse = wholeUnits + percentToDecimal(percent) + unit.getSuffix();
+                ByteSizeValue expected = new ByteSizeValue(wholeUnits * granularity + multiplyExact(granularity, percent) / 100, unit);
+                ByteSizeValue parsedValue = ByteSizeValue.parseBytesSizeValue(stringToParse, "test");
+                assertEquals("Should parse correctly: " + stringToParse, expected, parsedValue);
+            }
+        }
+    }
+
     public void testFormat2DecimalsExhaustively() {
         for (var unit : ByteSizeUnit.values()) {
             if (unit == BYTES) {
@@ -539,10 +557,15 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 continue;
             }
             var granularity = unit.toBytes(1);
-            assertEquals("Integers should be integers", "1", format2Decimals(granularity, granularity));
+            long wholeUnits = Long.MAX_VALUE / granularity - 1; // Try to provoke a failure by exceeding double precision
+            assertEquals(
+                "Integers should not have decimals",
+                Long.toString(wholeUnits),
+                format2Decimals(wholeUnits * granularity, granularity)
+            );
             for (var percent = 1; percent < 100; percent++) {
-                long numerator = (long) (percent * 0.01 * granularity);
-                String expected = "0" + percentToDecimal(percent);
+                long numerator = wholeUnits + (long) (percent * 0.01 * granularity);
+                String expected = wholeUnits + percentToDecimal(percent);
                 assertEquals(
                     "format2Decimals on " + percent + "% of one " + unit.getSuffix(),
                     expected,

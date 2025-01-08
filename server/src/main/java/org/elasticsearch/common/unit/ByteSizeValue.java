@@ -40,8 +40,19 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static final ByteSizeValue ONE = of(1, BYTES);
     public static final ByteSizeValue MINUS_ONE = of(-1, BYTES);
 
+    /**
+     * @param size denominated in the given {@code unit}
+     */
     public static ByteSizeValue of(long size, ByteSizeUnit unit) {
-        return new ByteSizeValue(size, unit);
+        if (size < -1 || (size == -1 && unit != BYTES)) {
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
+        }
+        if (size > Long.MAX_VALUE / unit.toBytes(1)) {
+            throw new IllegalArgumentException(
+                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
+            );
+        }
+        return new ByteSizeValue(unit.toBytes(size), unit);
     }
 
     public static ByteSizeValue ofBytes(long size) {
@@ -96,19 +107,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         throw new IllegalStateException("NOT YET IMPLEMENTED!");
     }
 
-    /**
-     * @param size denominated in the given {@code unit}
-     */
-    private ByteSizeValue(long size, ByteSizeUnit unit) {
-        if (size < -1 || (size == -1 && unit != BYTES)) {
-            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
-        }
-        if (size > Long.MAX_VALUE / unit.toBytes(1)) {
-            throw new IllegalArgumentException(
-                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
-            );
-        }
-        this.sizeInBytes = unit.toBytes(size);
+    ByteSizeValue(long sizeInBytes, ByteSizeUnit unit) {
+        this.sizeInBytes = sizeInBytes;
         this.preferredUnit = unit;
     }
 
@@ -317,7 +317,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                             initialInput
                         );
                     }
-                    return ByteSizeValue.ofBytes((long) (decimalValue.doubleValue() * unit.toBytes(1)));
+                    return new ByteSizeValue(decimalValue.multiply(new BigDecimal(unit.toBytes(1))).longValue(), unit);
                 } catch (final NumberFormatException ignored) {
                     throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }

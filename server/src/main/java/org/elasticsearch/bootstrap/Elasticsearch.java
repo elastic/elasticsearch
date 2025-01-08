@@ -51,7 +51,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -106,7 +105,6 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
-        final boolean useEntitlements = Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"));
         try {
             initSecurityProperties();
 
@@ -115,14 +113,12 @@ class Elasticsearch {
              * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
              * This forces such policies to take effect immediately.
              */
-            if (useEntitlements == false) {
-                org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-                    @Override
-                    public void checkPermission(Permission perm) {
-                        // grant all permissions so that we can later set the security manager to the one that we want
-                    }
-                });
-            }
+            org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
+                @Override
+                public void checkPermission(Permission perm) {
+                    // grant all permissions so that we can later set the security manager to the one that we want
+                }
+            });
             LogConfigurator.registerErrorListener();
 
             BootstrapInfo.init();
@@ -148,7 +144,7 @@ class Elasticsearch {
             return null; // unreachable, to satisfy compiler
         }
 
-        return new Bootstrap(out, err, args, useEntitlements);
+        return new Bootstrap(out, err, args);
     }
 
     /**
@@ -209,7 +205,7 @@ class Elasticsearch {
         var pluginsLoader = PluginsLoader.createPluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
         bootstrap.setPluginsLoader(pluginsLoader);
 
-        if (bootstrap.useEntitlements()) {
+        if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
             List<EntitlementBootstrap.PluginData> pluginData = Stream.concat(
@@ -273,11 +269,7 @@ class Elasticsearch {
                 final BoundTransportAddress boundTransportAddress,
                 List<BootstrapCheck> checks
             ) throws NodeValidationException {
-                var additionalChecks = new ArrayList<>(checks);
-                if (bootstrap.useEntitlements() == false) {
-                    additionalChecks.add(new BootstrapChecks.AllPermissionCheck());
-                }
-                BootstrapChecks.check(context, boundTransportAddress, additionalChecks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
         INSTANCE = new Elasticsearch(bootstrap.spawner(), node);

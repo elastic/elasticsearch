@@ -70,7 +70,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(useEntitlements),
+            maybeAllowSecurityManager(),
             maybeAttachEntitlementAgent(useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -148,12 +148,9 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (useEntitlements == false) {
-            // Will become conditional on useEntitlements once entitlements can run without SM
-            return Stream.of("-Djava.security.manager=allow");
-        }
-        return Stream.of();
+    private static Stream<String> maybeAllowSecurityManager() {
+        // Will become conditional on useEntitlements once entitlements can run without SM
+        return Stream.of("-Djava.security.manager=allow");
     }
 
     private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
@@ -175,16 +172,12 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
-        // We instrument classes in these modules to call the bridge. Because the bridge gets patched
-        // into java.base, we must export the bridge from java.base to these modules.
-        String modulesContainingEntitlementInstrumentation = "java.logging";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,
-            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
-                + modulesContainingEntitlementInstrumentation
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
         );
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -198,38 +199,29 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public String toString() {
-        // Because we limit fractional values to 2 decimal places, they have a granularity of one part in 100.
-        // The binary prefixes offer a much finer granularity of one part in 1024. Therefore, if we compute the
-        // size in the preferred unit as a floating-point fraction and then round to 2 decimals, we exactly
-        // recover the correct fractional value, even accounting for the double-rounding that can occur when
-        // we first convert to a double and then round to two decimals.
-        long granularity = preferredUnit.toBytes(1);
-        assert granularity < Long.MAX_VALUE / 100: "Units must be small enough that multiplying them by 100 doesn't overflow";
-        return format2Decimals(sizeInBytes / granularity, (sizeInBytes % granularity) * 100 / granularity);
+        return format2Decimals(sizeInBytes, preferredUnit.toBytes(1)) + preferredUnit.getSuffix();
     }
 
     /**
-     * Format the double value with at most 2 decimal places, rounding using {@link java.math.RoundingMode#HALF_UP}.
-     * <p>
-     * <strong>Double-rounding</strong>:
-     * Because {@code value} is a floating-point number, presumably produced by some sort of calculation,
-     * it could already have been rounded, and this string formatting operation will round it again, which could
-     * in theory produce incorrect results. For example, 0.114999999999999999 would be represented as the {@code double}
-     * value {@code 0.115}, which when passed to this function, would produce the incorrect string {@code 0.12}
-     * instead of the correctly rounded string {@code 0.11}.
-     * <p>
-     * However, in the specific use case of this class, where the original input is limited to two decimal places
-     * and has a limited magnitude, then this sort of double-rounding is impossible.
+     * Strictly speaking, this is only <em>guaranteed</em> to return the exact right two decimals
+     * when {@code numerator} is the rounded value of some multiple of 1% of {@code denominator}.
+     * Other arbitrary values, where {@code numerator / denominator} exceeds the precision of a
+     * {@code double}, may be off by a little.
      */
-    static String format2Decimals(long units, long hundredths) {
-        assert 0 <= hundredths && hundredths <= 99;
-        if (hundredths == 0) {
-            return String.valueOf(units);
+    static String format2Decimals(long numerator, long denominator) {
+        // If numerator >> denominator, we risk exceeding the precision of a double, so we enlist
+        // the help of MAX_TWO_DECIMALS only for the fractional portion, and we handle the whole-number
+        // portion ourselves.
+        long wholeNumberPortion = numerator / denominator;
+        long remainder = numerator % denominator;
+        if (remainder == 0) {
+            return Long.toString(wholeNumberPortion);
         } else {
-            String fraction = String.valueOf(hundredths * 0.01);
-            return units + " " + fraction.substring(1); // Skip the zero
+            return wholeNumberPortion + MAX_TWO_DECIMALS.format(remainder / (double) denominator);
         }
     }
+
+    private static final DecimalFormat MAX_TWO_DECIMALS = new DecimalFormat(".##");
 
     public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
         return parseBytesSizeValue(sValue, null, settingName);

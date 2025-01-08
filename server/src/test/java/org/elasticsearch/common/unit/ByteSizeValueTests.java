@@ -17,6 +17,8 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
 import static org.elasticsearch.common.unit.ByteSizeValue.format2Decimals;
 import static org.hamcrest.Matchers.containsString;
@@ -539,6 +541,45 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(e.getMessage(), containsString(exceptionMessage));
     }
 
+    public void testFormat2DecimalsExhaustively() {
+        for (var unit: ByteSizeUnit.values()) {
+            if (unit == BYTES) {
+                // Can't specify fractions of a byte
+                continue;
+            }
+            var granularity = unit.toBytes(1);
+            assertEquals("Integers should be integers", "1", format2Decimals(granularity, granularity));
+            for (var percent = 1; percent < 100; percent++) {
+                long numerator = (long)(percent * 0.01 * granularity);
+                String expected = "0" + percentToDecimal(percent);
+                assertEquals("format2Decimals on " + percent + "% of one " + unit.getSuffix(), expected, format2Decimals(numerator, granularity));
+            }
+        }
+    }
+
+    public void testFormat2DecimalsForHugeValues() {
+        // The largest magnitude we can get with fractions is if we specify a value very close to Long.MAX_VALUE bytes using KB.
+        long granularity = KB.toBytes(1);
+        long wholeUnits = Long.MAX_VALUE / granularity;
+        for (var percent = 1; percent < 100; percent++) {
+            long fractionalPart = (long)(0.01 * percent * granularity);
+            long numerator = wholeUnits * granularity + fractionalPart;
+            String expected = wholeUnits + percentToDecimal(percent);
+            assertEquals("String should match for " + percent + "%", expected, format2Decimals(numerator, granularity));
+        }
+    }
+
+    private static String percentToDecimal(int percent) {
+        if (percent <= 9) {
+            return ".0" + percent;
+        } else if (percent % 10 == 0) {
+            return "." + percent /10;
+        } else {
+            return "." + percent;
+        }
+    }
+
+    /*
     public void testFormat2DecimalsWithIntegers() {
         assertEquals("0", format2Decimals(0, 0));
         assertEquals("123", format2Decimals(123, 0));
@@ -574,6 +615,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         // Ensure we can still tell .49 from .50
         assertEquals("90000000000000.49", format2Decimals(pointFourNine / 1024));
     }
+     */
 
     @Override
     protected void assertEqualInstances(ByteSizeValue expectedInstance, ByteSizeValue newInstance) {

@@ -253,6 +253,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchFunctionFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119720
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testSingleMatchFunctionPushdownWithCasting {default}
+  issue: https://github.com/elastic/elasticsearch/issues/119722
 
 # Examples:
 #

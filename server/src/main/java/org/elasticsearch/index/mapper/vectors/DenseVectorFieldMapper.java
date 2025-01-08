@@ -2019,7 +2019,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Query createKnnQuery(
             VectorData queryVector,
-            Integer k,
+            int k,
             int numCands,
             Float numCandsFactor,
             Query filter,
@@ -2052,7 +2052,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnBitQuery(
             byte[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Query filter,
             Float similarityThreshold,
@@ -2074,7 +2074,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnByteQuery(
             byte[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Query filter,
             Float similarityThreshold,
@@ -2101,7 +2101,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnFloatQuery(
             float[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Float numCandsFactor,
             Query filter,

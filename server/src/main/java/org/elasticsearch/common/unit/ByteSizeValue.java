@@ -251,7 +251,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     private static final DecimalFormat MAX_TWO_DECIMALS = maxTwoDecimalsFormat();
 
-    @SuppressForbidden(reason="We truly just want two decimals; Locale settings don't matter here")
+    @SuppressForbidden(reason = "We truly just want two decimals; Locale settings don't matter here")
     private static DecimalFormat maxTwoDecimalsFormat() {
         return new DecimalFormat(".##");
     }

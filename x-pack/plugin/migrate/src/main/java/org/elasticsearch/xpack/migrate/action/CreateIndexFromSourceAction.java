@@ -40,20 +40,20 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         private final String destIndex;
         private Settings settingsOverride = Settings.EMPTY;
         private Map<String, Object> mappingsOverride = Map.of();
-        private static final ParseField SETTINGS_OVERRIDE = new ParseField("settings_override");
-        private static final ParseField MAPPINGS_OVERRIDE = new ParseField("mappings_override");
+        private static final ParseField SETTINGS_OVERRIDE_FIELD = new ParseField("settings_override");
+        private static final ParseField MAPPINGS_OVERRIDE_FIELD = new ParseField("mappings_override");
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("create_index_from_source_request");
 
         static {
             PARSER.declareField(
                 (parser, request, context) -> request.settingsOverride(Settings.fromXContent(parser)),
-                SETTINGS_OVERRIDE,
+                SETTINGS_OVERRIDE_FIELD,
                 ObjectParser.ValueType.OBJECT
             );
 
             PARSER.declareField(
                 (parser, request, context) -> request.mappingsOverride(Map.of("_doc", parser.map())),
-                MAPPINGS_OVERRIDE,
+                MAPPINGS_OVERRIDE_FIELD,
                 ObjectParser.ValueType.OBJECT
             );
         }
@@ -128,11 +128,11 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             if (mappingsOverride.containsKey("_doc")) {
-                builder.field(MAPPINGS_OVERRIDE.getPreferredName(), mappingsOverride.get("_doc"));
+                builder.field(MAPPINGS_OVERRIDE_FIELD.getPreferredName(), mappingsOverride.get("_doc"));
             }
 
             if (settingsOverride.isEmpty() == false) {
-                builder.startObject(SETTINGS_OVERRIDE.getPreferredName());
+                builder.startObject(SETTINGS_OVERRIDE_FIELD.getPreferredName());
                 settingsOverride.toXContent(builder, params);
                 builder.endObject();
             }

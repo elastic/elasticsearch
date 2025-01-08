@@ -157,12 +157,12 @@ public class QueryBuilderResolver {
             Map<FullTextFunction, QueryBuilder> results = new HashMap<>();
 
             boolean hasChanged = false;
-            for (FullTextFunction func : queryBuilderMap.keySet()) {
-                var initial = queryBuilderMap.get(func);
+            for (var entry : queryBuilderMap.entrySet()) {
+                var initial = entry.getValue();
                 var rewritten = initial.rewrite(ctx);
                 hasChanged |= rewritten != initial;
 
-                results.put(func, rewritten);
+                results.put(entry.getKey(), rewritten);
             }
 
             return hasChanged ? new FullTextFunctionsRewritable(results) : this;

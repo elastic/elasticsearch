@@ -81,7 +81,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
-    private volatile boolean hasPartialReduce;
+    private boolean hasPartialReduce;
     private volatile int numReducePhases;
 
     /**
@@ -152,6 +152,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     @Override
     public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
+        var mergeResult = this.mergeResult;
+        this.mergeResult = null;
         if (hasPendingMerges()) {
             throw new AssertionError("partial reduce in-flight");
         }
@@ -160,31 +162,30 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             throw f;
         }
 
+        var buffer = this.buffer;
         // ensure consistent ordering
-        sortBuffer();
+        buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1);
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final List<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayList<>(resultSize) : null;
-        synchronized (this) {
-            if (mergeResult != null) {
-                if (topDocsList != null) {
-                    topDocsList.add(mergeResult.reducedTopDocs);
-                }
-                if (aggsList != null) {
-                    aggsList.add(DelayableWriteable.referencing(mergeResult.reducedAggs));
-                }
+        if (mergeResult != null) {
+            if (topDocsList != null) {
+                topDocsList.add(mergeResult.reducedTopDocs);
             }
-            for (QuerySearchResult result : buffer) {
-                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
-                if (topDocsList != null) {
-                    TopDocsAndMaxScore topDocs = result.consumeTopDocs();
-                    setShardIndex(topDocs.topDocs, result.getShardIndex());
-                    topDocsList.add(topDocs.topDocs);
-                }
-                if (aggsList != null) {
-                    aggsList.add(result.getAggs());
-                }
+            if (aggsList != null) {
+                aggsList.add(DelayableWriteable.referencing(mergeResult.reducedAggs));
+            }
+        }
+        for (QuerySearchResult result : buffer) {
+            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+            if (topDocsList != null) {
+                TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                setShardIndex(topDocs.topDocs, result.getShardIndex());
+                topDocsList.add(topDocs.topDocs);
+            }
+            if (aggsList != null) {
+                aggsList.add(result.getAggs());
             }
         }
         SearchPhaseController.ReducedQueryPhase reducePhase;
@@ -305,12 +306,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private boolean hasPendingMerges() {
         return queue.isEmpty() == false || runningTask.get() != null;
-    }
-
-    void sortBuffer() {
-        if (buffer.size() > 0) {
-            buffer.sort(RESULT_COMPARATOR);
-        }
     }
 
     private synchronized void addWithoutBreaking(long size) {
@@ -473,13 +468,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         if (hasAggs) {
                             // Update the circuit breaker to remove the size of the source aggregations
                             // and replace the estimation with the serialized size of the newly reduced result.
-                            long newSize = mergeResult.estimatedSize - estimatedTotalSize;
+                            long newSize = newMerge.estimatedSize - estimatedTotalSize;
                             addWithoutBreaking(newSize);
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
                                     "aggs partial reduction [{}->{}] max [{}]",
                                     estimatedTotalSize,
-                                    mergeResult.estimatedSize,
+                                    newMerge.estimatedSize,
                                     maxAggsCurrentBufferSize
                                 );
                             }

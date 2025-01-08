@@ -128,13 +128,13 @@ public class EntitlementInitialization {
         final Policy policy = parsePolicyIfExists(pluginName, policyFile, isExternalPlugin);
 
         // TODO: should this check actually be part of the parser?
-        for (Scope scope : policy.scopes) {
-            if (moduleNames.contains(scope.moduleName) == false) {
+        for (Scope scope : policy.scopes()) {
+            if (moduleNames.contains(scope.moduleName()) == false) {
                 throw new IllegalStateException(
                     Strings.format(
                         "Invalid module name in policy: plugin [%s] does not have module [%s]; available modules [%s]; policy file [%s]",
                         pluginName,
-                        scope.moduleName,
+                        scope.moduleName(),
                         String.join(", ", moduleNames),
                         policyFile
                     )

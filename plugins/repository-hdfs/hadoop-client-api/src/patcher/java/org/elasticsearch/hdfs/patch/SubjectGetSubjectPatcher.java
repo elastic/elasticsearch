@@ -11,11 +11,16 @@ package org.elasticsearch.hdfs.patch;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
 import static org.objectweb.asm.Opcodes.ASM9;
+import static org.objectweb.asm.Opcodes.BIPUSH;
+import static org.objectweb.asm.Opcodes.GOTO;
+import static org.objectweb.asm.Opcodes.IF_ICMPLE;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
+import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.POP;
 
 class SubjectGetSubjectPatcher extends ClassVisitor {
@@ -42,6 +47,24 @@ class SubjectGetSubjectPatcher extends ClassVisitor {
         @Override
         public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
             if (opcode == INVOKESTATIC && SUBJECT_CLASS_INTERNAL_NAME.equals(owner) && METHOD_NAME.equals(name)) {
+                Label olderJdk = new Label();
+                Label end = new Label();
+                mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    Type.getInternalName(Runtime.class),
+                    "version",
+                    Type.getMethodDescriptor(Type.getType(Runtime.Version.class)),
+                    false
+                );
+                mv.visitMethodInsn(
+                    INVOKEVIRTUAL,
+                    Type.getInternalName(Runtime.Version.class),
+                    "feature",
+                    Type.getMethodDescriptor(Type.getType(int.class)),
+                    false
+                );
+                mv.visitIntInsn(BIPUSH, 17);
+                mv.visitJumpInsn(IF_ICMPLE, olderJdk);
                 // Get rid of the extra arg on the stack
                 mv.visitInsn(POP);
                 // Call Subject.current()
@@ -52,6 +75,10 @@ class SubjectGetSubjectPatcher extends ClassVisitor {
                     Type.getMethodDescriptor(Type.getObjectType(SUBJECT_CLASS_INTERNAL_NAME)),
                     false
                 );
+                mv.visitJumpInsn(GOTO, end);
+                mv.visitLabel(olderJdk);
+                super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                mv.visitLabel(end);
             } else {
                 super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
             }

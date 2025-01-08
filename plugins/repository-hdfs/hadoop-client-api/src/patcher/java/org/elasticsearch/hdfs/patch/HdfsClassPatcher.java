@@ -22,6 +22,9 @@ import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
+import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
+
 public class HdfsClassPatcher {
     static final Map<String, Function<ClassWriter, ClassVisitor>> patchers = Map.of(
         "org/apache/hadoop/util/ShutdownHookManager.class",
@@ -47,7 +50,7 @@ public class HdfsClassPatcher {
                 byte[] classToPatch = jarFile.getInputStream(jarEntry).readAllBytes();
 
                 ClassReader classReader = new ClassReader(classToPatch);
-                ClassWriter classWriter = new ClassWriter(classReader, 0);
+                ClassWriter classWriter = new ClassWriter(classReader, COMPUTE_FRAMES | COMPUTE_MAXS);
                 classReader.accept(patcher.getValue().apply(classWriter), 0);
 
                 Path outputFile = outputDir.resolve(patcher.getKey());

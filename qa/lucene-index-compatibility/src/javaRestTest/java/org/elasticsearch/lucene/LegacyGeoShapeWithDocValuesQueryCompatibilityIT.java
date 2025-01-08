@@ -8,6 +8,7 @@
 package org.elasticsearch.lucene;
 
 import io.netty.handler.codec.http.HttpMethod;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;

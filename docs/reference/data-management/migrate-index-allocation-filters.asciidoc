@@ -2,7 +2,7 @@
 [[migrate-index-allocation-filters]]
 == Migrate index allocation filters to node roles
 
-If you currently use custom node attributes and
+If you currently use <<custom-node-attributes,custom node attributes>> and
 <<shard-allocation-filtering, attribute-based allocation filters>> to
 move indices through <<data-tiers, data tiers>> in a
 https://www.elastic.co/blog/implementing-hot-warm-cold-in-elasticsearch-with-index-lifecycle-management[hot-warm-cold architecture],

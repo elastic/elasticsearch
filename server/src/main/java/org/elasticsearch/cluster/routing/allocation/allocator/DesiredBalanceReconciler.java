@@ -165,14 +165,16 @@ public class DesiredBalanceReconciler {
                 allocation.clusterInfo(),
                 desiredBalance
             );
-            Map<DiscoveryNode, NodeAllocationStatsAndWeight> filteredNodeAllocationStats = new HashMap<>(nodesStatsAndWeights.size());
+            Map<DiscoveryNode, NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights = new HashMap<>(
+                nodesStatsAndWeights.size()
+            );
             for (var nodeStatsAndWeight : nodesStatsAndWeights.entrySet()) {
                 var node = allocation.nodes().get(nodeStatsAndWeight.getKey());
                 if (node != null) {
-                    filteredNodeAllocationStats.put(node, nodeStatsAndWeight.getValue());
+                    filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
                 }
             }
-            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStats);
+            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
         }
 
         private boolean allocateUnassignedInvariant() {

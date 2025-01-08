@@ -75,7 +75,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
-        var nodeAllocationStats = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
+        var nodeAllocationStatsAndWeights = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
             int shards = 0;
             int undesiredShards = 0;
@@ -105,7 +105,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
                 currentDiskUsage,
                 avgDiskUsageInBytesPerNode
             );
-            nodeAllocationStats.put(
+            nodeAllocationStatsAndWeights.put(
                 node.nodeId(),
                 new NodeAllocationStatsAndWeight(
                     shards,
@@ -120,7 +120,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
             );
         }
 
-        return nodeAllocationStats;
+        return nodeAllocationStatsAndWeights;
     }
 
     /**

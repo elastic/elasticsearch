@@ -333,20 +333,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         parse(sortBuilder);
     }
 
-    public void testGeoDistanceSortDeprecatedSortModeException() throws Exception {
-        XContentBuilder sortBuilder = jsonBuilder();
-        sortBuilder.startObject();
-        sortBuilder.startArray("location");
-        sortBuilder.startArray().value(1.2).value(3).endArray().startArray().value(5).value(6).endArray();
-        sortBuilder.endArray();
-        sortBuilder.field("order", "desc");
-        sortBuilder.field("unit", "km");
-        sortBuilder.field("sort_mode", "max");
-        sortBuilder.endObject();
-        parse(sortBuilder);
-        assertWarnings("Deprecated field [sort_mode] used, expected [mode] instead");
-    }
-
     private GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
         try (XContentParser parser = createParser(sortBuilder)) {
             parser.nextToken();

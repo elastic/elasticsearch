@@ -437,7 +437,10 @@ public class JinaAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [jinaai] service, please delete and add the service again")
+                is(
+                    "Failed to parse stored model [id] for [jinaai] service. Task type: [sparse_embedding] "
+                        + "is not valid for the service, please delete and add the service again"
+                )
             );
         }
     }
@@ -677,7 +680,10 @@ public class JinaAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [jinaai] service, please delete and add the service again")
+                is(
+                    "Failed to parse stored model [id] for [jinaai] service. Task type: [sparse_embedding] "
+                        + "is not valid for the service, please delete and add the service again"
+                )
             );
         }
     }

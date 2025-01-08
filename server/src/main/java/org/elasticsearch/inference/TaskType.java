@@ -24,13 +24,13 @@ public enum TaskType implements Writeable {
     SPARSE_EMBEDDING,
     RERANK,
     COMPLETION,
-    CHAT_COMPLETION,
     ANY {
         @Override
         public boolean isAnyOrSame(TaskType other) {
             return true;
         }
-    };
+    },
+    CHAT_COMPLETION;
 
     public static final String NAME = "task_type";
 

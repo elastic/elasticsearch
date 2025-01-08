@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.analysis.PostAnalysisAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -16,19 +18,23 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
  */
-public abstract class AggregateFunction extends Function {
+public abstract class AggregateFunction extends Function implements PostAnalysisAware {
 
     private final Expression field;
     private final List<? extends Expression> parameters;
@@ -126,5 +132,19 @@ public abstract class AggregateFunction extends Function {
                 && Objects.equals(other.parameters(), parameters());
         }
         return false;
+    }
+
+    public BiConsumer<LogicalPlan, Failures> planChecker() {
+        return (p, failures) -> {
+            if (p instanceof OrderBy order) {
+                order.order().forEach(o -> {
+                    o.forEachDown(Function.class, f -> {
+                        if (f instanceof AggregateFunction) {
+                            failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+                        }
+                    });
+                });
+            }
+        };
     }
 }

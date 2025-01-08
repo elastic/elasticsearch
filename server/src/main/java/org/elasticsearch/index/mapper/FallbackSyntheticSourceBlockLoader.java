@@ -39,10 +39,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     private final Reader<?> reader;
     private final String fieldName;
 
-    protected FallbackSyntheticSourceBlockLoader(
-        Reader<?> reader,
-        String fieldName
-    ) {
+    protected FallbackSyntheticSourceBlockLoader(Reader<?> reader, String fieldName) {
         this.reader = reader;
         this.fieldName = fieldName;
     }

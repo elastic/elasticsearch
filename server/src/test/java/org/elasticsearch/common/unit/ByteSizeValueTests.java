@@ -12,6 +12,7 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -263,37 +264,9 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     @Override
     protected ByteSizeValue mutateInstance(final ByteSizeValue instance) {
-        final long originalBytes = instance.sizeInBytes;
-        final ByteSizeUnit originalUnit = instance.preferredUnit;
-        final long mutateSize;
-        final ByteSizeUnit mutateUnit;
-        switch (between(0, 1)) {
-            case 0 -> {
-                final long unitBytes = originalUnit.toBytes(1);
-                mutateSize = randomValueOtherThan(originalBytes, () -> randomNonNegativeLong() / unitBytes);
-                mutateUnit = originalUnit;
-            }
-            case 1 -> {
-                mutateUnit = randomValueOtherThan(originalUnit, () -> randomFrom(ByteSizeUnit.values()));
-                final long newUnitBytes = mutateUnit.toBytes(1);
-                /*
-                 * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other
-                 * unit so in this case we need to randomize a new size. Additionally, if the size unit pair is such that
-                 * the representation would be such that the number of represented bytes would exceed Long.Max_VALUE, we
-                 * have to randomize a new size too.
-                 */
-                if (originalBytes == 0 || originalBytes >= Long.MAX_VALUE / newUnitBytes) {
-                    mutateSize = randomValueOtherThanMany(
-                        v -> v == originalBytes && v >= Long.MAX_VALUE / newUnitBytes,
-                        () -> randomNonNegativeLong() / newUnitBytes
-                    );
-                } else {
-                    mutateSize = originalBytes;
-                }
-            }
-            default -> throw new AssertionError("Invalid randomisation branch");
-        }
-        return ByteSizeValue.of(mutateSize, mutateUnit);
+        // There's just one way to create an unequal ByteSizeValue: change the size in bytes.
+        // Changing only the unit does not make the ByteSizeValue unequal.
+        return new ByteSizeValue(randomValueOtherThan(instance.sizeInBytes, ESTestCase::randomNonNegativeLong), instance.preferredUnit);
     }
 
     public void testParse() {

@@ -16,25 +16,20 @@ import org.elasticsearch.test.cluster.util.Version;
  * PUT /index
  * {
  *   "settings": {
- *     "analysis": {
- *       "analyzer": {
- *         "custom_analyzer": {
- *           "type": "custom",
- *           "tokenizer": "standard",
- *           "filter": [
- *             "standard",
- *             "lowercase"
- *           ]
- *         }
- *       }
- *     }
+ *     "number_of_shards": 1,
+ *     "number_of_replicas": 1
  *   },
  *   "mappings": {
  *     "my_type": {
  *       "properties": {
- *         "content": {
- *           "type": "text",
- *           "analyzer": "custom_analyzer"
+ *         "title": {
+ *           "type": "text"
+ *         },
+ *         "created_at": {
+ *           "type": "date"
+ *         },
+ *         "views": {
+ *           "type": "integer"
  *         }
  *       }
  *     }

@@ -10,6 +10,37 @@ package org.elasticsearch.oldrepos.searchablesnapshot;
 import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
+/**
+ * Test case mounting index created in ES_v5 - Custom-Analyzer - standard token filter
+ *
+ * PUT /index
+ * {
+ *   "settings": {
+ *     "analysis": {
+ *       "analyzer": {
+ *         "custom_analyzer": {
+ *           "type": "custom",
+ *           "tokenizer": "standard",
+ *           "filter": [
+ *             "standard",
+ *             "lowercase"
+ *           ]
+ *         }
+ *       }
+ *     }
+ *   },
+ *   "mappings": {
+ *     "my_type": {
+ *       "properties": {
+ *         "content": {
+ *           "type": "text",
+ *           "analyzer": "custom_analyzer"
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ */
 public class MountFromVersion5CustomAnalyzerIT extends SearchableSnapshotTestCase {
 
     public MountFromVersion5CustomAnalyzerIT(Version version) {

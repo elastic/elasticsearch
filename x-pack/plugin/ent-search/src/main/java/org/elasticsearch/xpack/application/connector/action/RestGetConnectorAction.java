@@ -36,7 +36,7 @@ public class RestGetConnectorAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        Boolean isDeleted = restRequest.paramAsBoolean("deleted", false);
+        Boolean isDeleted = restRequest.paramAsBoolean("include_deleted", false);
         GetConnectorAction.Request request = new GetConnectorAction.Request(restRequest.param(CONNECTOR_ID_PARAM), isDeleted);
         return channel -> client.execute(GetConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

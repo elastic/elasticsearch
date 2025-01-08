@@ -286,7 +286,7 @@ setup:
 
   - do:
       connector.list:
-        deleted: true
+        include_deleted: true
 
   - match: { count: 3 }
 
@@ -308,7 +308,7 @@ setup:
 
   - do:
       connector.list:
-        deleted: true
+        include_deleted: true
 
   - match: { count: 3 }
 
@@ -330,7 +330,7 @@ setup:
 
   - do:
       connector.list:
-        deleted: true
+        include_deleted: true
 
   - match: { count: 3 }
 
@@ -370,7 +370,7 @@ setup:
   - do:
       connector.list:
         from: 1
-        deleted: true
+        include_deleted: true
 
   - match: { count: 3 }
 
@@ -404,7 +404,7 @@ setup:
   - do:
       connector.list:
         size: 2
-        deleted: true
+        include_deleted: true
 
   - match: { count: 3 }
 

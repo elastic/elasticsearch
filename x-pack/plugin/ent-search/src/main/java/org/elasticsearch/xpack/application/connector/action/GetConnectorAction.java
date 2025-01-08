@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,33 +38,23 @@ public class GetConnectorAction {
     public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
-        private final Boolean isDeleted;
+        private final Boolean includeDeleted;
 
         private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
 
-        private static final ParseField IS_DELETED_FIELD = new ParseField("deleted");
+        private static final ParseField INCLUDE_DELETED_FIELD = new ParseField("include_deleted");
 
-        public Request(String connectorId, Boolean isDeleted) {
+        public Request(String connectorId, Boolean includeDeleted) {
             this.connectorId = connectorId;
-            this.isDeleted = isDeleted;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
-                this.isDeleted = in.readBoolean();
-            } else {
-                this.isDeleted = false;
-            }
+            this.includeDeleted = includeDeleted;
         }
 
         public String getConnectorId() {
             return connectorId;
         }
 
-        public Boolean getDeleted() {
-            return isDeleted;
+        public Boolean getIncludeDeleted() {
+            return includeDeleted;
         }
 
         @Override
@@ -80,11 +70,7 @@ public class GetConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
-                out.writeBoolean(isDeleted);
-            }
+            TransportAction.localOnly();
         }
 
         @Override
@@ -92,12 +78,12 @@ public class GetConnectorAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId) && Objects.equals(isDeleted, request.isDeleted);
+            return Objects.equals(connectorId, request.connectorId) && Objects.equals(includeDeleted, request.includeDeleted);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, isDeleted);
+            return Objects.hash(connectorId, includeDeleted);
         }
 
         @Override
@@ -105,7 +91,7 @@ public class GetConnectorAction {
             builder.startObject();
             {
                 builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
-                builder.field(IS_DELETED_FIELD.getPreferredName(), isDeleted);
+                builder.field(INCLUDE_DELETED_FIELD.getPreferredName(), includeDeleted);
             }
             builder.endObject();
             return builder;
@@ -119,7 +105,7 @@ public class GetConnectorAction {
         );
         static {
             PARSER.declareString(constructorArg(), CONNECTOR_ID_FIELD);
-            PARSER.declareBoolean(optionalConstructorArg(), IS_DELETED_FIELD);
+            PARSER.declareBoolean(optionalConstructorArg(), INCLUDE_DELETED_FIELD);
         }
 
         public static Request parse(XContentParser parser) {

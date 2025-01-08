@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,27 +47,13 @@ public class ListConnectorAction {
         private final List<String> connectorNames;
         private final List<String> connectorServiceTypes;
         private final String connectorSearchQuery;
-        private final Boolean isDeleted;
+        private final Boolean includeDeleted;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
         private static final ParseField INDEX_NAMES_FIELD = new ParseField("index_names");
         private static final ParseField NAMES_FIELD = new ParseField("names");
         private static final ParseField SEARCH_QUERY_FIELD = new ParseField("query");
-        private static final ParseField IS_DELETED_FIELD = new ParseField("deleted");
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.pageParams = new PageParams(in);
-            this.indexNames = in.readOptionalStringCollectionAsList();
-            this.connectorNames = in.readOptionalStringCollectionAsList();
-            this.connectorServiceTypes = in.readOptionalStringCollectionAsList();
-            this.connectorSearchQuery = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
-                this.isDeleted = in.readBoolean();
-            } else {
-                this.isDeleted = false;
-            }
-        }
+        private static final ParseField INCLUDE_DELETED_FIELD = new ParseField("include_deleted");
 
         public Request(
             PageParams pageParams,
@@ -75,14 +61,14 @@ public class ListConnectorAction {
             List<String> connectorNames,
             List<String> serviceTypes,
             String connectorSearchQuery,
-            Boolean isDeleted
+            Boolean includeDeleted
         ) {
             this.pageParams = pageParams;
             this.indexNames = indexNames;
             this.connectorNames = connectorNames;
             this.connectorServiceTypes = serviceTypes;
             this.connectorSearchQuery = connectorSearchQuery;
-            this.isDeleted = isDeleted;
+            this.includeDeleted = includeDeleted;
         }
 
         public PageParams getPageParams() {
@@ -105,8 +91,8 @@ public class ListConnectorAction {
             return connectorSearchQuery;
         }
 
-        public Boolean getDeleted() {
-            return isDeleted;
+        public Boolean getIncludeDeleted() {
+            return includeDeleted;
         }
 
         @Override
@@ -128,15 +114,7 @@ public class ListConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            pageParams.writeTo(out);
-            out.writeOptionalStringCollection(indexNames);
-            out.writeOptionalStringCollection(connectorNames);
-            out.writeOptionalStringCollection(connectorServiceTypes);
-            out.writeOptionalString(connectorSearchQuery);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
-                out.writeBoolean(isDeleted);
-            }
+            TransportAction.localOnly();
         }
 
         @Override
@@ -149,7 +127,7 @@ public class ListConnectorAction {
                 && Objects.equals(connectorNames, request.connectorNames)
                 && Objects.equals(connectorServiceTypes, request.connectorServiceTypes)
                 && Objects.equals(connectorSearchQuery, request.connectorSearchQuery)
-                && Objects.equals(isDeleted, request.isDeleted);
+                && Objects.equals(includeDeleted, request.includeDeleted);
         }
 
         @Override
@@ -176,7 +154,7 @@ public class ListConnectorAction {
             PARSER.declareStringArray(optionalConstructorArg(), NAMES_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
             PARSER.declareString(optionalConstructorArg(), SEARCH_QUERY_FIELD);
-            PARSER.declareBoolean(optionalConstructorArg(), IS_DELETED_FIELD);
+            PARSER.declareBoolean(optionalConstructorArg(), INCLUDE_DELETED_FIELD);
         }
 
         public static ListConnectorAction.Request parse(XContentParser parser) {
@@ -192,7 +170,7 @@ public class ListConnectorAction {
                 builder.field(NAMES_FIELD.getPreferredName(), connectorNames);
                 builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connectorServiceTypes);
                 builder.field(SEARCH_QUERY_FIELD.getPreferredName(), connectorSearchQuery);
-                builder.field(IS_DELETED_FIELD.getPreferredName(), isDeleted);
+                builder.field(INCLUDE_DELETED_FIELD.getPreferredName(), includeDeleted);
             }
             builder.endObject();
             return builder;

@@ -8,11 +8,7 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -67,7 +63,7 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTemplateReg
  *     <li>A boolean flag 'isDeleted', when set indicates that connector has been soft-deleted. </li>
  * </ul>
  */
-public class Connector implements NamedWriteable, ToXContentObject {
+public class Connector implements ToXContentObject {
 
     public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
@@ -185,36 +181,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
         this.isDeleted = isDeleted;
-    }
-
-    public Connector(StreamInput in) throws IOException {
-        this.connectorId = in.readOptionalString();
-        this.apiKeyId = in.readOptionalString();
-        this.apiKeySecretId = in.readOptionalString();
-        this.configuration = in.readMap(ConnectorConfiguration::new);
-        this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
-        this.description = in.readOptionalString();
-        this.error = in.readOptionalString();
-        this.features = in.readOptionalWriteable(ConnectorFeatures::new);
-        this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
-        this.syncJobFiltering = in.readOptionalWriteable(FilteringRules::new);
-        this.indexName = in.readOptionalString();
-        this.isNative = in.readBoolean();
-        this.language = in.readOptionalString();
-        this.lastSeen = in.readOptionalInstant();
-        this.syncInfo = in.readOptionalWriteable(ConnectorSyncInfo::new);
-        this.name = in.readOptionalString();
-        this.pipeline = in.readOptionalWriteable(ConnectorIngestPipeline::new);
-        this.scheduling = in.readOptionalWriteable(ConnectorScheduling::new);
-        this.serviceType = in.readOptionalString();
-        this.status = in.readEnum(ConnectorStatus.class);
-        this.syncCursor = in.readGenericValue();
-        this.syncNow = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
-            this.isDeleted = in.readBoolean();
-        } else {
-            this.isDeleted = false;
-        }
     }
 
     public static final ParseField ID_FIELD = new ParseField("id");
@@ -460,35 +426,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return builder;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(connectorId);
-        out.writeOptionalString(apiKeyId);
-        out.writeOptionalString(apiKeySecretId);
-        out.writeMap(configuration, StreamOutput::writeWriteable);
-        out.writeMap(customScheduling, StreamOutput::writeWriteable);
-        out.writeOptionalString(description);
-        out.writeOptionalString(error);
-        out.writeOptionalWriteable(features);
-        out.writeOptionalCollection(filtering);
-        out.writeOptionalWriteable(syncJobFiltering);
-        out.writeOptionalString(indexName);
-        out.writeBoolean(isNative);
-        out.writeOptionalString(language);
-        out.writeOptionalInstant(lastSeen);
-        out.writeOptionalWriteable(syncInfo);
-        out.writeOptionalString(name);
-        out.writeOptionalWriteable(pipeline);
-        out.writeOptionalWriteable(scheduling);
-        out.writeOptionalString(serviceType);
-        out.writeEnum(status);
-        out.writeGenericValue(syncCursor);
-        out.writeBoolean(syncNow);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CONNECTOR_API_SUPPORT_SOFT_DELETES)) {
-            out.writeBoolean(isDeleted);
-        }
-    }
-
     public String getConnectorId() {
         return connectorId;
     }
@@ -638,11 +575,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
             syncNow,
             isDeleted
         );
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     public static class Builder {

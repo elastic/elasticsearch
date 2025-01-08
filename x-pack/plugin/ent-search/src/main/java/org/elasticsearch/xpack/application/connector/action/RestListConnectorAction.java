@@ -43,7 +43,7 @@ public class RestListConnectorAction extends BaseRestHandler {
         List<String> connectorNames = List.of(restRequest.paramAsStringArray("connector_name", new String[0]));
         List<String> serviceTypes = List.of(restRequest.paramAsStringArray("service_type", new String[0]));
         String searchQuery = restRequest.param("query");
-        Boolean isDeleted = restRequest.paramAsBoolean("deleted", false);
+        Boolean isDeleted = restRequest.paramAsBoolean("include_deleted", false);
 
         ListConnectorAction.Request request = new ListConnectorAction.Request(
             new PageParams(from, size),

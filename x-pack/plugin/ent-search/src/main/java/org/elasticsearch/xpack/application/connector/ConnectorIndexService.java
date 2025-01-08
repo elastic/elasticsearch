@@ -277,7 +277,7 @@ public class ConnectorIndexService {
      * @param connectorNames Filter connectors by connector names, if provided.
      * @param serviceTypes Filter connectors by service types, if provided.
      * @param searchQuery Apply a wildcard search on index name, connector name, and description, if provided.
-     * @param isDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
+     * @param includeDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
      * @param listener Invoked with search results or upon failure.
      */
     public void listConnectors(
@@ -287,13 +287,13 @@ public class ConnectorIndexService {
         List<String> connectorNames,
         List<String> serviceTypes,
         String searchQuery,
-        boolean isDeleted,
+        boolean includeDeleted,
         ActionListener<ConnectorIndexService.ConnectorResult> listener
     ) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
-                .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery, isDeleted))
+                .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery, includeDeleted))
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
@@ -329,7 +329,7 @@ public class ConnectorIndexService {
      * @param connectorNames List of connector names for filtering, or null/empty to skip.
      * @param serviceTypes List of connector service types for filtering, or null/empty to skip.
      * @param searchQuery Search query for wildcard filtering on index name, connector name, and description, or null/empty to skip.
-     * @param isDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
+     * @param includeDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
      * @return A {@link QueryBuilder} customized based on provided filters.
      */
     private QueryBuilder buildListQuery(
@@ -337,7 +337,7 @@ public class ConnectorIndexService {
         List<String> connectorNames,
         List<String> serviceTypes,
         String searchQuery,
-        boolean isDeleted
+        boolean includeDeleted
     ) {
         boolean filterByIndexNames = indexNames != null && indexNames.isEmpty() == false;
         boolean filterByConnectorNames = indexNames != null && connectorNames.isEmpty() == false;
@@ -370,7 +370,7 @@ public class ConnectorIndexService {
             }
         }
 
-        if (isDeleted == false) {
+        if (includeDeleted == false) {
             boolFilterQueryBuilder.mustNot(new TermQueryBuilder(Connector.IS_DELETED_FIELD.getPreferredName(), true));
         }
 

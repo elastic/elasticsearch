@@ -128,7 +128,7 @@ setup:
   - do:
       connector.get:
         connector_id: test-connector-to-delete
-        deleted: true
+        include_deleted: true
 
   - match: { id: test-connector-to-delete }
   - match: { index_name: search-1-test }

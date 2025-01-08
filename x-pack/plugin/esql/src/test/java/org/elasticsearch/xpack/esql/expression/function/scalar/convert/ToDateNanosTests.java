@@ -132,10 +132,9 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
                         : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time_nanos]"))
             )
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             true,
-            suppliers,
-            (v, p) -> "date_nanos or datetime or double or long or string or unsigned_long"
+            suppliers
         );
     }
 

@@ -560,7 +560,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             queryVector,
             k,
             adjustedNumCands,
-            requestSize,
             numCandidatesFactor,
             filterQuery,
             vectorSimilarity,

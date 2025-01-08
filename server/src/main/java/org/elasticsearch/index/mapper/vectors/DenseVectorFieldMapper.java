@@ -2021,7 +2021,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             int k,
             int numCands,
-            int requestSize,
             Float numCandsFactor,
             Query filter,
             Float similarityThreshold,
@@ -2038,7 +2037,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector.asFloatVector(),
                     k,
                     numCands,
-                    requestSize,
                     numCandsFactor,
                     filter,
                     similarityThreshold,
@@ -2105,7 +2103,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             int k,
             int numCands,
-            int requestSize,
             Float numCandsFactor,
             Query filter,
             Float similarityThreshold,
@@ -2143,7 +2140,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     name(),
                     queryVector,
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
-                    k == null ? requestSize : k,
+                    k,
                     knnQuery
                 );
             }

@@ -1674,7 +1674,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 128, 0, 0 }), 3, 3, 3, null, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 128, 0, 0 }), 3, 3, null, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1685,7 +1685,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> denseVectorFieldType.createKnnQuery(
                 VectorData.fromFloats(new float[] { 0.0f, 0f, -129.0f }),
-                3,
                 3,
                 3,
                 null,
@@ -1701,16 +1700,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(
-                VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }),
-                3,
-                3,
-                3,
-                null,
-                null,
-                null,
-                null
-            )
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }), 3, 3, null, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1719,16 +1709,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(
-                VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }),
-                3,
-                3,
-                3,
-                null,
-                null,
-                null,
-                null
-            )
+            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }), 3, 3, null, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1739,7 +1720,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> denseVectorFieldType.createKnnQuery(
                 VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }),
-                3,
                 3,
                 3,
                 null,
@@ -1754,7 +1734,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> denseVectorFieldType.createKnnQuery(
                 VectorData.fromFloats(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }),
-                3,
                 3,
                 3,
                 null,
@@ -1772,7 +1751,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> denseVectorFieldType.createKnnQuery(
                 VectorData.fromFloats(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }),
-                3,
                 3,
                 3,
                 null,
@@ -1809,7 +1787,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }),
                 3,
                 3,
-                3,
                 null,
                 null,
                 null,
@@ -1822,7 +1799,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> denseVectorFieldType.createKnnQuery(
                 VectorData.fromFloats(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }),
-                3,
                 3,
                 3,
                 null,
@@ -1840,7 +1816,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> denseVectorFieldType.createKnnQuery(
                 VectorData.fromFloats(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }),
-                3,
                 3,
                 3,
                 null,

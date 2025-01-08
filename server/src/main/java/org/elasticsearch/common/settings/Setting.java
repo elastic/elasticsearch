@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -148,12 +147,6 @@ public class Setting<T> implements ToXContentObject {
         PrivateIndex,
 
         /**
-         * Indicates that this index-level setting was deprecated in {@link Version#V_8_18_0} and is
-         * forbidden in indices created from {@link Version#V_9_0_0} onwards.
-         */
-        IndexSettingDeprecatedInV8AndRemovedInV9,
-
-        /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless
          * Users will be allowed to set and see values of this setting.
          * All other settings will be rejected when used on a PUT request
@@ -173,8 +166,7 @@ public class Setting<T> implements ToXContentObject {
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
     private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
-        Property.DeprecatedWarning,
-        Property.IndexSettingDeprecatedInV8AndRemovedInV9
+        Property.DeprecatedWarning
     );
 
     @SuppressWarnings("this-escape")
@@ -208,12 +200,11 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
             if (propertiesAsSet.stream().filter(DEPRECATED_PROPERTIES::contains).count() > 1) {
-                throw new IllegalArgumentException("setting [" + key + "] must be at most one of [" + DEPRECATED_PROPERTIES + "]");
+                throw new IllegalArgumentException("setting [" + key + "] must be at most one of " + DEPRECATED_PROPERTIES);
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
-            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -447,16 +438,11 @@ public class Setting<T> implements ToXContentObject {
      */
     private boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
-            || properties.contains(Property.DeprecatedWarning)
-            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
+            || properties.contains(Property.DeprecatedWarning);
     }
 
     private boolean isDeprecatedWarningOnly() {
         return properties.contains(Property.DeprecatedWarning);
-    }
-
-    public boolean isDeprecatedAndRemoved() {
-        return properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
     }
 
     /**
@@ -643,13 +629,6 @@ public class Setting<T> implements ToXContentObject {
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
-            } else if (this.isDeprecatedAndRemoved()) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.critical(
-                    DeprecationCategory.SETTINGS,
-                    key,
-                    "[{}] setting was deprecated in the previous Elasticsearch release and is removed in this release.",
-                    key
-                );
             } else {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }

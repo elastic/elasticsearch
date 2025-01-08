@@ -23,8 +23,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -254,19 +252,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
-        }
-    }
-
-    @Override
-    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
-        IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
-        // At various stages in settings verification we will perform validation without having the
-        // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
-        // error out on those validations, we will check with the creation version present at index
-        // creation time, as well as on index update settings.
-        if (indexVersion.equals(IndexVersions.ZERO) == false
-            && (indexVersion.before(IndexVersions.V_7_0_0) || indexVersion.onOrAfter(IndexVersions.V_8_0_0))) {
-            throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -53,7 +54,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
 
     protected static final int NODES = 3;
 
-    private static TemporaryFolder REPOSITORY_PATH = new TemporaryFolder();
+    protected static TemporaryFolder REPOSITORY_PATH = new TemporaryFolder();
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -170,6 +171,17 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
 
     protected static void mountIndex(String repository, String snapshot, String indexName, boolean partial, String renamedIndexName)
         throws Exception {
+        mountIndex(repository, snapshot, indexName, partial, renamedIndexName, RequestOptions.DEFAULT);
+    }
+
+    protected static void mountIndex(
+        String repository,
+        String snapshot,
+        String indexName,
+        boolean partial,
+        String renamedIndexName,
+        RequestOptions options
+    ) throws Exception {
         var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_mount");
         request.addParameter("wait_for_completion", "true");
         var storage = partial ? "shared_cache" : "full_copy";
@@ -179,6 +191,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
               "index": "%s",
               "renamed_index": "%s"
             }""", indexName, renamedIndexName));
+        request.setOptions(options);
         var responseBody = createFromResponse(client().performRequest(request));
         assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.successful")));
         assertThat(responseBody.evaluate("snapshot.shards.failed"), equalTo(0));

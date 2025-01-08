@@ -147,6 +147,14 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig = LatestConfigTests.randomLatestConfig();
         }
 
+        return randomTransformConfigWithSettings(settingsConfig, pivotConfig, latestConfig);
+    }
+
+    public static TransformConfig randomTransformConfigWithSettings(
+        SettingsConfig settingsConfig,
+        PivotConfig pivotConfig,
+        LatestConfig latestConfig
+    ) {
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),

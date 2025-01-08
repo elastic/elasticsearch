@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -97,6 +99,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(WRITE, settingsBefore, destIndexName, l, taskId))
             .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(READ_ONLY, settingsBefore, destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -147,6 +150,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var removeReadOnlyOverride = Settings.builder()
             .putNull(IndexMetadata.SETTING_READ_ONLY)
             .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .build();
 
         var request = new CreateIndexFromSourceAction.Request(
@@ -168,6 +173,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);
         reindexRequest.setParentTask(parentTaskId);
+        reindexRequest.setSlices(0); // equivalent to slices=auto in rest api
         client.execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 
@@ -183,6 +189,32 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             addBlockToIndex(block, destIndexName, failIfNotAcknowledged(listener, errorMessage), parentTaskId);
         } else {
             listener.onResponse(null);
+        }
+    }
+
+    private void updateSettings(
+        Settings settingsBefore,
+        String destIndexName,
+        ActionListener<AcknowledgedResponse> listener,
+        TaskId parentTaskId
+    ) {
+        logger.debug("Updating settings on destination index after reindex completes");
+
+        var settings = Settings.builder();
+        copySettingOrUnset(settingsBefore, settings, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
+        copySettingOrUnset(settingsBefore, settings, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
+
+        var updateSettingsRequest = new UpdateSettingsRequest(settings.build(), destIndexName);
+        updateSettingsRequest.setParentTask(parentTaskId);
+        var errorMessage = String.format(Locale.ROOT, "Could not update settings on index [%s]", destIndexName);
+        client.admin().indices().updateSettings(updateSettingsRequest, failIfNotAcknowledged(listener, errorMessage));
+    }
+
+    private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {
+        if (settingsBefore.get(setting) != null) {
+            builder.copy(setting, settingsBefore);
+        } else {
+            builder.putNull(setting);
         }
     }
 

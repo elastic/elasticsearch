@@ -155,7 +155,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // update with a dynamic setting
         var numReplicas = randomIntBetween(0, 10);
-        var dynamicSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas).build();
+        var refreshInterval = randomIntBetween(1, 100) + "s";
+        var dynamicSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
+            .build();
         indicesAdmin().updateSettings(new UpdateSettingsRequest(dynamicSettings, sourceIndex)).actionGet();
 
         // call reindex
@@ -167,6 +171,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
         assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+        assertEquals(refreshInterval, settingsResponse.getSetting(destIndex, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()));
     }
 
     public void testMappingsAddedToDestIndex() throws Exception {
@@ -227,6 +232,30 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         removeReadOnly(sourceIndex);
         removeReadOnly(destIndex);
+    }
+
+    public void testUpdateSettingsDefaultsRestored() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+
+        assertEquals(
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(destSettings),
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(destSettings)
+        );
+        assertEquals(
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getDefault(destSettings),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(destSettings)
+        );
     }
 
     public void testSettingsAndMappingsFromTemplate() throws IOException {

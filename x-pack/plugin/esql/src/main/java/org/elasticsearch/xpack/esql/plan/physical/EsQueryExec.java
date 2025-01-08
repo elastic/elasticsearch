@@ -138,7 +138,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     public static EsQueryExec deserialize(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
-        var index = new EsIndex(in);
+        var index = EsIndex.readFrom(in);
         var indexMode = EsRelation.readIndexMode(in);
         var attrs = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);

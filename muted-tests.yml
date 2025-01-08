@@ -216,9 +216,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
   method: testInvalidToken
   issue: https://github.com/elastic/elasticsearch/issues/119019
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
@@ -271,6 +268,12 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSearchableSnapshotIndexCompatibilityIT
   method: testSearchableSnapshotUpgrade {p0=9.0.0}
   issue: https://github.com/elastic/elasticsearch/issues/119632
+- class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
+  method: testProfileDfs
+  issue: https://github.com/elastic/elasticsearch/issues/119711
+- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
+  method: testUpgradeDataStream
+  issue: https://github.com/elastic/elasticsearch/issues/119717
 
 # Examples:
 #

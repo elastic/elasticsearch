@@ -437,3 +437,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcher {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/119259
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testServiceAccountApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119435

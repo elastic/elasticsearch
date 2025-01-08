@@ -77,6 +77,9 @@
       "returnType" : "keyword"
     }
   ],
+  "examples" : [
+    "FROM sample_data \n| WHERE message != \"Connection error\"\n| EVAL md5 = hash(\"md5\", message), sha256 = hash(\"sha256\", message) \n| KEEP message, md5, sha256;"
+  ],
   "preview" : false,
   "snapshot_only" : false
 }

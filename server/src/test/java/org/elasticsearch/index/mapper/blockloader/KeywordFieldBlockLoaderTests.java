@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
@@ -33,7 +32,9 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             return null;
         }
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null ? Integer.MAX_VALUE : ((Number) fieldMapping.get("ignore_above")).intValue();
+        var ignoreAbove = fieldMapping.get("ignore_above") == null
+            ? Integer.MAX_VALUE
+            : ((Number) fieldMapping.get("ignore_above")).intValue();
 
         if (value instanceof String s) {
             return convert(s, ignoreAbove);
@@ -45,7 +46,9 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             // Sorted and no duplicates
 
             var values = new HashSet<>((List<String>) value);
-            var resultList = convertValues.compose(s -> values.stream().filter(Objects::nonNull).sorted()).andThen(Stream::toList).apply(values.stream());
+            var resultList = convertValues.compose(s -> values.stream().filter(Objects::nonNull).sorted())
+                .andThen(Stream::toList)
+                .apply(values.stream());
             return maybeFoldList(resultList);
         }
 

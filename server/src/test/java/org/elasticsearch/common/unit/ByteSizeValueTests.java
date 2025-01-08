@@ -9,8 +9,6 @@
 
 package org.elasticsearch.common.unit;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -32,7 +30,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@Repeat(iterations = 1000)
 public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
     public void testActualPeta() {
         MatcherAssert.assertThat(ByteSizeValue.of(4, PB).getBytes(), equalTo(4503599627370496L));
@@ -569,12 +566,34 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testWithAutomaticUnit() {
-        long kibi = 1024;
-        long mebi = kibi * kibi;
-        assertEquals(new ByteSizeValue(kibi-1, BYTES), ByteSizeValue.withAutomaticUnit(kibi-1));
-        assertEquals(new ByteSizeValue(kibi, KB), ByteSizeValue.withAutomaticUnit(kibi));
-        assertEquals(new ByteSizeValue(kibi+1, BYTES), ByteSizeValue.withAutomaticUnit(kibi+1));
-        assertEquals(new ByteSizeValue(mebi-kibi, KB), ByteSizeValue.withAutomaticUnit(mebi-kibi));
+        for (var unit : ByteSizeUnit.values()) {
+            if (unit == BYTES) {
+                continue;
+            }
+            long bytes = unit.toBytes(1);
+            for (int numFourths = 1; numFourths <= 8; numFourths++) {
+                checkAutomaticUnitWithCornerCases(bytes * numFourths / 4, unit);
+            }
+        }
+    }
+
+    private void checkAutomaticUnitWithCornerCases(long sizeInBytes, ByteSizeUnit expectedUnit) {
+        assertEquals(
+            sizeInBytes + " should use " + expectedUnit,
+            new ByteSizeValue(sizeInBytes, expectedUnit),
+            ByteSizeValue.withAutomaticUnit(sizeInBytes)
+        );
+        // Plus or minus one byte, it should revert to bytes
+        assertEquals(
+            sizeInBytes - 1 + " should use " + BYTES,
+            new ByteSizeValue(sizeInBytes - 1, BYTES),
+            ByteSizeValue.withAutomaticUnit(sizeInBytes - 1)
+        );
+        assertEquals(
+            sizeInBytes + 1 + " should use " + BYTES,
+            new ByteSizeValue(sizeInBytes + 1, BYTES),
+            ByteSizeValue.withAutomaticUnit(sizeInBytes + 1)
+        );
     }
 
     @Override

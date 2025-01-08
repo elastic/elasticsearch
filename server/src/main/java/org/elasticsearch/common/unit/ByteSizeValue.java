@@ -56,17 +56,23 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         return new ByteSizeValue(unit.toBytes(size), unit);
     }
 
+    /**
+     * @return {@link ByteSizeValue} whose {@link #preferredUnit} is a reasonable one for human consumption.
+     */
     public static ByteSizeValue withAutomaticUnit(long sizeInBytes) {
         if (sizeInBytes == 0) {
             return ZERO;
         }
-        for (int ordinal = ByteSizeUnit.values().length-1; ordinal >= 0; --ordinal) {
+
+        // We pick a unit such that sizeInBytes is a multiple of 1/4 of that unit.
+        // That preserves the exact given number of bytes without using more than 2 decimal places.
+        for (int ordinal = ByteSizeUnit.values().length - 1; ordinal >= 0; --ordinal) {
             ByteSizeUnit candidateUnit = ByteSizeUnit.values()[ordinal];
             if (candidateUnit == BYTES) {
                 // We handle this using ofBytes below
                 continue;
             }
-            if (sizeInBytes % candidateUnit.toBytes(1) == 0) {
+            if (sizeInBytes % (candidateUnit.toBytes(1) / 4) == 0) {
                 return new ByteSizeValue(sizeInBytes, candidateUnit);
             }
         }

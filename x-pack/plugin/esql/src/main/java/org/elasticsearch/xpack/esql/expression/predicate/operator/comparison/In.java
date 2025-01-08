@@ -241,8 +241,8 @@ public class In extends EsqlScalarFunction {
                 if (seenDateType == null && listValue.dataType().isDate()) {
                     seenDateType = listValue.dataType();
                 }
-                if ((listValue.dataType().isDate() && listValue.dataType() != seenDateType)
-                    || (listValue.dataType().isDate() == false && areCompatible(dt, listValue.dataType()) == false)) {
+                // Datetypes are only compatible with themselves, so we don't need to check areCompatible here
+                if ((listValue.dataType().isDate() && listValue.dataType() != seenDateType) || listValue.dataType().isDate() == false) {
                     return new TypeResolution(
                         format(
                             null,

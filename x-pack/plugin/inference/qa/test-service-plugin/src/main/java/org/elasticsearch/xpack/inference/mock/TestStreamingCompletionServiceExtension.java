@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,10 +27,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -260,23 +257,18 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
                     configurationMap.put(
                         "model_id",
-                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        new SettingsConfiguration.Builder().setDescription("")
                             .setLabel("Model ID")
-                            .setOrder(1)
                             .setRequired(true)
                             .setSensitive(true)
-                            .setTooltip("")
                             .setType(SettingsConfigurationFieldType.STRING)
                             .build()
                     );
 
-                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                        Map<String, SettingsConfiguration> taskSettingsConfig;
-                        switch (t) {
-                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                        }
-                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                    }).toList()).setConfiguration(configurationMap).build();
+                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setTaskTypes(supportedTaskTypes)
+                        .setConfigurations(configurationMap)
+                        .build();
                 }
             );
         }

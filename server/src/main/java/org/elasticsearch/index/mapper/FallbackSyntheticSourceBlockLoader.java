@@ -36,12 +36,13 @@ import java.util.Set;
  * See {@link IgnoredSourceFieldMapper}.
  */
 public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader {
-    private final MappedFieldType.BlockLoaderContext blockLoaderContext;
-    private final Reader reader;
+    private final Reader<?> reader;
     private final String fieldName;
 
-    protected FallbackSyntheticSourceBlockLoader(MappedFieldType.BlockLoaderContext blockLoaderContext, Reader reader, String fieldName) {
-        this.blockLoaderContext = blockLoaderContext;
+    protected FallbackSyntheticSourceBlockLoader(
+        Reader<?> reader,
+        String fieldName
+    ) {
         this.reader = reader;
         this.fieldName = fieldName;
     }
@@ -53,7 +54,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader(fieldName, reader);
+        return new IgnoredSourceRowStrideReader<>(fieldName, reader);
     }
 
     @Override
@@ -71,7 +72,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    private record IgnoredSourceRowStrideReader(String fieldName, Reader reader) implements RowStrideReader {
+    private record IgnoredSourceRowStrideReader<T>(String fieldName, Reader<T> reader) implements RowStrideReader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
@@ -103,31 +104,40 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
             // TODO figure out how to handle XContentDataHelper#voidValue()
 
-            if (readFromFieldValue(valuesForFieldAndParents.get(fieldName), builder)) {
-                return;
-            }
-            if (readFromParentValue(valuesForFieldAndParents, builder)) {
-                return;
+            var blockValues = new ArrayList<T>();
+
+            var leafFieldValue = valuesForFieldAndParents.get(fieldName);
+            if (leafFieldValue != null) {
+                readFromFieldValue(leafFieldValue, blockValues);
+            } else {
+                readFromParentValue(valuesForFieldAndParents, blockValues);
             }
 
-            builder.appendNull();
+            if (blockValues.isEmpty() == false) {
+                if (blockValues.size() > 1) {
+                    builder.beginPositionEntry();
+                }
+
+                reader.writeToBlock(blockValues, builder);
+
+                if (blockValues.size() > 1) {
+                    builder.endPositionEntry();
+                }
+            } else {
+                builder.appendNull();
+            }
         }
 
-        private boolean readFromFieldValue(List<IgnoredSourceFieldMapper.NameValue> nameValues, Builder builder) throws IOException {
-            if (nameValues == null || nameValues.isEmpty()) {
-                return false;
-            }
-
-            // TODO this is not working properly
-            if (nameValues.size() > 1) {
-                builder.beginPositionEntry();
+        private void readFromFieldValue(List<IgnoredSourceFieldMapper.NameValue> nameValues, List<T> blockValues) throws IOException {
+            if (nameValues.isEmpty()) {
+                return;
             }
 
             for (var nameValue : nameValues) {
                 // Leaf field is stored directly (not as a part of a parent object), let's try to decode it.
                 Optional<Object> singleValue = XContentDataHelper.decode(nameValue.value());
                 if (singleValue.isPresent()) {
-                    reader.readValue(singleValue.get(), builder);
+                    reader.convertValue(singleValue.get(), blockValues);
                     continue;
                 }
 
@@ -146,21 +156,17 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                         )
                 ) {
                     parser.nextToken();
-                    reader.parse(parser, builder);
+                    reader.parse(parser, blockValues);
                 }
             }
-
-            if (nameValues.size() > 1) {
-                builder.endPositionEntry();
-            }
-
-            return true;
         }
 
-        private boolean readFromParentValue(Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents, Builder builder)
-            throws IOException {
+        private void readFromParentValue(
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents,
+            List<T> blockValues
+        ) throws IOException {
             if (valuesForFieldAndParents.isEmpty()) {
-                return false;
+                return;
             }
 
             // If a parent object is stored at a particular level its children won't be stored.
@@ -169,13 +175,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             var parentValues = valuesForFieldAndParents.values().iterator().next();
 
             for (var nameValue : parentValues) {
-                parseFieldFromParent(nameValue, builder);
+                parseFieldFromParent(nameValue, blockValues);
             }
-
-            return true;
         }
 
-        private void parseFieldFromParent(IgnoredSourceFieldMapper.NameValue nameValue, Builder builder) throws IOException {
+        private void parseFieldFromParent(IgnoredSourceFieldMapper.NameValue nameValue, List<T> blockValues) throws IOException {
             var type = XContentDataHelper.decodeType(nameValue.value());
             assert type.isPresent();
 
@@ -199,27 +203,37 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     parser.nextToken();
                 }
 
-                reader.parse(parser, builder);
+                reader.parse(parser, blockValues);
             }
         }
 
         @Override
         public boolean canReuse(int startingDocID) {
+            // TODO
             return false;
         }
     }
 
-    public interface Reader {
+    /**
+     * Field-specific implementation that converts data stored in _ignored_source field to block loader values.
+     * @param <T>
+     */
+    public interface Reader<T> {
         /**
-         * Converts a raw stored value for this field to a value in a format suitable for block loader and appends it to block.
+         * Converts a raw stored value for this field to a value in a format suitable for block loader and adds it to the provided
+         * accumulator.
          * @param value raw decoded value from _ignored_source field (synthetic _source value)
+         * @param accumulator list containing the result of conversion
          */
-        void readValue(Object value, Builder builder);
+        void convertValue(Object value, List<T> accumulator);
 
         /**
-         * Parses one or more complex values using a provided parser and appends results to a block.
+         * Parses one or more complex values using a provided parser and adds them to the provided accumulator.
          * @param parser parser of a value from _ignored_source field (synthetic _source value)
+         * @param accumulator list containing the results of parsing
          */
-        void parse(XContentParser parser, Builder builder) throws IOException;
+        void parse(XContentParser parser, List<T> accumulator) throws IOException;
+
+        void writeToBlock(List<T> values, Builder blockBuilder);
     }
 }

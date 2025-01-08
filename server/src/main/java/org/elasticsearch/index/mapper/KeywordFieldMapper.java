@@ -72,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -634,35 +635,40 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
 
             if (isSyntheticSource) {
-                var reader = new FallbackSyntheticSourceBlockLoader.Reader() {
+                var reader = new FallbackSyntheticSourceBlockLoader.Reader<BytesRef>() {
                     @Override
-                    public void readValue(Object value, BlockLoader.Builder builder) {
+                    public void convertValue(Object value, List<BytesRef> accumulator) {
                         assert value instanceof BytesRef;
                         // TODO apply ignore_above/normalizer same as sourceValueFetcher()
-                        ((BlockLoader.BytesRefBuilder) builder).appendBytesRef((BytesRef) value);
+                        accumulator.add((BytesRef) value);
                     }
 
                     @Override
-                    public void parse(XContentParser parser, BlockLoader.Builder builder) throws IOException {
-                        var bytesRefBuilder = (BlockLoader.BytesRefBuilder) builder;
-
+                    public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
                         if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                            builder.beginPositionEntry(); // TODO not fully correct
                             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                 assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
 
-                                bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
+                                accumulator.add(new BytesRef(parser.charBuffer()));
                             }
-                            builder.endPositionEntry();
                             return;
                         }
 
                         assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
-                        bytesRefBuilder.appendBytesRef(new BytesRef(parser.charBuffer()));
+                        accumulator.add(new BytesRef(parser.charBuffer()));
+                    }
+
+                    @Override
+                    public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                        var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                        for (var value : values) {
+                            bytesRefBuilder.appendBytesRef(value);
+                        }
                     }
                 };
 
-                return new FallbackSyntheticSourceBlockLoader(blContext, reader, name()) {
+                return new FallbackSyntheticSourceBlockLoader(reader, name()) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
                         return factory.bytesRefs(expectedCount);

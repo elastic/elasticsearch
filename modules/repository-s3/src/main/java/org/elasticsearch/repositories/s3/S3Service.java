@@ -433,13 +433,14 @@ class S3Service implements Closeable {
                     @Override
                     public void onFileChanged(Path file) {
                         if (file.equals(webIdentityTokenFileSymlink)) {
-                            LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                            SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
+                            LOGGER.info("--> WS web identity token file [{}] changed, updating credentials", file);
+                            // SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
+                            credentialsProvider.refresh();
                         }
                     }
                 });
                 try {
-                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
                 } catch (IOException e) {
                     throw new ElasticsearchException(
                         "failed to start watching AWS web identity token file [{}]",

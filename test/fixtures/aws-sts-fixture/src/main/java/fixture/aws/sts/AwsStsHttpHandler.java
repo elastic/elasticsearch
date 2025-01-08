@@ -12,7 +12,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -38,6 +41,7 @@ public class AwsStsHttpHandler implements HttpHandler {
 
     static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     static final String ROLE_NAME = "sts-fixture-test";
+    static final Logger logger = LogManager.getLogger(AwsStsHttpHandler.class);
 
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final String webIdentityToken;
@@ -56,6 +60,7 @@ public class AwsStsHttpHandler implements HttpHandler {
             final var path = exchange.getRequestURI().getPath();
 
             if ("POST".equals(requestMethod) && "/assume-role-with-web-identity/".equals(path)) {
+                logger.info("--> called assume role");
 
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> params = Arrays.stream(body.split("&"))

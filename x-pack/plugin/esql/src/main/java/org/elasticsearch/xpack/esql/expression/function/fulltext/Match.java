@@ -82,7 +82,6 @@ public class Match extends FullTextFunction implements Validatable {
         UNSIGNED_LONG,
         VERSION
     );
-
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
         KEYWORD,
         BOOLEAN,

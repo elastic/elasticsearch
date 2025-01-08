@@ -63,7 +63,7 @@ Specifies the chunking strategy.
 It could be either `sentence` or `word`.
 end::chunking-settings-strategy[]
 
-tag::unified-schema-content-with-examples[]
+tag::chat-completion-schema-content-with-examples[]
 .Examples
 [%collapsible%closed]
 ======
@@ -103,4 +103,8 @@ The text content.
 `type`::::
 (Required, string)
 This must be set to the value `text`.
-end::unified-schema-content-with-examples[]
+end::chat-completion-schema-content-with-examples[]
+
+tag::chat-completion-docs[]
+For more information on how to use the `chat_completion` task type, please refer to the <<chat-completion-inference-api, chat completion documentation>>.
+end::chat-completion-docs[]

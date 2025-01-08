@@ -20,7 +20,7 @@ the following APIs to manage {infer} models and perform {infer}:
 * <<post-inference-api>>
 * <<put-inference-api>>
 * <<stream-inference-api>>
-* <<unified-inference-api>>
+* <<chat-completion-inference-api>>
 * <<update-inference-api>>
 
 [[inference-landscape]]
@@ -130,7 +130,7 @@ PUT _inference/sparse_embedding/small_chunk_size
 include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
-include::unified-inference.asciidoc[]
+include::chat-completion-inference.asciidoc[]
 include::put-inference.asciidoc[]
 include::stream-inference.asciidoc[]
 include::update-inference.asciidoc[]

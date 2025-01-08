@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -193,7 +192,8 @@ public class ElasticInferenceService extends SenderService {
             return;
         }
 
-        try {Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ElasticInferenceServiceModel model = createModel(
@@ -235,11 +235,7 @@ public class ElasticInferenceService extends SenderService {
     @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
 
-        defaultsListener.onResponse(
-            List.of(
-                firstDefaultCompletionModel()
-            )
-        );
+        defaultsListener.onResponse(List.of(firstDefaultCompletionModel()));
     }
 
     private static ElasticInferenceServiceCompletionModel firstDefaultCompletionModel() {

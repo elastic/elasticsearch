@@ -18,11 +18,14 @@
 * <<esql-length>>
 * <<esql-locate>>
 * <<esql-ltrim>>
+* <<esql-md5>>
 * <<esql-repeat>>
 * <<esql-replace>>
 * <<esql-reverse>>
 * <<esql-right>>
 * <<esql-rtrim>>
+* <<esql-sha1>>
+* <<esql-sha256>>
 * <<esql-space>>
 * <<esql-split>>
 * <<esql-starts_with>>

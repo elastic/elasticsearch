@@ -23,38 +23,40 @@ public class StreamingUnifiedChatCompletionResultsTests extends ESTestCase {
 
     public void testResults_toXContentChunked() throws IOException {
         String expected = """
-                        {
-                          "id": "chunk1",
-                          "choices": [
-                            {
-                              "delta": {
-                                "content": "example_content",
-                                "refusal": "example_refusal",
-                                "role": "assistant",
-                                "tool_calls": [
-                                  {
-                                    "index": 1,
-                                    "id": "tool1",
-                                    "function": {
-                                      "arguments": "example_arguments",
-                                      "name": "example_function"
-                                    },
-                                    "type": "function"
-                                  }
-                                ]
-                              },
-                              "finish_reason": "example_reason",
-                              "index": 0
-                            }
-                          ],
-                          "model": "example_model",
-                          "object": "example_object",
-                          "usage": {
-                            "completion_tokens": 10,
-                            "prompt_tokens": 5,
-                            "total_tokens": 15
+                    {
+                      "chat_completion": {
+                        "id": "chunk1",
+                        "choices": [
+                          {
+                            "delta": {
+                              "content": "example_content",
+                              "refusal": "example_refusal",
+                              "role": "assistant",
+                              "tool_calls": [
+                                {
+                                  "index": 1,
+                                  "id": "tool1",
+                                  "function": {
+                                    "arguments": "example_arguments",
+                                    "name": "example_function"
+                                  },
+                                  "type": "function"
+                                }
+                              ]
+                            },
+                            "finish_reason": "example_reason",
+                            "index": 0
                           }
+                        ],
+                        "model": "example_model",
+                        "object": "example_object",
+                        "usage": {
+                          "completion_tokens": 10,
+                          "prompt_tokens": 5,
+                          "total_tokens": 15
                         }
+                      }
+                    }
             """;
 
         StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(

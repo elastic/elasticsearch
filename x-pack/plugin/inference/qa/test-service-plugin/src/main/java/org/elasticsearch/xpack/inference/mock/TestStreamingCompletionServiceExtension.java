@@ -132,7 +132,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -195,22 +195,25 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         /*
         The response format looks like this
         {
-          "id": "chatcmpl-AarrzyuRflye7yzDF4lmVnenGmQCF",
-          "choices": [
-            {
-              "delta": {
-                "content": " information"
-              },
-              "index": 0
-            }
-          ],
-          "model": "gpt-4o-2024-08-06",
-          "object": "chat.completion.chunk"
+          "chat_completion": {
+            "id": "chatcmpl-AarrzyuRflye7yzDF4lmVnenGmQCF",
+            "choices": [
+              {
+                "delta": {
+                  "content": " information"
+                },
+                "index": 0
+              }
+            ],
+            "model": "gpt-4o-2024-08-06",
+            "object": "chat.completion.chunk"
+          }
         }
          */
         private ChunkedToXContent unifiedCompletionChunk(String delta) {
             return params -> Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startObject("chat_completion"),
                 ChunkedToXContentHelper.field("id", "id"),
                 ChunkedToXContentHelper.startArray("choices"),
                 ChunkedToXContentHelper.startObject(),
@@ -222,6 +225,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 ChunkedToXContentHelper.endArray(),
                 ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
                 ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
+                ChunkedToXContentHelper.endObject(),
                 ChunkedToXContentHelper.endObject()
             );
         }

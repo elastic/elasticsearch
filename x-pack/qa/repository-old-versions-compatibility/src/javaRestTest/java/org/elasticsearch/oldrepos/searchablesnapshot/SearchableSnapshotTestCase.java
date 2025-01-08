@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Test suite for Archive indices backward compatibility with N-2 versions.
+ * Test suite for Searchable indices backward compatibility with N-2 versions.
  * The test suite creates a cluster in the N-1 version, where N is the current version.
  * Restores snapshots from old-clusters (version 5/6) and upgrades it to the current version.
  * Test methods are executed after each upgrade.

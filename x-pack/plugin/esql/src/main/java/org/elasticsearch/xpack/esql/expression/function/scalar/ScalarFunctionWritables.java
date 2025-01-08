@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha1;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha256;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -90,6 +92,8 @@ public class ScalarFunctionWritables {
         entries.add(Replace.ENTRY);
         entries.add(Reverse.ENTRY);
         entries.add(Round.ENTRY);
+        entries.add(Sha1.ENTRY);
+        entries.add(Sha256.ENTRY);
         entries.add(Split.ENTRY);
         entries.add(Substring.ENTRY);
         entries.add(StartsWith.ENTRY);

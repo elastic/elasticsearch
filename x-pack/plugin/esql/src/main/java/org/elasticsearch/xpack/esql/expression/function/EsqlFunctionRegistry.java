@@ -140,6 +140,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha1;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha256;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -340,6 +342,8 @@ public class EsqlFunctionRegistry {
                 def(Replace.class, Replace::new, "replace"),
                 def(Reverse.class, Reverse::new, "reverse"),
                 def(Right.class, Right::new, "right"),
+                def(Sha1.class, Sha1::new, "sha1"),
+                def(Sha256.class, Sha256::new, "sha256"),
                 def(Space.class, Space::new, "space"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
                 def(Substring.class, Substring::new, "substring"),

@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
-import org.elasticsearch.xpack.esql.expression.function.grouping.CategorizeTests;
 import org.hamcrest.Matcher;
 
 import java.util.List;

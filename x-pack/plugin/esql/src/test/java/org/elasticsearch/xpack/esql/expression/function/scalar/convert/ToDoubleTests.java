@@ -141,10 +141,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
-            true,
-            suppliers
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

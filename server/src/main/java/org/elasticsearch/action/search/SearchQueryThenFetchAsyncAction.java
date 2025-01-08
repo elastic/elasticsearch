@@ -1098,7 +1098,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 searchService.executeQueryPhase(
                     buildShardSearchRequest(
                         shardToQuery.shardId,
-                        null,
+                        request.searchRequest.getLocalClusterAlias(),
                         shardToQuery.shardIndex,
                         shardToQuery.contextId,
                         shardToQuery.originalIndices,

@@ -645,16 +645,23 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                     @Override
                     public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                            return;
+                        }
+
                         if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
+                                if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                                    continue;
+                                }
 
+                                assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
                                 accumulator.add(new BytesRef(parser.charBuffer()));
                             }
                             return;
                         }
 
-                        assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
+                        assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
                         accumulator.add(new BytesRef(parser.charBuffer()));
                     }
 

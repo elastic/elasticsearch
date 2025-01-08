@@ -32,7 +32,6 @@ public class IdeaXmlUtil {
         return xml;
     }
 
-
     /**
      * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
      *

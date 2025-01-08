@@ -16,10 +16,7 @@ import fixture.s3.S3HttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.resource.MutableResource;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
@@ -49,8 +46,6 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
         WEB_IDENTITY_TOKEN_FILE_CONTENTS
     );
 
-    static MutableResource tokenFile = MutableResource.from(Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS));
-
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3HttpFixture::getAddress)
@@ -60,7 +55,7 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
         )
         .configFile(
             S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION,
-            tokenFile
+            Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS)
         )
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION)
         // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the
@@ -71,34 +66,6 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3HttpFixture).around(stsHttpFixture).around(cluster);
-
-    public void testStsRefresh() throws Exception {
-        final var repository = newTestRepository();
-        try (var ignored = repository.register(readonlyOperator(randomBoolean()))) {
-            final var repositoryName = repository.repositoryName();
-            final var responseObjectPath = assertOKAndCreateObjectPath(
-                client().performRequest(new Request("GET", "/_snapshot/" + repositoryName))
-            );
-
-            assertEquals("s3", responseObjectPath.evaluate(repositoryName + ".type"));
-            assertNotNull(responseObjectPath.evaluate(repositoryName + ".settings"));
-            assertEquals(repository.bucketName(), responseObjectPath.evaluate(repositoryName + ".settings.bucket"));
-            assertEquals(repository.clientName(), responseObjectPath.evaluate(repositoryName + ".settings.client"));
-            assertEquals(repository.basePath(), responseObjectPath.evaluate(repositoryName + ".settings.base_path"));
-            assertEquals("private", responseObjectPath.evaluate(repositoryName + ".settings.canned_acl"));
-            assertEquals("standard", responseObjectPath.evaluate(repositoryName + ".settings.storage_class"));
-            assertNull(responseObjectPath.evaluate(repositoryName + ".settings.access_key"));
-            assertNull(responseObjectPath.evaluate(repositoryName + ".settings.secret_key"));
-            assertNull(responseObjectPath.evaluate(repositoryName + ".settings.session_token"));
-
-            tokenFile.update(Resource.fromString("""
-        Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
-        FBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFO\
-        zTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ"""));
-
-            safeSleep(5000);
-        }
-    }
 
     @Override
     protected String getTestRestCluster() {

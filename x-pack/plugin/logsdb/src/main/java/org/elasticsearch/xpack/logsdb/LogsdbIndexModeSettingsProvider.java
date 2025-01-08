@@ -115,7 +115,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 if (settingsBuilder == null) {
                     settingsBuilder = Settings.builder();
                 }
-                settingsBuilder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
+                settingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
             }
         }
 
@@ -187,7 +187,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         try {
             var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
             var indexMode = tmpIndexMetadata.getIndexMode();
-            if (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
+            if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
                 || indexMode == IndexMode.LOGSDB
                 || indexMode == IndexMode.TIME_SERIES) {
                 // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
@@ -195,7 +195,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
                 // to disabled, because that isn't allowed with logsdb/tsdb. In other words setting index.mapping.source.mode setting to
                 // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
-                var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
+                var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
             }
 

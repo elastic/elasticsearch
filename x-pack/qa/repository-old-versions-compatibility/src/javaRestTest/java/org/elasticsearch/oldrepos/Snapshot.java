@@ -8,7 +8,7 @@
 package org.elasticsearch.oldrepos;
 
 /**
- * This is a mapping to the
+ * This is a mapping to the created snapshot zip files, covering test cases for "old repositories"
  */
 public enum Snapshot {
 

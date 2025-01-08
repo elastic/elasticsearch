@@ -37,8 +37,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+
+import static org.elasticsearch.index.IndexSettings.MODE;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
@@ -68,12 +71,20 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
     public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
-        final IndexMode indexMode = IndexSettings.MODE.get(settings);
-        if (indexMode == null) {
-            return Mode.DISABLED.name();
-        }
+        final IndexMode indexMode = MODE.get(settings);
         return indexMode.defaultSourceMode().name();
-    }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
+    }, "index.mapping.source.mode", new Setting.Validator<>() {
+        @Override
+        public void validate(Mode value) {
+
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            List<Setting<?>> res = List.of(MODE);
+            return res.iterator();
+        }
+    }, Setting.Property.Final, Setting.Property.IndexScope);
 
     public static final String DEPRECATION_WARNING = "Configuring source mode in mappings is deprecated and will be removed "
         + "in future versions. Use [index.mapping.source.mode] index setting instead.";

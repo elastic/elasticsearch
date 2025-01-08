@@ -34,7 +34,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class ListConnectorAction {
 
-    public static final String NAME = "indices:data/read/xpack/connector/list";
+    public static final String NAME = "cluster:admin/xpack/connector/list";
     public static final ActionType<ListConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private ListConnectorAction() {/* no instances */}

@@ -1831,33 +1831,31 @@ public class JinaAIServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createJinaAIService()) {
-            String content = XContentHelper.stripWhitespace(
-                """
-                    {
-                            "service": "jinaai",
-                            "name": "Jina AI",
-                            "task_types": ["text_embedding", "rerank"],
-                            "configurations": {
-                                "api_key": {
-                                    "description": "API Key for the provider you're connecting to.",
-                                    "label": "API Key",
-                                    "required": true,
-                                    "sensitive": true,
-                                    "updatable": true,
-                                    "type": "str"
-                                },
-                                "rate_limit.requests_per_minute": {
-                                    "description": "Minimize the number of rate limit errors.",
-                                    "label": "Rate Limit",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int"
-                                }
+            String content = XContentHelper.stripWhitespace("""
+                {
+                        "service": "jinaai",
+                        "name": "Jina AI",
+                        "task_types": ["text_embedding", "rerank"],
+                        "configurations": {
+                            "api_key": {
+                                "description": "API Key for the provider you're connecting to.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str"
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int"
                             }
                         }
-                    """
-            );
+                    }
+                """);
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

@@ -174,6 +174,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119713")
     public void testUpgradeDataStream() throws Exception {
         String dataStreamName = "reindex_test_data_stream";
         int numRollovers = randomIntBetween(0, 5);

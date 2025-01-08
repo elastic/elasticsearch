@@ -270,15 +270,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   }
 }
 
-/**
- * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
- *
- * @param path Path to existing XML file
- * @param action Action to perform on parsed XML document
- * @param preface optional front matter to add after the XML declaration
- * but before the XML document, e.g. a doctype or comment
- */
-
 Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle gradle) {
   if (gradle.parent == null) {
     // See if any of these included builds is the Elasticsearch gradle

@@ -32,10 +32,26 @@ public class IdeaXmlUtil {
         return xml;
     }
 
+
+    /**
+     * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
+     *
+     * @param path Path to existing XML file
+     * @param action Action to perform on parsed XML document
+     * but before the XML document, e.g. a doctype or comment
+     */
     static void modifyXml(String xmlPath, Action<? super Node> action) throws IOException, ParserConfigurationException, SAXException {
         modifyXml(xmlPath, action, null);
     }
 
+    /**
+     * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
+     *
+     * @param path Path to existing XML file
+     * @param action Action to perform on parsed XML document
+     * @param preface optional front matter to add after the XML declaration
+     * but before the XML document, e.g. a doctype or comment
+     */
     static void modifyXml(String xmlPath, Action<? super Node> action, String preface) throws IOException, ParserConfigurationException,
         SAXException {
         File xmlFile = new File(xmlPath);

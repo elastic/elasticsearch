@@ -440,3 +440,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testServiceAccountApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/119435
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSecurityNativeRealm {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119423

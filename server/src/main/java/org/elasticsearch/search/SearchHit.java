@@ -492,6 +492,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
+     * Set the cache document as a map to {@code null}.
+     */
+    public void resetSourceAsMap() {
+        sourceAsMap = null;
+    }
+
+    /**
      * The hit field matching the given field name.
      */
     public DocumentField field(String fieldName) {
@@ -728,6 +735,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (SearchHit.this.source instanceof RefCounted r) {
             r.decRef();
         }
+        SearchHit.this.sourceAsMap = null;
         SearchHit.this.source = null;
     }
 

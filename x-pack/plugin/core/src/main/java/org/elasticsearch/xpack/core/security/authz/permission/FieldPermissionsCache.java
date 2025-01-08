@@ -99,7 +99,7 @@ public final class FieldPermissionsCache {
                             + "or by removing them from the [except] field. "
                             + "You cannot exclude any of [{}] since these are minimally required metadata fields.",
                         roleName,
-                        Strings.collectionToCommaDelimitedString(new TreeSet<>(MetadataFieldsAllowlist.FIELDS))
+                        Strings.collectionToCommaDelimitedString(new TreeSet<>(FieldPermissions.METADATA_FIELDS_ALLOWLIST))
                     );
                 }
                 return fieldPermissions;

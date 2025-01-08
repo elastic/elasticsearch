@@ -18,8 +18,24 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -44,6 +60,67 @@ import java.util.Set;
  */
 public final class FieldPermissions implements Accountable, CacheKey {
     public static final FieldPermissions DEFAULT = new FieldPermissions();
+    // public for testing
+    public static final Set<String> METADATA_FIELDS_ALLOWLIST = Set.of(
+        // built-in
+        IgnoredFieldMapper.NAME,
+        IdFieldMapper.NAME,
+        RoutingFieldMapper.NAME,
+        TimeSeriesIdFieldMapper.NAME,
+        TimeSeriesRoutingHashFieldMapper.NAME,
+        IndexFieldMapper.NAME,
+        IndexModeFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        IgnoredSourceFieldMapper.NAME,
+        NestedPathFieldMapper.NAME,
+        NestedPathFieldMapper.NAME_PRE_V8,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        SeqNoFieldMapper.PRIMARY_TERM_NAME,
+        DocCountFieldMapper.NAME,
+        DataStreamTimestampFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME,
+        // plugins
+        // MapperSizePlugin
+        "_size",
+        // MapperExtrasPlugin
+        "_feature",
+        // XPackPlugin
+        DataTierFieldMapper.NAME
+    );
+    public static final FieldPredicate PREDICATE = new FieldPredicate() {
+        @Override
+        public boolean test(String field) {
+            return METADATA_FIELDS_ALLOWLIST.contains(field) || (field.startsWith("_") && startsWithMetadataFieldAndDot(field));
+        }
+
+        /**
+         * Matches {metadata_field}.*
+         */
+        private boolean startsWithMetadataFieldAndDot(String field) {
+            for (String f : METADATA_FIELDS_ALLOWLIST) {
+                if (field.startsWith(f + ".")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return hash + ":metadata_fields_allowlist";
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0; // shared
+        }
+
+        @Override
+        public String toString() {
+            return "metadata fields allowlist";
+        }
+    };
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
@@ -115,10 +192,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
         this.fieldPredicate = permittedFieldsAutomatonIsTotal
             ? FieldPredicate.ACCEPT_ALL
-            : new FieldPredicate.Or(
-                MetadataFieldsAllowlist.PREDICATE,
-                new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton)
-            );
+            : new FieldPredicate.Or(PREDICATE, new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton));
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
         ramBytesUsed += this.fieldPermissionsDefinitions.stream()
@@ -308,6 +382,10 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     Automaton getIncludeAutomaton() {
         return originalAutomaton;
+    }
+
+    public static boolean isAllowlistedMetadataField(String fieldName) {
+        return PREDICATE.test(fieldName);
     }
 
     @Override

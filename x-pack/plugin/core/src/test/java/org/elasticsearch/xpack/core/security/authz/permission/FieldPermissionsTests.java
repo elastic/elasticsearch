@@ -164,7 +164,7 @@ public class FieldPermissionsTests extends ESTestCase {
     public void testAllBuiltinMetadataFieldsEitherAllowlistedOrExcluded() {
         // add new fields that shouldn't be exposed under FLS by default here
         final Set<String> excludedFields = Set.of();
-        final Set<String> categorizedFields = Sets.union(excludedFields, MetadataFieldsAllowlist.FIELDS);
+        final Set<String> categorizedFields = Sets.union(excludedFields, FieldPermissions.METADATA_FIELDS_ALLOWLIST);
 
         final Set<String> builtinMetadataFields = IndicesModule.getBuiltInMetadataFields();
         final Set<String> uncategorizedFields = Sets.difference(builtinMetadataFields, categorizedFields);
@@ -269,7 +269,7 @@ public class FieldPermissionsTests extends ESTestCase {
         assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
         assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
 
-        for (var allowlistedMetadataField : MetadataFieldsAllowlist.FIELDS) {
+        for (var allowlistedMetadataField : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
             fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] {}, new String[] { "_*yz" }));
             assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
             assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));

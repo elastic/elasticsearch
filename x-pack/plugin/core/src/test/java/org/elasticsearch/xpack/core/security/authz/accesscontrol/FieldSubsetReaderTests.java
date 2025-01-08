@@ -73,7 +73,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.hamcrest.Matchers;
 
@@ -1135,7 +1134,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     public void testMetadataFieldFiltering() {
         var result = new FieldPermissions(fieldPermissionDef(new String[] {}, null));
-        for (var field : MetadataFieldsAllowlist.FIELDS) {
+        for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
             FieldInfos actual = FieldSubsetReader.filter(
                 new FieldInfos(new FieldInfo[] { getFieldInfoWithName(field) }),
                 result.getPermittedFieldsAutomaton()

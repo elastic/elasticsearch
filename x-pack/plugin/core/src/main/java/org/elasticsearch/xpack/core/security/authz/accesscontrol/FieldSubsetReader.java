@@ -45,7 +45,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authz.permission.MetadataFieldsAllowlist;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -144,7 +144,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     static FieldInfos filter(FieldInfos fieldInfos, CharacterRunAutomaton filter) {
         final ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : fieldInfos) {
-            if (MetadataFieldsAllowlist.PREDICATE.test(fi.name) || filter.run(fi.name)) {
+            if (FieldPermissions.PREDICATE.test(fi.name) || filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -201,7 +201,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             String key = entry.getKey();
 
             // only do this for `initialState == 0` since metadata fields would always only be top-level fields
-            if (initialState == 0 && MetadataFieldsAllowlist.PREDICATE.test(key)) {
+            if (initialState == 0 && FieldPermissions.PREDICATE.test(key)) {
                 // If the field is an allowlisted metadata field, we always include it.
                 filtered.put(key, entry.getValue());
                 continue;

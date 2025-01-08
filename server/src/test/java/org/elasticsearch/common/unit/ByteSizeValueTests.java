@@ -315,7 +315,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             exception.getMessage()
         );
 
-        String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
+        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
+        String unitSuffix = (randomBoolean() ? " " : "") + unit.getSuffix();
         exception = expectThrows(
             ElasticsearchParseException.class,
             () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test")
@@ -330,7 +331,12 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         );
 
         exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("1.234" + unitSuffix, "test"));
-        assertEquals("more than two decimal places in setting [test]: [1.234" + unitSuffix + "]", exception.getMessage());
+        if (unit == BYTES) {
+            // Decimals aren't allowed at all for bytes
+            assertEquals("failed to parse setting [test] with value [1.234" + unitSuffix + "]", exception.getMessage());
+        } else {
+            assertEquals("more than two decimal places in setting [test] with value [1.234" + unitSuffix + "]", exception.getMessage());
+        }
     }
 
     public void testParseFractionalNumber() throws IOException {

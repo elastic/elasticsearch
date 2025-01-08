@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -213,10 +214,10 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     /**
-     * Strictly speaking, this is only <em>guaranteed</em> to return the exact right two decimals
+     * Strictly speaking, this is only <em>guaranteed</em> to return the exact right string
      * when {@code numerator} is the rounded value of some multiple of 1% of {@code denominator}.
-     * Other arbitrary values, where {@code numerator / denominator} exceeds the precision of a
-     * {@code double}, may be off by a little.
+     * Other arbitrary values could yield surprising results; for example, you might see
+     * {@code 123.0} or even {@code 1221.00} in place of {@code 123}.
      */
     static String format2Decimals(long numerator, long denominator) {
         // If numerator >> denominator, we risk exceeding the precision of a double, so we enlist
@@ -231,7 +232,12 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
     }
 
-    private static final DecimalFormat MAX_TWO_DECIMALS = new DecimalFormat(".##");
+    private static final DecimalFormat MAX_TWO_DECIMALS = maxTwoDecimalsFormat();
+
+    @SuppressForbidden(reason="We truly just want two decimals; Locale settings don't matter here")
+    private static DecimalFormat maxTwoDecimalsFormat() {
+        return new DecimalFormat(".##");
+    }
 
     public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
         return parseBytesSizeValue(sValue, null, settingName);
@@ -322,7 +328,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                     BigDecimal decimalValue = new BigDecimal(s);
                     if (decimalValue.scale() > 2) {
                         throw new ElasticsearchParseException(
-                            "more than two decimal places in setting [{}]: [{}]",
+                            "more than two decimal places in setting [{}] with value [{}]",
                             settingName,
                             initialInput
                         );

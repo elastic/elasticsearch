@@ -13,6 +13,9 @@ import org.elasticsearch.test.cluster.util.Version;
 public class MountFromVersion5CustomAnalyzerIT extends SearchableSnapshotTestCase {
 
     public MountFromVersion5CustomAnalyzerIT(Version version) {
-        super(version, Snapshot.FIVE_CUSTOM_ANALYZER);
+        super(version, Snapshot.FIVE_CUSTOM_ANALYZER, warnings -> {
+            assertEquals(1, warnings.size());
+            assertEquals("The [standard] token filter is " + "deprecated and will be removed in a future version.", warnings.getFirst());
+        });
     }
 }

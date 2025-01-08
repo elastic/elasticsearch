@@ -7,16 +7,18 @@
 
 package org.elasticsearch.oldrepos.archiveindex;
 
-import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.oldrepos.AbstractUpgradeCompatibilityTestCase;
 import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
+
+import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 
@@ -37,14 +39,19 @@ abstract class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase
     }
 
     protected ArchiveIndexTestCase(Version version, Snapshot indexCreatedVersion) {
-        super(version, indexCreatedVersion);
+        this(version, indexCreatedVersion, o -> {});
+    }
+
+    protected ArchiveIndexTestCase(Version version, Snapshot indexCreatedVersion, Consumer<List<String>> consumer) {
+        super(version, indexCreatedVersion, consumer);
     }
 
     /**
      * Overrides the snapshot-restore operation for archive-indices scenario.
      */
     @Override
-    public void recover(RestClient client, String repository, String snapshot, String index) throws Exception {
+    public void recover(RestClient client, String repository, String snapshot, String index, Consumer<List<String>> warningsConsumer)
+        throws Exception {
         var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");
         request.addParameter("wait_for_completion", "true");
         request.setJsonEntity(Strings.format("""
@@ -54,10 +61,10 @@ abstract class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase
               "rename_pattern": "(.+)",
               "include_aliases": false
             }""", index));
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(WarningsHandler.PERMISSIVE)
-        );
-        createFromResponse(client.performRequest(request));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        Response response = client.performRequest(request);
+        assertOK(response);
+        warningsConsumer.accept(response.getWarnings());
+        createFromResponse(response);
     }
 }

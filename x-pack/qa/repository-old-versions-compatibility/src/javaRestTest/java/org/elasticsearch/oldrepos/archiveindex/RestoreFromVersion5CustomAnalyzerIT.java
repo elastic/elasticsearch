@@ -10,9 +10,43 @@ package org.elasticsearch.oldrepos.archiveindex;
 import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
+/**
+ * Test case restoring index created in ES_v5 - Custom-Analyzer - standard token filter
+ *
+ * PUT /index
+ * {
+ *   "settings": {
+ *     "analysis": {
+ *       "analyzer": {
+ *         "custom_analyzer": {
+ *           "type": "custom",
+ *           "tokenizer": "standard",
+ *           "filter": [
+ *             "standard",
+ *             "lowercase"
+ *           ]
+ *         }
+ *       }
+ *     }
+ *   },
+ *   "mappings": {
+ *     "my_type": {
+ *       "properties": {
+ *         "content": {
+ *           "type": "text",
+ *           "analyzer": "custom_analyzer"
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ */
 public class RestoreFromVersion5CustomAnalyzerIT extends ArchiveIndexTestCase {
 
     public RestoreFromVersion5CustomAnalyzerIT(Version version) {
-        super(version, Snapshot.FIVE_CUSTOM_ANALYZER);
+        super(version, Snapshot.FIVE_CUSTOM_ANALYZER, warnings -> {
+            assertEquals(1, warnings.size());
+            assertEquals("The [standard] token filter is " + "deprecated and will be removed in a future version.", warnings.getFirst());
+        });
     }
 }

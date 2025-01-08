@@ -114,6 +114,13 @@ public class MetadataIndexStateService {
         Setting.Property.PrivateIndex
     );
 
+    public static final Setting<Boolean> VERIFIED_READ_ONLY_SETTING = Setting.boolSetting(
+        "index.verified_read_only",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexMetadataVerifier indexMetadataVerifier;
@@ -958,6 +965,7 @@ public class MetadataIndexStateService {
         final APIBlock block
     ) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
+        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
         final Set<String> effectivelyBlockedIndices = new HashSet<>();
         Map<Index, AddBlockResult> blockingResults = new HashMap<>(verifyResult);
@@ -1005,6 +1013,16 @@ public class MetadataIndexStateService {
 
                 logger.debug("add block {} to index {} succeeded", block.block, index);
                 effectivelyBlockedIndices.add(index.getName());
+
+                if (block.getBlock().contains(ClusterBlockLevel.WRITE)) {
+                    final IndexMetadata indexMetadata = metadata.getSafe(index);
+                    final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
+                    metadata.put(
+                        updatedMetadata.settings(
+                            Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                        )
+                    );
+                }
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since blocking it started, ignoring", index);
             }

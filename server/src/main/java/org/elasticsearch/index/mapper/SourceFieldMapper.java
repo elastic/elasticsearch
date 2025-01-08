@@ -41,8 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.index.IndexSettings.MODE;
-
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
     public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
@@ -81,7 +79,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Iterator<Setting<?>> settings() {
-            List<Setting<?>> res = List.of(MODE);
+            List<Setting<?>> res = List.of(IndexSettings.MODE);
             return res.iterator();
         }
     }, Setting.Property.Final, Setting.Property.IndexScope);

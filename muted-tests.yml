@@ -443,3 +443,6 @@ tests:
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/118718
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testTransformLegacyTemplateCleanup {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119395

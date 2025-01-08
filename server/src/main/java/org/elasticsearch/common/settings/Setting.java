@@ -164,10 +164,7 @@ public class Setting<T> implements ToXContentObject {
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
-    private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
-        Property.Deprecated,
-        Property.DeprecatedWarning
-    );
+    private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.DeprecatedWarning);
 
     @SuppressWarnings("this-escape")
     private Setting(
@@ -437,8 +434,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
     private boolean isDeprecated() {
-        return properties.contains(Property.Deprecated)
-            || properties.contains(Property.DeprecatedWarning);
+        return properties.contains(Property.Deprecated) || properties.contains(Property.DeprecatedWarning);
     }
 
     private boolean isDeprecatedWarningOnly() {

@@ -87,7 +87,7 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(resource, notNullValue());
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
 
-        ElasticsearchException ex = assertThrows(
+        ElasticsearchException ex = expectThrows(
             ElasticsearchException.class,
             () -> NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir)
         );

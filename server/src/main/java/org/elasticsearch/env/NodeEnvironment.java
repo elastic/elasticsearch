@@ -23,7 +23,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1513,7 +1512,7 @@ public final class NodeEnvironment implements Closeable {
         if (previousNodeVersion.onOrAfterMinimumCompatible()) {
             return previousNodeVersion;
         }
-        return BuildVersion.fromVersionId(Version.CURRENT.minimumCompatibilityVersion().id);
+        return BuildVersion.current().minimumCompatibilityVersion();
     }
 
 }

@@ -77,6 +77,8 @@ public class ElasticInferenceService extends SenderService {
 
     public static final String DEFAULT_EIS_COMPLETION_ENDPOINT_ID = "eis-alpha-1";
 
+    public static final List<String> DEFAULT_EIS_ENDPOINT_IDS = List.of(DEFAULT_EIS_COMPLETION_ENDPOINT_ID);
+
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -180,8 +182,18 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> config,
         ActionListener<Model> parsedModelListener
     ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        if (DEFAULT_EIS_ENDPOINT_IDS.contains(inferenceEntityId)) {
+            parsedModelListener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference Id. Cannot create a new inference endpoint with a reserved Id",
+                    RestStatus.BAD_REQUEST,
+                    inferenceEntityId
+                )
+            );
+            return;
+        }
+
+        try {Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ElasticInferenceServiceModel model = createModel(
@@ -222,22 +234,27 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        var serviceSettings = new HashMap<String, Object>(1);
-        serviceSettings.put(MODEL_ID, "elastic-model"); // TODO
 
         defaultsListener.onResponse(
             List.of(
-                new ElasticInferenceServiceCompletionModel(
-                    DEFAULT_EIS_COMPLETION_ENDPOINT_ID,
-                    TaskType.COMPLETION,
-                    NAME,
-                    serviceSettings,
-                    null,
-                    null,
-                    new ElasticInferenceServiceComponents("http://localhost:8080"), // TODO
-                    ConfigurationParseContext.PERSISTENT
-                )
+                firstDefaultCompletionModel()
             )
+        );
+    }
+
+    private static ElasticInferenceServiceCompletionModel firstDefaultCompletionModel() {
+        var serviceSettings = new HashMap<String, Object>(1);
+        serviceSettings.put(MODEL_ID, "elastic-model"); // TODO
+
+        return new ElasticInferenceServiceCompletionModel(
+            DEFAULT_EIS_COMPLETION_ENDPOINT_ID,
+            TaskType.COMPLETION,
+            NAME,
+            serviceSettings,
+            null,
+            null,
+            new ElasticInferenceServiceComponents("http://localhost:8080"), // TODO
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -302,33 +319,14 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        if (DEFAULT_EIS_COMPLETION_ENDPOINT_ID.equals(inferenceEntityId)) {
-            var defaultServiceSettings = new HashMap<String, Object>(1);
-            defaultServiceSettings.put(MODEL_ID, "elastic-model"); // TODO
-            var serviceSettings = ElasticInferenceServiceCompletionServiceSettings.fromMap(
-                defaultServiceSettings,
-                ConfigurationParseContext.PERSISTENT
-            );
-
-            return new ElasticInferenceServiceCompletionModel(
-                V1_EIS_COMPLETION_MODEL_ID,
-                TaskType.COMPLETION,
-                NAME,
-                serviceSettings,
-                EmptyTaskSettings.INSTANCE,
-                null,
-                null
-            );
-        } else {
-            return createModelFromPersistent(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                taskSettingsMap,
-                null,
-                parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
-            );
-        }
+        return createModelFromPersistent(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+        );
     }
 
     @Override

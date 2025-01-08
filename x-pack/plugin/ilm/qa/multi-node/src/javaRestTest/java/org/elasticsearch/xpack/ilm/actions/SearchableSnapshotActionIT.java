@@ -440,9 +440,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex;
             try {
-             stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+                stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             } catch (WarningFailureException e) {
-                assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version."));
+                assertThat(
+                    e.getMessage(),
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version.")
+                );
                 stepKeyForIndex = getKeyForIndex(e.getResponse(), searchableSnapMountedIndexName);
             }
             assertThat(stepKeyForIndex.phase(), is("cold"));

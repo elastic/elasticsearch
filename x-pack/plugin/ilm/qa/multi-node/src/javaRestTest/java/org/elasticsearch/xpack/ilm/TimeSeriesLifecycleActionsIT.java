@@ -207,17 +207,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put("index.lifecycle.name", policy)
         );
 
-        assertBusy(
-            () -> {
-                try {
-                    assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
-                } catch (WarningFailureException e) {
-                    assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
-                }
-            },
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            try {
+                assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
+            } catch (WarningFailureException e) {
+                assertThat(
+                    e.getMessage(),
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version")
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(client(), index).containsKey("index.frozen"));
     }
 

@@ -227,18 +227,17 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         // The freeze action is a noop action with only noop steps and should pass through to complete the phase asap.
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
-        assertBusy(
-            () -> {
-                try {
+        assertBusy(() -> {
+            try {
                 assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
                 fail("expected a deprecation warning");
-                } catch (WarningFailureException e) {
-                    assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
-                }
-            },
-            30,
-            TimeUnit.SECONDS
-        );
+            } catch (WarningFailureException e) {
+                assertThat(
+                    e.getMessage(),
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version")
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
 
         Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
         assertNull(settings.get("index.frozen"));

@@ -71,7 +71,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
     public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
-        final IndexMode indexMode = MODE.get(settings);
+        final IndexMode indexMode = IndexSettings.MODE.get(settings);
         return indexMode.defaultSourceMode().name();
     }, "index.mapping.source.mode", new Setting.Validator<>() {
         @Override

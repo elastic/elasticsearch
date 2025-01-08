@@ -35,16 +35,15 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.DatagramSocket;
 import java.net.DatagramSocketImpl;
 import java.net.DatagramSocketImplFactory;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
@@ -130,7 +129,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("socket_setSocketImplFactory", alwaysDenied(RestEntitlementsCheckAction::socket$$setSocketImplFactory)),
         entry("url_setURLStreamHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::url$$setURLStreamHandlerFactory)),
         entry("urlConnection_setFileNameMap", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setFileNameMap)),
-        entry("urlConnection_setContentHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory))
+        entry("urlConnection_setContentHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory)),
         entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
         entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
         entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
@@ -332,9 +331,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
+    @SuppressForbidden(reason = "testing entitlements")
     private static void connectDatagramSocket() {
         logger.info("Calling DatagramSocket#connect");
-        try (var socket = new TestDatagramSocket()) {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.connect(new InetSocketAddress(1234));
 
         } catch (SocketException e) {
@@ -344,9 +344,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void joinGroupDatagramSocket() {
         logger.info("Calling DatagramSocket#joinGroup");
-        try (var socket = new TestDatagramSocket()) {
-            socket.joinGroup(new InetSocketAddress("230.0.0.1", 1234), NetworkInterface.getByIndex(0));
-
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.joinGroup(
+                new InetSocketAddress(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234),
+                NetworkInterface.getByIndex(0)
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -354,26 +356,30 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void leaveGroupDatagramSocket() {
         logger.info("Calling DatagramSocket#leaveGroup");
-        try (var socket = new TestDatagramSocket()) {
-            socket.leaveGroup(new InetSocketAddress("230.0.0.1", 1234), NetworkInterface.getByIndex(0));
-
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.leaveGroup(
+                new InetSocketAddress(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234),
+                NetworkInterface.getByIndex(0)
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
+    @SuppressForbidden(reason = "testing entitlements")
     private static void sendDatagramSocket() {
         logger.info("Calling DatagramSocket#send");
-        try (var socket = new TestDatagramSocket()) {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.send(new DatagramPacket(new byte[] { 0 }, 1, InetAddress.getLocalHost(), 1234));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
+    @SuppressForbidden(reason = "testing entitlements")
     private static void receiveDatagramSocket() {
         logger.info("Calling DatagramSocket#receive");
-        try (var socket = new TestDatagramSocket()) {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         } catch (IOException e) {
             throw new RuntimeException(e);

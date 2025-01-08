@@ -102,9 +102,19 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // out.writeZLong(size);
-        // unit.writeTo(out);
-        throw new IllegalStateException("NOT YET IMPLEMENTED!");
+        // The 8.x behaviour is:
+        // 1. send the value denominated in the given unit, but...
+        // 2. if the value given to the parser was a fraction, its unit was ignored and we use BYTES
+        //
+        // We emulate that behaviour "retroactively" here by treating fractional values the same way
+        boolean isWholeNumber = (sizeInBytes % preferredUnit.toBytes(1)) == 0;
+        if (isWholeNumber) {
+            out.writeZLong(sizeInBytes / preferredUnit.toBytes(1));
+            preferredUnit.writeTo(out);
+        } else {
+            out.writeZLong(sizeInBytes);
+            BYTES.writeTo(out);
+        }
     }
 
     ByteSizeValue(long sizeInBytes, ByteSizeUnit unit) {

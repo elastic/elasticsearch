@@ -19,8 +19,11 @@ import java.util.function.Function;
 
 import static java.lang.Math.multiplyExact;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
+import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
 import static org.elasticsearch.common.unit.ByteSizeValue.format2Decimals;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,19 +35,19 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testActualTera() {
-        MatcherAssert.assertThat(ByteSizeValue.of(4, ByteSizeUnit.TB).getBytes(), equalTo(4398046511104L));
+        MatcherAssert.assertThat(ByteSizeValue.of(4, TB).getBytes(), equalTo(4398046511104L));
     }
 
     public void testActual() {
-        MatcherAssert.assertThat(ByteSizeValue.of(4, ByteSizeUnit.GB).getBytes(), equalTo(4294967296L));
+        MatcherAssert.assertThat(ByteSizeValue.of(4, GB).getBytes(), equalTo(4294967296L));
     }
 
     public void testSimple() {
         assertThat(ByteSizeUnit.BYTES.toBytes(10), is(ByteSizeValue.of(10, ByteSizeUnit.BYTES).getBytes()));
         assertThat(ByteSizeUnit.KB.toKB(10), is(ByteSizeValue.of(10, ByteSizeUnit.KB).getKb()));
-        assertThat(ByteSizeUnit.MB.toMB(10), is(ByteSizeValue.of(10, ByteSizeUnit.MB).getMb()));
-        assertThat(ByteSizeUnit.GB.toGB(10), is(ByteSizeValue.of(10, ByteSizeUnit.GB).getGb()));
-        assertThat(ByteSizeUnit.TB.toTB(10), is(ByteSizeValue.of(10, ByteSizeUnit.TB).getTb()));
+        assertThat(MB.toMB(10), is(ByteSizeValue.of(10, MB).getMb()));
+        assertThat(GB.toGB(10), is(ByteSizeValue.of(10, GB).getGb()));
+        assertThat(TB.toTB(10), is(ByteSizeValue.of(10, TB).getTb()));
         assertThat(PB.toPB(10), is(ByteSizeValue.of(10, PB).getPb()));
     }
 
@@ -52,7 +55,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(ByteSizeUnit.BYTES.toIntBytes(4), equalTo(4));
         assertThat(ByteSizeUnit.KB.toIntBytes(4), equalTo(4096));
         assertThat(
-            expectThrows(AssertionError.class, () -> ByteSizeUnit.GB.toIntBytes(4)).getMessage(),
+            expectThrows(AssertionError.class, () -> GB.toIntBytes(4)).getMessage(),
             containsString("could not convert [4 GB] to an int")
         );
     }
@@ -69,13 +72,35 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testToString() {
-        assertThat("10b", is(ByteSizeValue.of(10, ByteSizeUnit.BYTES).toString()));
-        assertThat("1.5kb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
-        assertThat("1.5mb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.KB).toString()));
-        assertThat("1.5gb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));
-        assertThat("1.5tb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.GB).toString()));
-        assertThat("1.5pb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.TB).toString()));
-        assertThat("1536pb", is(ByteSizeValue.of((long) (1024 * 1.5), PB).toString()));
+        assertEquals("10b", new ByteSizeValue(10, ByteSizeUnit.BYTES).toString());
+
+        long bytes = (long) (0.75 * 1024);
+        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
+        assertEquals("0.75kb", new ByteSizeValue(bytes, KB).toString());
+
+        bytes *= 1024;
+        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
+        assertEquals("768kb", new ByteSizeValue(bytes, KB).toString());
+        assertEquals("0.75mb", new ByteSizeValue(bytes, MB).toString());
+
+        bytes *= 1024;
+        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
+        assertEquals("768mb", new ByteSizeValue(bytes, MB).toString());
+        assertEquals("0.75gb", new ByteSizeValue(bytes, GB).toString());
+
+        bytes *= 1024;
+        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
+        assertEquals("768gb", new ByteSizeValue(bytes, GB).toString());
+        assertEquals("0.75tb", new ByteSizeValue(bytes, TB).toString());
+
+        bytes *= 1024;
+        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
+        assertEquals("768tb", new ByteSizeValue(bytes, TB).toString());
+        assertEquals("0.75pb", new ByteSizeValue(bytes, PB).toString());
+
+        bytes *= 1024;
+        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
+        assertEquals("768pb", new ByteSizeValue(bytes, PB).toString());
     }
 
     public void testParsing() {
@@ -212,7 +237,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testConversionHashCode() {
-        ByteSizeValue firstValue = ByteSizeValue.of(randomIntBetween(0, Integer.MAX_VALUE), ByteSizeUnit.GB);
+        ByteSizeValue firstValue = ByteSizeValue.of(randomIntBetween(0, Integer.MAX_VALUE), GB);
         ByteSizeValue secondValue = ByteSizeValue.of(firstValue.getBytes(), ByteSizeUnit.BYTES);
         assertEquals(firstValue.hashCode(), secondValue.hashCode());
     }
@@ -365,15 +390,15 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testOfMb() {
-        testOf(ByteSizeUnit.MB, ByteSizeValue::ofMb);
+        testOf(MB, ByteSizeValue::ofMb);
     }
 
     public void testOfGb() {
-        testOf(ByteSizeUnit.GB, ByteSizeValue::ofGb);
+        testOf(GB, ByteSizeValue::ofGb);
     }
 
     public void testOfTb() {
-        testOf(ByteSizeUnit.TB, ByteSizeValue::ofTb);
+        testOf(TB, ByteSizeValue::ofTb);
     }
 
     public void testOfPb() {
@@ -399,23 +424,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.KB), ByteSizeValue.of(4, ByteSizeUnit.KB)),
             is(ByteSizeValue.ofBytes(12288L))
         );
-        assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.MB), ByteSizeValue.of(4, ByteSizeUnit.MB)),
-            is(ByteSizeValue.ofBytes(12582912L))
-        );
-        assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.GB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
-            is(ByteSizeValue.ofBytes(12884901888L))
-        );
-        assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.TB), ByteSizeValue.of(4, ByteSizeUnit.TB)),
-            is(ByteSizeValue.ofBytes(13194139533312L))
-        );
+        assertThat(ByteSizeValue.add(ByteSizeValue.of(8, MB), ByteSizeValue.of(4, MB)), is(ByteSizeValue.ofBytes(12582912L)));
+        assertThat(ByteSizeValue.add(ByteSizeValue.of(8, GB), ByteSizeValue.of(4, GB)), is(ByteSizeValue.ofBytes(12884901888L)));
+        assertThat(ByteSizeValue.add(ByteSizeValue.of(8, TB), ByteSizeValue.of(4, TB)), is(ByteSizeValue.ofBytes(13194139533312L)));
         assertThat(ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)), is(ByteSizeValue.ofBytes(13510798882111488L)));
-        assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
-            is(ByteSizeValue.ofBytes(9007203549708288L))
-        );
+        assertThat(ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, GB)), is(ByteSizeValue.ofBytes(9007203549708288L)));
 
         Exception e = expectThrows(
             ArithmeticException.class,
@@ -444,23 +457,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.KB), ByteSizeValue.of(4, ByteSizeUnit.KB)),
             is(ByteSizeValue.ofBytes(4096L))
         );
-        assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.MB), ByteSizeValue.of(4, ByteSizeUnit.MB)),
-            is(ByteSizeValue.ofBytes(4194304L))
-        );
-        assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.GB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
-            is(ByteSizeValue.ofBytes(4294967296L))
-        );
-        assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.TB), ByteSizeValue.of(4, ByteSizeUnit.TB)),
-            is(ByteSizeValue.ofBytes(4398046511104L))
-        );
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.of(8, MB), ByteSizeValue.of(4, MB)), is(ByteSizeValue.ofBytes(4194304L)));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.of(8, GB), ByteSizeValue.of(4, GB)), is(ByteSizeValue.ofBytes(4294967296L)));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.of(8, TB), ByteSizeValue.of(4, TB)), is(ByteSizeValue.ofBytes(4398046511104L)));
         assertThat(ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)), is(ByteSizeValue.ofBytes(4503599627370496L)));
-        assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
-            is(ByteSizeValue.ofBytes(9007194959773696L))
-        );
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, GB)), is(ByteSizeValue.ofBytes(9007194959773696L)));
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -496,31 +497,19 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.min(ByteSizeValue.of(8, ByteSizeUnit.KB), ByteSizeValue.of(4, ByteSizeUnit.KB)),
             is(ByteSizeValue.of(4, ByteSizeUnit.KB))
         );
-        assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(4, ByteSizeUnit.MB), ByteSizeValue.of(8, ByteSizeUnit.MB)),
-            is(ByteSizeValue.of(4, ByteSizeUnit.MB))
-        );
-        assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(16, ByteSizeUnit.GB), ByteSizeValue.of(15, ByteSizeUnit.GB)),
-            is(ByteSizeValue.of(15, ByteSizeUnit.GB))
-        );
-        assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(90, ByteSizeUnit.TB), ByteSizeValue.of(91, ByteSizeUnit.TB)),
-            is(ByteSizeValue.of(90, ByteSizeUnit.TB))
-        );
+        assertThat(ByteSizeValue.min(ByteSizeValue.of(4, MB), ByteSizeValue.of(8, MB)), is(ByteSizeValue.of(4, MB)));
+        assertThat(ByteSizeValue.min(ByteSizeValue.of(16, GB), ByteSizeValue.of(15, GB)), is(ByteSizeValue.of(15, GB)));
+        assertThat(ByteSizeValue.min(ByteSizeValue.of(90, TB), ByteSizeValue.of(91, TB)), is(ByteSizeValue.of(90, TB)));
         assertThat(ByteSizeValue.min(ByteSizeValue.of(2, PB), ByteSizeValue.of(1, PB)), is(ByteSizeValue.of(1, PB)));
-        assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(1, PB), ByteSizeValue.of(1, ByteSizeUnit.GB)),
-            is(ByteSizeValue.of(1, ByteSizeUnit.GB))
-        );
+        assertThat(ByteSizeValue.min(ByteSizeValue.of(1, PB), ByteSizeValue.of(1, GB)), is(ByteSizeValue.of(1, GB)));
 
-        ByteSizeValue equalityResult = ByteSizeValue.min(ByteSizeValue.of(1024, ByteSizeUnit.MB), ByteSizeValue.of(1, ByteSizeUnit.GB));
-        assertThat(equalityResult, is(ByteSizeValue.of(1024, ByteSizeUnit.MB)));
-        assertThat(equalityResult.preferredUnit, is(ByteSizeUnit.MB));
+        ByteSizeValue equalityResult = ByteSizeValue.min(ByteSizeValue.of(1024, MB), ByteSizeValue.of(1, GB));
+        assertThat(equalityResult, is(ByteSizeValue.of(1024, MB)));
+        assertThat(equalityResult.preferredUnit, is(MB));
 
-        equalityResult = ByteSizeValue.min(ByteSizeValue.of(1, ByteSizeUnit.GB), ByteSizeValue.of(1024, ByteSizeUnit.MB));
-        assertThat(equalityResult, is(ByteSizeValue.of(1, ByteSizeUnit.GB)));
-        assertThat(equalityResult.preferredUnit, is(ByteSizeUnit.GB));
+        equalityResult = ByteSizeValue.min(ByteSizeValue.of(1, GB), ByteSizeValue.of(1024, MB));
+        assertThat(equalityResult, is(ByteSizeValue.of(1, GB)));
+        assertThat(equalityResult.preferredUnit, is(GB));
 
         String exceptionMessage = "one of the arguments has -1 bytes";
         Exception e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
@@ -564,7 +553,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 format2Decimals(wholeUnits * granularity, granularity)
             );
             for (var percent = 1; percent < 100; percent++) {
-                long numerator = wholeUnits + (long) (percent * 0.01 * granularity);
+                long numerator = wholeUnits * granularity + (long) (percent * 0.01 * granularity);
                 String expected = wholeUnits + percentToDecimal(percent);
                 assertEquals(
                     "format2Decimals on " + percent + "% of one " + unit.getSuffix(),

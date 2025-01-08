@@ -159,11 +159,8 @@ public class QueryBuilderResolver {
             boolean hasChanged = false;
             for (FullTextFunction func : queryBuilderMap.keySet()) {
                 var initial = queryBuilderMap.get(func);
-                var rewritten = Rewriteable.rewrite(initial, ctx, false);
-
-                if (rewritten.equals(initial) == false) {
-                    hasChanged = true;
-                }
+                var rewritten = initial.rewrite(ctx);
+                hasChanged |= rewritten != initial;
 
                 results.put(func, rewritten);
             }

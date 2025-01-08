@@ -153,6 +153,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ENABLE_NODE_LEVEL_REDUCTION = def(8_818_00_0);
     public static final TransportVersion JINA_AI_INTEGRATION_ADDED = def(8_819_00_0);
     public static final TransportVersion TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC = def(8_820_00_0);
+    public static final TransportVersion REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX = def(8_821_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

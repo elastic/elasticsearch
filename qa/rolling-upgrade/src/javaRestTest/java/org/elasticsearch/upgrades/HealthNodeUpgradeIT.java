@@ -38,7 +38,7 @@ public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
         }
 
         // Assert that _health_report endpoint returns a green status provided the health.supports_health_report_api feature is present
-        // N.B. If this feature is not present, the cluster may have a mixture of nodes which serve the health endpoint at  /_health_report
+        // N.B. If this feature is not present, the cluster may have a mixture of nodes which serve the health endpoint at /_health_report
         // and older nodes which serve it at /_internal/_health. There is no sensible and reliable way to test the endpoint in this case.
         if (clusterHasFeature("health.supports_health_report_api")) {
             assertBusy(() -> {

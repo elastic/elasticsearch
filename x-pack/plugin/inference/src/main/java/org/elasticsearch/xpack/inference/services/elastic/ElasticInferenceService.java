@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingS
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.UnifiedCompletionFeature;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -61,6 +62,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateTaskType;
 
 public class ElasticInferenceService extends SenderService {
 
@@ -69,8 +71,21 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_STREAMING_TASK_TYPES = EnumSet.of(TaskType.ANY);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_EXTERNAL_CONFIG = EnumSet.of(TaskType.SPARSE_EMBEDDING
+    // TODO do we want to expose completion?
+    );
+
     private static final String SERVICE_NAME = "Elastic";
+
+    static {
+        if (UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()) {
+            SUPPORTED_STREAMING_TASK_TYPES.add(TaskType.CHAT_COMPLETION);
+            SUPPORTED_TASK_TYPES.add(TaskType.CHAT_COMPLETION);
+        }
+    }
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -83,7 +98,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -207,7 +222,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES_FOR_EXTERNAL_CONFIG;
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -220,6 +235,8 @@ public class ElasticInferenceService extends SenderService {
         ServiceUtils.ModelErrorMessageConstructor modelErrorMessageConstructor,
         ConfigurationParseContext context
     ) {
+        validateTaskType(inferenceEntityId, taskType, SUPPORTED_TASK_TYPES, NAME, modelErrorMessageConstructor);
+
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceSparseEmbeddingsModel(
                 inferenceEntityId,
@@ -386,7 +403,7 @@ public class ElasticInferenceService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_EXTERNAL_CONFIG)
                     .setConfigurations(configurationMap)
                     .build();
             }

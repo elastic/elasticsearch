@@ -71,7 +71,7 @@ public class ElasticInferenceService extends SenderService {
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
-  
+
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -47,6 +49,11 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
             remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
+    }
+
+    @BeforeClass
+    public static void checkVersion() {
+        assumeTrue("skip if version before 8.18", Clusters.localClusterVersion().onOrAfter(Version.V_8_18_0));
     }
 
     @AfterClass

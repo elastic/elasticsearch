@@ -1450,6 +1450,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
+            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldDataType)) {
+                continue;
+            }
+
             var queryValue = randomQueryValue(fieldDataType);
 
             String fieldName = fieldDataType == DataType.DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);

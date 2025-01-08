@@ -23,7 +23,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -87,8 +86,6 @@ public class ConnectorIndexService {
     private final Client clientWithOrigin;
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
-
-    public static final NodeFeature CONNECTOR_SOFT_DELETES_FEATURE = new NodeFeature("connector_soft_deletes");
 
     /**
      * @param client A client for executing actions on the connector index

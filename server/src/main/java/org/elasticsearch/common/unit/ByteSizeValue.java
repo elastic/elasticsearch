@@ -91,8 +91,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-//        out.writeZLong(size);
-//        unit.writeTo(out);
+        // out.writeZLong(size);
+        // unit.writeTo(out);
         throw new IllegalStateException("NOT YET IMPLEMENTED!");
     }
 
@@ -187,7 +187,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else if (fractionalPart % (preferredUnit.toBytes(1) / 1024) == 0) {
             // For some fractions like, we can use the next unit down, which is preferable to bytes.
             // For example, 0.75 TB can be "768 GB" instead of "805306368 B".
-            var smallerUnit = ByteSizeUnit.values()[preferredUnit.ordinal()-1];
+            var smallerUnit = ByteSizeUnit.values()[preferredUnit.ordinal() - 1];
             return sizeInBytes / smallerUnit.toBytes(1) + smallerUnit.getSuffix();
         } else {
             // It's hopeless: no suffix besides BYTES can make this an integer.

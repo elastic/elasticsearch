@@ -410,10 +410,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.add(ByteSizeValue.of(8, ByteSizeUnit.TB), ByteSizeValue.of(4, ByteSizeUnit.TB)),
             is(ByteSizeValue.ofBytes(13194139533312L))
         );
-        assertThat(
-            ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)),
-            is(ByteSizeValue.ofBytes(13510798882111488L))
-        );
+        assertThat(ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)), is(ByteSizeValue.ofBytes(13510798882111488L)));
         assertThat(
             ByteSizeValue.add(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
             is(ByteSizeValue.ofBytes(9007203549708288L))
@@ -458,10 +455,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.subtract(ByteSizeValue.of(8, ByteSizeUnit.TB), ByteSizeValue.of(4, ByteSizeUnit.TB)),
             is(ByteSizeValue.ofBytes(4398046511104L))
         );
-        assertThat(
-            ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)),
-            is(ByteSizeValue.ofBytes(4503599627370496L))
-        );
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, PB)), is(ByteSizeValue.ofBytes(4503599627370496L)));
         assertThat(
             ByteSizeValue.subtract(ByteSizeValue.of(8, PB), ByteSizeValue.of(4, ByteSizeUnit.GB)),
             is(ByteSizeValue.ofBytes(9007194959773696L))
@@ -513,10 +507,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue.min(ByteSizeValue.of(90, ByteSizeUnit.TB), ByteSizeValue.of(91, ByteSizeUnit.TB)),
             is(ByteSizeValue.of(90, ByteSizeUnit.TB))
         );
-        assertThat(
-            ByteSizeValue.min(ByteSizeValue.of(2, PB), ByteSizeValue.of(1, PB)),
-            is(ByteSizeValue.of(1, PB))
-        );
+        assertThat(ByteSizeValue.min(ByteSizeValue.of(2, PB), ByteSizeValue.of(1, PB)), is(ByteSizeValue.of(1, PB)));
         assertThat(
             ByteSizeValue.min(ByteSizeValue.of(1, PB), ByteSizeValue.of(1, ByteSizeUnit.GB)),
             is(ByteSizeValue.of(1, ByteSizeUnit.GB))
@@ -542,7 +533,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testFormat2DecimalsExhaustively() {
-        for (var unit: ByteSizeUnit.values()) {
+        for (var unit : ByteSizeUnit.values()) {
             if (unit == BYTES) {
                 // Can't specify fractions of a byte
                 continue;
@@ -550,9 +541,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             var granularity = unit.toBytes(1);
             assertEquals("Integers should be integers", "1", format2Decimals(granularity, granularity));
             for (var percent = 1; percent < 100; percent++) {
-                long numerator = (long)(percent * 0.01 * granularity);
+                long numerator = (long) (percent * 0.01 * granularity);
                 String expected = "0" + percentToDecimal(percent);
-                assertEquals("format2Decimals on " + percent + "% of one " + unit.getSuffix(), expected, format2Decimals(numerator, granularity));
+                assertEquals(
+                    "format2Decimals on " + percent + "% of one " + unit.getSuffix(),
+                    expected,
+                    format2Decimals(numerator, granularity)
+                );
             }
         }
     }
@@ -562,7 +557,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         long granularity = KB.toBytes(1);
         long wholeUnits = Long.MAX_VALUE / granularity;
         for (var percent = 1; percent < 100; percent++) {
-            long fractionalPart = (long)(0.01 * percent * granularity);
+            long fractionalPart = (long) (0.01 * percent * granularity);
             long numerator = wholeUnits * granularity + fractionalPart;
             String expected = wholeUnits + percentToDecimal(percent);
             assertEquals("String should match for " + percent + "%", expected, format2Decimals(numerator, granularity));
@@ -573,7 +568,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         if (percent <= 9) {
             return ".0" + percent;
         } else if (percent % 10 == 0) {
-            return "." + percent /10;
+            return "." + percent / 10;
         } else {
             return "." + percent;
         }

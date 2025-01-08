@@ -491,8 +491,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         if (random.nextBoolean()) {
             builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB)); // just
-                                                                                                                                    // don't
-                                                                                                                                    // flush
+                                                                                                                                   // don't
+                                                                                                                                   // flush
         }
         if (random.nextBoolean()) {
             builder.put(

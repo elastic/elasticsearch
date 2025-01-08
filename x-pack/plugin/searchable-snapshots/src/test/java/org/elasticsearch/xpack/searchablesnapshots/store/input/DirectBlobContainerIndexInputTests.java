@@ -66,10 +66,10 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST.toString()),
             partSize == input.length
                 ? randomFrom(
-                ByteSizeValue.of(partSize, ByteSizeUnit.BYTES),
-                ByteSizeValue.of(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(partSize, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
                     ByteSizeValue.ZERO,
-                ByteSizeValue.of(-1, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(-1, ByteSizeUnit.BYTES),
                     null
                 )
                 : ByteSizeValue.of(partSize, ByteSizeUnit.BYTES)

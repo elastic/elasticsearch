@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -147,23 +146,21 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
                 configurationMap.put(
                     API_KEY,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("You must provide either an API key or an Entra ID.")
                         .setLabel("API Key")
-                        .setOrder(1)
                         .setRequired(false)
                         .setSensitive(true)
-                        .setTooltip("You must provide either an API key or an Entra ID.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
                 configurationMap.put(
                     ENTRA_ID,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("You must provide either an API key or an Entra ID.")
                         .setLabel("Entra ID")
-                        .setOrder(2)
                         .setRequired(false)
                         .setSensitive(true)
-                        .setTooltip("You must provide either an API key or an Entra ID.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );

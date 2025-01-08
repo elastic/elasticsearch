@@ -312,22 +312,23 @@ public class RestEsqlIT extends RestEsqlTestCase {
             }
             signatures.add(sig);
         }
+        var readProfile = matchesList().item("LuceneSourceOperator")
+            .item("ValuesSourceReaderOperator")
+            .item("AggregationOperator")
+            .item("ExchangeSinkOperator");
+        var mergeProfile = matchesList().item("ExchangeSourceOperator")
+            .item("AggregationOperator")
+            .item("ProjectOperator")
+            .item("LimitOperator")
+            .item("EvalOperator")
+            .item("ProjectOperator")
+            .item("OutputOperator");
+        var emptyReduction = matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator");
+        var reduction = matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator");
         assertThat(
             signatures,
-            containsInAnyOrder(
-                matchesList().item("LuceneSourceOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("AggregationOperator")
-                    .item("ExchangeSinkOperator"),
-                matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"),
-                matchesList().item("ExchangeSourceOperator")
-                    .item("AggregationOperator")
-                    .item("ProjectOperator")
-                    .item("LimitOperator")
-                    .item("EvalOperator")
-                    .item("ProjectOperator")
-                    .item("OutputOperator")
-            )
+            Matchers.either(containsInAnyOrder(readProfile, reduction, mergeProfile))
+                .or(containsInAnyOrder(readProfile, emptyReduction, mergeProfile))
         );
     }
 

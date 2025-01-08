@@ -982,10 +982,28 @@ public class OpenAiServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT);
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
-                {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
-                "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44}}""");
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {
+                    "chat_completion":{
+                        "id":"12345",
+                        "choices":[
+                            {
+                                "delta":{
+                                    "content":"hello, world"
+                                },
+                                "finish_reason":"stop",
+                                "index":0
+                            }
+                        ],
+                        "model":"gpt-4o-mini",
+                        "object":"chat.completion.chunk",
+                        "usage":{
+                            "completion_tokens":28,
+                            "prompt_tokens":16,
+                            "total_tokens":44
+                        }
+                    }
+                }"""));
         }
     }
 

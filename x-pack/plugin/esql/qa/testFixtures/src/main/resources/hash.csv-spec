@@ -98,7 +98,7 @@ input:integer | md5:keyword                      | sha256:keyword
 
 hashWithStats
 required_capability: hash_function
-required_capability: short_hash_functions
+required_capability: hash_function_aliases_v1
 
 FROM sample_data 
 | EVAL md5="md5"
@@ -111,7 +111,7 @@ count:long | hash(md5, message):keyword        | md5(message):keyword
 
 
 md5Hash
-required_capability: short_hash_functions
+required_capability: hash_function_aliases_v1
 
 // tag::md5[]
 FROM sample_data 

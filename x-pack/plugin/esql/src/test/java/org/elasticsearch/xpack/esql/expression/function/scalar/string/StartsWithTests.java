@@ -51,7 +51,7 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (valid, position) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

@@ -4,7 +4,7 @@
 <titleabbrev>Basics: Full-text search and filtering</titleabbrev>
 ++++
 
-This is a hands-on introduction to the basics of full-text search with {es}, also known as _lexical search_, using the <<search-search,`_search` API>> and <<query-dsl,Query DSL>>.
+This is a hands-on introduction to the basics of <<full-text-search,full-text search>> with {es}, also known as _lexical search_, using the <<search-search,`_search` API>> and <<query-dsl,Query DSL>>.
 You'll also learn how to filter data, to narrow down search results based on exact criteria.
 
 In this scenario, we're implementing a search function for a cooking blog.
@@ -632,6 +632,7 @@ This tutorial introduced the basics of full-text search and filtering in {es}.
 Building a real-world search experience requires understanding many more advanced concepts and techniques.
 Here are some resources once you're ready to dive deeper:
 
+* <<full-text-search, Full-text search>>: Learn about the core components of full-text search in {es}.
 * <<search-analyze, Elasticsearch basics — Search and analyze data>>: Understand all your options for searching and analyzing data in {es}.
 * <<analysis,Text analysis>>: Understand how text is processed for full-text search.
 * <<search-with-elasticsearch>>: Learn about more advanced search techniques using the `_search` API, including semantic search.

@@ -658,9 +658,6 @@ public final class IndexSettings {
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
-            if (INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) == false) {
-                return String.valueOf(false);
-            }
             final SourceFieldMapper.Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
             return String.valueOf(sourceMode == SourceFieldMapper.Mode.SYNTHETIC);
         },

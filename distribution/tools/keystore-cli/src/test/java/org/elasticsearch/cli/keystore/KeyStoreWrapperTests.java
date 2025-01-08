@@ -475,7 +475,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     private void copyKeyStoreFromResourceToConfigDir(Path configDir, String name) throws IOException {
         final Path keystore = configDir.resolve("elasticsearch.keystore");
-        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(name); OutputStream os = Files.newOutputStream(keystore)) {
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(name); //
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
             final byte[] buffer = new byte[4096];
             int readBytes;
             while ((readBytes = is.read(buffer)) > 0) {

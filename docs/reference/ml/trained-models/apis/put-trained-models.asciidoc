@@ -594,7 +594,7 @@ Refer to <<tokenization-properties>> to review the properties of the
 
 `text_expansion`:::
 (Object, optional)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-text_expansion]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-text-expansion]
 +
 .Properties of text_expansion inference
 [%collapsible%open]

@@ -292,6 +292,9 @@ public record StatelessCompoundCommit(
         assert version == CURRENT_VERSION
             : "writing to object store must use the current version [" + CURRENT_VERSION + "], got [" + version + "]";
         assert assertSortedBySize(internalFiles) : "internal files must be sorted by size, got " + internalFiles;
+        assert (translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE && nodeEphemeralId.isEmpty())
+            || translogRecoveryStartFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE
+            : "a hollow commit must have an empty node ephemeral id (currently " + nodeEphemeralId + ")";
         BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
         long codecSize = positionTracking.position();

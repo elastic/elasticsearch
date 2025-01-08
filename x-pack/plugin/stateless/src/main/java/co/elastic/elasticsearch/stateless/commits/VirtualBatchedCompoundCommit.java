@@ -614,7 +614,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 shardId,
                 reference.getGeneration(),
                 reference.getPrimaryTerm(),
-                nodeEphemeralId,
+                reference.isHollow() ? "" : nodeEphemeralId,
                 reference.getTranslogRecoveryStartFile(),
                 referencedFiles,
                 internalFiles,

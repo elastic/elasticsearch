@@ -195,7 +195,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     static String message(long unassignedBytes, long assignedBytes) {
         return unassignedBytes > 0 || assignedBytes > 0
-            ? "not enough storage available, needs " + ByteSizeValue.ofBytes(unassignedBytes + assignedBytes)
+            ? "not enough storage available, needs " + ByteSizeValue.withAutomaticUnit(unassignedBytes + assignedBytes)
             : "storage ok";
     }
 

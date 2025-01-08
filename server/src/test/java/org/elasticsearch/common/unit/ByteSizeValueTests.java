@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.unit;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -30,6 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@Repeat(iterations = 1000)
 public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
     public void testActualPeta() {
         MatcherAssert.assertThat(ByteSizeValue.of(4, PB).getBytes(), equalTo(4503599627370496L));
@@ -565,43 +568,14 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         }
     }
 
-    /*
-    public void testFormat2DecimalsWithIntegers() {
-        assertEquals("0", format2Decimals(0, 0));
-        assertEquals("123", format2Decimals(123, 0));
-        assertEquals("-123", format2Decimals(-123, 0));
-        assertEquals(Long.toString(Long.MAX_VALUE), format2Decimals(Long.MAX_VALUE, 0));
+    public void testWithAutomaticUnit() {
+        long kibi = 1024;
+        long mebi = kibi * kibi;
+        assertEquals(new ByteSizeValue(kibi-1, BYTES), ByteSizeValue.withAutomaticUnit(kibi-1));
+        assertEquals(new ByteSizeValue(kibi, KB), ByteSizeValue.withAutomaticUnit(kibi));
+        assertEquals(new ByteSizeValue(kibi+1, BYTES), ByteSizeValue.withAutomaticUnit(kibi+1));
+        assertEquals(new ByteSizeValue(mebi-kibi, KB), ByteSizeValue.withAutomaticUnit(mebi-kibi));
     }
-
-    public void testFormat2DecimalsWithHundredths() {
-        for (int hundredths = 1; hundredths < 10; hundredths++) {
-            assertEquals("0.0" + hundredths, format2Decimals(hundredths / 100.0));
-        }
-        for (int tenths = 1; tenths < 10; tenths++) {
-            assertEquals("0." + tenths, format2Decimals(tenths / 10.0));
-            for (int hundredths = 1; hundredths < 10; hundredths++) {
-                assertEquals("0." + tenths + hundredths, format2Decimals(tenths / 10.0 + hundredths / 100.0));
-            }
-        }
-    }
-
-    public void testFormat2DecimalsWithRounding() {
-        assertEquals("0.01", format2Decimals(0.0149999));
-        assertEquals("0.02", format2Decimals(0.0151000));
-    }
-
-    public void testFormat2DecimalsWithHugeNumbers() {
-        // With enough digits, floating-point values can lose their bottom digits.
-        // Ensure this doesn't cause double-rounding, where x.xx4999...999 becomes the
-        // double value x.xx5 which then rounds up.
-
-        // Try to induce double-rounding
-        double pointFourNine = 90000000000000.49 * 1024;
-
-        // Ensure we can still tell .49 from .50
-        assertEquals("90000000000000.49", format2Decimals(pointFourNine / 1024));
-    }
-     */
 
     @Override
     protected void assertEqualInstances(ByteSizeValue expectedInstance, ByteSizeValue newInstance) {

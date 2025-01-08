@@ -6812,6 +6812,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testWhereNull() {
+        var plan = plan("""
+            from test
+            | sort salary
+            | rename emp_no as e, first_name as f
+            | keep salary, e, f
+            | where null
+            | LIMIT 12
+            """);
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
     public void testMapExpressionAsFunctionArgument() {
         assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
         var query = """

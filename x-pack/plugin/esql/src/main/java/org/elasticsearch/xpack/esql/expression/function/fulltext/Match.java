@@ -84,8 +84,7 @@ public class Match extends FullTextFunction implements Validatable {
         LONG,
         UNSIGNED_LONG,
         VERSION
-    ).filter(dataType -> dataType != SEMANTIC_TEXT || EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled())
-     .collect(Collectors.toSet());
+    ).filter(dataType -> dataType != SEMANTIC_TEXT || EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()).collect(Collectors.toSet());
 
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
         KEYWORD,

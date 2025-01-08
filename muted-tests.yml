@@ -268,6 +268,9 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSearchableSnapshotIndexCompatibilityIT
   method: testSearchableSnapshotUpgrade {p0=9.0.0}
   issue: https://github.com/elastic/elasticsearch/issues/119632
+- class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
+  method: testProfileDfs
+  issue: https://github.com/elastic/elasticsearch/issues/119711
 
 # Examples:
 #

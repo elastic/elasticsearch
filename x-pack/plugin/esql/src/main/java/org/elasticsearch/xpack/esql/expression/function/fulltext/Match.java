@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -37,6 +38,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -68,7 +71,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     private transient Boolean isOperator;
 
-    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+    public static final Set<DataType> FIELD_DATA_TYPES = Stream.of(
         KEYWORD,
         TEXT,
         SEMANTIC_TEXT,
@@ -81,7 +84,9 @@ public class Match extends FullTextFunction implements Validatable {
         LONG,
         UNSIGNED_LONG,
         VERSION
-    );
+    ).filter(dataType -> dataType != SEMANTIC_TEXT || EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled())
+     .collect(Collectors.toSet());
+
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
         KEYWORD,
         BOOLEAN,

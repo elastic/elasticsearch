@@ -271,13 +271,6 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         );
     }
 
-    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return createBucket(aggs, buckets.get(0));
-    }
-
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {

@@ -39,7 +39,8 @@ public class DataNodeRequestTests extends ESTestCase {
             Collections.emptyMap(),
             null,
             generateRandomStringArray(10, 10, false, false),
-            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
+            randomBoolean()
         );
 
         assertThat(request.shardIds(), equalTo(shardIds));

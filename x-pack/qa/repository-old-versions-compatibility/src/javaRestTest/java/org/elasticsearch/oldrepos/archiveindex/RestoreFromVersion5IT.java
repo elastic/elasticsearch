@@ -7,11 +7,12 @@
 
 package org.elasticsearch.oldrepos.archiveindex;
 
+import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
 public class RestoreFromVersion5IT extends ArchiveIndexTestCase {
 
     public RestoreFromVersion5IT(Version version) {
-        super(version, "5");
+        super(version, Snapshot.FIVE);
     }
 }

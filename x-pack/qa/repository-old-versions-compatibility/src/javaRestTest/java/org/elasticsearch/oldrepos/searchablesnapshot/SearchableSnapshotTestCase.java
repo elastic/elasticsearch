@@ -8,9 +8,12 @@
 package org.elasticsearch.oldrepos.searchablesnapshot;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.oldrepos.AbstractUpgradeCompatibilityTestCase;
+import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
@@ -27,7 +30,7 @@ abstract class SearchableSnapshotTestCase extends AbstractUpgradeCompatibilityTe
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    protected SearchableSnapshotTestCase(Version version, String indexCreatedVersion) {
+    protected SearchableSnapshotTestCase(Version version, Snapshot indexCreatedVersion) {
         super(version, indexCreatedVersion);
     }
 
@@ -44,6 +47,10 @@ abstract class SearchableSnapshotTestCase extends AbstractUpgradeCompatibilityTe
               "index": "%s",
               "renamed_index": "%s"
             }""", index, index));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
         createFromResponse(client.performRequest(request));
     }
 }

@@ -10,9 +10,9 @@ package org.elasticsearch.oldrepos.archiveindex;
 import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
-public class RestoreFromVersion6IT extends ArchiveIndexTestCase {
+public class RestoreFromVersion5CustomAnalyzerIT extends ArchiveIndexTestCase {
 
-    public RestoreFromVersion6IT(Version version) {
-        super(version, Snapshot.SIX);
+    public RestoreFromVersion5CustomAnalyzerIT(Version version) {
+        super(version, Snapshot.FIVE_CUSTOM_ANALYZER);
     }
 }

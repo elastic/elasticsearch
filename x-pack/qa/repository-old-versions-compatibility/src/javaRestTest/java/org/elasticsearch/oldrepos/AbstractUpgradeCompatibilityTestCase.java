@@ -73,9 +73,9 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
     private static boolean upgradeFailed = false;
 
     private final Version clusterVersion;
-    private final String indexCreatedVersion;
+    private final Snapshot indexCreatedVersion;
 
-    public AbstractUpgradeCompatibilityTestCase(@Name("cluster") Version clusterVersion, String indexCreatedVersion) {
+    public AbstractUpgradeCompatibilityTestCase(@Name("cluster") Version clusterVersion, Snapshot indexCreatedVersion) {
         this.clusterVersion = clusterVersion;
         this.indexCreatedVersion = indexCreatedVersion;
     }
@@ -143,7 +143,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public final void verifyCompatibility(String version) throws Exception {
+    protected final void verifyCompatibility(Snapshot version) throws Exception {
         final String repository = "repository";
         final String snapshot = "snapshot";
         final String index = "index";
@@ -156,7 +156,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
             assertTrue(getIndices(client()).isEmpty());
 
             // Copy a snapshot of an index with 5 documents
-            copySnapshotFromResources(repositoryPath, version);
+            copySnapshotFromResources(repositoryPath, version.getName());
             registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
             recover(client(), repository, snapshot, index);
 
@@ -173,7 +173,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public abstract void recover(RestClient restClient, String repository, String snapshot, String index) throws Exception;
+    protected abstract void recover(RestClient restClient, String repository, String snapshot, String index) throws Exception;
 
     private static String getIndices(RestClient client) throws IOException {
         final Request request = new Request("GET", "_cat/indices");

@@ -7,11 +7,12 @@
 
 package org.elasticsearch.oldrepos.searchablesnapshot;
 
+import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
 public class MountFromVersion5IT extends SearchableSnapshotTestCase {
 
     public MountFromVersion5IT(Version version) {
-        super(version, "5");
+        super(version, Snapshot.FIVE);
     }
 }

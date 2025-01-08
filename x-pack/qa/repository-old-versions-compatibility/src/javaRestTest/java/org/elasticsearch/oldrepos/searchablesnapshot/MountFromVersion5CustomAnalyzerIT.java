@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.oldrepos.archiveindex;
+package org.elasticsearch.oldrepos.searchablesnapshot;
 
 import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
-public class RestoreFromVersion6IT extends ArchiveIndexTestCase {
+public class MountFromVersion5CustomAnalyzerIT extends SearchableSnapshotTestCase {
 
-    public RestoreFromVersion6IT(Version version) {
-        super(version, Snapshot.SIX);
+    public MountFromVersion5CustomAnalyzerIT(Version version) {
+        super(version, Snapshot.FIVE_CUSTOM_ANALYZER);
     }
 }

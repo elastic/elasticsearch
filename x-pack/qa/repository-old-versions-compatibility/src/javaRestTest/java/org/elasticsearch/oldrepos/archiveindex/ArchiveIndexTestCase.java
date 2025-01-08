@@ -7,10 +7,15 @@
 
 package org.elasticsearch.oldrepos.archiveindex;
 
+import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.oldrepos.AbstractUpgradeCompatibilityTestCase;
+import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
@@ -31,7 +36,7 @@ abstract class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    protected ArchiveIndexTestCase(Version version, String indexCreatedVersion) {
+    protected ArchiveIndexTestCase(Version version, Snapshot indexCreatedVersion) {
         super(version, indexCreatedVersion);
     }
 
@@ -49,6 +54,10 @@ abstract class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase
               "rename_pattern": "(.+)",
               "include_aliases": false
             }""", index));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
         createFromResponse(client.performRequest(request));
     }
 }

@@ -67,6 +67,37 @@ PUT /index
 }
 ```
 
+### Create Index Version 5 - Custom-Analyzer
+```
+PUT /index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "custom_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "standard",
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "content": {
+          "type": "text",
+          "analyzer": "custom_analyzer"
+        }
+      }
+    }
+  }
+}
+```
+
 ### Create Index Version 6
 ```
 PUT /index
@@ -100,6 +131,14 @@ POST /index/my_type
   "title": "Title 5",
   "content": "Elasticsearch is a powerful search engine.",
   "created_at": "2024-12-16"
+}
+```
+
+### Add documents Version 5 - Custom-Analyzer
+```
+POST /index/my_type
+{
+  "content": "Doc 1"
 }
 ```
 

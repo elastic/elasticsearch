@@ -10,9 +10,9 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
-  name 'x-pack-fleet'
-  description 'Elasticsearch Expanded Pack Plugin - Plugin exposing APIs for Fleet system indices'
-  classname 'org.elasticsearch.xpack.fleet.Fleet'
+  name = 'x-pack-fleet'
+  description = 'Elasticsearch Expanded Pack Plugin - Plugin exposing APIs for Fleet system indices'
+  classname ='org.elasticsearch.xpack.fleet.Fleet'
   extendedPlugins = ['x-pack-core']
 }
 

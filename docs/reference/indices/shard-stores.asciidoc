@@ -4,6 +4,12 @@
 <titleabbrev>Index shard stores</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Retrieves store information
 about replica shards in one or more indices.
 For data streams, the API retrieves store
@@ -173,7 +179,6 @@ The API returns the following response:
                             "roles": [...],
                             "version": "8.10.0",
                             "min_index_version": 7000099,
-                            "min_read_only_index_version": 7000099,
                             "max_index_version": 8100099
                         },
                         "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>

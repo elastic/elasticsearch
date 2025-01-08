@@ -263,7 +263,11 @@ public class ObjectMapper extends Mapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (Mapper mapper : mappers.values()) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -855,7 +859,7 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    ObjectMapper findParentMapper(String leafFieldPath) {
+    public ObjectMapper findParentMapper(String leafFieldPath) {
         var pathComponents = leafFieldPath.split("\\.");
         int startPathComponent = 0;
 

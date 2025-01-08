@@ -8,7 +8,6 @@
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin
@@ -55,8 +54,9 @@ tasks.named("yamlRestTest").configure { enabled = false }
 ['KeyStore', 'EnvVariables', 'SystemProperties', 'ContainerCredentials', 'InstanceProfile'].forEach { action ->
   TaskProvider<AntFixture> fixture = tasks.register("ec2Fixture${action}", AntFixture) {
     dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
-    env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
-    executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
+    FileCollection cp = project.sourceSets.yamlRestTest.runtimeClasspath
+    env 'CLASSPATH', "${-> cp.asPath}"
+    executable = "${buildParams.runtimeJavaHome.get() }/bin/java"
     args 'org.elasticsearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/yamlRestTest${action}-1/config/unicast_hosts.txt"
   }
 
@@ -68,9 +68,18 @@ tasks.named("yamlRestTest").configure { enabled = false }
     classpath = yamlRestTestSourceSet.getRuntimeClasspath()
   }
 
+  if(action == 'ContainerCredentials') {
+    def addressAndPortSource = fixture.get().addressAndPortSource
+    testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
+      environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+        () -> addressAndPortSource.map{ addr -> "http://${addr}/ecs_credentials_endpoint" }.get(), IGNORE_VALUE
+    }
+  }
+
   tasks.named("check").configure {
     dependsOn(yamlRestTestTask)
   }
+  def addressAndPortSource = fixture.get().addressAndPortSource
 
   testClusters.matching { it.name == yamlRestTestTask.name}.configureEach {
     numberOfNodes = ec2NumberOfNodes
@@ -78,9 +87,9 @@ tasks.named("yamlRestTest").configure { enabled = false }
 
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'
-    setting 'discovery.ec2.endpoint', { "http://${-> fixture.get().addressAndPort}" }, IGNORE_VALUE
+    setting 'discovery.ec2.endpoint', { "http://${-> addressAndPortSource.get()}" }, IGNORE_VALUE
 
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.get().addressAndPort}" }, IGNORE_VALUE
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> addressAndPortSource.get()}" }, IGNORE_VALUE
   }
 }
 
@@ -105,11 +114,6 @@ testClusters.matching { it.name == "yamlRestTestSystemProperties" }.configureEac
 // Extra config for ContainerCredentials
 tasks.named("ec2FixtureContainerCredentials").configure {
   env 'ACTIVATE_CONTAINER_CREDENTIALS', true
-}
-
-testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
-  environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
-    { "http://${-> tasks.findByName("ec2FixtureContainerCredentials").addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
 }
 
 // Extra config for InstanceProfile

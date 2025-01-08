@@ -1,0 +1,5 @@
+pr: 118954
+summary: Add missing parameter to `xpack.info` rest-api-spec
+area: Infra/REST API
+type: bug
+issues: []

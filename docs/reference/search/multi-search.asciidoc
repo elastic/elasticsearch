@@ -4,6 +4,12 @@
 <titleabbrev>Multi search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Executes several searches with a single API request.
 
 [source,console]

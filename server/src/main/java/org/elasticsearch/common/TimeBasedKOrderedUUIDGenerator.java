@@ -9,8 +9,12 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.util.ByteUtils;
+
 import java.nio.ByteBuffer;
 import java.util.Base64;
+import java.util.OptionalInt;
+import java.util.function.Supplier;
 
 /**
  * Generates a base64-encoded, k-ordered UUID string optimized for compression and efficient indexing.
@@ -28,22 +32,36 @@ import java.util.Base64;
  * The result is a compact base64-encoded string, optimized for efficient compression of the _id field in an inverted index.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
+    static final int SIZE_IN_BYTES = 15;
+
+    private static final Base64.Encoder BASE_64_NO_PADDING_URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
+    public TimeBasedKOrderedUUIDGenerator(
+        final Supplier<Long> timestampSupplier,
+        final Supplier<Integer> sequenceIdSupplier,
+        final Supplier<byte[]> macAddressSupplier
+    ) {
+        super(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
+    }
 
     @Override
     public String getBase64UUID() {
-        final int sequenceId = this.sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
+        return getBase64UUID(OptionalInt.empty());
+    }
+
+    public String getBase64UUID(OptionalInt hash) {
+        final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         // Calculate timestamp to ensure ordering and avoid backward movement in case of time shifts.
         // Uses AtomicLong to guarantee that timestamp increases even if the system clock moves backward.
         // If the sequenceId overflows (reaches 0 within the same millisecond), the timestamp is incremented
         // to ensure strict ordering.
         long timestamp = this.lastTimestamp.accumulateAndGet(
-            currentTimeMillis(),
+            timestampSupplier.get(),
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 
-        final byte[] uuidBytes = new byte[15];
+        final byte[] uuidBytes = new byte[SIZE_IN_BYTES + (hash.isPresent() ? 4 : 0)];
         final ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
 
         buffer.put((byte) (timestamp >>> 40)); // changes every 35 years
@@ -57,6 +75,13 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         assert macAddress.length == 6;
         buffer.put(macAddress, 0, macAddress.length);
 
+        // Copy the hash value if provided
+        if (hash.isPresent()) {
+            byte[] hashBytes = new byte[4];
+            ByteUtils.writeIntLE(hash.getAsInt(), hashBytes, 0);
+            buffer.put(hashBytes, 0, hashBytes.length);
+        }
+
         buffer.put((byte) (sequenceId >>> 16));
 
         // From hereinafter everything is almost like random and does not compress well
@@ -68,6 +93,6 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
         assert buffer.position() == uuidBytes.length;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
     }
 }

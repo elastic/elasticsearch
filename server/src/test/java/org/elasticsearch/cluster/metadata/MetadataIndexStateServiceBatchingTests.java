@@ -80,8 +80,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // release block
 
         // assert that the requests were acknowledged
-        assertAcked(future1.get());
-        assertAcked(future2.get());
+        assertAcked(future1, future2);
 
         // and assert that all the indices are open
         for (String index : List.of("test-1", "test-2", "test-3")) {

@@ -1,0 +1,5 @@
+pr: 119447
+summary: "[8.x] Add missing timeouts to rest-api-spec SLM APIs"
+area: ILM+SLM
+type: bug
+issues: []

@@ -227,7 +227,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    protected static String convertFieldValue(MappedFieldType type, Object value) {
+    public static String convertFieldValue(MappedFieldType type, Object value) {
         if (value instanceof BytesRef) {
             return type.valueForDisplay(value).toString();
         } else {
@@ -235,7 +235,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+    public static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         // loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));

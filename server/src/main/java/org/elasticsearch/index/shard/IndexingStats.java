@@ -351,6 +351,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     static final class Fields {
         static final String INDEXING = "indexing";
+        static final String TYPES = "types";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
         static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";

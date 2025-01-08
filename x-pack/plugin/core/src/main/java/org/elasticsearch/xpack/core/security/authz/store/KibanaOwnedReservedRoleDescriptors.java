@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -437,7 +438,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "index",
                         "delete",
                         TransportIndicesAliasesAction.NAME,
-                        TransportUpdateSettingsAction.TYPE.name()
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name()
                     )
                     .build(),
                 // For source indices of the Cloud Detection & Response (CDR) packages that ships a

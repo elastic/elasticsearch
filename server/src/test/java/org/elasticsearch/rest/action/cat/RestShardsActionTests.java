@@ -78,8 +78,8 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
             assertThat(row.get(7).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(8).value, equalTo(localNode.getId()));
-            assertThat(row.get(70).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(71).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(71).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(72).value, equalTo(shardStats.getStatePath()));
         }
     }
 
@@ -91,14 +91,14 @@ public class RestShardsActionTests extends ESTestCase {
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
-        assertThat(headers.get(29).value, equalTo("indexing.delete_current"));
-        assertThat(headers.get(30).value, equalTo("indexing.delete_time"));
-        assertThat(headers.get(31).value, equalTo("indexing.delete_total"));
-        assertThat(headers.get(32).value, equalTo("indexing.index_current"));
-        assertThat(headers.get(33).value, equalTo("indexing.index_time"));
-        assertThat(headers.get(34).value, equalTo("indexing.index_total"));
-        assertThat(headers.get(35).value, equalTo("indexing.index_failed"));
-        assertThat(headers.get(36).value, equalTo("indexing.index_failed_due_to_version_conflict"));
+        assertThat(headers.get(30).value, equalTo("indexing.delete_current"));
+        assertThat(headers.get(31).value, equalTo("indexing.delete_time"));
+        assertThat(headers.get(32).value, equalTo("indexing.delete_total"));
+        assertThat(headers.get(33).value, equalTo("indexing.index_current"));
+        assertThat(headers.get(34).value, equalTo("indexing.index_time"));
+        assertThat(headers.get(35).value, equalTo("indexing.index_total"));
+        assertThat(headers.get(36).value, equalTo("indexing.index_failed"));
+        assertThat(headers.get(37).value, equalTo("indexing.index_failed_due_to_version_conflict"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(shardRoutings.size()));
@@ -107,15 +107,15 @@ public class RestShardsActionTests extends ESTestCase {
         for (final List<Table.Cell> row : rows) {
             ShardRouting shardRouting = shardRoutingsIt.next();
             ShardStats shardStats = indicesStatsResponse.asMap().get(shardRouting);
-            assertThat(row.get(29).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCurrent()));
-            assertThat(row.get(30).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteTime()));
-            assertThat(row.get(31).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCount()));
-            assertThat(row.get(32).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCurrent()));
-            assertThat(row.get(33).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexTime()));
-            assertThat(row.get(34).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCount()));
-            assertThat(row.get(35).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedCount()));
+            assertThat(row.get(30).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCurrent()));
+            assertThat(row.get(31).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteTime()));
+            assertThat(row.get(32).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCount()));
+            assertThat(row.get(33).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCurrent()));
+            assertThat(row.get(34).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexTime()));
+            assertThat(row.get(35).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCount()));
+            assertThat(row.get(36).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedCount()));
             assertThat(
-                row.get(36).value,
+                row.get(37).value,
                 equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedDueToVersionConflictCount())
             );
         }

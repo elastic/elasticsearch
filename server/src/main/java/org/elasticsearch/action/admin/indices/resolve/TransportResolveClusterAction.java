@@ -176,7 +176,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         ) instanceof ElasticsearchSecurityException ese) {
                             /*
                              * some ElasticsearchSecurityExceptions come from the local cluster security interceptor after you've
-                             * issue the client.execute call but before any call went to the remote cluster, so with an
+                             * issued the client.execute call but before any call went to the remote cluster, so with an
                              * ElasticsearchSecurityException you can't tell whether the remote cluster is available or not, so mark
                              * it as connected=false
                              */

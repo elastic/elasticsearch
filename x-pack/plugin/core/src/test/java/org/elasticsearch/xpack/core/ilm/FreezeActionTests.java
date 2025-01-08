@@ -85,8 +85,8 @@ public class FreezeActionTests extends AbstractWireSerializingTestCase<FreezeAct
             }
         }
         assertWarnings(
-            "The freeze action in ILM is deprecated and will be removed in a future version." +
-                " Please remove the freeze action from the ILM policy."
+            "The freeze action in ILM is deprecated and will be removed in a future version."
+                + " Please remove the freeze action from the ILM policy."
         );
     }
 

@@ -378,12 +378,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
   method: testCancelRequestWhenFailingFetchingPages
   issue: https://github.com/elastic/elasticsearch/issues/118213
-- class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
-  method: testHealthNode {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/118157
-- class: org.elasticsearch.upgrades.HealthNodeUpgradeIT
-  method: testHealthNode {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/118158
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/118184
@@ -434,3 +428,18 @@ tests:
 - class: org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshotTests
   method: testSkipNonRootOfNestedDocuments
   issue: https://github.com/elastic/elasticsearch/issues/119553
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcher {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119259
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testServiceAccountApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119435
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSecurityNativeRealm {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119423
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119434
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/118718

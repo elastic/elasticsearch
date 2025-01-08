@@ -37,6 +37,8 @@ public interface EntitlementChecker {
 
     void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status);
 
+    void check$java_lang_System$$exit(Class<?> callerClass, int status);
+
     ////////////////////
     //
     // ClassLoader ctor

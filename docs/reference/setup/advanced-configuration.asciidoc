@@ -19,6 +19,7 @@ CAUTION: Setting your own JVM options is generally not recommended and could neg
 impact performance and stability. Using the {es}-provided defaults
 is recommended in most circumstances.
 
+[[readiness-tcp-port]]
 NOTE: Do not modify the root `jvm.options` file. Use files in `jvm.options.d/` instead.
 
 [[jvm-options-syntax]]
@@ -153,7 +154,7 @@ options. We do not recommend using `ES_JAVA_OPTS` in production.
 NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.
 
-[[heap-dump-path]]
+[[heap-dump-path-setting]]
 include::important-settings/heap-dump-path.asciidoc[leveloffset=-1]
 
 [[gc-logging]]

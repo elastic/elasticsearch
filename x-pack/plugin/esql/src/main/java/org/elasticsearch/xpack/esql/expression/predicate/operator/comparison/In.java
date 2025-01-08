@@ -248,6 +248,11 @@ public class In extends EsqlScalarFunction {
             factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
             return new InNanosMillisEvaluator.Factory(source(), lhs, factories);
         }
+        if (value.dataType() == DATETIME && list.getFirst().dataType() == DATE_NANOS) {
+            lhs = toEvaluator.apply(value);
+            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            return new InMillisNanosEvaluator.Factory(source(), lhs, factories);
+        }
         var commonType = commonType();
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
@@ -330,12 +335,33 @@ public class In extends EsqlScalarFunction {
         return false;
     }
 
+    /**
+     * Processor for mixed millisecond and nanosecond dates, where the "value" (aka lhs) is in nanoseconds
+     * and the "list" (aka rhs) is in milliseconds
+     */
     static boolean processNanosMillis(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
         for (int i = 0; i < rhs.length; i++) {
             if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
             Boolean compResult = DateUtils.compareNanosToMillis(lhs, rhs[i]) == 0;
+            if (compResult == Boolean.TRUE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     *  Processor for mixed millisecond and nanosecond dates, where the "value" (aka lhs) is in milliseoncds
+     *  and the "list" (aka rhs) is in nanoseconds
+     */
+    static boolean processMillisNanos(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
+        for (int i = 0; i < rhs.length; i++) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
+                continue;
+            }
+            Boolean compResult = DateUtils.compareNanosToMillis(rhs[i], lhs) == 0;
             if (compResult == Boolean.TRUE) {
                 return true;
             }

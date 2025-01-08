@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -85,10 +86,20 @@ public class Range extends ScalarFunction {
         return zoneId;
     }
 
+    /**
+     * In case that the boundaries are not yet folded, but turn out to be invalid after folding, this will still return {@code false}.
+     * That's because we shouldn't perform folding when trying to determine foldability.
+     */
     @Override
     public boolean foldable() {
         if (lower.foldable() && upper.foldable()) {
-            return areBoundariesInvalid() || value.foldable();
+            if (value().foldable()) {
+                return true;
+            }
+
+            if (lower() instanceof Literal && upper() instanceof Literal) {
+                return areBoundariesInvalid();
+            }
         }
 
         return false;

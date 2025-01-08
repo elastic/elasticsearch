@@ -452,3 +452,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {union_types.MultiIndexIndirectUseOfUnionTypesInMvExpand SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/119584
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/119622

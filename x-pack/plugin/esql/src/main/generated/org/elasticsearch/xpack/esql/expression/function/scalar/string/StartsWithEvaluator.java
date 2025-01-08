@@ -64,6 +64,7 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -87,6 +88,11 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBoolean(StartsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch)));
       }
       return result.build();
@@ -98,8 +104,15 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendBoolean(p, StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+        }
+        start = end;
       }
       return result.build();
     }

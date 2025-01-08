@@ -61,6 +61,7 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
   public BytesRefBlock eval(int positionCount, BytesRefBlock inputBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (inputBlock.isNull(p)) {
           result.appendNull();
@@ -73,6 +74,11 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
       }
       return result.build();
@@ -82,7 +88,13 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
   public BytesRefVector eval(int positionCount, BytesRefVector inputVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputVector.getBytesRef(p, inputScratch)));
       }
       return result.build();

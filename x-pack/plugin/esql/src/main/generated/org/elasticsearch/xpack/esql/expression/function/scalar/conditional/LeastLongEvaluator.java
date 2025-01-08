@@ -60,6 +60,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -79,6 +80,11 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getLong(o);
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendLong(Least.process(valuesValues));
       }
       return result.build();
@@ -88,12 +94,19 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
-      position: for (int p = 0; p < positionCount; p++) {
-        // unpack valuesVectors into valuesValues
-        for (int i = 0; i < valuesVectors.length; i++) {
-          valuesValues[i] = valuesVectors[i].getLong(p);
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          // unpack valuesVectors into valuesValues
+          for (int i = 0; i < valuesVectors.length; i++) {
+            valuesValues[i] = valuesVectors[i].getLong(p);
+          }
+          result.appendLong(p, Least.process(valuesValues));
         }
-        result.appendLong(p, Least.process(valuesValues));
+        start = end;
       }
       return result.build();
     }

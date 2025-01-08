@@ -70,6 +70,7 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef algorithmScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (algorithmBlock.isNull(p)) {
           result.appendNull();
@@ -94,6 +95,11 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendBytesRef(Hash.process(this.scratch, algorithmBlock.getBytesRef(algorithmBlock.getFirstValueIndex(p), algorithmScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
@@ -109,8 +115,14 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef algorithmScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendBytesRef(Hash.process(this.scratch, algorithmVector.getBytesRef(p, algorithmScratch), inputVector.getBytesRef(p, inputScratch)));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);

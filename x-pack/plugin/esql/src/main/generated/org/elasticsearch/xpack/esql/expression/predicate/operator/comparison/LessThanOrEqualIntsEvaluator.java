@@ -61,6 +61,7 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
 
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -84,6 +85,11 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBoolean(LessThanOrEqual.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -92,8 +98,15 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendBoolean(p, LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        }
+        start = end;
       }
       return result.build();
     }

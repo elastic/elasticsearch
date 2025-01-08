@@ -67,6 +67,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -90,6 +91,11 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), this.locale));
       }
       return result.build();
@@ -100,7 +106,13 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
       BytesRefVector formatterVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), this.locale));
       }
       return result.build();

@@ -59,6 +59,7 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
 
   public LongBlock eval(int positionCount, LongBlock valBlock, LongBlock decimalsBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -82,6 +83,11 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendLong(Round.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -90,8 +96,15 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
 
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Round.process(valVector.getLong(p), decimalsVector.getLong(p)));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendLong(p, Round.process(valVector.getLong(p), decimalsVector.getLong(p)));
+        }
+        start = end;
       }
       return result.build();
     }

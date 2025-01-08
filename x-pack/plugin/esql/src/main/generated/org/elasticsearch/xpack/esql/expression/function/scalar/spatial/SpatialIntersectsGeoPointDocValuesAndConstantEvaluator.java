@@ -51,6 +51,7 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
 
   public BooleanBlock eval(int positionCount, LongBlock leftBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!leftBlock.isNull(p)) {
@@ -61,6 +62,11 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           SpatialIntersects.processGeoPointDocValuesAndConstant(result, p, leftBlock, this.right);
         } catch (IllegalArgumentException | IOException e) {
           warnings().registerException(e);

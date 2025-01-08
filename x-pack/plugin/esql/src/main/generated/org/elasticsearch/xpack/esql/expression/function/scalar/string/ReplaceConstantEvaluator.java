@@ -67,6 +67,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -91,6 +92,11 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
         } catch (PatternSyntaxException e) {
           warnings().registerException(e);
@@ -106,8 +112,14 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), this.regex, newStrVector.getBytesRef(p, newStrScratch)));
         } catch (PatternSyntaxException e) {
           warnings().registerException(e);

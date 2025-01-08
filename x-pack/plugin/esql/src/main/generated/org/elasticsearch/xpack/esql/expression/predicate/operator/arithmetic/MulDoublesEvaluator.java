@@ -60,6 +60,7 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -84,6 +85,11 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendDouble(Mul.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -96,8 +102,14 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendDouble(Mul.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

@@ -56,6 +56,7 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
 
   public IntBlock eval(int positionCount, IntBlock valuesBlock, DoubleBlock percentileBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!valuesBlock.isNull(p)) {
@@ -77,6 +78,11 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)), this.scratch);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);

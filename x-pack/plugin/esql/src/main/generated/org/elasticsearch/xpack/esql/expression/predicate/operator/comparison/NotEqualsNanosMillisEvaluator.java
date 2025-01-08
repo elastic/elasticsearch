@@ -61,6 +61,7 @@ public final class NotEqualsNanosMillisEvaluator implements EvalOperator.Express
 
   public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -84,6 +85,11 @@ public final class NotEqualsNanosMillisEvaluator implements EvalOperator.Express
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBoolean(NotEquals.processNanosMillis(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -92,8 +98,15 @@ public final class NotEqualsNanosMillisEvaluator implements EvalOperator.Express
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, NotEquals.processNanosMillis(lhsVector.getLong(p), rhsVector.getLong(p)));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendBoolean(p, NotEquals.processNanosMillis(lhsVector.getLong(p), rhsVector.getLong(p)));
+        }
+        start = end;
       }
       return result.build();
     }

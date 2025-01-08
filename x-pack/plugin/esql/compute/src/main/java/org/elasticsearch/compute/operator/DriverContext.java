@@ -60,6 +60,10 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
+    public static final int CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD = 2048;
+    private static final Runnable NO_OP = () -> {};
+    private Runnable earlyTerminationChecker = NO_OP;
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
         this(bigArrays, blockFactory, WarningsMode.COLLECT);
     }
@@ -173,6 +177,21 @@ public class DriverContext {
 
     public void removeAsyncAction() {
         asyncActions.removeInstance();
+    }
+
+    /**
+     * Checks if the Driver associated with this DriverContext has been cancelled or early terminated.
+     */
+    public void checkForEarlyTermination() {
+        earlyTerminationChecker.run();
+    }
+
+    /**
+     * Initializes the early termination or cancellation checker for this DriverContext.
+     * This method should be called when associating this DriverContext with a driver.
+     */
+    public void initializeEarlyTerminationChecker(Runnable checker) {
+        this.earlyTerminationChecker = checker;
     }
 
     /**

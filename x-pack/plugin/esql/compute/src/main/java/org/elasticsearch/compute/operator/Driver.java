@@ -139,6 +139,10 @@ public class Driver implements Releasable, Describable {
                 DriverSleeps.empty()
             )
         );
+        driverContext.initializeEarlyTerminationChecker(() -> {
+            ensureNotCancelled();
+            checkForEarlyTermination();
+        });
     }
 
     /**
@@ -186,7 +190,13 @@ public class Driver implements Releasable, Describable {
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            IsBlockedResult isBlocked = runSingleLoopIteration();
+            IsBlockedResult isBlocked;
+            try {
+                isBlocked = runSingleLoopIteration();
+            } catch (DriverEarlyTerminationException ignored) {
+                isBlocked = Operator.NOT_BLOCKED;
+            }
+            closeEarlyFinishedOperators();
             iter++;
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
@@ -273,6 +283,18 @@ public class Driver implements Releasable, Describable {
             }
         }
 
+        if (movedPage == false) {
+            return oneOf(
+                activeOperators.stream()
+                    .map(Operator::isBlocked)
+                    .filter(laf -> laf.listener().isDone() == false)
+                    .collect(Collectors.toList())
+            );
+        }
+        return Operator.NOT_BLOCKED;
+    }
+
+    private void closeEarlyFinishedOperators() {
         for (int index = activeOperators.size() - 1; index >= 0; index--) {
             if (activeOperators.get(index).isFinished()) {
                 /*
@@ -298,16 +320,6 @@ public class Driver implements Releasable, Describable {
                 break;
             }
         }
-
-        if (movedPage == false) {
-            return oneOf(
-                activeOperators.stream()
-                    .map(Operator::isBlocked)
-                    .filter(laf -> laf.listener().isDone() == false)
-                    .collect(Collectors.toList())
-            );
-        }
-        return Operator.NOT_BLOCKED;
     }
 
     public void cancel(String reason) {
@@ -329,6 +341,22 @@ public class Driver implements Releasable, Describable {
         String reason = cancelReason.get();
         if (reason != null) {
             throw new TaskCancelledException(reason);
+        }
+    }
+
+    private static class DriverEarlyTerminationException extends RuntimeException {
+
+    }
+
+    private void checkForEarlyTermination() throws DriverEarlyTerminationException {
+        // If the last operation is finished, then we can discard all operations in the driver
+        if (activeOperators.size() >= 2 && activeOperators.getLast().isFinished()) {
+            for (int i = 0; i < activeOperators.size() - 1; i++) {
+                Operator op = activeOperators.get(i);
+                if (op.isFinished() == false) {
+                    throw new DriverEarlyTerminationException();
+                }
+            }
         }
     }
 

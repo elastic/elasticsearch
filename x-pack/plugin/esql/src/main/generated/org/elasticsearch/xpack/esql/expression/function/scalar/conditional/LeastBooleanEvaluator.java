@@ -60,6 +60,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   public BooleanBlock eval(int positionCount, BooleanBlock[] valuesBlocks) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -79,6 +80,11 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBoolean(o);
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBoolean(Least.process(valuesValues));
       }
       return result.build();
@@ -88,12 +94,19 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
-      position: for (int p = 0; p < positionCount; p++) {
-        // unpack valuesVectors into valuesValues
-        for (int i = 0; i < valuesVectors.length; i++) {
-          valuesValues[i] = valuesVectors[i].getBoolean(p);
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          // unpack valuesVectors into valuesValues
+          for (int i = 0; i < valuesVectors.length; i++) {
+            valuesValues[i] = valuesVectors[i].getBoolean(p);
+          }
+          result.appendBoolean(p, Least.process(valuesValues));
         }
-        result.appendBoolean(p, Least.process(valuesValues));
+        start = end;
       }
       return result.build();
     }

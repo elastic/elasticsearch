@@ -50,6 +50,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldValBlock.isNull(p)) {
           result.appendNull();
@@ -62,6 +63,11 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -70,8 +76,15 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Abs.process(fieldValVector.getInt(p)));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendInt(p, Abs.process(fieldValVector.getInt(p)));
+        }
+        start = end;
       }
       return result.build();
     }

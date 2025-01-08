@@ -52,6 +52,7 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -64,6 +65,11 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(LTrim.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
       }
       return result.build();
@@ -73,7 +79,13 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(LTrim.process(valVector.getBytesRef(p, valScratch)));
       }
       return result.build();

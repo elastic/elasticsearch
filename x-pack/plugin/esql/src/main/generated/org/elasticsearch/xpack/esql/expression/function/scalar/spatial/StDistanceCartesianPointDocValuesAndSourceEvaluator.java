@@ -52,6 +52,7 @@ public final class StDistanceCartesianPointDocValuesAndSourceEvaluator implement
 
   public DoubleBlock eval(int positionCount, LongBlock leftBlock, BytesRefBlock rightBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!leftBlock.isNull(p)) {
@@ -63,6 +64,11 @@ public final class StDistanceCartesianPointDocValuesAndSourceEvaluator implement
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
+        }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
         }
         StDistance.processCartesianPointDocValuesAndSource(result, p, leftBlock, rightBlock);
       }

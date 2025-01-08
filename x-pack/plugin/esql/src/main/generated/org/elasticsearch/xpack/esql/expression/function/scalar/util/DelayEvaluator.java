@@ -40,8 +40,15 @@ public final class DelayEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public BooleanVector eval(int positionCount) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, Delay.process(this.ms));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 2048, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendBoolean(p, Delay.process(this.ms));
+        }
+        start = end;
       }
       return result.build();
     }

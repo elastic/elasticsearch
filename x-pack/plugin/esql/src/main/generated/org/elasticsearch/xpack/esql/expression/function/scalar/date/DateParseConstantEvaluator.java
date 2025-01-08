@@ -57,6 +57,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   public LongBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -70,6 +71,11 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.formatter));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
@@ -83,8 +89,14 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   public LongBlock eval(int positionCount, BytesRefVector valVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), this.formatter));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);

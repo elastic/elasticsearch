@@ -53,6 +53,7 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
 
   public DoubleBlock eval(int positionCount, DoubleBlock blockBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!blockBlock.isNull(p)) {
@@ -63,6 +64,11 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p);
         } catch (ArithmeticException e) {
           warnings().registerException(e);

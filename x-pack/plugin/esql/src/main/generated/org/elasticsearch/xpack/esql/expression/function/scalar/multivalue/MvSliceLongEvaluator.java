@@ -59,6 +59,7 @@ public final class MvSliceLongEvaluator implements EvalOperator.ExpressionEvalua
   public LongBlock eval(int positionCount, LongBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {
@@ -91,6 +92,11 @@ public final class MvSliceLongEvaluator implements EvalOperator.ExpressionEvalua
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
         } catch (InvalidArgumentException e) {
           warnings().registerException(e);

@@ -59,6 +59,7 @@ public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluat
   public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -71,6 +72,11 @@ public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(ChangeCase.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.locale, this.caseType));
       }
       return result.build();
@@ -80,7 +86,13 @@ public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluat
   public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendBytesRef(ChangeCase.process(valVector.getBytesRef(p, valScratch), this.locale, this.caseType));
       }
       return result.build();

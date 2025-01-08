@@ -69,6 +69,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock numberBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -93,6 +94,11 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendBytesRef(Repeat.process(this.scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
@@ -106,8 +112,14 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector, IntVector numberVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
+          accumulatedCost += 1;
+          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+            accumulatedCost = 0;
+            driverContext.checkForEarlyTermination();
+          }
           result.appendBytesRef(Repeat.process(this.scratch, strVector.getBytesRef(p, strScratch), numberVector.getInt(p)));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);

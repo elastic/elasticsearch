@@ -59,6 +59,7 @@ public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public DoubleBlock eval(int positionCount, DoubleBlock n1Block, DoubleBlock n2Block) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (n1Block.isNull(p)) {
           result.appendNull();
@@ -82,6 +83,11 @@ public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
+        }
         result.appendDouble(Hypot.process(n1Block.getDouble(n1Block.getFirstValueIndex(p)), n2Block.getDouble(n2Block.getFirstValueIndex(p))));
       }
       return result.build();
@@ -90,8 +96,15 @@ public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public DoubleVector eval(int positionCount, DoubleVector n1Vector, DoubleVector n2Vector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Hypot.process(n1Vector.getDouble(p), n2Vector.getDouble(p)));
+      // generate a tight loop to allow vectorization
+      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      for (int start = 0; start < positionCount; ) {
+        int end = start + Math.min(positionCount - start, maxBatchSize);
+        driverContext.checkForEarlyTermination();
+        for (int p = start; p < end; p++) {
+          result.appendDouble(p, Hypot.process(n1Vector.getDouble(p), n2Vector.getDouble(p)));
+        }
+        start = end;
       }
       return result.build();
     }

@@ -49,6 +49,7 @@ public final class MvAppendIntEvaluator implements EvalOperator.ExpressionEvalua
 
   public IntBlock eval(int positionCount, IntBlock field1Block, IntBlock field2Block) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -60,6 +61,11 @@ public final class MvAppendIntEvaluator implements EvalOperator.ExpressionEvalua
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
+        }
+        accumulatedCost += 1;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
         }
         MvAppend.process(result, p, field1Block, field2Block);
       }

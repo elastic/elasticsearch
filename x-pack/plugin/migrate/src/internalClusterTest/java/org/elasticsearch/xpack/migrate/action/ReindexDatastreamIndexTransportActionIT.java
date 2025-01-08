@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -237,8 +239,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testUpdateSettingsDefaultsRestored() {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
+        // random_index_template sets value for number_of_replicas, remove template so default value is used instead
+        assertAcked(
+            indicesAdmin().execute(TransportDeleteIndexTemplateAction.TYPE, new DeleteIndexTemplateRequest("random_index_template"))
+        );
+
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+        assertAcked(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // call reindex
         var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))

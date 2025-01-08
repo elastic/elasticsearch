@@ -97,9 +97,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l, taskId))
             .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(WRITE, settingsBefore, destIndexName, l, taskId))
             .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(READ_ONLY, settingsBefore, destIndexName, l, taskId))
-            .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -211,9 +211,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {
+        // if setting was explicitly added to the source index
         if (settingsBefore.get(setting) != null) {
+            // copy it back to the dest index
             builder.copy(setting, settingsBefore);
         } else {
+            // otherwise, delete from dest index so that it loads from the settings default
             builder.putNull(setting);
         }
     }

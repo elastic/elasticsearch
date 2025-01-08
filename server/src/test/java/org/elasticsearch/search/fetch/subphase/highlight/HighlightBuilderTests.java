@@ -574,6 +574,7 @@ public class HighlightBuilderTests extends ESTestCase {
         assertEquals("pre_tags are set but post_tags are not set", e.getCause().getCause().getMessage());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119723")
     public void testInvalidMaxAnalyzedOffset() throws IOException {
         XContentParseException e = expectParseThrows(
             XContentParseException.class,

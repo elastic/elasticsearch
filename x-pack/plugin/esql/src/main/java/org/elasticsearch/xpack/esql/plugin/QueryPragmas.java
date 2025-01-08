@@ -55,7 +55,7 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
-    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", false);
+    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 

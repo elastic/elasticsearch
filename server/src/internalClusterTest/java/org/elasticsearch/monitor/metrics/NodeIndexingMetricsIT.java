@@ -269,8 +269,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-            return singletonMap("test_token_filter", (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name) {
-                @Override
+            return singletonMap(
+                "test_token_filter",
+                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name, settings) {
+                    @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (throwParsingError.get()) {
                         throw new MapperParsingException("simulate mapping parsing error");

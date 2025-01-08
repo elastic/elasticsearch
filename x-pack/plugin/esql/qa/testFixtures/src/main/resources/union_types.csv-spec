@@ -1375,6 +1375,7 @@ client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keywo
 # Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
 
 multiIndexIndirectUseOfUnionTypesInSort
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
 | LIMIT 1
@@ -1397,6 +1398,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInRename
+required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | RENAME message AS event_message
@@ -1409,6 +1411,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInKeep
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | KEEP client_ip, event_duration, message
 | SORT client_ip ASC
@@ -1420,6 +1423,7 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep
+required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP *
@@ -1432,6 +1436,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep2
+required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP *e*
@@ -1468,6 +1473,7 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardDrop
+required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | DROP *time*
@@ -1480,6 +1486,7 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWhere
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | WHERE message == "Disconnected"
 ;
@@ -1490,6 +1497,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInDissect
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | DISSECT message "%{foo}"
 | SORT client_ip ASC
@@ -1501,6 +1509,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInGrok
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | GROK message "%{WORD:foo}"
 | SORT client_ip ASC
@@ -1512,6 +1521,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInEnrich
+required_capability: union_types
 required_capability: enrich_load
 FROM sample_data, sample_data_ts_long
 | EVAL client_ip = client_ip::keyword
@@ -1525,6 +1535,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInStats
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | STATS foo = max(event_duration) BY client_ip
 | SORT client_ip ASC
@@ -1538,6 +1549,7 @@ foo:long | client_ip:ip
 ;
 
 multiIndexIndirectUseOfUnionTypesInInlineStats-Ignore
+required_capability: union_types
 required_capability: inlinestats
 FROM sample_data, sample_data_ts_long
 | INLINESTATS foo = max(event_duration)
@@ -1550,6 +1562,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInLookup-Ignore
+required_capability: union_types
 required_capability: lookup_v4
 FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
@@ -1563,6 +1576,7 @@ FROM sample_data, sample_data_ts_long
 ;
 
 multiIndexIndirectUseOfUnionTypesInMvExpand
+required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | EVAL foo = MV_APPEND(message, message)
 | SORT client_ip ASC

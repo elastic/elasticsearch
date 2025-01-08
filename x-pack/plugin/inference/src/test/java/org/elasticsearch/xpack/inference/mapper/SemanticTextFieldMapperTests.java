@@ -188,6 +188,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             null,
             null,
+            null,
             getVersion(),
             false,
             Map.of()
@@ -209,7 +210,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
         DocumentMapper mapper = mapperService.documentMapper();
         assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
-        assertSemanticTextField(mapperService, fieldName, false);
+        assertSemanticTextField(mapperService, fieldName, false, false);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
@@ -239,7 +240,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         {
             final XContentBuilder fieldMapping = fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, inferenceId));
             final MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
             assertSerialization.accept(fieldMapping, mapperService);
         }
@@ -253,7 +254,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
             final MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
             assertSerialization.accept(expectedMapping, mapperService);
         }
@@ -264,7 +265,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
             MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
             assertSerialization.accept(fieldMapping, mapperService);
         }
@@ -325,7 +326,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
             useLegacyFormat
         );
-        assertSemanticTextField(mapperService, fieldName, false);
+        assertSemanticTextField(mapperService, fieldName, false, false);
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(
@@ -347,7 +348,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 inferenceId,
                 new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            assertSemanticTextField(mapperService, fieldName, true);
+            assertSemanticTextField(mapperService, fieldName, true, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
 
@@ -358,7 +359,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 searchInferenceId,
                 new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            assertSemanticTextField(mapperService, fieldName, true);
+            assertSemanticTextField(mapperService, fieldName, true, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
         }
     }
@@ -370,7 +371,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
                 useLegacyFormat
             );
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             {
                 Exception exc = expectThrows(
                     MapperParsingException.class,
@@ -402,14 +403,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                             .endObject()
                     )
                 );
-                assertSemanticTextField(mapperService, fieldName, true);
+                assertSemanticTextField(mapperService, fieldName, true, false);
             }
             {
                 merge(
                     mapperService,
                     mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject())
                 );
-                assertSemanticTextField(mapperService, fieldName, true);
+                assertSemanticTextField(mapperService, fieldName, true, false);
             }
             {
                 Exception exc = expectThrows(
@@ -442,6 +443,90 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    // Not doing a whole lot of validation right now, since there are no supported index options for sparse vector.
+    public void testSparseVectorIndexOptions() throws IOException {
+        String fieldName = randomFieldName(1);
+        {
+            // Unsupported index types
+            expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    mapping(
+                        b -> b.startObject(fieldName)
+                            .field("type", "semantic_text")
+                            .field("inference_id", "test_model")
+                            .startObject("index_options")
+                            .field("type", "unsupported_type")
+                            .endObject()
+                            .endObject()
+                    ),
+                    useLegacyFormat
+                )
+            );
+        }
+    }
+
+    public void testDenseVectorIndexOptions() throws IOException {
+        for (int depth = 1; depth < 5; depth++) {
+            String fieldName = randomFieldName(depth);
+            String inferenceId = "test_model";
+            MapperService mapperService = mapperServiceForFieldWithModelSettings(
+                fieldName,
+                inferenceId,
+                new SemanticTextField.ModelSettings(
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            );
+            assertSemanticTextField(mapperService, fieldName, true, false);
+            {
+                merge(
+                    mapperService,
+                    mapping(
+                        b -> b.startObject(fieldName)
+                            .field("type", "semantic_text")
+                            .field("inference_id", inferenceId)
+                            .startObject("index_options")
+                            .field("type", "bbq_hnsw")
+                            .endObject()
+                            .endObject()
+                    )
+                );
+                assertSemanticTextField(mapperService, fieldName, true, true);
+            }
+            {
+                merge(
+                    mapperService,
+                    mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", inferenceId).endObject())
+                );
+                assertSemanticTextField(mapperService, fieldName, true, true);
+            }
+            {
+                Exception exc = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> merge(
+                        mapperService,
+                        mapping(
+                            b -> b.startObject(fieldName)
+                                .field("type", "semantic_text")
+                                .field("inference_id", inferenceId)
+                                .startObject("index_options")
+                                .field("type", "bbq_flat")
+                                .endObject()
+                                .endObject()
+                        )
+                    )
+                );
+                assertThat(
+                    exc.getMessage(),
+                    containsString("Cannot update parameter [index_options] " + "from [task=bbq_hnsw] " + "to [type=bbq_flat]")
+                );
+            }
+        }
+    }
+
     public void testUpdateSearchInferenceId() throws IOException {
         final String inferenceId = "test_inference_id";
         final String searchInferenceId1 = "test_search_inference_id_1";
@@ -458,19 +543,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = randomFieldName(depth);
             MapperService mapperService = createMapperService(buildMapping.apply(fieldName, null), useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
             merge(mapperService, buildMapping.apply(fieldName, searchInferenceId1));
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId1);
 
             merge(mapperService, buildMapping.apply(fieldName, searchInferenceId2));
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId2);
 
             merge(mapperService, buildMapping.apply(fieldName, null));
-            assertSemanticTextField(mapperService, fieldName, false);
+            assertSemanticTextField(mapperService, fieldName, false, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
             mapperService = mapperServiceForFieldWithModelSettings(
@@ -478,24 +563,29 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 inferenceId,
                 new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            assertSemanticTextField(mapperService, fieldName, true);
+            assertSemanticTextField(mapperService, fieldName, true, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
             merge(mapperService, buildMapping.apply(fieldName, searchInferenceId1));
-            assertSemanticTextField(mapperService, fieldName, true);
+            assertSemanticTextField(mapperService, fieldName, true, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId1);
 
             merge(mapperService, buildMapping.apply(fieldName, searchInferenceId2));
-            assertSemanticTextField(mapperService, fieldName, true);
+            assertSemanticTextField(mapperService, fieldName, true, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId2);
 
             merge(mapperService, buildMapping.apply(fieldName, null));
-            assertSemanticTextField(mapperService, fieldName, true);
+            assertSemanticTextField(mapperService, fieldName, true, false);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
     }
 
-    private static void assertSemanticTextField(MapperService mapperService, String fieldName, boolean expectedModelSettings) {
+    private static void assertSemanticTextField(
+        MapperService mapperService,
+        String fieldName,
+        boolean expectedModelSettings,
+        boolean expectedIndexOptions
+    ) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
         assertThat(mapper, instanceOf(SemanticTextFieldMapper.class));
@@ -533,7 +623,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertNotNull(embeddingsMapper);
             assertThat(embeddingsMapper, instanceOf(FieldMapper.class));
             FieldMapper embeddingsFieldMapper = (FieldMapper) embeddingsMapper;
-            assertTrue(embeddingsFieldMapper.fieldType() == mapperService.mappingLookup().getFieldType(getEmbeddingsFieldName(fieldName)));
+            assertSame(embeddingsFieldMapper.fieldType(), mapperService.mappingLookup().getFieldType(getEmbeddingsFieldName(fieldName)));
             assertThat(embeddingsMapper.fullPath(), equalTo(getEmbeddingsFieldName(fieldName)));
             switch (semanticFieldMapper.fieldType().getModelSettings().taskType()) {
                 case SPARSE_EMBEDDING -> {
@@ -546,6 +636,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }
         } else {
             assertNull(semanticFieldMapper.fieldType().getModelSettings());
+        }
+
+        if (expectedIndexOptions) {
+            SemanticTextField.IndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
+            assertNotNull(indexOptions);
         }
     }
 
@@ -578,14 +673,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             });
 
             MapperService mapperService = createMapperService(mapping, useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName1, false);
+            assertSemanticTextField(mapperService, fieldName1, false, false);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName1,
                 model1.getInferenceEntityId(),
                 setSearchInferenceId ? searchInferenceId : model1.getInferenceEntityId()
             );
-            assertSemanticTextField(mapperService, fieldName2, false);
+            assertSemanticTextField(mapperService, fieldName2, false, false);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName2,

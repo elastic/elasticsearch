@@ -177,10 +177,10 @@ setup:
                 dense_field:
                   - start_offset: 0
                     end_offset: 44
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
                   - start_offset: 44
                     end_offset: 67
-                    embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
+                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -236,10 +236,10 @@ setup:
                 dense_field:
                   - start_offset: 0
                     end_offset: 44
-                    embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
                   - start_offset: 44
                     end_offset: 67
-                    embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
+                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
         refresh: true
 
   - do:
@@ -268,94 +268,94 @@ setup:
 ---
 "Can't be used as a multifield":
 
-    - do:
-        catch: /Field \[semantic\] of type \[semantic_text\] can't be used in multifields/
-        indices.create:
-          index: test-multi-index
-          body:
-            mappings:
-              properties:
-                text_field:
-                  type: text
-                  fields:
-                    semantic:
-                      type: semantic_text
-                      inference_id: sparse-inference-id
+  - do:
+      catch: /Field \[semantic\] of type \[semantic_text\] can't be used in multifields/
+      indices.create:
+        index: test-multi-index
+        body:
+          mappings:
+            properties:
+              text_field:
+                type: text
+                fields:
+                  semantic:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
 
 ---
 "Can't have multifields":
 
-    - do:
-        catch: /semantic_text field \[semantic\] does not support multi-fields/
-        indices.create:
-          index: test-multi-index
-          body:
-            mappings:
-              properties:
-                semantic:
-                  type: semantic_text
-                  inference_id: sparse-inference-id
-                  fields:
-                    keyword_field:
-                      type: keyword
+  - do:
+      catch: /semantic_text field \[semantic\] does not support multi-fields/
+      indices.create:
+        index: test-multi-index
+        body:
+          mappings:
+            properties:
+              semantic:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                fields:
+                  keyword_field:
+                    type: keyword
 
 ---
 "Can't configure copy_to in semantic_text":
 
-    - do:
-        catch: /semantic_text field \[semantic\] does not support \[copy_to\]/
-        indices.create:
-          index: test-copy_to-index
-          body:
-            mappings:
-              properties:
-                semantic:
-                  type: semantic_text
-                  inference_id: sparse-inference-id
-                  copy_to: another_field
-                another_field:
-                  type: keyword
+  - do:
+      catch: /semantic_text field \[semantic\] does not support \[copy_to\]/
+      indices.create:
+        index: test-copy_to-index
+        body:
+          mappings:
+            properties:
+              semantic:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                copy_to: another_field
+              another_field:
+                type: keyword
 
 ---
 "Cannot be used directly as a nested field":
 
-    - do:
-        catch: /semantic_text field \[nested.semantic\] cannot be nested/
-        indices.create:
-          index: test-nested-index
-          body:
-            mappings:
-              properties:
-                nested:
-                  type: nested
-                  properties:
-                    semantic:
-                      type: semantic_text
-                      inference_id: sparse-inference-id
-                    another_field:
-                      type: keyword
+  - do:
+      catch: /semantic_text field \[nested.semantic\] cannot be nested/
+      indices.create:
+        index: test-nested-index
+        body:
+          mappings:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  semantic:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+                  another_field:
+                    type: keyword
 
 ---
 "Cannot be used as a nested field on nested objects":
 
-    - do:
-        catch: /semantic_text field \[nested.nested_object.semantic\] cannot be nested/
-        indices.create:
-          index: test-nested-index
-          body:
-            mappings:
-              properties:
-                nested:
-                  type: nested
-                  properties:
-                    nested_object:
-                      type: object
-                      properties:
-                        semantic:
-                          type: semantic_text
-                          inference_id: sparse-inference-id
-                        another_field:
-                          type: keyword
+  - do:
+      catch: /semantic_text field \[nested.nested_object.semantic\] cannot be nested/
+      indices.create:
+        index: test-nested-index
+        body:
+          mappings:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  nested_object:
+                    type: object
+                    properties:
+                      semantic:
+                        type: semantic_text
+                        inference_id: sparse-inference-id
+                      another_field:
+                        type: keyword
 
 ---
 "Cannot be in an object field with subobjects disabled":
@@ -390,11 +390,11 @@ setup:
   - requires:
       cluster_features: "semantic_text.always_emit_inference_id_fix"
       reason: always emit inference ID fix added in 8.17.0
-      test_runner_features: [capabilities]
+      test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
           path: /_inference
-          capabilities: [default_elser_2]
+          capabilities: [ default_elser_2 ]
 
   - do:
       indices.create:
@@ -410,3 +410,238 @@ setup:
         index: test-always-include-inference-id-index
 
   - exists: test-always-include-inference-id-index.mappings.properties.semantic_field.inference_id
+
+---
+"Supports index options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  type: int8_hnsw
+                  m: 16
+                  ef_construction: 100
+                  confidence_interval: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - exists: test-index-options.mappings.properties.semantic_field.index_options
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.ef_construction": 100 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.confidence_interval": 1.0 }
+
+---
+"Supports partial index options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  type: bbq_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - exists: test-index-options.mappings.properties.semantic_field.index_options
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "bbq_hnsw" }
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.m
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.ef_construction
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.confidence_interval
+
+---
+"Index options on sparse_vector fields are ignored":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ default_elser_2 ]
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                index_options:
+                  type: bbq_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - exists: test-index-options.mappings.properties.semantic_field.index_options
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "bbq_hnsw" }
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.m
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.ef_construction
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.confidence_interval
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_1
+        body:
+          sparse_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.sparse_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                sparse_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      feature_0: 1.0
+                      feature_1: 2.0
+                      feature_2: 3.0
+                      feature_3: 4.0
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      feature_4: 0.1
+                      feature_5: 0.2
+                      feature_6: 0.3
+                      feature_7: 0.4
+
+
+---
+"Not specifying index options does not return index options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - not_exists: test-index-options.mappings.properties.semantic_field.index_options
+
+
+---
+"Specifying incompatible dense vector index options will fail":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+
+  - do:
+      catch: /unsupported parameters/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  type: bbq_flat
+                  ef_construction: 100
+
+---
+"Specifying unsupported index option types will fail":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ default_elser_2 ]
+
+  - do:
+      catch: /Unsupported index options type \[foo\]/
+      indices.create:
+        index: test-invalid-index-options-dense
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  type: foo
+
+  - do:
+      catch: /Unsupported index options type \[foo\]/
+      indices.create:
+        index: test-invalid-index-options-sparse
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                index_options:
+                  type: foo
+
+---
+"Specifying unsupported index option types will fail":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.18.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ default_elser_2 ]
+
+  - do:
+      catch: /Required \[type\]/
+      indices.create:
+        index: test-invalid-index-options-dense
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  foo: bar
+
+  - do:
+      catch: /Required \[type\]/
+      indices.create:
+        index: test-invalid-index-options-sparse
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                index_options:
+                  foo: bar

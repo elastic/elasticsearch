@@ -88,6 +88,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -126,6 +127,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                                                         // vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int NUM_CANDS_OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
+
+    // Supported types for index options for dense_vector field and semantic_text fields based on dense inference IDs
+    public static final Set<String> SUPPORTED_TYPES = Set.of(
+        "hnsw",
+        "int8_hnsw",
+        "int4_hnsw",
+        "bbq_hnsw",
+        "flat",
+        "int8_flat",
+        "int4_flat",
+        "bbq_flat"
+    );
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -281,6 +294,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Builder elementType(ElementType elementType) {
             this.elementType.setValue(elementType);
+            return this;
+        }
+
+        public Builder indexOptions(IndexOptions indexOptions) {
+            this.indexOptions.setValue(indexOptions);
             return this;
         }
 
@@ -1182,7 +1200,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    abstract static class IndexOptions implements ToXContent {
+    public abstract static class IndexOptions implements ToXContent {
         final VectorIndexType type;
 
         IndexOptions(VectorIndexType type) {
@@ -1230,7 +1248,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private enum VectorIndexType {
+    public enum VectorIndexType {
         HNSW("hnsw", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
@@ -1427,7 +1445,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         };
 
-        static Optional<VectorIndexType> fromString(String type) {
+        public static Optional<VectorIndexType> fromString(String type) {
             return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
         }
 
@@ -1439,7 +1457,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.quantized = quantized;
         }
 
-        abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
+        public abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
 
         public abstract boolean supportsElementType(ElementType elementType);
 
@@ -2321,7 +2339,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
-    private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
+    public static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
         Object typeNode = indexOptionsMap.remove("type");

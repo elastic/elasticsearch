@@ -32,8 +32,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -79,6 +81,12 @@ public record SemanticTextField(
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
+    static final String INDEX_OPTIONS_FIELD = "index_options";
+    // Supported dense_vector index options
+    static final String TYPE_FIELD = "type";
+    static final String M_FIELD = "m";
+    static final String EF_CONSTRUCTION_FIELD = "ef_construction";
+    static final String CONFIDENCE_INTERVAL_FIELD = "confidence_interval";
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, Map<String, List<Chunk>> chunks) {}
 
@@ -186,6 +194,68 @@ public record SemanticTextField(
         }
     }
 
+    public abstract static class IndexOptions implements ToXContentObject {
+
+        protected final String type;
+
+        public IndexOptions(String type) {
+            this.type = type;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            asMap().forEach((key, value) -> {
+                if (value != null) {
+                    try {
+                        builder.field(key, value);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            });
+            builder.endObject();
+            return builder;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        public abstract Map<String, Object> asMap();
+    }
+
+    public static class DenseVectorIndexOptions extends IndexOptions {
+
+        private final Integer m;
+        private final Integer efConstruction;
+        private final Integer confidenceInterval;
+
+        public DenseVectorIndexOptions(String type, Integer m, Integer efConstruction, Integer confidenceInterval) {
+            super(type);
+            this.m = m;
+            this.efConstruction = efConstruction;
+            this.confidenceInterval = confidenceInterval;
+        }
+
+        public Map<String, Object> asMap() {
+            Map<String, Object> map = new HashMap<>();
+            if (type != null) {
+                map.put(TYPE_FIELD, type);
+            }
+            if (m != null) {
+                map.put(M_FIELD, m);
+            }
+            if (efConstruction != null) {
+                map.put(EF_CONSTRUCTION_FIELD, efConstruction);
+            }
+            if (confidenceInterval != null) {
+                map.put(CONFIDENCE_INTERVAL_FIELD, confidenceInterval);
+            }
+            return map;
+        }
+    }
+
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
     }
@@ -225,6 +295,32 @@ public record SemanticTextField(
                 XContentType.JSON
             );
             return MODEL_SETTINGS_PARSER.parse(parser, null);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
+    static IndexOptions parseIndexOptionsFromMap(String fieldName, Object node) {
+        if (node == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                map,
+                XContentType.JSON
+            );
+            IndexOptions indexOptions = INDEX_OPTIONS_PARSER.parse(parser, null);
+
+            if (indexOptions.type != null && DenseVectorFieldMapper.SUPPORTED_TYPES.contains(indexOptions.type)) {
+                // Run dense vector index options through the dense vector field mapper validation
+                // so we error on invalid options at index creation time
+                DenseVectorFieldMapper.parseIndexOptions(fieldName, node);
+            }
+
+            return indexOptions;
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
@@ -336,6 +432,22 @@ public record SemanticTextField(
         }
     );
 
+    private static final ConstructingObjectParser<IndexOptions, Void> INDEX_OPTIONS_PARSER = new ConstructingObjectParser<>(
+        INDEX_OPTIONS_FIELD,
+        true,
+        args -> {
+            String type = (String) args[0];
+            if (type != null && DenseVectorFieldMapper.SUPPORTED_TYPES.contains(type)) {
+                Integer m = (Integer) args[1];
+                Integer efConstruction = (Integer) args[2];
+                Integer confidenceInterval = (Integer) args[3];
+                return new DenseVectorIndexOptions(type, m, efConstruction, confidenceInterval);
+            }
+
+            throw new IllegalArgumentException("Unsupported index options type [" + type + "]");
+        }
+    );
+
     static {
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
@@ -367,6 +479,11 @@ public record SemanticTextField(
         MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
+
+        INDEX_OPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TYPE_FIELD));
+        INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(M_FIELD));
+        INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(EF_CONSTRUCTION_FIELD));
+        INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONFIDENCE_INTERVAL_FIELD));
     }
 
     private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser, ParserContext context) throws IOException {

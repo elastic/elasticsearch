@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Transpo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -24,6 +25,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -78,7 +81,7 @@ public class ResolveIndexTests extends ESTestCase {
         { "logs-mysql-prod", 4 },
         { "logs-mysql-test", 2 } };
 
-    private ClusterState clusterState;
+    private ProjectState projectState;
     private ThreadContext threadContext;
 
     private IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
@@ -92,7 +95,12 @@ public class ResolveIndexTests extends ESTestCase {
         threadContext = createThreadContext();
         resolver = TestIndexNameExpressionResolver.newInstance(threadContext);
         dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
-        clusterState = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(dataStreams, indices)).build();
+
+        final ProjectId projectId = randomProjectIdOrDefault();
+        projectState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(buildMetadata(projectId, dataStreams, indices))
+            .build()
+            .projectState(projectId);
     }
 
     public void testResolveStarWithDefaultOptions() {
@@ -102,7 +110,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
 
         validateIndices(
             indices,
@@ -129,7 +137,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
         validateIndices(
             indices,
             ".ds-logs-mysql-prod-" + dateString + "-000001",
@@ -159,7 +167,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
 
         validateIndices(
             indices,
@@ -186,14 +194,15 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
         validateIndices(indices, ".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
     }
 
     public void testResolvePreservesBackingIndexOrdering() {
-        Metadata.Builder builder = Metadata.builder();
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         String dataStreamName = "my-data-stream";
         String[] names = { "not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis) };
         List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).toList();
@@ -203,13 +212,14 @@ public class ResolveIndexTests extends ESTestCase {
 
         DataStream ds = DataStreamTestHelper.newInstance(dataStreamName, backingIndices.stream().map(IndexMetadata::getIndex).toList());
         builder.put(ds);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(builder.build()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(builder.build()).build();
+        projectState = clusterState.projectState(projectId);
 
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
-        TransportAction.resolveIndices(new String[] { "*" }, indicesOptions, clusterState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(new String[] { "*" }, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
 
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
@@ -225,12 +235,10 @@ public class ResolveIndexTests extends ESTestCase {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
             { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY },
             { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY } };
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(buildMetadata(new Object[][] {}, indices))
-            .build();
+        final ProjectMetadata project = buildProjectMetadata(randomProjectIdOrDefault(), new Object[][] {}, indices).build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
         Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(
-            clusterState,
+            project,
             IndicesOptions.LENIENT_EXPAND_OPEN,
             true,
             requestedIndex
@@ -245,9 +253,11 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testSystemIndexAccess() {
-        Metadata.Builder mdBuilder = buildMetadata(dataStreams, indices);
-        SystemIndices systemIndices = addSystemIndex(mdBuilder);
-        clusterState = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        final ProjectId projectId = randomProjectIdOrDefault();
+        Metadata.Builder mdBuilder = buildMetadata(projectId, dataStreams, indices);
+        SystemIndices systemIndices = addSystemIndex(mdBuilder.getProject(projectId));
+        var clusterState = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        projectState = clusterState.projectState(projectId);
         {
             threadContext = createThreadContext();
             if (randomBoolean()) {
@@ -261,7 +271,7 @@ public class ResolveIndexTests extends ESTestCase {
             TransportAction.resolveIndices(
                 new String[] { ".*" },
                 IndicesOptions.LENIENT_EXPAND_OPEN,
-                clusterState,
+                projectState,
                 resolver,
                 indices,
                 aliases,
@@ -280,7 +290,7 @@ public class ResolveIndexTests extends ESTestCase {
             TransportAction.resolveIndices(
                 new String[] { ".*" },
                 IndicesOptions.STRICT_EXPAND_OPEN,
-                clusterState,
+                projectState,
                 resolver,
                 indices,
                 aliases,
@@ -292,7 +302,7 @@ public class ResolveIndexTests extends ESTestCase {
             TransportAction.resolveIndices(
                 new String[] { ".test-net*" },
                 IndicesOptions.STRICT_EXPAND_OPEN,
-                clusterState,
+                projectState,
                 resolver,
                 indices,
                 aliases,
@@ -311,7 +321,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
         IndexNotFoundException infe = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams)
+            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams)
         );
         assertThat(infe.getMessage(), containsString("no such index [missing]"));
     }
@@ -324,7 +334,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
         IndexNotFoundException infe = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportAction.resolveIndices(names, indicesOptions, clusterState, resolver, indices, aliases, dataStreams)
+            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams)
         );
         assertThat(infe.getMessage(), containsString("no such index [missing*]"));
     }
@@ -388,9 +398,25 @@ public class ResolveIndexTests extends ESTestCase {
         }
     }
 
-    Metadata.Builder buildMetadata(Object[][] dataStreams, Object[][] indices) {
+    Metadata.Builder buildMetadata(ProjectId projectId, Object[][] dataStreams, Object[][] indices) {
         Metadata.Builder builder = Metadata.builder();
+        builder.put(buildProjectMetadata(projectId, dataStreams, indices));
 
+        final int additionalProjects = randomIntBetween(0, 3);
+        for (int i = 0; i < additionalProjects; i++) {
+            builder.put(
+                buildProjectMetadata(
+                    randomUniqueProjectId(),
+                    randomSubsetOf(randomIntBetween(0, dataStreams.length), dataStreams).toArray(Object[][]::new),
+                    randomSubsetOf(randomIntBetween(0, indices.length), indices).toArray(Object[][]::new)
+                )
+            );
+        }
+        return builder;
+    }
+
+    private ProjectMetadata.Builder buildProjectMetadata(ProjectId projectId, Object[][] dataStreams, Object[][] indices) {
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Object[] dsInfo : dataStreams) {
             String dataStreamName = (String) dsInfo[0];
@@ -500,7 +526,7 @@ public class ResolveIndexTests extends ESTestCase {
         return attributes.toArray(Strings.EMPTY_ARRAY);
     }
 
-    private SystemIndices addSystemIndex(Metadata.Builder mdBuilder) {
+    private SystemIndices addSystemIndex(ProjectMetadata.Builder mdBuilder) {
         mdBuilder.put(indexBuilder(".test-system-1", SystemIndexDescriptor.DEFAULT_SETTINGS).state(IndexMetadata.State.OPEN).system(true))
             .put(
                 indexBuilder(".test-net-new-system-1", SystemIndexDescriptor.DEFAULT_SETTINGS).state(IndexMetadata.State.OPEN).system(true)

@@ -407,12 +407,10 @@ public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new HistogramFieldSyntheticSourceSupport(ignoreMalformed, "all");
+        return new HistogramFieldSyntheticSourceSupport(ignoreMalformed);
     }
 
-    private record HistogramFieldSyntheticSourceSupport(boolean ignoreMalformed, String syntheticSourceKeep)
-        implements
-            SyntheticSourceSupport {
+    private record HistogramFieldSyntheticSourceSupport(boolean ignoreMalformed) implements SyntheticSourceSupport {
         @Override
         public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
@@ -444,7 +442,6 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
-            b.field("synthetic_source_keep", syntheticSourceKeep);
         }
 
         @Override

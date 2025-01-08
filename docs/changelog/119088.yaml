@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Remove index settings deprecated in Elasticsearch 7.x and not used in 8.x
-  area: Infra/Core
+  area: Index setting
   details: >-
     Remove settings `index.rollup.source.uuid` and `index.rollup.source.name` (replaced by `index.downsample.source.uuid` and `index.downsample.source.name`),
     `index.indexing.slowlog.level` and `index.search.slowlog.level` (replaced by `index.indexing.slowlog.threshold.query.{level}` and `index.search.slowlog.threshold.query.{level}`),

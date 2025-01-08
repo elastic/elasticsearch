@@ -35,11 +35,14 @@ import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
 public class ExampleSecurityExtension implements SecurityExtension {
 
     static {
-        // check that the extension's policy works.
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkPropertyAccess("myproperty");
-            return null;
-        });
+        final boolean useEntitlements = Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"));
+        if (useEntitlements == false) {
+            // check that the extension's policy works.
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                System.getSecurityManager().checkPropertyAccess("myproperty");
+                return null;
+            });
+        }
     }
 
     @Override

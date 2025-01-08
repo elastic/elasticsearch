@@ -58,7 +58,7 @@ final class SpikeAndDipDetector {
         int maxEnd = Math.min(maxStart + extent, values.length);
         double maxSum = sum(values, maxStart, maxEnd, negate);
         for (int start = maxStart + 1; start <= argmax; start++) {
-            if (start + extent >= values.length) {
+            if (start + extent > values.length) {
                 break;
             }
             double average = sum(values, start, start + extent, negate);

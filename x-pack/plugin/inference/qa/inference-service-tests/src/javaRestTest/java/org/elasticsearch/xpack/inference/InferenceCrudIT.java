@@ -35,7 +35,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;

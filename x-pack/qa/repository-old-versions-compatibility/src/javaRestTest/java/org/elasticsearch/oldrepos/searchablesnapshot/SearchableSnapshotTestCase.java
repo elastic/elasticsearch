@@ -20,8 +20,6 @@ import org.elasticsearch.test.cluster.util.Version;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
-
 /**
  * Test suite for Archive indices backward compatibility with N-2 versions.
  * The test suite creates a cluster in the N-1 version, where N is the current version.
@@ -60,6 +58,5 @@ abstract class SearchableSnapshotTestCase extends AbstractUpgradeCompatibilityTe
         Response response = client.performRequest(request);
         assertOK(response);
         warningsConsumer.accept(response.getWarnings());
-        createFromResponse(response);
     }
 }

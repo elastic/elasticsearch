@@ -53,3 +53,14 @@ plugins.withType(InternalJavaRestTestPlugin) {
 
 tasks.matching { it.name.equals("check") }.configureEach { dependsOn(bwcTestSnapshots) }
 tasks.matching { it.name.equals("test") }.configureEach { enabled = false }
+
+tasks.addRule("incompatible bwc version") { taskName ->
+  def incompatible = buildParams.bwcVersions.allIndexCompatible - buildParams.bwcVersions.indexCompatible
+  if (incompatible.any { taskName.startsWith("v${it.toString()}") }) {
+    tasks.register(taskName) {
+      doLast {
+        throw new GradleException("Cannot execute task '$taskName'. Version is unsupported on this platform. Perhaps you need an x86 host?")
+      }
+    }
+  }
+}

@@ -6,21 +6,22 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
-public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
-
-    @Override
-    protected FreezeAction doParseInstance(XContentParser parser) throws IOException {
-        return FreezeAction.parse(parser);
-    }
+public class FreezeActionTests extends AbstractWireSerializingTestCase<FreezeAction> {
 
     @Override
     protected FreezeAction createTestInstance() {
@@ -68,5 +69,28 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
     protected void assertEqualInstances(FreezeAction expectedInstance, FreezeAction newInstance) {
         assertThat(newInstance, equalTo(expectedInstance));
         assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
+    }
+
+    public void testXContent() throws IOException {
+        FreezeAction initialAction = FreezeAction.INSTANCE;
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+
+            builder.humanReadable(true);
+            initialAction.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, equalTo("{}"));
+            try (XContentParser parser = createParser(builder)) {
+                final FreezeAction parsed = FreezeAction.parse(parser);
+                assertThat(parsed, equalTo(initialAction));
+            }
+        }
+        assertWarnings(
+            "The freeze action in ILM is deprecated and will be removed in a future version. Please remove the freeze action from the ILM policy."
+        );
+    }
+
+    public void testIsSafeAction() {
+        LifecycleAction action = createTestInstance();
+        assertThat(action.isSafeAction(), is(true));
     }
 }

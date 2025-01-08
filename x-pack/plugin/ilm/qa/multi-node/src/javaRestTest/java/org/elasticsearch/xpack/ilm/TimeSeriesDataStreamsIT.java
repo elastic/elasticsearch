@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -216,14 +217,25 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testFreezeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "cold", FreezeAction.INSTANCE);
+        try {
+            createNewSingletonPolicy(client(), policyName, "cold", FreezeAction.INSTANCE);
+        } catch (WarningFailureException e) {
+            assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
+        }
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         // The freeze action is a noop action with only noop steps and should pass through to complete the phase asap.
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(
-            () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
+            () -> {
+                try {
+                assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
+                fail("expected a deprecation warning");
+                } catch (WarningFailureException e) {
+                    assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
+                }
+            },
             30,
             TimeUnit.SECONDS
         );

@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -35,7 +36,15 @@ import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<LifecyclePolicy> {
 
+    // Excluding the deprecated freeze action and test it separately
+    public static final Set<String> VALID_COLD_ACTIONS_WITHOUT_FREEZE;
     private String lifecycleName;
+
+    static {
+        VALID_COLD_ACTIONS_WITHOUT_FREEZE = TimeseriesLifecycleType.VALID_COLD_ACTIONS.stream()
+            .filter(actionName -> FreezeAction.NAME.equals(actionName) == false)
+            .collect(Collectors.toSet());
+    }
 
     @Override
     protected LifecyclePolicy doParseInstance(XContentParser parser) {
@@ -235,7 +244,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         return (phase) -> new HashSet<>(switch (phase) {
             case "hot" -> TimeseriesLifecycleType.VALID_HOT_ACTIONS;
             case "warm" -> TimeseriesLifecycleType.VALID_WARM_ACTIONS;
-            case "cold" -> TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+            case "cold" -> VALID_COLD_ACTIONS_WITHOUT_FREEZE;
             case "frozen" -> TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
             case "delete" -> TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
             default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");

@@ -127,7 +127,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     private final boolean index;
     private final boolean hasDocValues;

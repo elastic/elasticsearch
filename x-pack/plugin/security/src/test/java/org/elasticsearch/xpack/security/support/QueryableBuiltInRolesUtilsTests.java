@@ -281,12 +281,12 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
         return metadata;
     }
 
-    private static QueryableBuiltInRoles buildQueryableBuiltInRoles(Set<RoleDescriptor> roles) {
+    public static QueryableBuiltInRoles buildQueryableBuiltInRoles(Set<RoleDescriptor> roles) {
         final Map<String, String> digests = buildDigests(roles);
         return new QueryableBuiltInRoles(digests, roles);
     }
 
-    private static Map<String, String> buildDigests(Set<RoleDescriptor> roles) {
+    public static Map<String, String> buildDigests(Set<RoleDescriptor> roles) {
         final Map<String, String> digests = new HashMap<>();
         for (RoleDescriptor role : roles) {
             digests.put(role.getName(), QueryableBuiltInRolesUtils.calculateHash(role));

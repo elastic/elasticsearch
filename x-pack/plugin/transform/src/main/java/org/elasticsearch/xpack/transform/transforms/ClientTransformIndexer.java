@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -434,6 +435,15 @@ class ClientTransformIndexer extends TransformIndexer {
     protected void afterFinishOrFailure() {
         closePointInTime();
         super.afterFinishOrFailure();
+    }
+
+    @Override
+    public boolean maybeTriggerAsyncJob(long now) {
+        if (TransformMetadata.upgradeMode(clusterService.state())) {
+            logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
+            return false;
+        }
+        return super.maybeTriggerAsyncJob(now);
     }
 
     @Override

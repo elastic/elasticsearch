@@ -52,7 +52,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         true
     );
 
-    public static DocValueFormat TS_ROUTING_HASH_DOC_VALUE_FORMAT = TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT;
+    public static final DocValueFormat TS_ROUTING_HASH_DOC_VALUE_FORMAT = TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT;
 
     static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 

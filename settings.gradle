@@ -18,6 +18,8 @@ plugins {
   id 'elasticsearch.java-toolchain'
 }
 
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
+
 rootProject.name = "elasticsearch"
 
 dependencyResolutionManagement {
@@ -87,6 +89,7 @@ List projects = [
   'distribution:tools:ansi-console',
   'server',
   'test:framework',
+  'test:fixtures:aws-fixture-utils',
   'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
   'test:fixtures:ec2-imds-fixture',

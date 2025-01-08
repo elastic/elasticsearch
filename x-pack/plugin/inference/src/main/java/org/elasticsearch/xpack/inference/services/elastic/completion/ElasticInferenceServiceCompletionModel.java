@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic;
+package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
@@ -16,24 +16,35 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceModel {
 
-public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
+    public static ElasticInferenceServiceCompletionModel of(
+        ElasticInferenceServiceCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        return new ElasticInferenceServiceCompletionModel(model, overriddenServiceSettings);
+    }
 
     private final URI uri;
 
-    public ElasticInferenceServiceSparseEmbeddingsModel(
+    public ElasticInferenceServiceCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -47,26 +58,27 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents
         );
     }
 
-    public ElasticInferenceServiceSparseEmbeddingsModel(
-        ElasticInferenceServiceSparseEmbeddingsModel model,
-        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings
+    public ElasticInferenceServiceCompletionModel(
+        ElasticInferenceServiceCompletionModel model,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
         this.uri = createUri();
+
     }
 
-    ElasticInferenceServiceSparseEmbeddingsModel(
+    ElasticInferenceServiceCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
@@ -77,17 +89,14 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             serviceSettings,
             elasticInferenceServiceComponents
         );
+
         this.uri = createUri();
+
     }
 
     @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this);
-    }
-
-    @Override
-    public ElasticInferenceServiceSparseEmbeddingsServiceSettings getServiceSettings() {
-        return (ElasticInferenceServiceSparseEmbeddingsServiceSettings) super.getServiceSettings();
+    public ElasticInferenceServiceCompletionServiceSettings getServiceSettings() {
+        return (ElasticInferenceServiceCompletionServiceSettings) super.getServiceSettings();
     }
 
     public URI uri() {
@@ -95,36 +104,15 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     }
 
     private URI createUri() throws ElasticsearchStatusException {
-        String modelId = getServiceSettings().modelId();
-        String modelIdUriPath;
-
-        switch (modelId) {
-            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new ElasticsearchStatusException(
-                String.format(
-                    Locale.ROOT,
-                    "Unsupported model [%s] for service [%s] and task type [%s]",
-                    modelId,
-                    ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
-                    TaskType.SPARSE_EMBEDDING
-                ),
-                RestStatus.BAD_REQUEST
-            );
-        }
-
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(
-                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embeddings/" + modelIdUriPath
-            );
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat/completions");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["
                     + this.getConfigurations().getService()
                     + "] with taskType ["
                     + this.getTaskType()
-                    + "] with model ["
-                    + this.getServiceSettings().modelId()
                     + "]: "
                     + e.getMessage(),
                 RestStatus.BAD_REQUEST,
@@ -132,4 +120,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             );
         }
     }
+
+    // TODO create/refactor the Configuration class to be extensible for different task types (i.e completion, sparse embeddings).
 }

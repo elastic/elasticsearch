@@ -4,6 +4,12 @@
 <titleabbrev>Terms enum</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 The terms enum API can be used to discover terms in the index that match
 a partial string. Supported field types are <<keyword-field-type,`keyword`>>,
 <<constant-keyword-field-type,`constant_keyword`>>, <<flattened,`flattened`>>,

@@ -15,10 +15,8 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.List;
@@ -27,12 +25,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
-
-    @BeforeClass
-    protected static void ensureKqlFunctionEnabled() {
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-    }
-
     @Before
     public void setupIndex() {
         createAndPopulateIndex();

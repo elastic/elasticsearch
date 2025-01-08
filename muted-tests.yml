@@ -250,6 +250,15 @@ tests:
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testUpgradeDataStream
   issue: https://github.com/elastic/elasticsearch/issues/119717
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testSingleMatchFunctionFilterPushdownWithStringValues {default}
+  issue: https://github.com/elastic/elasticsearch/issues/119720
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testSingleMatchFunctionPushdownWithCasting {default}
+  issue: https://github.com/elastic/elasticsearch/issues/119722
+- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
+  method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
+  issue: https://github.com/elastic/elasticsearch/issues/119721
 
 # Examples:
 #

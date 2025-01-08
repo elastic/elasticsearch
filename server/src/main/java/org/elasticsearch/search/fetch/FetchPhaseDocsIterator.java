@@ -86,10 +86,7 @@ abstract class FetchPhaseDocsIterator {
                     }
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
-                    SearchHit searchHit = nextDoc(docs[i].docId);
-                    // free some memory
-                    searchHit.resetSourceAsMap();
-                    searchHits[docs[i].index] = searchHit;
+                    searchHits[docs[i].index] = nextDoc(docs[i].docId);
                 } catch (ContextIndexSearcher.TimeExceededException e) {
                     if (allowPartialResults == false) {
                         purgeSearchHits(searchHits);

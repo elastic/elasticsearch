@@ -99,6 +99,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics@lifecycle";
     public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
 
+    //////////////////////////////////////////////////////////
+    // Agentless components (for matching agentless-*-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String AGENTLESS_SETTINGS_COMPONENT_TEMPLATE_NAME = "agentless@settings";
+    public static final String AGENTLESS_INDEX_TEMPLATE_NAME = "agentless";
+
     ///////////////////////////////////
     // Kibana reporting template
     ///////////////////////////////////
@@ -199,6 +205,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
+                AGENTLESS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/agentless@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
                 KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
                 "/kibana-reporting@settings.json",
                 REGISTRY_VERSION,
@@ -281,6 +294,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             SYNTHETICS_INDEX_TEMPLATE_NAME,
             "/synthetics@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            AGENTLESS_INDEX_TEMPLATE_NAME,
+            "/agentless@template.json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE,
             ADDITIONAL_TEMPLATE_VARIABLES

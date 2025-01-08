@@ -1,0 +1,17 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "hidden": true,
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+      }
+    }
+  },
+  "_meta": {
+    "description": "default settings for the agentless index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

@@ -735,6 +735,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (SearchHit.this.source instanceof RefCounted r) {
             r.decRef();
         }
+        SearchHit.this.sourceAsMap = null;
         SearchHit.this.source = null;
     }
 

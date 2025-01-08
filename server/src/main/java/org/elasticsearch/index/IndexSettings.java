@@ -658,14 +658,11 @@ public final class IndexSettings {
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
-            if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
-                || IndexSettings.MODE.get(settings) == IndexMode.TIME_SERIES
-                    && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
-                        .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)) {
-                return String.valueOf(true);
-            } else {
+            if (INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings) == false) {
                 return String.valueOf(false);
             }
+            final SourceFieldMapper.Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
+            return String.valueOf(sourceMode == SourceFieldMapper.Mode.SYNTHETIC);
         },
         new Setting.Validator<>() {
             @Override

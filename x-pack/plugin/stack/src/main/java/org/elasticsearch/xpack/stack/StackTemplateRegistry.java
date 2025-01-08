@@ -102,6 +102,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Agentless components (for matching agentless-*-* indices)
     //////////////////////////////////////////////////////////
+    public static final String AGENTLESS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "agentless@mappings";
     public static final String AGENTLESS_SETTINGS_COMPONENT_TEMPLATE_NAME = "agentless@settings";
     public static final String AGENTLESS_INDEX_TEMPLATE_NAME = "agentless";
 
@@ -200,6 +201,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                AGENTLESS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/agentless@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

@@ -1,0 +1,5 @@
+pr: 119766
+summary: Do not fold in Range.foldable
+area: ES|QL
+type: tech debt
+issues: []

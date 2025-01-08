@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiS
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
@@ -320,6 +321,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
             context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
+            context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

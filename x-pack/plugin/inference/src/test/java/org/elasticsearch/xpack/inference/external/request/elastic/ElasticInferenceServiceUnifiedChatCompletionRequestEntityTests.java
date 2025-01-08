@@ -32,7 +32,6 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntityTests exte
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
             null,
-            null,
             null
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();

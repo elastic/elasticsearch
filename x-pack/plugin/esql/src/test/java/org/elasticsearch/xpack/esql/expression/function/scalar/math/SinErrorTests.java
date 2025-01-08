@@ -27,7 +27,7 @@ public class SinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Sin(source, args.getFirst());
+        return new Sin(source, args.get(0));
     }
 
     @Override

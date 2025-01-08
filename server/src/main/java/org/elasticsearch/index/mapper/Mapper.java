@@ -107,9 +107,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private String leafName;
 
-        @SuppressWarnings("this-escape")
         protected Builder(String leafName) {
-            setLeafName(leafName);
+            this.leafName = leafName;
         }
 
         public final String leafName() {
@@ -120,7 +119,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(MapperBuilderContext context);
 
         void setLeafName(String leafName) {
-            this.leafName = internFieldName(leafName);
+            this.leafName = leafName;
         }
     }
 

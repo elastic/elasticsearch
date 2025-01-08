@@ -70,7 +70,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(useEntitlements),
+            maybeAllowSecurityManager(),
             maybeAttachEntitlementAgent(useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -148,12 +148,9 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (useEntitlements == false) {
-            // Will become conditional on useEntitlements once entitlements can run without SM
-            return Stream.of("-Djava.security.manager=allow");
-        }
-        return Stream.of();
+    private static Stream<String> maybeAllowSecurityManager() {
+        // Will become conditional on useEntitlements once entitlements can run without SM
+        return Stream.of("-Djava.security.manager=allow");
     }
 
     private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {

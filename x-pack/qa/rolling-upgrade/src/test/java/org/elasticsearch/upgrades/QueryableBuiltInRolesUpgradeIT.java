@@ -80,7 +80,7 @@ public class QueryableBuiltInRolesUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    record TestNodeInfo(String nodeId, String version, String transportVersion, Set<String> features) {
+    record TestNodeInfo(String nodeId, String version, Set<String> features) {
 
         public boolean isOriginalVersionCluster() {
             return AbstractUpgradeTestCase.isOriginalCluster(this.version());
@@ -98,48 +98,39 @@ public class QueryableBuiltInRolesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static Set<TestNodeInfo> collectNodeInfos(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
-        request.addParameter("filter_path", "nodes_features,nodes_versions");
+        request.addParameter("filter_path", "nodes_features");
 
         final Response response = adminClient.performRequest(request);
 
-        Map<String, Set<String>> resultingNodeFeatures = null;
+        Map<String, Set<String>> nodeFeatures = null;
         var responseData = responseAsMap(response);
         if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
-            resultingNodeFeatures = nodesFeatures.stream()
+            nodeFeatures = nodesFeatures.stream()
                 .map(Map.class::cast)
                 .collect(Collectors.toUnmodifiableMap(nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(), nodeFeatureMap -> {
                     @SuppressWarnings("unchecked")
-                    var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
-                    return new HashSet<>(nodeFeatures);
+                    var features = (List<String>) nodeFeatureMap.get("features");
+                    return new HashSet<>(features);
                 }));
-        }
-
-        Map<String, String> resultingNodeTransportVersions = null;
-        if (responseData.get("nodes_versions") instanceof List<?> nodesVersions) {
-            resultingNodeTransportVersions = nodesVersions.stream()
-                .map(Map.class::cast)
-                .collect(Collectors.toUnmodifiableMap(map -> map.get("node_id").toString(), map -> (String) map.get("transport_version")));
         }
 
         Map<String, String> nodeVersions = nodesVersions();
         assertThat(nodeVersions, is(notNullValue()));
-        assertThat(resultingNodeTransportVersions, is(notNullValue()));
-        assertThat(resultingNodeFeatures, is(notNullValue()));
-        assertThat(resultingNodeTransportVersions.keySet(), containsInAnyOrder(resultingNodeFeatures.keySet().toArray()));
-        assertThat(nodeVersions.keySet(), containsInAnyOrder(resultingNodeFeatures.keySet().toArray()));
-
-        Set<TestNodeInfo> nodes = new HashSet<>(nodeVersions.size());
-        for (String nodeId : nodeVersions.keySet()) {
-            nodes.add(
-                new TestNodeInfo(
-                    nodeId,
-                    nodeVersions.get(nodeId),
-                    resultingNodeTransportVersions.get(nodeId),
-                    resultingNodeFeatures.get(nodeId)
-                )
-            );
+        // old cluster may not support node features, so we can treat it as if no features are supported
+        if (nodeFeatures == null) {
+            Set<TestNodeInfo> nodes = new HashSet<>(nodeVersions.size());
+            for (String nodeId : nodeVersions.keySet()) {
+                nodes.add(new TestNodeInfo(nodeId, nodeVersions.get(nodeId), Set.of()));
+            }
+            return nodes;
+        } else {
+            assertThat(nodeVersions.keySet(), containsInAnyOrder(nodeFeatures.keySet().toArray()));
+            Set<TestNodeInfo> nodes = new HashSet<>(nodeVersions.size());
+            for (String nodeId : nodeVersions.keySet()) {
+                nodes.add(new TestNodeInfo(nodeId, nodeVersions.get(nodeId), nodeFeatures.get(nodeId)));
+            }
+            return nodes;
         }
-        return nodes;
     }
 
     private static void waitForNodes(int numberOfNodes) throws IOException {

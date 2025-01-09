@@ -790,7 +790,7 @@ public final class IndexSettings {
         }
     }
 
-    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
+    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting", true);
 
     private final Index index;
     private final IndexVersion version;

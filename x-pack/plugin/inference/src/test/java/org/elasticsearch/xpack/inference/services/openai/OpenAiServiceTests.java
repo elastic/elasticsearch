@@ -967,9 +967,7 @@ public class OpenAiServiceTests extends ESTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null, null)
-                    )
+                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
                 ),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener

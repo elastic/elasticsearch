@@ -2410,8 +2410,14 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         // and since the copy is exact, contents of ignored source are different.
         assertReaderEquals(
             "round trip " + syntheticSource,
-            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME), reader),
-            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME), roundTripReader)
+            new FieldMaskingReader(
+                Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME),
+                reader
+            ),
+            new FieldMaskingReader(
+                Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME),
+                roundTripReader
+            )
         );
     }
 }

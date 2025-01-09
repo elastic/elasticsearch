@@ -241,6 +241,11 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
         assertNull(settings.get("index.frozen"));
+
+        // Delete the policy with the freeze action to avoid having the deprecation warning messing with tear down
+        assertAcknowledged(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
+        assertAcknowledged(client().performRequest(new Request("DELETE", "_index_template/" + template)));
+        assertAcknowledged(client().performRequest(new Request("DELETE", "_ilm/policy/" + policyName)));
     }
 
     public void checkForceMergeAction(String codec) throws Exception {

@@ -14,7 +14,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -174,6 +174,21 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
+        if (getActions().containsKey(FreezeAction.NAME)) {
+            deprecationLogger.warn(
+                DeprecationCategory.OTHER,
+                "ilm_freeze_action_deprecation",
+                "The freeze action in ILM is deprecated and will be removed in a future version. Please remove the freeze action from the '"
+                    + policyName
+                    + "' policy."
+            );
+            return true;
+        }
+        return false;
     }
 
 }

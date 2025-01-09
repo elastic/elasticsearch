@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,8 +28,6 @@ import java.util.List;
 @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
 public class FreezeAction implements LifecycleAction {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
-
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
     public static final String FREEZE_STEP_NAME = "freeze";
@@ -42,12 +37,7 @@ public class FreezeAction implements LifecycleAction {
     private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, () -> INSTANCE);
 
     public static FreezeAction parse(XContentParser parser) {
-        deprecationLogger.warn(
-            DeprecationCategory.OTHER,
-            "ilm_freeze_action_deprecation",
-            "The freeze action in ILM is deprecated and will be removed in a future version. "
-                + "Please remove the freeze action from the ILM policy."
-        );
+
         return PARSER.apply(parser, null);
     }
 

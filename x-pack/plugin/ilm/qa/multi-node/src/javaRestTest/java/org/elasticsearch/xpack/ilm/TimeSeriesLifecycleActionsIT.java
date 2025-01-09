@@ -218,6 +218,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(client(), index).containsKey("index.frozen"));
+        // Delete the policy with the freeze action to avoid having the deprecation warning messing with tear down
+        assertAcknowledged(client().performRequest(new Request("DELETE", index)));
+        assertAcknowledged(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
+
     }
 
     public void testAllocateOnlyAllocation() throws Exception {

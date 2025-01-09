@@ -569,6 +569,24 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testClusterResolveWithNoMatchingClustersReturnsEmptyResult() throws Exception {
+        setupThreeClusters(false);
+        {
+            String[] indexExpressions = new String[] { "no_matching_cluster*:foo" };
+            ResolveClusterActionRequest request = new ResolveClusterActionRequest(indexExpressions);
+
+            ActionFuture<ResolveClusterActionResponse> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(TransportResolveClusterAction.TYPE, request);
+            ResolveClusterActionResponse response = future.actionGet(10, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            assertEquals(0, clusterInfo.size());
+            assertThat(Strings.toString(response), equalTo("{}"));
+        }
+    }
+
     public void testClusterResolveDisconnectedAndErrorScenarios() throws Exception {
         Map<String, Object> testClusterInfo = setupThreeClusters(false);
         String localIndex = (String) testClusterInfo.get("local.index");

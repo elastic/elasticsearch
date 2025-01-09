@@ -119,7 +119,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 return;
             }
         } else {
-            remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
+            remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices(), false);
         }
 
         OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);

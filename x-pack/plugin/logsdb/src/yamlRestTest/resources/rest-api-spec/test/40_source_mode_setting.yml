@@ -468,6 +468,9 @@ modify final setting after index creation:
 
 ---
 use no-op _source.mode attr:
+  - requires:
+      test_runner_features: [ "warnings" ]
+
   - do:
       warnings:
         - "Configuring source mode in mappings is deprecated and will be removed in future versions. Use [index.mapping.source.mode] index setting instead."

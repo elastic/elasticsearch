@@ -82,7 +82,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
     private boolean hasPartialReduce;
-    private volatile int numReducePhases;
+    private int numReducePhases;
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
@@ -161,8 +161,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (f != null) {
             throw f;
         }
-
-        var buffer = this.buffer;
+        final List<QuerySearchResult> buffer;
+        synchronized (this) {
+            buffer = this.buffer;
+        }
         // ensure consistent ordering
         buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
@@ -296,6 +298,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return new MergeResult(processedShards, newTopDocs, newAggs, newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0);
     }
 
+    // only used in tests
     public int getNumReducePhases() {
         return numReducePhases;
     }
@@ -453,8 +456,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
                         addEstimateAndMaybeBreak(estimatedMergeSize);
                         estimatedTotalSize += estimatedMergeSize;
-                        ++numReducePhases;
-                        newMerge = partialReduce(toConsume, mergeTask.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
+                        newMerge = partialReduce(toConsume, mergeTask.emptyResults, topDocsStats, thisMergeResult, ++numReducePhases);
                     } catch (Exception t) {
                         QueryPhaseResultConsumer.releaseAggs(toConsume);
                         onMergeFailure(t);

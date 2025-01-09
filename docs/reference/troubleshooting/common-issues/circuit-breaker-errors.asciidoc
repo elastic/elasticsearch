@@ -1,13 +1,6 @@
 [[circuit-breaker-errors]]
 === Circuit breaker errors
 
-****
-AutoOps is now available!
- 
-AutoOps for {es} significantly simplifies cluster management with performance recommendations, resource utilization and cost insights, real-time issue detection and resolution paths. By analyzing hundreds of {es} metrics, your configuration, and usage patterns, AutoOps offers operational and monitoring insights that can substantially reduce administration time and hardware costs. AutoOps is 
-https://www.elastic.co/guide/en/cloud/current/ec-autoops-regions.html[rolling out] in phases across Elastic Cloud Hosted regions and CSP. It will be automatically activated for your deployment, with no installation required. For more information, check https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
-****
-
 {es} uses <<circuit-breaker,circuit breakers>> to prevent nodes from running out
 of JVM heap memory. If Elasticsearch estimates an operation would exceed a
 circuit breaker, it stops the operation and returns an error.
@@ -18,6 +11,10 @@ memory pressure if usage consistently exceeds 85%.
 
 See https://www.youtube.com/watch?v=k3wYlRVbMSw[this video] for a walkthrough
 of diagnosing circuit breaker errors.
+
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 [discrete]
 [[diagnose-circuit-breaker-errors]]

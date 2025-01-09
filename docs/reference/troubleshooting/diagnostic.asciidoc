@@ -5,13 +5,6 @@
 ++++
 :keywords: Elasticsearch diagnostic, diagnostics
 
-****
-AutoOps is now available!
- 
-AutoOps for {es} significantly simplifies cluster management with performance recommendations, resource utilization and cost insights, real-time issue detection and resolution paths. By analyzing hundreds of {es} metrics, your configuration, and usage patterns, AutoOps offers operational and monitoring insights that can substantially reduce administration time and hardware costs. AutoOps is 
-https://www.elastic.co/guide/en/cloud/current/ec-autoops-regions.html[rolling out] in phases across Elastic Cloud Hosted regions and CSP. It will be automatically activated for your deployment, with no installation required. For more information, check https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
-****
-
 The {es} https://github.com/elastic/support-diagnostics[Support Diagnostic] tool captures a point-in-time snapshot of cluster statistics and most settings. 
 It works against all {es} versions. 
 
@@ -21,6 +14,10 @@ You can generate diagnostic information using this tool before you contact https
 https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time. 
 
 See this https://www.youtube.com/watch?v=Bb6SaqhqYHw[this video] for a walkthrough of capturing an {es} diagnostic.
+
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 [discrete]
 [[diagnostic-tool-requirements]]

@@ -1,13 +1,6 @@
 [[troubleshooting-unstable-cluster]]
 == Troubleshooting an unstable cluster
 
-****
-AutoOps is now available!
- 
-AutoOps for {es} significantly simplifies cluster management with performance recommendations, resource utilization and cost insights, real-time issue detection and resolution paths. By analyzing hundreds of {es} metrics, your configuration, and usage patterns, AutoOps offers operational and monitoring insights that can substantially reduce administration time and hardware costs. AutoOps is 
-https://www.elastic.co/guide/en/cloud/current/ec-autoops-regions.html[rolling out] in phases across Elastic Cloud Hosted regions and CSP. It will be automatically activated for your deployment, with no installation required. For more information, check https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
-****
-
 Normally, a node will only leave a cluster if deliberately shut down. If a node
 leaves the cluster unexpectedly, it's important to address the cause. A cluster
 in which nodes leave unexpectedly is unstable and can create several issues.
@@ -23,6 +16,10 @@ logs.
 * The `.security` index may be unavailable, blocking access to the cluster.
 
 * The master may appear busy due to frequent cluster state updates.
+
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 To troubleshoot a cluster in this state, first ensure the cluster has a
 <<discovery-troubleshooting,stable master>>. Next, focus on the nodes

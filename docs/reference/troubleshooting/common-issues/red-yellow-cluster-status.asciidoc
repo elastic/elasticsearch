@@ -1,13 +1,6 @@
 [[red-yellow-cluster-status]]
 === Red or yellow cluster health status
 
-****
-AutoOps is now available!
- 
-AutoOps for {es} significantly simplifies cluster management with performance recommendations, resource utilization and cost insights, real-time issue detection and resolution paths. By analyzing hundreds of {es} metrics, your configuration, and usage patterns, AutoOps offers operational and monitoring insights that can substantially reduce administration time and hardware costs. AutoOps is 
-https://www.elastic.co/guide/en/cloud/current/ec-autoops-regions.html[rolling out] in phases across Elastic Cloud Hosted regions and CSP. It will be automatically activated for your deployment, with no installation required. For more information, check https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
-****
-
 A red or yellow cluster health status indicates one or more shards are not assigned to
 a node.
 
@@ -28,6 +21,10 @@ If the cluster doesn't automatically recover, then you must <<fix-red-yellow-clu
 the remaining problems so management and cleanup activities can proceed.
 See https://www.youtube.com/watch?v=v2mbeSd1vTQ[this video]
 for a walkthrough of monitoring allocation health.
+
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 [discrete]
 [[diagnose-cluster-status]]

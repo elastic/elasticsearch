@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,8 +30,9 @@ class SearchHitToJsonProcessor implements Releasable {
 
     public void process(SearchHit hit) throws IOException {
         jsonBuilder.startObject();
+        SourceSuppler sourceSuppler = new SourceSuppler(hit);
         for (ExtractedField field : fields.getAllFields()) {
-            writeKeyValue(field.getName(), field.value(hit));
+            writeKeyValue(field.getName(), field.value(hit, sourceSuppler));
         }
         jsonBuilder.endObject();
     }

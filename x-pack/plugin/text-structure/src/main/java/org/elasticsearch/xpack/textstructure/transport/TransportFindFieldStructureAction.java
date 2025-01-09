@@ -77,6 +77,7 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
 
     private List<String> getMessages(SearchResponse searchResponse, String field) {
         return Arrays.stream(searchResponse.getHits().getHits())
+            // No need to cache the source map as it is not used outside of this method
             .map(hit -> MapHelper.dig(field, Objects.requireNonNull(hit.getSourceAsMap())).toString())
             .collect(Collectors.toList());
     }

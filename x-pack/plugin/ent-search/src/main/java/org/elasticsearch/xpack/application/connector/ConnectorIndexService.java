@@ -209,6 +209,7 @@ public class ConnectorIndexService {
                 try {
                     final ConnectorSearchResult connector = new ConnectorSearchResult.Builder().setId(connectorId)
                         .setResultBytes(getResponse.getSourceAsBytesRef())
+                        // No need to cache the source map as it is not used outside of this method
                         .setResultMap(getResponse.getSourceAsMap())
                         .build();
 
@@ -1178,6 +1179,7 @@ public class ConnectorIndexService {
 
         return new ConnectorSearchResult.Builder().setId(searchHit.getId())
             .setResultBytes(searchHit.getSourceRef())
+            // No need to cache the source map as it is not used outside of this method
             .setResultMap(searchHit.getSourceAsMap())
             .build();
     }

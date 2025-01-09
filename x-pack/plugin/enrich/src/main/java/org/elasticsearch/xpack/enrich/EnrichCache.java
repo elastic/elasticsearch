@@ -173,7 +173,9 @@ public final class EnrichCache {
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
         long size = 0;
         for (SearchHit hit : response.getHits()) {
+            // Do we need deep copy here, we are creating a modifiable map already?
             result.add(deepCopy(hit.getSourceAsMap(), true));
+            // There is a cost of decompressing source here plus caching it
             size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
         }
         return new CacheValue(Collections.unmodifiableList(result), size);

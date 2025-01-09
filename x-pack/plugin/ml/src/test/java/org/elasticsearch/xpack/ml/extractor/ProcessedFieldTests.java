@@ -120,7 +120,7 @@ public class ProcessedFieldTests extends ESTestCase {
 
     private static ExtractedField makeExtractedField(Object[] value) {
         ExtractedField extractedField = mock(ExtractedField.class);
-        when(extractedField.value(any())).thenReturn(value);
+        when(extractedField.value(any(), any())).thenReturn(value);
         return extractedField;
     }
 

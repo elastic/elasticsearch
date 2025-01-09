@@ -272,6 +272,7 @@ public class SynonymsManagementAPIService {
                     }));
                     return;
                 }
+                // No need to cache the source map
                 final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
                     .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
                     .toArray(SynonymRule[]::new);

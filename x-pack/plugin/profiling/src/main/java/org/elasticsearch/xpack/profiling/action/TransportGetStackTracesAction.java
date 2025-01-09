@@ -585,6 +585,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         public void onHostsResponse(SearchResponse searchResponse) {
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (SearchHit hit : hits) {
+                // No need to cache the source map as it is not used outside of this method
                 HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
                 hostMetadata.put(host.hostID, host);
             }

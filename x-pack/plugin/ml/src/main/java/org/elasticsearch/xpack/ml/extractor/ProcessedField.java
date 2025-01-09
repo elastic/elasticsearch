@@ -41,12 +41,13 @@ public class ProcessedField {
     public Object[] value(SearchHit hit, Function<String, ExtractedField> fieldExtractor) {
         List<String> inputFields = getInputFieldNames();
         Map<String, Object> inputs = Maps.newMapWithExpectedSize(inputFields.size());
+        SourceSuppler sourceSupplier = new SourceSuppler(hit);
         for (String field : inputFields) {
             ExtractedField extractedField = fieldExtractor.apply(field);
             if (extractedField == null) {
                 return new Object[0];
             }
-            Object[] values = extractedField.value(hit);
+            Object[] values = extractedField.value(hit, sourceSupplier);
             if (values == null || values.length == 0) {
                 continue;
             }

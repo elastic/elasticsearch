@@ -17,8 +17,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,8 +42,8 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         return timeField.getName();
     }
 
-    public Long timeFieldValue(SearchHit hit) {
-        Object[] value = timeField.value(hit);
+    public Long timeFieldValue(SearchHit hit, Supplier<Map<String, Object>> source) {
+        Object[] value = timeField.value(hit, source);
         if (value.length != 1) {
             throw new RuntimeException(
                 "Time field [" + timeField.getName() + "] expected a single value; actual was: " + Arrays.toString(value)

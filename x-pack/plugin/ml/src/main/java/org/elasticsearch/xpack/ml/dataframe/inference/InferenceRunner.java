@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
@@ -227,8 +228,9 @@ public class InferenceRunner {
 
     private Map<String, Object> featuresFromDoc(SearchHit doc) {
         Map<String, Object> features = new HashMap<>();
+        final SourceSuppler sourceSuppler = new SourceSuppler(doc);
         for (ExtractedField extractedField : extractedFields.getAllFields()) {
-            Object[] values = extractedField.value(doc);
+            Object[] values = extractedField.value(doc, sourceSuppler);
             if (values.length == 1) {
                 features.put(extractedField.getName(), values[0]);
             }
@@ -239,7 +241,7 @@ public class InferenceRunner {
     private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {
         Map<String, Object> resultsMap = new LinkedHashMap<>(results.asMap());
         resultsMap.put(DestinationIndex.IS_TRAINING, false);
-
+        // No need to cache the source map as it is not used outside of this method
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.put(resultField, resultsMap);
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());

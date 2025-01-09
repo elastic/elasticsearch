@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.extractor;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
 public class ScriptField extends AbstractField {
 
@@ -22,7 +24,7 @@ public class ScriptField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
+    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
         return getFieldValue(hit);
     }
 

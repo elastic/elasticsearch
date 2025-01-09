@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitter;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.ProcessedField;
+import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -264,9 +265,9 @@ public class DataFrameDataExtractor {
         return rows;
     }
 
-    private String extractNonProcessedValues(SearchHit hit, String organicFeature) {
+    private String extractNonProcessedValues(SearchHit hit, Supplier<Map<String, Object>> source, String organicFeature) {
         ExtractedField field = extractedFieldsByName.get(organicFeature);
-        Object[] values = field.value(hit);
+        Object[] values = field.value(hit, source);
         if (values.length == 1 && isValidValue(values[0])) {
             return Objects.toString(values[0]);
         }
@@ -340,8 +341,9 @@ public class DataFrameDataExtractor {
     private String[] extractValues(SearchHit hit) {
         String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
         int i = 0;
+        SourceSuppler sourceSuppler = new SourceSuppler(hit);
         for (String organicFeature : organicFeatures) {
-            String extractedValue = extractNonProcessedValues(hit, organicFeature);
+            String extractedValue = extractNonProcessedValues(hit, sourceSuppler, organicFeature);
             if (extractedValue == null) {
                 return null;
             }

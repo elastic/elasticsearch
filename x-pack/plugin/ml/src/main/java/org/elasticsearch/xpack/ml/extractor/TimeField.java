@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.ml.extractor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class TimeField extends AbstractField {
 
@@ -38,7 +40,7 @@ public class TimeField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
+    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
         Object[] value = getFieldValue(hit);
         if (value.length != 1) {
             return value;

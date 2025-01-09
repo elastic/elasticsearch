@@ -425,6 +425,7 @@ public class ConnectorSyncJobIndexService {
 
         return new ConnectorSyncJobSearchResult.Builder().setId(searchHit.getId())
             .setResultBytes(searchHit.getSourceRef())
+            // No need to cache the source map as it is not used outside of this method
             .setResultMap(searchHit.getSourceAsMap())
             .build();
 

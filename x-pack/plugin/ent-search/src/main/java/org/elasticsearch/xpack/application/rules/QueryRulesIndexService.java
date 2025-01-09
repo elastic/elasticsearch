@@ -439,6 +439,7 @@ public class QueryRulesIndexService {
     }
 
     private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {
+        // No need to cache the source map as it is not used outside of this method
         final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
         final String rulesetId = (String) sourceMap.get(QueryRuleset.ID_FIELD.getPreferredName());
         @SuppressWarnings("unchecked")

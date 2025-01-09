@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -203,11 +204,11 @@ class ScrollDataExtractor implements DataExtractor {
         BytesStreamOutput outputStream = new BytesStreamOutput();
 
         SearchHit lastHit = hits.getAt(hits.getHits().length - 1);
-        lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
+        lastTimestamp = context.extractedFields.timeFieldValue(lastHit, new SourceSuppler(lastHit));
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
             for (SearchHit hit : hits) {
                 if (isCancelled) {
-                    Long timestamp = context.extractedFields.timeFieldValue(hit);
+                    Long timestamp = context.extractedFields.timeFieldValue(hit, new SourceSuppler(hit));
                     if (timestamp != null) {
                         if (timestampOnCancel == null) {
                             timestampOnCancel = timestamp;

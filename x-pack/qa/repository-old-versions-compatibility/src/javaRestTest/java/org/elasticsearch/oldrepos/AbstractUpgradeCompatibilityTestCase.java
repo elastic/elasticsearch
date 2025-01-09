@@ -73,9 +73,11 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
     private static boolean upgradeFailed = false;
 
     private final Version clusterVersion;
+    private final String indexCreatedVersion;
 
-    public AbstractUpgradeCompatibilityTestCase(@Name("cluster") Version clusterVersion) {
+    public AbstractUpgradeCompatibilityTestCase(@Name("cluster") Version clusterVersion, String indexCreatedVersion) {
         this.clusterVersion = clusterVersion;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @ParametersFactory
@@ -207,5 +209,9 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
                 zipIn.closeEntry();
             }
         }
+    }
+
+    public final void testArchiveIndex() throws Exception {
+        verifyCompatibility(indexCreatedVersion);
     }
 }

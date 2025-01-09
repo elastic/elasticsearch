@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -15,6 +16,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -27,7 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
-public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
+public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
 
     private final URI uri;
 
@@ -57,12 +59,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
-
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
     }
 
     ElasticInferenceServiceSparseEmbeddingsModel(
@@ -80,12 +77,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             serviceSettings,
             elasticInferenceServiceComponents
         );
-
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
     }
 
     @Override
@@ -102,19 +94,42 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         return uri;
     }
 
-    private URI createUri() throws URISyntaxException {
+    private URI createUri() throws ElasticsearchStatusException {
         String modelId = getServiceSettings().modelId();
         String modelIdUriPath;
 
         switch (modelId) {
             case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
+            default -> throw new ElasticsearchStatusException(
+                String.format(
+                    Locale.ROOT,
+                    "Unsupported model [%s] for service [%s] and task type [%s]",
+                    modelId,
+                    ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
+                    TaskType.SPARSE_EMBEDDING
+                ),
+                RestStatus.BAD_REQUEST
             );
         }
 
-        return new URI(
-            elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embeddings/" + modelIdUriPath
-        );
+        try {
+            // TODO, consider transforming the base URL into a URI for better error handling.
+            return new URI(
+                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embeddings/" + modelIdUriPath
+            );
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchStatusException(
+                "Failed to create URI for service ["
+                    + this.getConfigurations().getService()
+                    + "] with taskType ["
+                    + this.getTaskType()
+                    + "] with model ["
+                    + this.getServiceSettings().modelId()
+                    + "]: "
+                    + e.getMessage(),
+                RestStatus.BAD_REQUEST,
+                e
+            );
+        }
     }
 }

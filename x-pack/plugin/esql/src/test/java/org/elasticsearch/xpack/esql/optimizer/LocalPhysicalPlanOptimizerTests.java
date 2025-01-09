@@ -1452,8 +1452,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
-            // TODO: semantic_text is not present in mapping-all-types.json so we skip it for now
-            if (fieldDataType == DataType.SEMANTIC_TEXT) {
+            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldDataType)) {
                 continue;
             }
 

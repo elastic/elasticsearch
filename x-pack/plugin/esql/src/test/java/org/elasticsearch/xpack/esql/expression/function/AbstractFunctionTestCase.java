@@ -194,7 +194,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         ExpectedType expectedType,
         ExpectedEvaluatorToString evaluatorToString
     ) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -277,7 +276,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     @FunctionalInterface
-    protected interface PositionalErrorMessageSupplier {
+    public interface PositionalErrorMessageSupplier {
         /**
          * This interface defines functions to supply error messages for incorrect types in specific positions. Functions which have
          * the same type requirements for all positions can simplify this with a lambda returning a string constant.
@@ -294,7 +293,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Adds test cases containing unsupported parameter types that assert
      * that they throw type errors.
+     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
      */
+    @Deprecated
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
         List<TestCaseSupplier> testCaseSuppliers,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
@@ -334,11 +335,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
     }
 
+    /**
+     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
+     */
+    @Deprecated
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
         List<TestCaseSupplier> testCaseSuppliers,
         TypeErrorMessageSupplier typeErrorMessageSupplier
     ) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -349,7 +353,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(count -> allPermutations(count))
+            .flatMap(AbstractFunctionTestCase::allPermutations)
             .filter(types -> valid.contains(types) == false)
             /*
              * Skip any cases with more than one null. Our tests don't generate
@@ -367,10 +371,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         longer.addAll(orig);
         longer.add(extra);
         return longer;
-    }
-
-    protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(DataType::isRepresentable);
     }
 
     protected static TestCaseSupplier typeErrorSupplier(
@@ -401,7 +401,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         );
     }
 
-    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+    static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
         int max = valid.stream().mapToInt(List::size).max().getAsInt();
         List<Set<DataType>> result = new ArrayList<>(max);
         for (int i = 0; i < max; i++) {
@@ -1341,17 +1341,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void allMemoryReleased() {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
-        }
-    }
-
-    /**
-     * Validate that we know the types for all the test cases already created
-     * @param suppliers - list of suppliers before adding in the illegal type combinations
-     */
-    protected static void typesRequired(List<TestCaseSupplier> suppliers) {
-        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
-        if (bad.equals("") == false) {
-            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
         }
     }
 

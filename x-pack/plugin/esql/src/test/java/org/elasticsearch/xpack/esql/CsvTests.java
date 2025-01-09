@@ -341,7 +341,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
-        var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestsDataset::indexName);
+        var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -350,7 +350,7 @@ public class CsvTests extends ESTestCase {
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergeMappings(mappings), indexModes));
     }
 
-    private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestsDataset dataset) {
+    private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
         var mapping = new TreeMap<>(loadMapping(dataset.mappingFileName()));
         if (dataset.typeMapping() == null) {
             return mapping;
@@ -401,7 +401,7 @@ public class CsvTests extends ESTestCase {
         EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
-            CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
+            CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
             EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
@@ -456,7 +456,7 @@ public class CsvTests extends ESTestCase {
         }
 
         String indexName = indices.get(0).id().index();
-        List<CsvTestsDataLoader.TestsDataset> datasets = new ArrayList<>();
+        List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);
             for (var entry : CSV_DATASET_MAP.entrySet()) {
@@ -484,7 +484,7 @@ public class CsvTests extends ESTestCase {
         CsvTestsDataLoader.MultiIndexTestDataset datasets
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
-        for (CsvTestsDataLoader.TestsDataset dataset : datasets.datasets()) {
+        for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
             var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
             indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2()));
         }

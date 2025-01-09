@@ -27,7 +27,6 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -206,7 +205,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
+            searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));

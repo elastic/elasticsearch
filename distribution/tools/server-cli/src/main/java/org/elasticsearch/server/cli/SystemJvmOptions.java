@@ -29,7 +29,7 @@ final class SystemJvmOptions {
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
         boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        boolean useEntitlements = Runtime.version().feature() >= 24 || entitlementsExplicitlyEnabled;
+        boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         return Stream.of(
             Stream.of(
                 /*

@@ -486,3 +486,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/119433
 - class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/119882
+- class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
+  method: testCartesianBoundsBlockLoader
+  issue: https://github.com/elastic/elasticsearch/issues/119201

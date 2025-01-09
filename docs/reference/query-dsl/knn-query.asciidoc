@@ -87,8 +87,7 @@ POST my-image-index/_search
 --
 (Optional, array of floats or string) Query vector. Must have the same number of dimensions
 as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
-Either this or `query_vector_builder` must be provided, unless all queried fields are of type <<semantic-text, semantic_text>>,
-in which case the inference ID associated with the `semantic_text` field will be inferred.
+Either this or `query_vector_builder` must be provided.
 --
 
 `query_vector_builder`::
@@ -96,6 +95,7 @@ in which case the inference ID associated with the `semantic_text` field will be
 --
 (Optional, object) Query vector builder.
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
+If all queried fields are of type <<semantic-text, semantic_text>>, the inference ID associated with the `semantic_text` field may be inferred.
 --
 
 `k`::
@@ -273,7 +273,7 @@ A sample query can look like below:
 
 [[knn-query-aggregations]]
 ==== Knn query with aggregations
-`knn` query calculates aggregations on top `k` documents from each shard in each queried index.
+`knn` query calculates aggregations on top `k` documents from each shard.
 Thus, the final results from aggregations contain
 `k * number_of_shards` documents. This is different from
 the <<knn-search,top level knn section>> where aggregations are

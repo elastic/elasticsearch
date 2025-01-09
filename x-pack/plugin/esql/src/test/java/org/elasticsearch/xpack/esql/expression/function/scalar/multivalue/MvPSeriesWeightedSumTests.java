@@ -45,8 +45,6 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 return nullData.type() == DataType.NULL ? equalTo("LiteralsEvaluator[lit=null]") : original;
             }
         );
-        cases = errorsForCasesWithoutExamples(cases, (valid, position) -> "double");
-
         return parameterSuppliersFromTypedData(cases);
     }
 

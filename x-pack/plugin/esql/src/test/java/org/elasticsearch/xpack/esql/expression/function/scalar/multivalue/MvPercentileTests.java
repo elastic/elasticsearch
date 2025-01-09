@@ -357,8 +357,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                 ? DataType.NULL
                 : original.expectedType(),
             (nullPosition, nullData, original) -> original,
-            cases,
-            (v, p) -> "numeric except unsigned_long"
+            cases
         );
     }
 

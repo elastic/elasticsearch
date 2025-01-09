@@ -106,15 +106,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         ExpectedType nullsExpectedType,
         ExpectedEvaluatorToString evaluatorToString,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+        List<TestCaseSupplier> suppliers
     ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString),
-                positionalErrorMessageSupplier
-            )
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
     }
 
     public final void testEvaluate() {
@@ -370,7 +364,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             Object result = nullOptimized.fold();
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                if (result instanceof List<?> l) {
+                    result = l.stream().map(v -> NumericUtils.unsignedLongAsBigInteger((Long) v)).toList();
+                } else {
+                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                }
             }
             assertThat(result, testCase.getMatcher());
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {

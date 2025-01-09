@@ -56,8 +56,8 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         List<TestCaseSupplier> cases = cases();
         Set<List<DataType>> valid = cases.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
         List<Set<DataType>> validPerPosition = AbstractFunctionTestCase.validPerPosition(valid);
-        Iterable<List<DataType>> missingSignatures = missingSignatures(cases, valid)::iterator;
-        for (List<DataType> signature : missingSignatures) {
+        Iterable<List<DataType>> testCandidates = testCandidates(cases, valid)::iterator;
+        for (List<DataType> signature : testCandidates) {
             logger.debug("checking {}", signature);
             List<Expression> args = new ArrayList<>(signature.size());
             for (DataType type : signature) {
@@ -80,7 +80,10 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         assertThat("didn't check any signatures", checked, greaterThan(0));
     }
 
-    private Stream<List<DataType>> missingSignatures(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
+    /**
+     * Build a {@link Stream} of test signatures that we should check are invalid.
+     */
+    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
         return cases.stream()
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
@@ -125,7 +128,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         }
         if (badArgPosition == -1) {
             throw new IllegalStateException(
-                "Can't generate error message for these types, you probably need a custom error message function"
+                "Can't generate error message for these types, you probably need a custom error message function signature =" + signature
             );
         }
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";

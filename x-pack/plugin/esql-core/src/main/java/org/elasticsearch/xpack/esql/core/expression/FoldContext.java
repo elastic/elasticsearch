@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -23,26 +25,40 @@ public class FoldContext {
         return new FoldContext(Long.MAX_VALUE);
     }
 
+    private final long initialAllowedBytes;
     private long allowedBytes;
 
     public FoldContext(long allowedBytes) {
+        this.initialAllowedBytes = allowedBytes;
         this.allowedBytes = allowedBytes;
     }
 
     /**
      * Track an allocation. Best to call this <strong>before</strong> allocating
      * if possible, but after is ok if the allocation is small.
+     * <p>
+     *     Note that, unlike {@link CircuitBreaker}, you don't <strong>have</strong>
+     *     to free this allocation later. This is important because the query plan
+     *     doesn't implement {@link Releasable} so it <strong>can't</strong> free
+     *     consistently. But when you have to allocate big chunks of memory during
+     *     folding and know that you are returning the memory it is kindest to
+     *     call this with a negative number, effectively giving those bytes back.
+     * </p>
      */
     public void trackAllocation(Source source, long bytes) {
         allowedBytes -= bytes;
+        assert allowedBytes <= initialAllowedBytes : "returned more bytes than it used";
         if (allowedBytes < 0) {
-            throw new QlFoldTooMuchMemoryException(source);
+            throw new FoldTooMuchMemoryException(source, initialAllowedBytes);
         }
     }
 
     /**
      * Adapt this into a {@link CircuitBreaker} suitable for building bounded local
-     * DriverContext. Only methods used by BlockFactory are implemented.
+     * DriverContext. This is absolutely an abuse of the {@link CircuitBreaker} contract
+     * and only methods used by BlockFactory are implemented. And this'll throw a
+     * {@link FoldTooMuchMemoryException} instead of the standard {@link CircuitBreakingException}.
+     * This works for the common folding implementation though.
      */
     public CircuitBreaker circuitBreakerView(Source source) {
         return new CircuitBreaker() {
@@ -58,32 +74,42 @@ public class FoldContext {
 
             @Override
             public void addWithoutBreaking(long bytes) {
-                trackAllocation(source, bytes);
+                assert bytes <= 0 : "we only expect this to be used for deallocation";
+                allowedBytes -= bytes;
+                assert allowedBytes <= initialAllowedBytes : "returned more bytes than it used";
             }
 
             @Override
             public long getUsed() {
-                throw new UnsupportedOperationException();
+                /*
+                 * This isn't expected to be used by we can implement it so we may as
+                 * well. Maybe it'll be useful for debugging one day.
+                 */
+                return initialAllowedBytes - allowedBytes;
             }
 
             @Override
             public long getLimit() {
-                throw new UnsupportedOperationException();
+                /*
+                 * This isn't expected to be used by we can implement it so we may as
+                 * well. Maybe it'll be useful for debugging one day.
+                 */
+                return initialAllowedBytes;
             }
 
             @Override
             public double getOverhead() {
-                throw new UnsupportedOperationException();
+                return 1.0;
             }
 
             @Override
             public long getTrippedCount() {
-                throw new UnsupportedOperationException();
+                return 0;
             }
 
             @Override
             public String getName() {
-                throw new UnsupportedOperationException();
+                return REQUEST;
             }
 
             @Override
@@ -98,9 +124,14 @@ public class FoldContext {
         };
     }
 
-    private static class QlFoldTooMuchMemoryException extends QlClientException {
-        protected QlFoldTooMuchMemoryException(Source source) {
-            super("line {}:{}: folding used too much memory", source.source().getLineNumber(), source.source().getColumnNumber());
+    private static class FoldTooMuchMemoryException extends QlClientException {
+        protected FoldTooMuchMemoryException(Source source, long initialAllowedBytes) {
+            super(
+                "line {}:{}: folding used more than {}",
+                source.source().getLineNumber(),
+                source.source().getColumnNumber(),
+                ByteSizeValue.ofBytes(initialAllowedBytes)
+            );
         }
     }
 }

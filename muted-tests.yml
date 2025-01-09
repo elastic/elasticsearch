@@ -256,6 +256,9 @@ tests:
 - class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
   method: testConcurrentSerialization
   issue: https://github.com/elastic/elasticsearch/issues/119819
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/119820
 
 # Examples:
 #

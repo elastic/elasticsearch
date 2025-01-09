@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -17,7 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportUpdateConnectorLastSeenAction extends HandledTransportAction<
+public class TransportUpdateConnectorLastSeenAction extends TransportAction<
     UpdateConnectorLastSeenAction.Request,
     ConnectorUpdateActionResponse> {
 
@@ -25,13 +25,7 @@ public class TransportUpdateConnectorLastSeenAction extends HandledTransportActi
 
     @Inject
     public TransportUpdateConnectorLastSeenAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            UpdateConnectorLastSeenAction.NAME,
-            transportService,
-            actionFilters,
-            UpdateConnectorLastSeenAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(UpdateConnectorLastSeenAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.connectorIndexService = new ConnectorIndexService(client);
     }
 

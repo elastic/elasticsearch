@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -27,18 +27,13 @@ import java.util.Objects;
 public class ConnectorUpdateActionResponse extends ActionResponse implements ToXContentObject {
     final DocWriteResponse.Result result;
 
-    public ConnectorUpdateActionResponse(StreamInput in) throws IOException {
-        super(in);
-        result = DocWriteResponse.Result.readFrom(in);
-    }
-
     public ConnectorUpdateActionResponse(DocWriteResponse.Result result) {
         this.result = result;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        this.result.writeTo(out);
+        TransportAction.localOnly();
     }
 
     @Override

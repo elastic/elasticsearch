@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,12 +22,6 @@ public class ConnectorCreateActionResponse extends ActionResponse implements ToX
 
     private final String id;
     private final DocWriteResponse.Result result;
-
-    public ConnectorCreateActionResponse(StreamInput in) throws IOException {
-        super(in);
-        this.id = in.readString();
-        this.result = DocWriteResponse.Result.readFrom(in);
-    }
 
     public ConnectorCreateActionResponse(String id, DocWriteResponse.Result result) {
         this.id = id;
@@ -44,8 +38,7 @@ public class ConnectorCreateActionResponse extends ActionResponse implements ToX
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
-        result.writeTo(out);
+        TransportAction.localOnly();
     }
 
     @Override

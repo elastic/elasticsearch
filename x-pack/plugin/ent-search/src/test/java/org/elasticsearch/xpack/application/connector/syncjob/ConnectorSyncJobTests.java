@@ -8,39 +8,20 @@
 package org.elasticsearch.xpack.application.connector.syncjob;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ConnectorSyncJobTests extends ESTestCase {
-
-    private NamedWriteableRegistry namedWriteableRegistry;
-
-    @Before
-    public void registerNamedObjects() {
-        namedWriteableRegistry = new NamedWriteableRegistry(
-            List.of(new NamedWriteableRegistry.Entry(Connector.class, Connector.NAME, Connector::new))
-        );
-    }
-
-    public final void testRandomSerialization() throws IOException {
-        for (int run = 0; run < 10; run++) {
-            ConnectorSyncJob syncJob = ConnectorSyncJobTestUtils.getRandomConnectorSyncJob();
-            assertTransportSerialization(syncJob);
-        }
-    }
 
     public void testFromXContent_WithAllFields_AllSet() throws IOException {
         String content = XContentHelper.stripWhitespace("""
@@ -331,15 +312,5 @@ public class ConnectorSyncJobTests extends ESTestCase {
             """);
 
         ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), null, XContentType.JSON);
-    }
-
-    private void assertTransportSerialization(ConnectorSyncJob testInstance) throws IOException {
-        ConnectorSyncJob deserializedInstance = copyInstance(testInstance);
-        assertNotSame(testInstance, deserializedInstance);
-        assertThat(testInstance, equalTo(deserializedInstance));
-    }
-
-    private ConnectorSyncJob copyInstance(ConnectorSyncJob instance) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, ConnectorSyncJob::new);
     }
 }

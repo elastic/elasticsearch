@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -46,13 +46,6 @@ public class UpdateConnectorApiKeyIdAction {
             this.connectorId = connectorId;
             this.apiKeyId = apiKeyId;
             this.apiKeySecretId = apiKeySecretId;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.apiKeyId = in.readOptionalString();
-            this.apiKeySecretId = in.readOptionalString();
         }
 
         public String getConnectorId() {
@@ -116,10 +109,7 @@ public class UpdateConnectorApiKeyIdAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeOptionalString(apiKeyId);
-            out.writeOptionalString(apiKeySecretId);
+            TransportAction.localOnly();
         }
 
         @Override

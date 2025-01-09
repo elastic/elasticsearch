@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -51,15 +51,6 @@ public class ListConnectorAction {
         private static final ParseField INDEX_NAMES_FIELD = new ParseField("index_names");
         private static final ParseField NAMES_FIELD = new ParseField("names");
         private static final ParseField SEARCH_QUERY_FIELD = new ParseField("query");
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.pageParams = new PageParams(in);
-            this.indexNames = in.readOptionalStringCollectionAsList();
-            this.connectorNames = in.readOptionalStringCollectionAsList();
-            this.connectorServiceTypes = in.readOptionalStringCollectionAsList();
-            this.connectorSearchQuery = in.readOptionalString();
-        }
 
         public Request(
             PageParams pageParams,
@@ -114,12 +105,7 @@ public class ListConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            pageParams.writeTo(out);
-            out.writeOptionalStringCollection(indexNames);
-            out.writeOptionalStringCollection(connectorNames);
-            out.writeOptionalStringCollection(connectorServiceTypes);
-            out.writeOptionalString(connectorSearchQuery);
+            TransportAction.localOnly();
         }
 
         @Override
@@ -184,18 +170,13 @@ public class ListConnectorAction {
 
         final QueryPage<ConnectorSearchResult> queryPage;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorSearchResult::new);
-        }
-
         public Response(List<ConnectorSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULT_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            queryPage.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override

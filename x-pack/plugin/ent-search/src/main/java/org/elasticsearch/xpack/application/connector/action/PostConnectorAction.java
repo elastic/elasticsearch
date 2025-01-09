@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -56,16 +56,6 @@ public class PostConnectorAction {
 
         public Request() {
             this(null, null, false, null, null, null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.description = in.readOptionalString();
-            this.indexName = in.readOptionalString();
-            this.isNative = in.readOptionalBoolean();
-            this.language = in.readOptionalString();
-            this.name = in.readOptionalString();
-            this.serviceType = in.readOptionalString();
         }
 
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
@@ -136,13 +126,7 @@ public class PostConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(description);
-            out.writeOptionalString(indexName);
-            out.writeOptionalBoolean(isNative);
-            out.writeOptionalString(language);
-            out.writeOptionalString(name);
-            out.writeOptionalString(serviceType);
+            TransportAction.localOnly();
         }
 
         public String getDescription() {

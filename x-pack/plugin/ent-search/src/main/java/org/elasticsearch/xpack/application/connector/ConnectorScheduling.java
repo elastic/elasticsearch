@@ -29,7 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ConnectorScheduling implements Writeable, ToXContentObject {
+public class ConnectorScheduling implements ToXContentObject {
 
     private static final String EVERYDAY_AT_MIDNIGHT = "0 0 0 * * ?";
     private static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
@@ -49,12 +49,6 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         this.accessControl = accessControl;
         this.full = full;
         this.incremental = incremental;
-    }
-
-    public ConnectorScheduling(StreamInput in) throws IOException {
-        this.accessControl = new ScheduleConfig(in);
-        this.full = new ScheduleConfig(in);
-        this.incremental = new ScheduleConfig(in);
     }
 
     public ScheduleConfig getAccessControl() {
@@ -122,13 +116,6 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        accessControl.writeTo(out);
-        full.writeTo(out);
-        incremental.writeTo(out);
     }
 
     @Override

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.filtering;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -32,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This class includes timestamps for the creation and last update of the snippet, along with the
  * actual snippet content represented as a map.
  */
-public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
+public class FilteringAdvancedSnippet implements ToXContentObject {
     @Nullable
     private final Instant advancedSnippetCreatedAt;
     @Nullable
@@ -48,12 +45,6 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
         this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
         this.advancedSnippetUpdatedAt = advancedSnippetUpdatedAt;
         this.advancedSnippetValue = advancedSnippetValue;
-    }
-
-    public FilteringAdvancedSnippet(StreamInput in) throws IOException {
-        this.advancedSnippetCreatedAt = in.readOptionalInstant();
-        this.advancedSnippetUpdatedAt = in.readOptionalInstant();
-        this.advancedSnippetValue = in.readGenericValue();
     }
 
     private static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
@@ -119,13 +110,6 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
 
     public static FilteringAdvancedSnippet fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalInstant(advancedSnippetCreatedAt);
-        out.writeOptionalInstant(advancedSnippetUpdatedAt);
-        out.writeGenericValue(advancedSnippetValue);
     }
 
     @Override

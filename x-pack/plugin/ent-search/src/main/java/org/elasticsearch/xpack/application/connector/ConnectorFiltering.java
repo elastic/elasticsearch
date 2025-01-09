@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -44,7 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * The {@link ConnectorFiltering} class stores the current active filtering rules, a domain associated
  * with these rules, and any draft filtering rules that are yet to be applied.
  */
-public class ConnectorFiltering implements Writeable, ToXContentObject {
+public class ConnectorFiltering implements ToXContentObject {
 
     private FilteringRules active;
     private final String domain = "DEFAULT"; // Connectors always use DEFAULT domain, users should not modify it via API
@@ -59,11 +56,6 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
     public ConnectorFiltering(FilteringRules active, FilteringRules draft) {
         this.active = active;
         this.draft = draft;
-    }
-
-    public ConnectorFiltering(StreamInput in) throws IOException {
-        this.active = new FilteringRules(in);
-        this.draft = new FilteringRules(in);
     }
 
     public FilteringRules getActive() {
@@ -124,12 +116,6 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse a connector filtering.", e);
         }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        active.writeTo(out);
-        draft.writeTo(out);
     }
 
     @Override

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -40,12 +40,6 @@ public class DeleteConnectorAction {
         private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
         private static final ParseField DELETE_SYNC_JOB_FIELD = new ParseField("delete_sync_jobs");
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.deleteSyncJobs = in.readBoolean();
-        }
-
         public Request(String connectorId, boolean deleteSyncJobs) {
             this.connectorId = connectorId;
             this.deleteSyncJobs = deleteSyncJobs;
@@ -72,9 +66,7 @@ public class DeleteConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeBoolean(deleteSyncJobs);
+            TransportAction.localOnly();
         }
 
         @Override

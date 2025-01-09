@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -19,7 +16,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
 
-public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
+public class ConnectorSyncInfo implements ToXContentFragment {
     @Nullable
     private final String lastAccessControlSyncError;
     @Nullable
@@ -75,19 +72,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         this.lastSyncScheduledAt = lastSyncScheduledAt;
         this.lastSyncStatus = lastSyncStatus;
         this.lastSynced = lastSynced;
-    }
-
-    public ConnectorSyncInfo(StreamInput in) throws IOException {
-        this.lastAccessControlSyncError = in.readOptionalString();
-        this.lastAccessControlSyncScheduledAt = in.readOptionalInstant();
-        this.lastAccessControlSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
-        this.lastDeletedDocumentCount = in.readOptionalLong();
-        this.lastIncrementalSyncScheduledAt = in.readOptionalInstant();
-        this.lastIndexedDocumentCount = in.readOptionalLong();
-        this.lastSyncError = in.readOptionalString();
-        this.lastSyncScheduledAt = in.readOptionalInstant();
-        this.lastSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
-        this.lastSynced = in.readOptionalInstant();
     }
 
     public static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
@@ -174,20 +158,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
         }
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(lastAccessControlSyncError);
-        out.writeOptionalInstant(lastAccessControlSyncScheduledAt);
-        out.writeOptionalEnum(lastAccessControlSyncStatus);
-        out.writeOptionalLong(lastDeletedDocumentCount);
-        out.writeOptionalInstant(lastIncrementalSyncScheduledAt);
-        out.writeOptionalLong(lastIndexedDocumentCount);
-        out.writeOptionalString(lastSyncError);
-        out.writeOptionalInstant(lastSyncScheduledAt);
-        out.writeOptionalEnum(lastSyncStatus);
-        out.writeOptionalInstant(lastSynced);
     }
 
     @Override

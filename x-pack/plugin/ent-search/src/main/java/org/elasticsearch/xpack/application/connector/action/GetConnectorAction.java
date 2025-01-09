@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,11 +43,6 @@ public class GetConnectorAction {
             this.connectorId = connectorId;
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-        }
-
         public String getConnectorId() {
             return connectorId;
         }
@@ -65,8 +60,7 @@ public class GetConnectorAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
+            TransportAction.localOnly();
         }
 
         @Override
@@ -115,14 +109,9 @@ public class GetConnectorAction {
             this.connector = connector;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.connector = new ConnectorSearchResult(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            connector.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override

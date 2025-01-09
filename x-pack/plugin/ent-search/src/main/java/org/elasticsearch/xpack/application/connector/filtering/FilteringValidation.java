@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.filtering;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -27,7 +24,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * This class is used to encapsulate information about specific validation checks, where each validation
  * is associated with a list of IDs and corresponding messages that detail the validation results.
  */
-public class FilteringValidation implements Writeable, ToXContentObject {
+public class FilteringValidation implements ToXContentObject {
     private final List<String> ids;
     private final List<String> messages;
 
@@ -40,11 +37,6 @@ public class FilteringValidation implements Writeable, ToXContentObject {
     public FilteringValidation(List<String> ids, List<String> messages) {
         this.ids = ids;
         this.messages = messages;
-    }
-
-    public FilteringValidation(StreamInput in) throws IOException {
-        this.ids = in.readStringCollectionAsList();
-        this.messages = in.readStringCollectionAsList();
     }
 
     private static final ParseField IDS_FIELD = new ParseField("ids");
@@ -75,12 +67,6 @@ public class FilteringValidation implements Writeable, ToXContentObject {
 
     public static FilteringValidation fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringCollection(ids);
-        out.writeStringCollection(messages);
     }
 
     @Override

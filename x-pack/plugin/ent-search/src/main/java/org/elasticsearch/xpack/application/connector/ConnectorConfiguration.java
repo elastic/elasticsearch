@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -42,7 +39,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Represents the configuration field settings for a connector.
  */
-public class ConnectorConfiguration implements Writeable, ToXContentObject {
+public class ConnectorConfiguration implements ToXContentObject {
 
     @Nullable
     private final String category;
@@ -123,24 +120,6 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         this.uiRestrictions = uiRestrictions;
         this.validations = validations;
         this.value = value;
-    }
-
-    public ConnectorConfiguration(StreamInput in) throws IOException {
-        this.category = in.readString();
-        this.defaultValue = in.readGenericValue();
-        this.dependsOn = in.readOptionalCollectionAsList(ConfigurationDependency::new);
-        this.display = in.readEnum(ConfigurationDisplayType.class);
-        this.label = in.readString();
-        this.options = in.readOptionalCollectionAsList(ConfigurationSelectOption::new);
-        this.order = in.readOptionalInt();
-        this.placeholder = in.readOptionalString();
-        this.required = in.readBoolean();
-        this.sensitive = in.readBoolean();
-        this.tooltip = in.readOptionalString();
-        this.type = in.readEnum(ConfigurationFieldType.class);
-        this.uiRestrictions = in.readOptionalStringCollectionAsList();
-        this.validations = in.readOptionalCollectionAsList(ConfigurationValidation::new);
-        this.value = in.readGenericValue();
     }
 
     static final ParseField CATEGORY_FIELD = new ParseField("category");
@@ -366,25 +345,6 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse a connector configuration field.", e);
         }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(category);
-        out.writeGenericValue(defaultValue);
-        out.writeOptionalCollection(dependsOn);
-        out.writeEnum(display);
-        out.writeString(label);
-        out.writeOptionalCollection(options);
-        out.writeOptionalInt(order);
-        out.writeOptionalString(placeholder);
-        out.writeBoolean(required);
-        out.writeBoolean(sensitive);
-        out.writeOptionalString(tooltip);
-        out.writeEnum(type);
-        out.writeOptionalStringCollection(uiRestrictions);
-        out.writeOptionalCollection(validations);
-        out.writeGenericValue(value);
     }
 
     public Map<String, Object> toMap() {

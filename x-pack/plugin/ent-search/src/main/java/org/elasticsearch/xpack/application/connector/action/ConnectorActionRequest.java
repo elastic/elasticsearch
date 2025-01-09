@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.InvalidIndexNameException;
-
-import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
@@ -25,10 +22,6 @@ public abstract class ConnectorActionRequest extends ActionRequest {
 
     public ConnectorActionRequest() {
         super();
-    }
-
-    public ConnectorActionRequest(StreamInput in) throws IOException {
-        super(in);
     }
 
     /**

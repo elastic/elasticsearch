@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.configuration;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,7 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * Represents a dependency within a connector configuration, defining a specific field and its associated value.
  * This class is used to encapsulate configuration dependencies in a structured format.
  */
-public class ConfigurationDependency implements Writeable, ToXContentObject {
+public class ConfigurationDependency implements ToXContentObject {
 
     private final String field;
     private final Object value;
@@ -43,11 +40,6 @@ public class ConfigurationDependency implements Writeable, ToXContentObject {
     public ConfigurationDependency(String field, Object value) {
         this.field = field;
         this.value = value;
-    }
-
-    public ConfigurationDependency(StreamInput in) throws IOException {
-        this.field = in.readString();
-        this.value = in.readGenericValue();
     }
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -95,12 +87,6 @@ public class ConfigurationDependency implements Writeable, ToXContentObject {
 
     public static ConfigurationDependency fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
-        out.writeGenericValue(value);
     }
 
     @Override

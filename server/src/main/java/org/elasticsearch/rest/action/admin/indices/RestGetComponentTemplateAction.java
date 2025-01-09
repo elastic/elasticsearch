@@ -14,8 +14,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -26,10 +28,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetComponentTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("local_param_deprecated");
 
     @Override
     public List<Route> routes() {
@@ -47,18 +50,23 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
-        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
+        final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
+            request.param("name")
+        );
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        getRequest.local(request.paramAsBoolean("local", getRequest.local()));
-        getRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel -> client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel, r -> {
-            final boolean templateExists = r.getComponentTemplates().isEmpty() == false;
-            return (templateExists || implicitAll) ? OK : NOT_FOUND;
-        }));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetComponentTemplateAction.INSTANCE,
+            getRequest,
+            new RestToXContentListener<>(channel, r -> {
+                final boolean templateExists = r.getComponentTemplates().isEmpty() == false;
+                return (templateExists || implicitAll) ? OK : NOT_FOUND;
+            })
+        );
     }
 
     @Override
@@ -66,4 +74,8 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return Settings.FORMAT_PARAMS;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
+    }
 }

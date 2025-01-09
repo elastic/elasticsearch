@@ -1556,6 +1556,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 nodeId1,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(nodeId1)
+                                    .setNodeEphemeralId(nodeId1)
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(System.currentTimeMillis())
                                     .setReason("test")
@@ -1599,6 +1600,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 nodeId1,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(nodeId1)
+                                    .setNodeEphemeralId(nodeId1)
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(System.currentTimeMillis())
                                     .setReason("test")
@@ -1645,6 +1647,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         nodeId3,
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(nodeId3)
+                            .setNodeEphemeralId(nodeId3)
                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                             .setStartedAtMillis(System.currentTimeMillis())
                             .setReason("test")
@@ -1703,6 +1706,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         nodeId3,
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(nodeId3)
+                            .setNodeEphemeralId(nodeId3)
                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                             .setStartedAtMillis(System.currentTimeMillis())
                             .setReason("test")
@@ -1763,6 +1767,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         nodeId3,
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(nodeId3)
+                            .setNodeEphemeralId(nodeId3)
                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                             .setStartedAtMillis(System.currentTimeMillis())
                             .setReason("test")
@@ -1993,6 +1998,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 nodeToShutdown.getId(),
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(nodeToShutdown.getId())
+                    .setNodeEphemeralId(nodeToShutdown.getEphemeralId())
                     .setStartedAtMillis(1L)
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setReason("because this cannot be null")
@@ -2049,6 +2055,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setReason("tests")
                     .setNodeId(nodeId)
+                    .setNodeEphemeralId(nodeId)
                     .build()
             )
         );

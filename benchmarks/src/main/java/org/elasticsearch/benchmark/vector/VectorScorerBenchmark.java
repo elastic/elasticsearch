@@ -83,6 +83,8 @@ public class VectorScorerBenchmark {
 
     RandomVectorScorer luceneDotScorerQuery;
     RandomVectorScorer nativeDotScorerQuery;
+    RandomVectorScorer luceneSqrScorerQuery;
+    RandomVectorScorer nativeSqrScorerQuery;
 
     @Setup
     public void setup() throws IOException {
@@ -130,6 +132,8 @@ public class VectorScorerBenchmark {
         }
         luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
         nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
+        luceneSqrScorerQuery = luceneScorer(values, VectorSimilarityFunction.EUCLIDEAN, queryVec);
+        nativeSqrScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.EUCLIDEAN, values, queryVec).get();
 
         // sanity
         var f1 = dotProductLucene();
@@ -155,6 +159,12 @@ public class VectorScorerBenchmark {
         var q1 = dotProductLuceneQuery();
         var q2 = dotProductNativeQuery();
         if (q1 != q2) {
+            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
+        }
+
+        var sqr1 = squareDistanceLuceneQuery();
+        var sqr2 = squareDistanceNativeQuery();
+        if (sqr1 != sqr2) {
             throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
         }
     }
@@ -215,6 +225,16 @@ public class VectorScorerBenchmark {
         }
         float adjustedDistance = squareDistance * scoreCorrectionConstant;
         return 1 / (1f + adjustedDistance);
+    }
+
+    @Benchmark
+    public float squareDistanceLuceneQuery() throws IOException {
+        return luceneSqrScorerQuery.score(1);
+    }
+
+    @Benchmark
+    public float squareDistanceNativeQuery() throws IOException {
+        return nativeSqrScorerQuery.score(1);
     }
 
     QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {

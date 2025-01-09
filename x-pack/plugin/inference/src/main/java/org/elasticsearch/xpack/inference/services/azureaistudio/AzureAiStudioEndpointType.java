@@ -13,7 +13,7 @@ public enum AzureAiStudioEndpointType {
     TOKEN,
     REALTIME;
 
-    public static String NAME = "azure_ai_studio_endpoint_type";
+    public static final String NAME = "azure_ai_studio_endpoint_type";
 
     public static AzureAiStudioEndpointType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

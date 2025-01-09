@@ -199,7 +199,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return hasCapabilities(adminClient(), requiredCapabilities);
     }
 
-    protected static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
         if (requiredCapabilities.isEmpty()) {
             return true;
         }

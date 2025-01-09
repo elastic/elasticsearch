@@ -143,6 +143,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -174,6 +175,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.hamcrest.Matchers.closeTo;
@@ -919,8 +921,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topN = as(optimized, TopNExec.class);
-        // no fields are added after the top n - so 0 here
-        assertThat(topN.estimatedRowSize(), equalTo(0));
+        // all fields + nullsum are loaded in the final TopN
+        assertThat(topN.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
@@ -928,7 +930,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(extract.child(), EvalExec.class);
         var source = source(eval.child());
         // All fields loaded
-        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + 3 * Integer.BYTES + Long.BYTES));
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + 3 * Integer.BYTES + 2 * Integer.BYTES));
     }
 
     public void testPushAndInequalitiesFilter() {
@@ -1140,8 +1142,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var topNLocal = as(extract.child(), TopNExec.class);
-        // two extra ints for forwards and backwards map
-        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
+        // all fields plus nullsum and shards, segments, docs and two extra ints for forwards and backwards map
+        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + Integer.BYTES * 2 + Integer.BYTES * 3));
 
         var eval = as(topNLocal.child(), EvalExec.class);
         var source = source(eval.child());
@@ -1803,7 +1805,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         QueryBuilder query = source.query();
-        assertNotNull(query);
+        assertNotNull(query); // TODO: verify query
     }
 
     /**
@@ -1838,7 +1840,257 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(extract.child());
 
         QueryBuilder query = source.query();
-        assertNull(query);
+        assertNull(query); // TODO: verify query
+    }
+
+    public void testPushDownEqualsToUpper() {
+        doTestPushDownChangeCase("""
+            from test
+            | where to_upper(first_name) == "FOO"
+            """, """
+            {
+              "esql_single_value" : {
+                "field" : "first_name",
+                "next" : {
+                  "term" : {
+                    "first_name" : {
+                      "value" : "FOO",
+                      "case_insensitive" : true
+                    }
+                  }
+                },
+                "source" : "to_upper(first_name) == \\"FOO\\"@2:9"
+              }
+            }""");
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12,
+     *                languages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12,
+     *                  languages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]<[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[{...}}][_doc{f}#25], limit[1000], sort[] estimatedRowSize[332]
+     */
+    private void doTestPushDownChangeCase(String esql, String expected) {
+        var plan = physicalPlan(esql);
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
+
+        QueryBuilder query = source.query();
+        assertThat(stripThrough(query.toString()), is(stripThrough(expected)));
+    }
+
+    public void testPushDownEqualsToLower() {
+        doTestPushDownChangeCase("""
+            from test
+            | where to_lower(first_name) == "foo"
+            """, """
+            {
+              "esql_single_value" : {
+                "field" : "first_name",
+                "next" : {
+                  "term" : {
+                    "first_name" : {
+                      "value" : "foo",
+                      "case_insensitive" : true
+                    }
+                  }
+                },
+                "source" : "to_lower(first_name) == \\"foo\\"@2:9"
+              }
+            }""");
+    }
+
+    public void testPushDownNotEqualsToUpper() {
+        doTestPushDownChangeCase("""
+            from test
+            | where to_upper(first_name) != "FOO"
+            """, """
+            {
+              "esql_single_value" : {
+                "field" : "first_name",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "term" : {
+                          "first_name" : {
+                            "value" : "FOO",
+                            "case_insensitive" : true
+                          }
+                        }
+                      }
+                    ],
+                    "boost" : 1.0
+                  }
+                },
+                "source" : "to_upper(first_name) != \\"FOO\\"@2:9"
+              }
+            }""");
+    }
+
+    public void testPushDownNotEqualsToLower() {
+        doTestPushDownChangeCase("""
+            from test
+            | where to_lower(first_name) != "foo"
+            """, """
+            {
+              "esql_single_value" : {
+                "field" : "first_name",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "term" : {
+                          "first_name" : {
+                            "value" : "foo",
+                            "case_insensitive" : true
+                          }
+                        }
+                      }
+                    ],
+                    "boost" : 1.0
+                  }
+                },
+                "source" : "to_lower(first_name) != \\"foo\\"@2:9"
+              }
+            }""");
+    }
+
+    public void testPushDownChangeCaseMultiplePredicates() {
+        doTestPushDownChangeCase("""
+            from test
+            | where to_lower(first_name) != "foo" or to_upper(first_name) == "FOO" or emp_no > 10
+            """, """
+            {
+              "bool" : {
+                "should" : [
+                  {
+                    "esql_single_value" : {
+                      "field" : "first_name",
+                      "next" : {
+                        "bool" : {
+                          "must_not" : [
+                            {
+                              "term" : {
+                                "first_name" : {
+                                  "value" : "foo",
+                                  "case_insensitive" : true
+                                }
+                              }
+                            }
+                          ],
+                          "boost" : 1.0
+                        }
+                      },
+                      "source" : "to_lower(first_name) != \\"foo\\"@2:9"
+                    }
+                  },
+                  {
+                    "esql_single_value" : {
+                      "field" : "first_name",
+                      "next" : {
+                        "term" : {
+                          "first_name" : {
+                            "value" : "FOO",
+                            "case_insensitive" : true
+                          }
+                        }
+                      },
+                      "source" : "to_upper(first_name) == \\"FOO\\"@2:42"
+                    }
+                  },
+                  {
+                    "esql_single_value" : {
+                      "field" : "emp_no",
+                      "next" : {
+                        "range" : {
+                          "emp_no" : {
+                            "gt" : 10,
+                            "boost" : 1.0
+                          }
+                        }
+                      },
+                      "source" : "emp_no > 10@2:75"
+                    }
+                  }
+                ],
+                "boost" : 1.0
+              }
+            }
+            """);
+    }
+
+    // same tree as with doTestPushDownChangeCase(), but with a topping EvalExec (for `x`)
+    public void testPushDownChangeCaseThroughEval() {
+        var esql = """
+            from test
+            | eval x = first_name
+            | where to_lower(x) == "foo"
+            """;
+        var plan = physicalPlan(esql);
+        var optimized = optimizedPlan(plan);
+        var eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var expected = """
+            {
+              "esql_single_value" : {
+                "field" : "first_name",
+                "next" : {
+                  "term" : {
+                    "first_name" : {
+                      "value" : "foo",
+                      "case_insensitive" : true
+                    }
+                  }
+                },
+                "source" : "to_lower(x) == \\"foo\\"@3:9"
+              }
+            }""";
+        QueryBuilder query = source.query();
+        assertThat(stripThrough(query.toString()), is(stripThrough(expected)));
+    }
+
+    /*
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12,
+     *                languages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12,
+     *                 languages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, gender{f}#5, hire_da..]<[]>
+     *       \_LimitExec[1000[INTEGER]]
+     *         \_FilterExec[NOT(INSENSITIVEEQUALS(CONCAT(first_name{f}#4,[66 6f 6f][KEYWORD]),[66 6f 6f][KEYWORD]))]
+     *           \_FieldExtractExec[first_name{f}#4]<[]>
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#25], limit[], sort[] estimatedRowSize[332]
+     */
+    public void testNoPushDownChangeCase() {
+        var plan = physicalPlan("""
+            from test
+            | where to_lower(concat(first_name, "foo")) != "foo"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        var fieldExtract2 = as(filter.child(), FieldExtractExec.class);
+        var source = source(fieldExtract2.child());
+        assertThat(source.query(), nullValue());
     }
 
     public void testPushDownNotRLike() {
@@ -2364,7 +2616,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
@@ -7047,7 +7299,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoading() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
@@ -7124,7 +7376,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
@@ -7178,7 +7430,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
     public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
@@ -7219,7 +7471,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
     public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V8.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
@@ -7397,6 +7649,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertTrue(esRelation.optimized());
         assertTrue(esRelation.resolved());
         assertTrue(esRelation.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.SCORE) && a instanceof MetadataAttribute));
+    }
+
+    public void testReductionPlanForTopN() {
+        int limit = between(1, 100);
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            FROM test
+            | sort emp_no
+            | LIMIT %d
+            """, limit));
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        TopNExec reductionTopN = as(reduction, TopNExec.class);
+        assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
+        assertThat(reductionTopN.limit().fold(), equalTo(limit));
+    }
+
+    public void testReductionPlanForAggs() {
+        var plan = physicalPlan("""
+            FROM test
+            | stats x = sum(salary) BY first_name
+            """);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        AggregateExec reductionAggs = as(reduction, AggregateExec.class);
+        assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
 
     @SuppressWarnings("SameParameterValue")

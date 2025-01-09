@@ -103,7 +103,7 @@ public class StartsWith extends EsqlScalarFunction {
         return str.foldable() && prefix.foldable();
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 5)
     static boolean process(BytesRef str, BytesRef prefix) {
         if (str.length < prefix.length) {
             return false;

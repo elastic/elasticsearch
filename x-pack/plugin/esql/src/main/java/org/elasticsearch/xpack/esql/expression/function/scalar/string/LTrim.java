@@ -82,7 +82,7 @@ public class LTrim extends UnaryScalarFunction {
         return NodeInfo.create(this, LTrim::new, field());
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(final BytesRef val) {
         int offset = val.offset;
         UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();

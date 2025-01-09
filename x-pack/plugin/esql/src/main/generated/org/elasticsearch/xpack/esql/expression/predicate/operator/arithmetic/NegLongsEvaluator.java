@@ -51,7 +51,6 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();
@@ -65,11 +64,6 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendLong(Neg.processLongs(vBlock.getLong(vBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -82,14 +76,8 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
   public LongBlock eval(int positionCount, LongVector vVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendLong(Neg.processLongs(vVector.getLong(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

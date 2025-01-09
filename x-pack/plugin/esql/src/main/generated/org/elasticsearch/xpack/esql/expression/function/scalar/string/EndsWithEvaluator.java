@@ -88,7 +88,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
+        accumulatedCost += 5;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();
@@ -104,10 +104,9 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      final int batchSize = DriverContext.batchSizeForEarlyTermination(5);
       for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
+        int end = start + Math.min(positionCount - start, batchSize);
         driverContext.checkForEarlyTermination();
         for (int p = start; p < end; p++) {
           result.appendBoolean(p, EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));

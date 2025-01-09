@@ -104,7 +104,7 @@ public class Delay extends UnaryScalarFunction {
         return new DelayEvaluator.Factory(source(), msValue());
     }
 
-    @Evaluator(estimateCost = 2048)
+    @Evaluator(executionCost = 2048)
     static boolean process(@Fixed long ms) {
         // Only activate in snapshot builds
         if (Build.current().isSnapshot()) {

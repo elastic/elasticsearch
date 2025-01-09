@@ -287,8 +287,8 @@ public class EvaluatorImplementer {
     }
 
     private void realEvalWithVectorizedStyle(MethodSpec.Builder builder, ClassName resultDataType) {
-        BiConsumer<Object, String> innerLoop = (start, end) -> {
-            builder.beginControlFlow("for (int p = " + start + "; p < " + end + "; p++)");
+        BiConsumer<String, Object[]> innerLoop = (label, bounds) -> {
+            builder.beginControlFlow(label + "for (int p = " + bounds[0] + "; p < " + bounds[1] + "; p++)");
             {
                 processFunction.args.forEach(a -> a.unpackValues(builder, false));
                 StringBuilder pattern = new StringBuilder();
@@ -315,18 +315,15 @@ public class EvaluatorImplementer {
             builder.endControlFlow();
         };
         if (executionCost == 0) {
-            innerLoop.accept(0, "positionCount");
+            innerLoop.accept("position: ", new Object[] { 0, "positionCount" });
         } else {
             // generate tight loops to allow vectorization
-            builder.addStatement(
-                "final int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / $L, 1)",
-                executionCost
-            );
+            builder.addStatement("final int batchSize = DriverContext.batchSizeForEarlyTermination($L)", executionCost);
             builder.beginControlFlow("for (int start = 0; start < positionCount; )");
             {
-                builder.addStatement("int end = start + Math.min(positionCount - start, maxBatchSize)");
+                builder.addStatement("int end = start + Math.min(positionCount - start, batchSize)");
                 builder.addStatement("driverContext.checkForEarlyTermination()");
-                innerLoop.accept("start", "end");
+                innerLoop.accept("", new Object[] { "start", "end" });
                 builder.addStatement("start = end");
             }
             builder.endControlFlow();

@@ -59,7 +59,6 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRefBlock rightFieldBlock, BytesRefBlock delimBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef delimScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!leftFieldBlock.isNull(p)) {
@@ -82,11 +81,6 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
-        }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
         }
         MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch));
       }

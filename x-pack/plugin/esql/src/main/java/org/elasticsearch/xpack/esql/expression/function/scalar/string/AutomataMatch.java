@@ -41,7 +41,7 @@ public class AutomataMatch {
         return new AutomataMatchEvaluator.Factory(source, field, run, toDot(automaton));
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 20)
     static boolean process(BytesRef input, @Fixed(includeInToString = false) ByteRunAutomaton automaton, @Fixed String pattern) {
         if (input == null) {
             return false;

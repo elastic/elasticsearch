@@ -76,7 +76,7 @@ public class Left extends EsqlScalarFunction {
         return ENTRY.name;
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef out,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint cp,

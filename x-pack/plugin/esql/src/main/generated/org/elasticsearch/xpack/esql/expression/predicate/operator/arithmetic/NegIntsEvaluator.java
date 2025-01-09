@@ -51,7 +51,6 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public IntBlock eval(int positionCount, IntBlock vBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();
@@ -65,11 +64,6 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendInt(Neg.processInts(vBlock.getInt(vBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -82,14 +76,8 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public IntBlock eval(int positionCount, IntVector vVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendInt(Neg.processInts(vVector.getInt(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

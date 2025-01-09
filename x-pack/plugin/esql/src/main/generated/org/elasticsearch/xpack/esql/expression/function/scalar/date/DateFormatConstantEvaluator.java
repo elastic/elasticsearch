@@ -56,7 +56,6 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -69,11 +68,6 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
       }
       return result.build();
@@ -82,13 +76,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
 
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), this.formatter));
       }
       return result.build();

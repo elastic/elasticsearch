@@ -58,7 +58,6 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -72,11 +71,6 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), this.oScratch));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -90,14 +84,8 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
   public BytesRefBlock eval(int positionCount, BytesRefVector fieldVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), this.oScratch));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

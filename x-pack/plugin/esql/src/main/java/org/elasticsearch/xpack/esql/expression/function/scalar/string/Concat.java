@@ -111,7 +111,7 @@ public class Concat extends EsqlScalarFunction {
         return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.grow(checkedTotalLength(values));
         scratch.clear();

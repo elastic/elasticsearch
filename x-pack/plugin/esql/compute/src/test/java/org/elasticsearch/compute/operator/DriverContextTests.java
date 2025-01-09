@@ -24,9 +24,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -154,6 +156,23 @@ public class DriverContextTests extends ESTestCase {
         driverContext.removeAsyncAction();
         assertTrue(future.isDone());
         Releasables.closeExpectNoException(driverContext.getSnapshot());
+    }
+
+    public void testBatchSizeForEarlyTermination() {
+        Map<Integer, Integer> tests = new HashMap<>();
+        tests.put(1, 2048);
+        tests.put(between(2, 3), 1024);
+        tests.put(between(4, 7), 512);
+        tests.put(between(8, 15), 256);
+        tests.put(between(16, 31), 128);
+        tests.put(between(32, 63), 64);
+        tests.put(between(64, 127), 32);
+        tests.put(atLeast(128), 32);
+        for (Map.Entry<Integer, Integer> e : tests.entrySet()) {
+            Integer cost = e.getKey();
+            Integer batchSize = e.getValue();
+            assertThat("cost=" + cost, DriverContext.batchSizeForEarlyTermination(cost), equalTo(batchSize));
+        }
     }
 
     static TestDriver newTestDriver(int unused) {

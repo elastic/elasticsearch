@@ -99,7 +99,7 @@ public abstract class ChangeCase extends EsqlConfigurationFunction {
         return replaceChild(newChildren.get(0));
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(BytesRef val, @Fixed Locale locale, @Fixed Case caseType) {
         return BytesRefs.toBytesRef(caseType.process(val.utf8ToString(), locale));
     }

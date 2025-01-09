@@ -110,7 +110,7 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
+        accumulatedCost += 10;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();
@@ -126,10 +126,9 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
+      final int batchSize = DriverContext.batchSizeForEarlyTermination(10);
       for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
+        int end = start + Math.min(positionCount - start, batchSize);
         driverContext.checkForEarlyTermination();
         for (int p = start; p < end; p++) {
           result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)));

@@ -52,7 +52,6 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
 
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();
@@ -65,11 +64,6 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendDouble(Cast.castIntToDouble(vBlock.getInt(vBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -78,15 +72,8 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
 
   public DoubleVector eval(int positionCount, IntVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendDouble(p, Cast.castIntToDouble(vVector.getInt(p)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(p, Cast.castIntToDouble(vVector.getInt(p)));
       }
       return result.build();
     }

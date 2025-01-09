@@ -132,14 +132,14 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
         return str.foldable() && start.foldable() && (length == null || length.foldable());
     }
 
-    @Evaluator(extraName = "NoLength")
+    @Evaluator(extraName = "NoLength", executionCost = 10)
     static BytesRef process(BytesRef str, int start) {
         int length = str.length; // we just need a value at least the length of the string
         return process(str, start, length);
 
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(BytesRef str, int start, int length) {
         if (length < 0) {
             throw new IllegalArgumentException("Length parameter cannot be negative, found [" + length + "]");

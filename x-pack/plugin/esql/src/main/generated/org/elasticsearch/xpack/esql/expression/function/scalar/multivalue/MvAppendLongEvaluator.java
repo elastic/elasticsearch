@@ -49,7 +49,6 @@ public final class MvAppendLongEvaluator implements EvalOperator.ExpressionEvalu
 
   public LongBlock eval(int positionCount, LongBlock field1Block, LongBlock field2Block) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -61,11 +60,6 @@ public final class MvAppendLongEvaluator implements EvalOperator.ExpressionEvalu
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
-        }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
         }
         MvAppend.process(result, p, field1Block, field2Block);
       }

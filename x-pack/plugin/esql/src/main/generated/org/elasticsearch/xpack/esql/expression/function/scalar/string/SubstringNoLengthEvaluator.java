@@ -87,7 +87,7 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
+        accumulatedCost += 10;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();
@@ -103,7 +103,7 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
       BytesRef strScratch = new BytesRef();
       int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
-        accumulatedCost += 1;
+        accumulatedCost += 10;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();

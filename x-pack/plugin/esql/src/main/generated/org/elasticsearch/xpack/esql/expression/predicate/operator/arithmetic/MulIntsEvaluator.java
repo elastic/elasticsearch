@@ -60,7 +60,6 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -85,11 +84,6 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendInt(Mul.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -102,14 +96,8 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public IntBlock eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendInt(Mul.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

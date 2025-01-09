@@ -79,7 +79,6 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
       IntBlock prefixLengthV6Block) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (ipBlock.isNull(p)) {
           result.appendNull();
@@ -115,11 +114,6 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), this.scratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
@@ -134,14 +128,8 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
       IntVector prefixLengthV4Vector, IntVector prefixLengthV6Vector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), this.scratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);

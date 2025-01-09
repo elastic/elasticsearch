@@ -60,7 +60,6 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (baseBlock.isNull(p)) {
           result.appendNull();
@@ -85,11 +84,6 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendDouble(Log.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), valueBlock.getDouble(valueBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -102,14 +96,8 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector valueVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendDouble(Log.process(baseVector.getDouble(p), valueVector.getDouble(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

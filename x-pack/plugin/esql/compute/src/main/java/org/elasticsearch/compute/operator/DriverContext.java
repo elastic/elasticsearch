@@ -194,6 +194,17 @@ public class DriverContext {
         this.earlyTerminationChecker = checker;
     }
 
+    public static int batchSizeForEarlyTermination(int executionCost) {
+        if (executionCost <= 0) {
+            throw new IllegalStateException("executionCost must be positive");
+        }
+        final int size = (DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD + executionCost - 1) / executionCost;
+        if (size <= 32) {
+            return 32;
+        }
+        return Integer.highestOneBit(size - 1) << 1;
+    }
+
     /**
      * Evaluators should use this function to decide their warning behavior.
      * @return an appropriate {@link WarningsMode}

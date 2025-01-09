@@ -90,7 +90,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
         }
-        accumulatedCost += 1;
+        accumulatedCost += 10;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();
@@ -114,7 +114,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
         }
-        accumulatedCost += 1;
+        accumulatedCost += 10;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();

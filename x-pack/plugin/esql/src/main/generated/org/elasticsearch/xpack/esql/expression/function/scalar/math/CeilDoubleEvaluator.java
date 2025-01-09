@@ -50,7 +50,6 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -63,11 +62,6 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendDouble(Ceil.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -76,15 +70,8 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
 
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendDouble(p, Ceil.process(valVector.getDouble(p)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(p, Ceil.process(valVector.getDouble(p)));
       }
       return result.build();
     }

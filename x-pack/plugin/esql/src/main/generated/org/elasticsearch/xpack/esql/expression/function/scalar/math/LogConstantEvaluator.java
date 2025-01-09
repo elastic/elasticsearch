@@ -51,7 +51,6 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
 
   public DoubleBlock eval(int positionCount, DoubleBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
           result.appendNull();
@@ -65,11 +64,6 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendDouble(Log.process(valueBlock.getDouble(valueBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -82,14 +76,8 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
 
   public DoubleBlock eval(int positionCount, DoubleVector valueVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendDouble(Log.process(valueVector.getDouble(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

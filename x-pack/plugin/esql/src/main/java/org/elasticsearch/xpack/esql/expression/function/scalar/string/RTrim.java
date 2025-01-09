@@ -82,7 +82,7 @@ public class RTrim extends UnaryScalarFunction {
         return NodeInfo.create(this, RTrim::new, field());
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(final BytesRef val) {
         int offset = val.offset;
         int end = offset;

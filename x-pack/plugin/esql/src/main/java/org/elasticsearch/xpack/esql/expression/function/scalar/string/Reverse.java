@@ -109,7 +109,7 @@ public class Reverse extends UnaryScalarFunction {
         return true;
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(BytesRef val) {
         if (reverseBytesIsReverseUnicode(val)) {
             // this is the fast path. we know we can just reverse the bytes.

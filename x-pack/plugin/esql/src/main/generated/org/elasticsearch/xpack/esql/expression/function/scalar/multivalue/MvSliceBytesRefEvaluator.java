@@ -59,7 +59,6 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {
@@ -92,11 +91,6 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
         } catch (InvalidArgumentException e) {
           warnings().registerException(e);

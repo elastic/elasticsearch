@@ -94,7 +94,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         try {
-          accumulatedCost += 1;
+          accumulatedCost += 10;
           if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
             accumulatedCost = 0;
             driverContext.checkForEarlyTermination();
@@ -115,7 +115,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
       int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
+          accumulatedCost += 10;
           if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
             accumulatedCost = 0;
             driverContext.checkForEarlyTermination();

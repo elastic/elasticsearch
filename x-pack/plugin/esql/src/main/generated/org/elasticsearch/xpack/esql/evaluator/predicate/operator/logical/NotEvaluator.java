@@ -50,7 +50,6 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public BooleanBlock eval(int positionCount, BooleanBlock vBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();
@@ -63,11 +62,6 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBoolean(Not.process(vBlock.getBoolean(vBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -76,15 +70,8 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public BooleanVector eval(int positionCount, BooleanVector vVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendBoolean(p, Not.process(vVector.getBoolean(p)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(p, Not.process(vVector.getBoolean(p)));
       }
       return result.build();
     }

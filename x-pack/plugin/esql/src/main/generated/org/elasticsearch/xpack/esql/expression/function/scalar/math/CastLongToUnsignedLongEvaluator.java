@@ -50,7 +50,6 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();
@@ -63,11 +62,6 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendLong(Cast.castLongToUnsignedLong(vBlock.getLong(vBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -76,15 +70,8 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
 
   public LongVector eval(int positionCount, LongVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendLong(p, Cast.castLongToUnsignedLong(vVector.getLong(p)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(p, Cast.castLongToUnsignedLong(vVector.getLong(p)));
       }
       return result.build();
     }

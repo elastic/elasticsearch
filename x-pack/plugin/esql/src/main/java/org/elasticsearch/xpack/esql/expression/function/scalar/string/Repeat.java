@@ -100,7 +100,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         return str.foldable() && number.foldable();
     }
 
-    @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class }, executionCost = 10)
     static BytesRef processConstantNumber(
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
         BytesRef str,
@@ -109,7 +109,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         return processInner(scratch, str, number);
     }
 
-    @Evaluator(warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(warnExceptions = { IllegalArgumentException.class }, executionCost = 10)
     static BytesRef process(
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
         BytesRef str,

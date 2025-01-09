@@ -115,7 +115,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
         return str.foldable() && substr.foldable() && (start == null || start.foldable());
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static int process(BytesRef str, BytesRef substr, int start) {
         if (str == null || substr == null || str.length < substr.length) {
             return 0;
@@ -130,7 +130,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
         return 1 + utf8ToString.codePointCount(0, idx);
     }
 
-    @Evaluator(extraName = "NoStart")
+    @Evaluator(extraName = "NoStart", executionCost = 10)
     static int process(BytesRef str, BytesRef substr) {
         return process(str, substr, 0);
     }

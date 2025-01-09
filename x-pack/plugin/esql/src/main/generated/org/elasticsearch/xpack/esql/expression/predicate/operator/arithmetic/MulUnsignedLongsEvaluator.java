@@ -60,7 +60,6 @@ public final class MulUnsignedLongsEvaluator implements EvalOperator.ExpressionE
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -85,11 +84,6 @@ public final class MulUnsignedLongsEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendLong(Mul.processUnsignedLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
@@ -102,14 +96,8 @@ public final class MulUnsignedLongsEvaluator implements EvalOperator.ExpressionE
 
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          accumulatedCost += 1;
-          if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-            accumulatedCost = 0;
-            driverContext.checkForEarlyTermination();
-          }
           result.appendLong(Mul.processUnsignedLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
         } catch (ArithmeticException e) {
           warnings().registerException(e);

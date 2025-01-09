@@ -83,7 +83,7 @@ public final class Trim extends UnaryScalarFunction {
         return NodeInfo.create(this, Trim::new, field());
     }
 
-    @Evaluator
+    @Evaluator(executionCost = 10)
     static BytesRef process(BytesRef val) {
         int offset = val.offset;
         UnicodeUtil.UTF8CodePoint codePoint = new UnicodeUtil.UTF8CodePoint();

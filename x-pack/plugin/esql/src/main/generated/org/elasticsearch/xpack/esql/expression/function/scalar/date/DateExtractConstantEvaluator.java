@@ -58,7 +58,6 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
           result.appendNull();
@@ -71,11 +70,6 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 1;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
       }
       return result.build();
@@ -84,15 +78,8 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
   public LongVector eval(int positionCount, LongVector valueVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      // generate a tight loop to allow vectorization
-      int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / 1, 1);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, maxBatchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendLong(p, DateExtract.process(valueVector.getLong(p), this.chronoField, this.zone));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(p, DateExtract.process(valueVector.getLong(p), this.chronoField, this.zone));
       }
       return result.build();
     }

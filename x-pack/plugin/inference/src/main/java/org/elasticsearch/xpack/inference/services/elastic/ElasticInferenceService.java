@@ -72,7 +72,6 @@ public class ElasticInferenceService extends SenderService {
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
 
-
     public static final String DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1 = ".eis-alpha-1";
 
     public static final List<String> DEFAULT_EIS_ENDPOINT_IDS = List.of(DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1);

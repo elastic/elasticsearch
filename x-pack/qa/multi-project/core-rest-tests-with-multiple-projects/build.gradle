@@ -35,7 +35,6 @@ tasks.named("yamlRestTest").configure {
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
     '^cat.indices/*/*',
     '^cat.recovery/*/*',
-    '^cat.segments/*/*',
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
     '^cluster.state/30_expand_wildcards/*',

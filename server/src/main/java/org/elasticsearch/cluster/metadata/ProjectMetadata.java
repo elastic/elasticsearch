@@ -1992,19 +1992,19 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         Metadata.XContentContext context = Metadata.XContentContext.from(p);
 
         Iterator<? extends ToXContent> indices = context == Metadata.XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            ? ChunkedToXContentHelper.object("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
         Iterator<ToXContent> customs = Iterators.flatMap(
             customs().entrySet().iterator(),
             entry -> entry.getValue().context().contains(context)
-                ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
                 : Collections.emptyIterator()
         );
 
         final var multiProject = p.paramAsBoolean("multi-project", false);
         return Iterators.concat(
-            ChunkedToXContentHelper.wrapWithObject(
+            ChunkedToXContentHelper.object(
                 "templates",
                 Iterators.map(
                     templates().values().iterator(),
@@ -2014,7 +2014,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             indices,
             customs,
             multiProject
-                ? ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator())
+                ? ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator())
                 : Collections.emptyIterator()
         );
     }

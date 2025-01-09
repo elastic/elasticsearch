@@ -45,7 +45,6 @@ public final class ExchangeSourceHandler {
 
     private final AtomicInteger nextSinkId = new AtomicInteger();
     private final Map<Integer, RemoteSink> remoteSinks = ConcurrentCollections.newConcurrentMap();
-    private Runnable finishEarlyHandler;
 
     /**
      * Creates a new ExchangeSourceHandler.
@@ -82,11 +81,6 @@ public final class ExchangeSourceHandler {
                 }
             }
         }));
-    }
-
-    public void onFinishEarly(Runnable finishEarlyHandler) {
-        // TODO: not sure this is the best way but we need to know when the exchange source is finished early to set exec info
-        this.finishEarlyHandler = finishEarlyHandler;
     }
 
     private class ExchangeSourceImpl implements ExchangeSource {
@@ -326,15 +320,6 @@ public final class ExchangeSourceHandler {
             for (RemoteSink remoteSink : remoteSinks.values()) {
                 remoteSink.close(refs.acquire());
             }
-        }
-    }
-
-    /**
-     * Calls the handler signifying that the request has been completed prematurely.
-     */
-    public void onFinishEarly() {
-        if (finishEarlyHandler != null) {
-            finishEarlyHandler.run();
         }
     }
 

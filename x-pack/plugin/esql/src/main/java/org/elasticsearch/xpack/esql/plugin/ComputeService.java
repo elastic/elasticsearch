@@ -217,7 +217,6 @@ public class ComputeService {
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
                 ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.removeExchangeSourceHandler(sessionId))
             );
-            exchangeSource.onFinishEarly(execInfo::markAsPartial);
             exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator

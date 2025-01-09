@@ -106,7 +106,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
 
     private void stopQueryAndReturnResult(Task task, AsyncExecutionId asyncId, ActionListener<EsqlQueryResponse> listener) {
         String asyncIdStr = asyncId.getEncoded();
-        var asyncListener = queryAction.getAsyncListener(asyncIdStr);
+        TransportEsqlQueryAction.EsqlQueryListener asyncListener = queryAction.getAsyncListener(asyncIdStr);
         if (asyncListener == null) {
             // This should mean one of the two things: either bad request ID, or the query has already finished
             // In both cases, let regular async get deal with it.
@@ -133,6 +133,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
                 responseHolder.set(r);
                 return null;
             }));
+            asyncListener.markAsPartial();
             exchangeService.finishSessionEarly(sessionID(asyncId), refs.acquire());
         }
     }

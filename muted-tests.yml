@@ -363,6 +363,10 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: supports darwin aarch distributions
   issue: https://github.com/elastic/elasticsearch/issues/118960
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
+    extractedAssemble, #1]"
+  issue: https://github.com/elastic/elasticsearch/issues/119870
 
 # Examples:
 #

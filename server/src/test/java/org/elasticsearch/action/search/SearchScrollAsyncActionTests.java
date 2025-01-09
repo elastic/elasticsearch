@@ -17,7 +17,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -54,7 +53,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
@@ -128,7 +127,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
@@ -224,7 +223,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
@@ -309,7 +308,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
@@ -390,7 +389,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
             @Override

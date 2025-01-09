@@ -47,7 +47,7 @@ public interface PostAnalysisPlanVerificationAware {
      *      }
      *     }
      *     </pre>
-     * </p>
+     *
      * @return a consumer that will receive a tree to check and an accumulator of failures found during inspection.
      */
     BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification();

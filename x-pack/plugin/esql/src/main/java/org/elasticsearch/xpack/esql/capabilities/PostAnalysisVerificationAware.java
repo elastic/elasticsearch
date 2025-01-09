@@ -39,7 +39,7 @@ public interface PostAnalysisVerificationAware {
      *     }
      *     }
      *     </pre>
-     * </p>
+     *
      * @param failures the object to add failures to.
      */
     void postAnalysisVerification(Failures failures);

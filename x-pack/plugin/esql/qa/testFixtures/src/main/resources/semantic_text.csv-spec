@@ -14,7 +14,6 @@ live long and prosper
 simpleWithUnicode
 required_capability: semantic_text_field_caps
 
-
 FROM semantic_text
 | KEEP st_unicode
 | SORT st_unicode

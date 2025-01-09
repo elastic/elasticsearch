@@ -114,22 +114,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "The [elastic] service does not support task type [completion]"
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.COMPLETION,
-                getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
-                failureListener
-            );
-        }
-    }
-
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var config = getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of());
@@ -496,55 +480,33 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         try (var service = createServiceWithMockSender()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "elastic",
-                       "task_types": [
-                            {
-                                "task_type": "sparse_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": ["sparse_embedding" , "completion"],
+                       "configurations": {
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            },
                            "model_id": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The name of the model to use for the inference task.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            },
                            "max_input_tokens": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
-                               "order": 3,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Allows you to specify the maximum number of tokens per input.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            }
                        }
                    }

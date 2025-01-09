@@ -16,6 +16,7 @@ import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -106,10 +107,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
 
     @Override
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNames(
+        return DataStreamsActionUtil.resolveConcreteIndexNamesWithSelector(
             indexNameExpressionResolver,
             projectResolver.getProjectMetadata(clusterState),
             request.indices(),
+            IndexComponentSelector.ALL_APPLICABLE,
             request.indicesOptions()
         ).toArray(String[]::new);
     }
@@ -166,13 +168,17 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
         List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(project, request.indicesOptions(), request.indices());
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                dataStream.getBackingIndices().getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().getIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

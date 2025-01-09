@@ -56,8 +56,8 @@ public class OriginalIndicesTests extends ESTestCase {
                 // from a version prior to its addition, since true is the default value.
             } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                 || originalIndices.indicesOptions().allowSelectors()) {
-                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
-            }
+                    assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
+                }
         }
     }
 

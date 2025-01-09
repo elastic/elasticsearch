@@ -55,11 +55,11 @@ public class UnmappedEsField extends EsField {
 
     /// A field which is mapped to more than one type in multiple indices, *in addition* to the unmapped case which is always treated as
     /// [DataType#KEYWORD]. This can be resolved using a cast, similar to union types.
-    public record Invalid(InvalidMappedField imf) implements State {}
+    public record Invalid(InvalidMappedField invalidMappedField) implements State {}
 
     /// A field which is mapped to different types in different indices, but resolved using union types. In mapped indices, we treat this
     /// as a union type, and use the specified conversion for unmapped indices.
-    public record MultiType(Expression conversionFromKeyword, MultiTypeEsField mf) implements State {}
+    public record MultiType(Expression conversionFromKeyword, MultiTypeEsField multiTypeEsField) implements State {}
 
     private final State state;
 
@@ -113,23 +113,23 @@ public class UnmappedEsField extends EsField {
             case NoConflicts unused -> {
                 out.writeInt(0);
             }
-            case SimpleConflict(var otherType) -> {
+            case SimpleConflict sf -> {
                 out.writeInt(1);
-                otherType.writeTo(out);
+                sf.otherType().writeTo(out);
             }
-            case SimpleResolution(var unmappedConversion, var mappedConversion) -> {
+            case SimpleResolution sr -> {
                 out.writeInt(2);
-                out.writeNamedWriteable(unmappedConversion);
-                out.writeNamedWriteable(mappedConversion);
+                out.writeNamedWriteable(sr.unmappedConversion());
+                out.writeNamedWriteable(sr.mappedConversion());
             }
-            case Invalid(var imf) -> {
+            case Invalid invalid -> {
                 out.writeInt(3);
-                imf.writeTo(out);
+                invalid.invalidMappedField().writeTo(out);
             }
-            case MultiType(var conversion, var multiTypeEsField) -> {
+            case MultiType mt -> {
                 out.writeInt(4);
-                out.writeNamedWriteable(conversion);
-                multiTypeEsField.writeTo(out);
+                out.writeNamedWriteable(mt.conversionFromKeyword());
+                mt.multiTypeEsField.writeTo(out);
             }
         }
         writeCachedStringWithVersionCheck(out, getName());

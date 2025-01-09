@@ -269,12 +269,21 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         if (attribute instanceof UnsupportedAttribute) {
             return getNullsBlock(docBlock);
         }
-        BiFunction<DocBlock, TestBlockCopier, Block> blockExtraction = switch (attribute) {
-            case FieldAttribute fa when fa.field() instanceof MultiTypeEsField m -> (doc, copier) -> getBlockForMultiType(doc, m, copier);
-            case FieldAttribute fa when fa.field() instanceof UnmappedEsField i -> (doc, copier) -> getBlockForUnmappedType(doc, i, copier);
-            default -> (indexDoc, blockCopier) -> extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier).getOrThrow();
-        };
+        BiFunction<DocBlock, TestBlockCopier, Block> blockExtraction = getBlockExtraction(attribute);
         return extractBlockForColumn(docBlock, attribute.dataType(), extractPreference, blockExtraction);
+    }
+
+    private BiFunction<DocBlock, TestBlockCopier, Block> getBlockExtraction(Attribute attribute) {
+        if (attribute instanceof FieldAttribute fa) {
+            switch (fa.field()) {
+                case MultiTypeEsField m:
+                    return (doc, copier) -> getBlockForMultiType(doc, m, copier);
+                case UnmappedEsField u:
+                    return (doc, copier) -> getBlockForUnmappedType(doc, u, copier);
+                default: // noop
+            }
+        }
+        return (indexDoc, blockCopier) -> extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier).getOrThrow();
     }
 
     private Block getBlockForMultiType(DocBlock indexDoc, MultiTypeEsField multiTypeEsField, TestBlockCopier blockCopier) {
@@ -297,14 +306,16 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static Block castUnmapped(IndexPage indexPage, UnmappedEsField field, Block block) {
         return switch (field.getState()) {
-            case UnmappedEsField.SimpleResolution(var unmappedConversion, var mappedConversion) -> {
+            case UnmappedEsField.SimpleResolution sr -> {
                 var isMapped = indexPage.mappedFields.contains(field.getName());
-                yield TypeConverter.fromConvertFunction((AbstractConvertFunction) (isMapped ? mappedConversion : unmappedConversion))
-                    .convert(block);
+                yield TypeConverter.fromConvertFunction(
+                    (AbstractConvertFunction) (isMapped ? sr.mappedConversion() : sr.unmappedConversion())
+                ).convert(block);
             }
-            case UnmappedEsField.MultiType(var unused, MultiTypeEsField mf) -> {
-                yield TypeConverter.fromConvertFunction((AbstractConvertFunction) mf.getConversionExpressionForIndex(indexPage.index))
-                    .convert(block);
+            case UnmappedEsField.MultiType mt -> {
+                yield TypeConverter.fromConvertFunction(
+                    (AbstractConvertFunction) mt.multiTypeEsField().getConversionExpressionForIndex(indexPage.index)
+                ).convert(block);
             }
             case UnmappedEsField.NoConflicts noConflicts -> block;
             case UnmappedEsField.Invalid invalid -> throw new AssertionError("Invalid field should have been null");

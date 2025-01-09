@@ -1392,7 +1392,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa) {
                 if (fa.field() instanceof UnmappedEsField unmapped) {
-                    if (unmapped.getState() instanceof UnmappedEsField.SimpleConflict(DataType otherType)) {
+                    if (unmapped.getState() instanceof UnmappedEsField.SimpleConflict sf) {
+                        var otherType = sf.otherType();
                         var imf = new InvalidMappedField(
                             fa.name(),
                             Map.of(KEYWORD.typeName(), Set.of("unmapped field"), otherType.typeName(), Set.of("mapped field"))
@@ -1402,7 +1403,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             return e;
                         }
                     }
-                    if (unmapped.getState() instanceof UnmappedEsField.Invalid(InvalidMappedField imf)) {
+                    if (unmapped.getState() instanceof UnmappedEsField.Invalid invalid) {
+                        var imf = invalid.invalidMappedField();
                         Optional<Expression> expr = convertHelper(convert, fa, imf, f -> unmappedMultiType(convert, fa, imf, f));
                         if (expr.orElse(null) instanceof Expression e) {
                             return e;
@@ -1539,18 +1541,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute checkUnresolved(FieldAttribute fa) {
-            return switch (fa.field()) {
-                case InvalidMappedField imf -> unsupportedAttributeFromInvalidMappedField(fa, imf);
-                case UnmappedEsField insisted when insisted.getState() instanceof UnmappedEsField.Invalid(var imf) ->
-                    unsupportedAttributeFromInvalidMappedField(fa, imf);
-                case UnmappedEsField insisted when insisted.getState() instanceof UnmappedEsField.SimpleConflict(DataType otherType) -> {
-                    var format = "Cannot use field [%s] due to ambiguities caused by INSIST. "
-                        + "unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s]";
-                    String unresolvedMessage = Strings.format(format, fa.name(), otherType);
-                    yield unsupportedAttributeFromInvalidMappedField(fa, new InvalidMappedField(fa.name(), unresolvedMessage));
-                }
-                default -> fa;
-            };
+            if (fa.field() instanceof InvalidMappedField imf) {
+                return unsupportedAttributeFromInvalidMappedField(fa, imf);
+            } else if (fa.field() instanceof UnmappedEsField unmapped && unmapped.getState() instanceof UnmappedEsField.Invalid invalid) {
+                return unsupportedAttributeFromInvalidMappedField(fa, invalid.invalidMappedField());
+            } else if (fa.field() instanceof UnmappedEsField unmapped && unmapped.getState() instanceof UnmappedEsField.SimpleConflict sf) {
+                var format = "Cannot use field [%s] due to ambiguities caused by INSIST. "
+                    + "unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s]";
+                String unresolvedMessage = Strings.format(format, fa.name(), sf.otherType());
+                return unsupportedAttributeFromInvalidMappedField(fa, new InvalidMappedField(fa.name(), unresolvedMessage));
+            }
+            return fa;
         }
 
         private static UnsupportedAttribute unsupportedAttributeFromInvalidMappedField(FieldAttribute fa, InvalidMappedField imf) {

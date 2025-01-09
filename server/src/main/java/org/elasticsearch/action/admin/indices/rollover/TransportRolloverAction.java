@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -157,8 +159,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .matchOpen(request.indicesOptions().expandWildcardsOpen())
                 .matchClosed(request.indicesOptions().expandWildcardsClosed())
                 .build(),
-            IndicesOptions.GatekeeperOptions.DEFAULT,
-            request.indicesOptions().selectorOptions()
+            IndicesOptions.GatekeeperOptions.DEFAULT
         );
 
         return state.blocks()
@@ -180,11 +181,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         assert task instanceof CancellableTask;
         final var projectState = projectResolver.getProjectState(clusterState);
         ProjectMetadata projectMetadata = projectState.metadata();
+
+        // Parse the rollover request's target since the expression it may contain a selector on it
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.indicesOptions()
+        );
+        boolean targetFailureStore = resolvedRolloverTarget.selector() != null && resolvedRolloverTarget.selector().shouldIncludeFailures();
+
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
-        boolean targetFailureStore = rolloverRequest.targetsFailureStore();
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
             projectMetadata,
-            rolloverRequest.getRolloverTarget(),
+            resolvedRolloverTarget.resource(),
             rolloverRequest.getNewIndexName(),
             rolloverRequest.getCreateIndexRequest(),
             targetFailureStore
@@ -193,7 +201,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, projectMetadata, projectState.routingTable());
 
-        boolean isDataStream = projectMetadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
+        boolean isDataStream = projectMetadata.dataStreams().containsKey(resolvedRolloverTarget.resource());
         if (rolloverRequest.isLazy()) {
             if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
                 String message;
@@ -212,7 +220,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             if (rolloverRequest.isDryRun() == false) {
                 metadataDataStreamsService.setRolloverOnWrite(
                     projectState.projectId(),
-                    rolloverRequest.getRolloverTarget(),
+                    resolvedRolloverTarget.resource(),
                     true,
                     targetFailureStore,
                     rolloverRequest.ackTimeout(),
@@ -234,7 +242,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
         }
 
-        final IndexAbstraction rolloverTargetAbstraction = projectMetadata.getIndicesLookup().get(rolloverRequest.getRolloverTarget());
+        final IndexAbstraction rolloverTargetAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
         if (rolloverTargetAbstraction.getType() == IndexAbstraction.Type.ALIAS && rolloverTargetAbstraction.isDataStreamRelated()) {
             listener.onFailure(
                 new IllegalStateException("Aliases to data streams cannot be rolled over. Please rollover the data stream itself.")
@@ -255,10 +263,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final var statsIndicesOptions = new IndicesOptions(
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
-            IndicesOptions.GatekeeperOptions.DEFAULT,
-            rolloverRequest.indicesOptions().selectorOptions()
+            IndicesOptions.GatekeeperOptions.DEFAULT
         );
-        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
+        // Make sure to recombine any selectors on the stats request
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(resolvedRolloverTarget.combined())
             .clear()
             .indicesOptions(statsIndicesOptions)
             .docs(true)
@@ -275,7 +283,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             listener.delegateFailureAndWrap((delegate, statsResponse) -> {
 
                 AutoShardingResult rolloverAutoSharding = null;
-                final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(rolloverRequest.getRolloverTarget());
+                final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
                 if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
                     DataStream dataStream = (DataStream) indexAbstraction;
                     final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
@@ -502,15 +510,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ) throws Exception {
             final var rolloverTask = rolloverTaskContext.getTask();
             final var rolloverRequest = rolloverTask.rolloverRequest();
+            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.indicesOptions()
+            );
+            boolean targetFailureStore = resolvedRolloverTarget.selector() != null
+                && resolvedRolloverTarget.selector().shouldIncludeFailures();
 
             // Regenerate the rollover names, as a rollover could have happened in between the pre-check and the cluster state update
             final var project = currentState.metadata().getProject(rolloverTask.projectId());
             final var rolloverNames = MetadataRolloverService.resolveRolloverNames(
                 project,
-                rolloverRequest.getRolloverTarget(),
+                resolvedRolloverTarget.resource(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.targetsFailureStore()
+                targetFailureStore
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -541,7 +555,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .filter(condition -> resultsIncludingDecreaseShards.get(condition.toString()))
                     .toList();
 
-                final IndexAbstraction rolloverTargetAbstraction = project.getIndicesLookup().get(rolloverRequest.getRolloverTarget());
+                final IndexAbstraction rolloverTargetAbstraction = project.getIndicesLookup().get(resolvedRolloverTarget.resource());
 
                 final IndexMetadataStats sourceIndexStats = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
                     ? IndexMetadataStats.fromStatsResponse(rolloverSourceIndex, rolloverTask.statsResponse())
@@ -550,7 +564,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Perform the actual rollover
                 final var rolloverResult = rolloverService.rolloverClusterState(
                     currentState.projectState(project.id()),
-                    rolloverRequest.getRolloverTarget(),
+                    resolvedRolloverTarget.resource(),
                     rolloverRequest.getNewIndexName(),
                     rolloverRequest.getCreateIndexRequest(),
                     metConditions,
@@ -559,7 +573,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     sourceIndexStats,
                     rolloverTask.autoShardingResult(),
-                    rolloverRequest.targetsFailureStore()
+                    targetFailureStore
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -123,12 +122,11 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
                 configurationMap.put(
                     SERVICE_ACCOUNT_JSON,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder().setDescription("API Key for the provider you're connecting to.")
                         .setLabel("Credentials JSON")
-                        .setOrder(1)
                         .setRequired(true)
                         .setSensitive(true)
-                        .setTooltip("API Key for the provider you're connecting to.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );

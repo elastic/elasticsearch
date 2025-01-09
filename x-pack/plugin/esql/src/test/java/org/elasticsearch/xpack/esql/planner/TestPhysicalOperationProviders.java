@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -32,8 +33,13 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
@@ -57,7 +63,9 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
+import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.encodeLongitude;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
@@ -85,13 +93,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
-            op = op.with(
-                new TestFieldExtractOperatorFactory(
-                    attr,
-                    PlannerUtils.extractPreference(fieldExtractExec.docValuesAttributes().contains(attr))
-                ),
-                layout.build()
-            );
+            op = op.with(new TestFieldExtractOperatorFactory(attr, fieldExtractExec.fieldExtractPreference(attr)), layout.build());
         }
         return op;
     }
@@ -336,14 +338,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         DocBlock docBlock = page.getBlock(0);
         IntVector docIndices = docBlock.asVector().docs();
         Block originalData = testData.getBlock(columnIndex);
-        var blockCopier = shouldMapToDocValues(dataType, extractPreference)
-            ? TestSpatialPointStatsBlockCopier.create(docIndices, dataType)
-            : new TestBlockCopier(docIndices);
-        return blockCopier.copyBlock(originalData);
-    }
-
-    private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
-        return extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType);
+        if (extractPreference == DOC_VALUES && DataType.isSpatialPoint(dataType)) {
+            return TestSpatialPointStatsBlockCopier.create(docIndices, dataType).copyBlock(originalData);
+        } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
+            return TestSpatialShapeExtentBlockCopier.create(docIndices, dataType).copyBlock(originalData);
+        } else {
+            return new TestBlockCopier(docIndices).copyBlock(originalData);
+        }
     }
 
     private static class TestBlockCopier {
@@ -371,7 +372,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     /**
      * geo_point and cartesian_point are normally loaded as WKT from source, but for aggregations we can load them as doc-values
      * which are encoded Long values. This class is used to convert the test loaded WKB into encoded longs for the aggregators.
-     * TODO: We need a different solution to support geo_shape and cartesian_shape
      */
     private abstract static class TestSpatialPointStatsBlockCopier extends TestBlockCopier {
 
@@ -420,6 +420,96 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     return encoder.apply(wkb);
                 }
             };
+        }
+    }
+
+    /**
+     * geo_shape and cartesian_shape are normally loaded as WKT from source, but for ST_EXTENT_AGG we can load them from doc-values
+     * extracting the spatial Extent information. This class is used to convert the test loaded WKB into the int[6] used in the aggregators.
+     */
+    private abstract static class TestSpatialShapeExtentBlockCopier extends TestBlockCopier {
+        protected final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
+        private final SpatialEnvelopeVisitor visitor;
+
+        private TestSpatialShapeExtentBlockCopier(IntVector docIndices, SpatialEnvelopeVisitor.PointVisitor pointVisitor) {
+            super(docIndices);
+            this.pointVisitor = pointVisitor;
+            this.visitor = new SpatialEnvelopeVisitor(pointVisitor);
+        }
+
+        @Override
+        protected Block copyBlock(Block originalData) {
+            BytesRef scratch = new BytesRef(100);
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) originalData;
+            try (IntBlock.Builder builder = bytesRefBlock.blockFactory().newIntBlockBuilder(docIndices.getPositionCount())) {
+                for (int c = 0; c < docIndices.getPositionCount(); c++) {
+                    int doc = docIndices.getInt(c);
+                    int count = bytesRefBlock.getValueCount(doc);
+                    int i = bytesRefBlock.getFirstValueIndex(doc);
+                    if (count == 0) {
+                        builder.appendNull();
+                    } else {
+                        pointVisitor.reset();
+                        for (int v = 0; v < count; v++) {
+                            BytesRef wkb = bytesRefBlock.getBytesRef(i + v, scratch);
+                            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                            geometry.visit(visitor);
+                        }
+                        encodeExtent(builder);
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        protected abstract void encodeExtent(IntBlock.Builder builder);
+
+        private static TestSpatialShapeExtentBlockCopier create(IntVector docIndices, DataType dataType) {
+            return switch (dataType) {
+                case GEO_SHAPE -> new TestGeoCopier(docIndices);
+                case CARTESIAN_SHAPE -> new TestCartesianCopier(docIndices);
+                default -> throw new IllegalArgumentException("Unsupported spatial data type: " + dataType);
+            };
+        }
+
+        private static class TestGeoCopier extends TestSpatialShapeExtentBlockCopier {
+            private TestGeoCopier(IntVector docIndices) {
+                super(docIndices, new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP));
+            }
+
+            @Override
+            protected void encodeExtent(IntBlock.Builder builder) {
+                // We store the 6 values as a single multi-valued field, in the same order as the fields in the Extent class
+                // This requires that consumers also know the meaning of the values, which they can learn from the Extent class
+                SpatialEnvelopeVisitor.GeoPointVisitor visitor = (SpatialEnvelopeVisitor.GeoPointVisitor) pointVisitor;
+                builder.beginPositionEntry();
+                builder.appendInt(CoordinateEncoder.GEO.encodeY(visitor.getMaxY()));
+                builder.appendInt(CoordinateEncoder.GEO.encodeY(visitor.getMinY()));
+                builder.appendInt(encodeLongitude(visitor.getMinNegX()));
+                builder.appendInt(encodeLongitude(visitor.getMaxNegX()));
+                builder.appendInt(encodeLongitude(visitor.getMinPosX()));
+                builder.appendInt(encodeLongitude(visitor.getMaxPosX()));
+                builder.endPositionEntry();
+            }
+        }
+
+        private static class TestCartesianCopier extends TestSpatialShapeExtentBlockCopier {
+            private TestCartesianCopier(IntVector docIndices) {
+                super(docIndices, new SpatialEnvelopeVisitor.CartesianPointVisitor());
+            }
+
+            @Override
+            protected void encodeExtent(IntBlock.Builder builder) {
+                // We store the 4 values as a single multi-valued field, in the same order as the fields in the Rectangle class
+                // This requires that consumers also know the meaning of the values, which they can learn from the Rectangle class
+                SpatialEnvelopeVisitor.CartesianPointVisitor visitor = (SpatialEnvelopeVisitor.CartesianPointVisitor) pointVisitor;
+                builder.beginPositionEntry();
+                builder.appendInt(CoordinateEncoder.CARTESIAN.encodeX(visitor.getMinX()));
+                builder.appendInt(CoordinateEncoder.CARTESIAN.encodeX(visitor.getMaxX()));
+                builder.appendInt(CoordinateEncoder.CARTESIAN.encodeY(visitor.getMaxY()));
+                builder.appendInt(CoordinateEncoder.CARTESIAN.encodeY(visitor.getMinY()));
+                builder.endPositionEntry();
+            }
         }
     }
 }

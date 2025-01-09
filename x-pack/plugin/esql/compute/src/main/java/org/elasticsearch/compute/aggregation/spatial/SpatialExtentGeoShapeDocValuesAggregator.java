@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -26,8 +25,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialExtentGeoShapeAggregator extends SpatialExtentLongitudeWrappingAggregator {
-    // TODO support non-longitude wrapped geo shapes.
+class SpatialExtentGeoShapeDocValuesAggregator extends SpatialExtentLongitudeWrappingAggregator {
     public static SpatialExtentStateWrappedLongitudeState initSingle() {
         return new SpatialExtentStateWrappedLongitudeState();
     }
@@ -36,11 +34,11 @@ class SpatialExtentGeoShapeAggregator extends SpatialExtentLongitudeWrappingAggr
         return new SpatialExtentGroupingStateWrappedLongitudeState();
     }
 
-    public static void combine(SpatialExtentStateWrappedLongitudeState current, BytesRef bytes) {
-        current.add(SpatialAggregationUtils.decode(bytes));
+    public static void combine(SpatialExtentStateWrappedLongitudeState current, int[] values) {
+        current.add(values);
     }
 
-    public static void combine(SpatialExtentGroupingStateWrappedLongitudeState current, int groupId, BytesRef bytes) {
-        current.add(groupId, SpatialAggregationUtils.decode(bytes));
+    public static void combine(SpatialExtentGroupingStateWrappedLongitudeState current, int groupId, int[] values) {
+        current.add(groupId, values);
     }
 }

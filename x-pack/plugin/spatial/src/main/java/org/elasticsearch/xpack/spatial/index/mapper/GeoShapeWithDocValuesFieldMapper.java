@@ -301,8 +301,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         protected boolean isBoundsExtractionSupported() {
-            // Extracting bounds for geo shapes is not implemented yet.
-            return false;
+            return true;
         }
 
         @Override

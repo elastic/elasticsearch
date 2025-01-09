@@ -9,13 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -23,10 +20,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentGeoShapeAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentGeoShapeDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("minNegX", ElementType.INT),
       new IntermediateStateDesc("minPosX", ElementType.INT),
@@ -41,16 +38,16 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public SpatialExtentGeoShapeGroupingAggregatorFunction(List<Integer> channels,
+  public SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction(List<Integer> channels,
       SpatialExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SpatialExtentGeoShapeGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new SpatialExtentGeoShapeGroupingAggregatorFunction(channels, SpatialExtentGeoShapeAggregator.initGrouping(), driverContext);
+  public static SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction create(
+      List<Integer> channels, DriverContext driverContext) {
+    return new SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction(channels, SpatialExtentGeoShapeDocValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -65,8 +62,8 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    BytesRefVector valuesVector = valuesBlock.asVector();
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -104,8 +101,7 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
@@ -113,22 +109,19 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
       }
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      int[] valuesArray = new int[valuesEnd - valuesStart];
       for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialExtentGeoShapeAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        valuesArray[v-valuesStart] = values.getInt(v);
       }
+      SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      SpatialExtentGeoShapeAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
-    }
+  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -142,26 +135,17 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
         }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int[] valuesArray = new int[valuesEnd - valuesStart];
         for (int v = valuesStart; v < valuesEnd; v++) {
-          SpatialExtentGeoShapeAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+          valuesArray[v-valuesStart] = values.getInt(v);
         }
+        SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesArray);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        SpatialExtentGeoShapeAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
-      }
-    }
+  private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
   }
 
   @Override
@@ -206,7 +190,7 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
     assert minNegX.getPositionCount() == minPosX.getPositionCount() && minNegX.getPositionCount() == maxNegX.getPositionCount() && minNegX.getPositionCount() == maxPosX.getPositionCount() && minNegX.getPositionCount() == maxY.getPositionCount() && minNegX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialExtentGeoShapeAggregator.combineIntermediate(state, groupId, minNegX.getInt(groupPosition + positionOffset), minPosX.getInt(groupPosition + positionOffset), maxNegX.getInt(groupPosition + positionOffset), maxPosX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
+      SpatialExtentGeoShapeDocValuesAggregator.combineIntermediate(state, groupId, minNegX.getInt(groupPosition + positionOffset), minPosX.getInt(groupPosition + positionOffset), maxNegX.getInt(groupPosition + positionOffset), maxPosX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -215,9 +199,9 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialExtentGeoShapeGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialExtentGeoShapeAggregator.combineStates(state, groupId, inState, position);
+    SpatialExtentGeoShapeDocValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -228,7 +212,7 @@ public final class SpatialExtentGeoShapeGroupingAggregatorFunction implements Gr
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = SpatialExtentGeoShapeAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialExtentGeoShapeDocValuesAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

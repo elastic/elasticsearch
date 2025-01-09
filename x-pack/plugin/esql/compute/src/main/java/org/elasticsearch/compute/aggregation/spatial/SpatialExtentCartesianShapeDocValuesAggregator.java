@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -24,7 +23,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialExtentCartesianShapeAggregator extends SpatialExtentAggregator {
+class SpatialExtentCartesianShapeDocValuesAggregator extends SpatialExtentAggregator {
     public static SpatialExtentState initSingle() {
         return new SpatialExtentState(PointType.CARTESIAN);
     }
@@ -33,11 +32,11 @@ class SpatialExtentCartesianShapeAggregator extends SpatialExtentAggregator {
         return new SpatialExtentGroupingState(PointType.CARTESIAN);
     }
 
-    public static void combine(SpatialExtentState current, BytesRef bytes) {
-        current.add(SpatialAggregationUtils.decode(bytes));
+    public static void combine(SpatialExtentState current, int[] values) {
+        current.add(values);
     }
 
-    public static void combine(SpatialExtentGroupingState current, int groupId, BytesRef bytes) {
-        current.add(groupId, SpatialAggregationUtils.decode(bytes));
+    public static void combine(SpatialExtentGroupingState current, int groupId, int[] values) {
+        current.add(groupId, values);
     }
 }

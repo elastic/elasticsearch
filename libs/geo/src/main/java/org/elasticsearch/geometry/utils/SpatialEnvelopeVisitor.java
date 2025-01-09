@@ -116,6 +116,8 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         boolean isValid();
 
         Rectangle getResult();
+
+        void reset();
     }
 
     /**
@@ -174,6 +176,14 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         public Rectangle getResult() {
             return new Rectangle(minX, maxX, maxY, minY);
         }
+
+        @Override
+        public void reset() {
+            minY = Double.POSITIVE_INFINITY;
+            maxY = Double.NEGATIVE_INFINITY;
+            minX = Double.POSITIVE_INFINITY;
+            maxX = Double.NEGATIVE_INFINITY;
+        }
     }
 
     /**
@@ -197,6 +207,30 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         public GeoPointVisitor(WrapLongitude wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
+        }
+
+        public double getMinNegX() {
+            return minNegX;
+        }
+
+        public double getMinPosX() {
+            return minPosX;
+        }
+
+        public double getMaxNegX() {
+            return maxNegX;
+        }
+
+        public double getMaxPosX() {
+            return maxPosX;
+        }
+
+        public double getMaxY() {
+            return maxY;
+        }
+
+        public double getMinY() {
+            return minY;
         }
 
         @Override
@@ -234,7 +268,17 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
             return getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
         }
 
-        protected static Rectangle getResult(
+        @Override
+        public void reset() {
+            minY = Double.POSITIVE_INFINITY;
+            maxY = Double.NEGATIVE_INFINITY;
+            minNegX = Double.POSITIVE_INFINITY;
+            maxNegX = Double.NEGATIVE_INFINITY;
+            minPosX = Double.POSITIVE_INFINITY;
+            maxPosX = Double.NEGATIVE_INFINITY;
+        }
+
+        public static Rectangle getResult(
             double minNegX,
             double minPosX,
             double maxNegX,
@@ -244,7 +288,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
             WrapLongitude wrapLongitude
         ) {
             assert Double.isFinite(maxY);
-            if (Double.isInfinite(minPosX)) {
+            // Due to this data coming through Extent (and aggs that use the same approach), which saves values as integers,
+            // we must use maxPosX==-Inf for all-neg check, and minNegX==+Inf for all-pos check.
+            if (Double.isInfinite(maxPosX)) {
                 return new Rectangle(minNegX, maxNegX, maxY, minY);
             } else if (Double.isInfinite(minNegX)) {
                 return new Rectangle(minPosX, maxPosX, maxY, minY);

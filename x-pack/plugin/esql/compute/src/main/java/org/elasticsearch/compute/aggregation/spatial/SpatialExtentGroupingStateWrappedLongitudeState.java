@@ -19,20 +19,23 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.nio.ByteOrder;
+
+import static org.elasticsearch.compute.aggregation.spatial.SpatialExtentStateWrappedLongitudeState.asRectangle;
 
 final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArrayState implements GroupingAggregatorState {
     // Only geo points support longitude wrapping.
     private static final PointType POINT_TYPE = PointType.GEO;
-    private IntArray minNegXs;
-    private IntArray minPosXs;
-    private IntArray maxNegXs;
-    private IntArray maxPosXs;
     private IntArray maxYs;
     private IntArray minYs;
+    private IntArray minNegXs;
+    private IntArray maxNegXs;
+    private IntArray minPosXs;
+    private IntArray maxPosXs;
 
-    private GeoPointEnvelopeVisitor geoPointVisitor = new GeoPointEnvelopeVisitor();
+    private final SpatialEnvelopeVisitor.GeoPointVisitor geoPointVisitor;
 
     SpatialExtentGroupingStateWrappedLongitudeState() {
         this(BigArrays.NON_RECYCLING_INSTANCE);
@@ -47,6 +50,7 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         this.maxYs = bigArrays.newIntArray(0, false);
         this.minYs = bigArrays.newIntArray(0, false);
         enableGroupIdTracking(new SeenGroupIds.Empty());
+        this.geoPointVisitor = new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP);
     }
 
     @Override
@@ -63,8 +67,6 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 assert hasValue(group);
-                assert minNegXs.get(group) <= 0 == maxNegXs.get(group) <= 0;
-                assert minPosXs.get(group) >= 0 == maxPosXs.get(group) >= 0;
                 minNegXsBuilder.appendInt(minNegXs.get(group));
                 minPosXsBuilder.appendInt(minPosXs.get(group));
                 maxNegXsBuilder.appendInt(maxNegXs.get(group));
@@ -87,10 +89,10 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         if (geo.visit(new SpatialEnvelopeVisitor(geoPointVisitor))) {
             add(
                 groupId,
-                SpatialAggregationUtils.encodeNegativeLongitude(geoPointVisitor.getMinNegX()),
-                SpatialAggregationUtils.encodePositiveLongitude(geoPointVisitor.getMinPosX()),
-                SpatialAggregationUtils.encodeNegativeLongitude(geoPointVisitor.getMaxNegX()),
-                SpatialAggregationUtils.encodePositiveLongitude(geoPointVisitor.getMaxPosX()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMinNegX()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMinPosX()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMaxNegX()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMaxPosX()),
                 POINT_TYPE.encoder().encodeY(geoPointVisitor.getMaxY()),
                 POINT_TYPE.encoder().encodeY(geoPointVisitor.getMinY())
             );
@@ -112,10 +114,33 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         }
     }
 
+    /**
+     * This method is used when the field is a geo_point or cartesian_point and is loaded from doc-values.
+     * This optimization is enabled when the field has doc-values and is only used in a spatial aggregation.
+     */
     public void add(int groupId, long encoded) {
         int x = POINT_TYPE.extractX(encoded);
         int y = POINT_TYPE.extractY(encoded);
         add(groupId, x, x, x, x, y, y);
+    }
+
+    /**
+     * This method is used when extents are extracted from the doc-values field by the {@link GeometryDocValueReader}.
+     * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
+     */
+    public void add(int groupId, int[] values) {
+        if (values.length == 6) {
+            // Values are stored according to the order defined in the Extent class
+            int top = values[0];
+            int bottom = values[1];
+            int negLeft = values[2];
+            int negRight = values[3];
+            int posLeft = values[4];
+            int posRight = values[5];
+            add(groupId, negLeft, posLeft, negRight, posRight, top, bottom);
+        } else {
+            throw new IllegalArgumentException("Expected 6 values, got " + values.length);
+        }
     }
 
     public void add(int groupId, int minNegX, int minPosX, int maxNegX, int maxPosX, int maxY, int minY) {
@@ -135,8 +160,6 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
             maxYs.set(groupId, maxY);
             minYs.set(groupId, minY);
         }
-        assert minNegX <= 0 == maxNegX <= 0 : "minNegX=" + minNegX + " maxNegX=" + maxNegX;
-        assert minPosX >= 0 == maxPosX >= 0 : "minPosX=" + minPosX + " maxPosX=" + maxPosX;
         trackGroupId(groupId);
     }
 
@@ -160,7 +183,7 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
                     builder.appendBytesRef(
                         new BytesRef(
                             WellKnownBinary.toWKB(
-                                SpatialAggregationUtils.asRectangle(
+                                asRectangle(
                                     minNegXs.get(si),
                                     minPosXs.get(si),
                                     maxNegXs.get(si),

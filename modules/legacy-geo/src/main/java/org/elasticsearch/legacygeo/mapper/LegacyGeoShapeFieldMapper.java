@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
  * @deprecated use the field mapper in the spatial module
+ * TODO: Remove this class once we no longer need to supported reading 7.x indices that might have this field type
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {
@@ -534,7 +535,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         protected boolean isBoundsExtractionSupported() {
-            // Extracting bounds for geo shapes is not implemented yet.
+            // Legacy geo-shapes do not support doc-values, so extracting bounds is not possible.
             return false;
         }
 

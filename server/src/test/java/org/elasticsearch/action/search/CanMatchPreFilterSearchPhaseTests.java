@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
@@ -1453,7 +1452,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 indexMetadataBuilder.timestampRange(timestampRange);
                 fields.put(index, new DateFieldRangeInfo(new DateFieldMapper.DateFieldType(fieldName), null, null, null));
             } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-                indexMetadataBuilder.eventIngestedRange(timestampRange, TransportVersion.current());
+                indexMetadataBuilder.eventIngestedRange(timestampRange);
                 fields.put(index, new DateFieldRangeInfo(null, null, new DateFieldMapper.DateFieldType(fieldName), null));
             }
 
@@ -1493,7 +1492,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .timestampRange(tsTimestampRange)
-                .eventIngestedRange(eventIngestedTimestampRange, TransportVersion.current());
+                .eventIngestedRange(eventIngestedTimestampRange);
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();

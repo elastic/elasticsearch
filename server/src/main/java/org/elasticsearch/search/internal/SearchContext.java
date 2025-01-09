@@ -385,7 +385,7 @@ public abstract class SearchContext implements Releasable {
         }
         if (scrollContext() != null) {
             if (scrollContext().scroll != null) {
-                result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+                result.append("scroll=[").append(scrollContext().scroll).append("]");
             } else {
                 result.append("scroll=[null]");
             }

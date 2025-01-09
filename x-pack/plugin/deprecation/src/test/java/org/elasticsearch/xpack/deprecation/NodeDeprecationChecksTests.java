@@ -75,6 +75,29 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
+    public void testMultipleRemovedSettings() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder()
+            .put("node.removed_setting1", "value")
+            .put("node.removed_setting2", "value")
+            .build();
+        final Setting<?> removedSetting1 = Setting.simpleString("node.removed_setting1");
+        final Setting<?> removedSetting2 = Setting.simpleString("node.removed_setting2");
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleRemovedSettings(
+            clusterSettings,
+            nodeSettings,
+            shuffledList(List.of(removedSetting1, removedSetting2)),
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Settings [node.removed_setting1, node.removed_setting2] are deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove each setting in [node.removed_setting1, node.removed_setting2]. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
     public void testMultipleDataPaths() {
         final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);

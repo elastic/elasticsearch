@@ -11,12 +11,12 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.search.Scroll;
+import org.elasticsearch.core.TimeValue;
 
 /** Wrapper around information that needs to stay around when scrolling. */
 public final class ScrollContext {
     public TotalHits totalHits = null;
     public float maxScore = Float.NaN;
     public ScoreDoc lastEmittedDoc;
-    public Scroll scroll;
+    public TimeValue scroll;
 }

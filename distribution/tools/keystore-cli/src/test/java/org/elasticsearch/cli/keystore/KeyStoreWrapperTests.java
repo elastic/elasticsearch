@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends ESTestCase {
@@ -436,17 +437,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testLegacyV3() throws GeneralSecurityException, IOException {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final Path configDir = createTempDir();
-        final Path keystore = configDir.resolve("elasticsearch.keystore");
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
-            final byte[] buffer = new byte[4096];
-            int readBytes;
-            while ((readBytes = is.read(buffer)) > 0) {
-                os.write(buffer, 0, readBytes);
-            }
-        }
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v3-elasticsearch.keystore");
+
         final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
         assertNotNull(wrapper);
         wrapper.decrypt(new char[0]);
@@ -460,9 +452,31 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testLegacyV5() throws GeneralSecurityException, IOException {
         final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v5-with-password-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(5));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed")));
+    }
+
+    public void testLegacyV6() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v6-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(6));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
+        assertThat(wrapper.getString("string"), equalTo("value"));
+    }
+
+    private void copyKeyStoreFromResourceToConfigDir(Path configDir, String name) throws IOException {
         final Path keystore = configDir.resolve("elasticsearch.keystore");
         try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v5-with-password-elasticsearch.keystore");
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(name); //
             OutputStream os = Files.newOutputStream(keystore)
         ) {
             final byte[] buffer = new byte[4096];
@@ -471,11 +485,6 @@ public class KeyStoreWrapperTests extends ESTestCase {
                 os.write(buffer, 0, readBytes);
             }
         }
-        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
-        assertNotNull(wrapper);
-        wrapper.decrypt("keystorepassword".toCharArray());
-        assertThat(wrapper.getFormatVersion(), equalTo(5));
-        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed")));
     }
 
     public void testSerializationNewlyCreated() throws Exception {
@@ -487,6 +496,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         wrapper.writeTo(out);
         final KeyStoreWrapper fromStream = new KeyStoreWrapper(out.bytes().streamInput());
 
+        assertThat(fromStream.getFormatVersion(), is(KeyStoreWrapper.CURRENT_VERSION));
         assertThat(fromStream.getSettingNames(), hasSize(2));
         assertThat(fromStream.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
 

@@ -107,11 +107,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
 
                     logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: {})", shardId, reason);
                     if (cacheService != null) {
-                        cacheService.markShardAsEvictedInCache(
-                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                            shardId
-                        );
+//                        cacheService.markShardAsEvictedInCache(
+//                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+//                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+//                            shardId
+//                        );
                     }
                     if (sharedBlobCacheService != null) {
                         sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));

@@ -189,6 +189,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                         equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.TRACES_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_7_DAYS_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_30_DAYS_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_90_DAYS_POLICY_NAME),
@@ -212,7 +213,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(8)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(9)));
     }
 
     public void testPolicyAlreadyExists() {
@@ -221,7 +222,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(8));
+        assertThat(policies, hasSize(9));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -292,7 +293,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(8));
+        assertThat(policies, hasSize(9));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {

@@ -11,12 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -30,6 +30,7 @@ import org.elasticsearch.test.hamcrest.RectangleMatcher;
 import org.elasticsearch.test.hamcrest.WellKnownBinaryBytesRefMatcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -55,13 +56,13 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
         );
     }
 
-    private void testBoundsBlockLoaderAux(
+    private static void testBoundsBlockLoaderAux(
         CoordinateEncoder encoder,
         Supplier<Geometry> generator,
         Function<String, ShapeIndexer> indexerFactory,
         Function<Geometry, Optional<Rectangle>> visitor
     ) throws IOException {
-        var geometries = IntStream.range(0, 20).mapToObj(i -> generator.get()).toList();
+        var geometries = IntStream.range(0, 50).mapToObj(i -> generator.get()).toList();
         var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field", encoder);
         try (Directory directory = newDirectory()) {
             try (var iw = new RandomIndexWriter(random(), directory)) {
@@ -73,23 +74,41 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                     iw.addDocument(doc);
                 }
             }
-            var indices = IntStream.range(0, geometries.size() / 2).map(x -> x * 2).toArray();
+
+            var expected = new ArrayList<Rectangle>();
+            var byteRefResults = new ArrayList<BytesRef>();
+            int currentIndex = 0;
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                LeafReaderContext ctx = reader.leaves().get(0);
-                TestBlock block = (TestBlock) loader.reader(ctx).read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(indices));
-                for (int i = 0; i < indices.length; i++) {
-                    var idx = indices[i];
-                    var geometry = geometries.get(idx);
-                    var geoString = geometry.toString();
-                    var geometryString = geoString.length() > 200 ? geoString.substring(0, 200) + "..." : geoString;
-                    Rectangle r = visitor.apply(geometry).get();
-                    assertThat(
-                        Strings.format("geometries[%d] ('%s') wasn't extracted correctly", idx, geometryString),
-                        (BytesRef) block.get(i),
-                        WellKnownBinaryBytesRefMatcher.encodes(RectangleMatcher.closeToFloat(r, 1e-3, encoder))
-                    );
+                for (var leaf : reader.leaves()) {
+                    LeafReader leafReader = leaf.reader();
+                    int numDocs = leafReader.numDocs();
+                    // We specifically check just the even indices, to verify the loader can skip documents correctly.
+                    int[] array = evenArray(numDocs);
+                    for (int i = 0; i < array.length; i += 1) {
+                        expected.add(visitor.apply(geometries.get(array[i] + currentIndex)).get());
+                    }
+                    try (var block = (TestBlock) loader.reader(leaf).read(TestBlock.factory(leafReader.numDocs()), TestBlock.docs(array))) {
+                        for (int i = 0; i < block.size(); i++) {
+                            byteRefResults.add((BytesRef) block.get(i));
+                        }
+                    }
+                    currentIndex += numDocs;
                 }
             }
+
+            for (int i = 0; i < expected.size(); i++) {
+                Rectangle rectangle = expected.get(i);
+                var geoString = rectangle.toString();
+                assertThat(
+                    Strings.format("geometry '%s' wasn't extracted correctly", geoString),
+                    byteRefResults.get(i),
+                    WellKnownBinaryBytesRefMatcher.encodes(RectangleMatcher.closeToFloat(rectangle, 1e-3, encoder))
+                );
+            }
         }
+    }
+
+    private static int[] evenArray(int maxIndex) {
+        return IntStream.range(0, maxIndex / 2).map(x -> x * 2).toArray();
     }
 }

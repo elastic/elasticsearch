@@ -10,14 +10,13 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -129,17 +128,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         if (randomBoolean()) {
             return blockFactory.newConstantNullBlock(size);
         }
-        return BasicBlockTests.randomBlock(blockFactory, randomElement(), size, false, 1, 1, 0, 0).block();
-    }
-
-    static ElementType randomElement() {
-        List<ElementType> l = new ArrayList<>();
-        for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
-                continue;
-            }
-            l.add(e);
-        }
-        return randomFrom(l);
+        return BasicBlockTests.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
     }
 }

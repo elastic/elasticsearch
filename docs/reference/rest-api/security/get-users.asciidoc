@@ -5,8 +5,13 @@
 <titleabbrev>Get users</titleabbrev>
 ++++
 
-Retrieves information about users in the native realm and built-in users.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
 
+Retrieves information about users in the native realm and built-in users.
 
 [[security-api-get-user-request]]
 ==== {api-request-title}

@@ -120,7 +120,7 @@ public abstract class TestCluster {
         );
 
         final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = SubscribableListener.newForked(
-            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), l)
+            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"), l)
         );
 
         SubscribableListener

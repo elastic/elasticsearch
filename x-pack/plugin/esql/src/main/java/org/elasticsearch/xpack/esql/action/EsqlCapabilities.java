@@ -458,6 +458,10 @@ public class EsqlCapabilities {
          * Hash function
          */
         HASH_FUNCTION,
+        /**
+         * Hash function aliases such as MD5
+         */
+        HASH_FUNCTION_ALIASES_V1,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -560,12 +564,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V8(Build.current().isSnapshot()),
-
-        /**
-         * LOOKUP JOIN with the same index as the FROM
-         */
-        JOIN_LOOKUP_REPEATED_INDEX_FROM(JOIN_LOOKUP_V8.isEnabled()),
+        JOIN_LOOKUP_V10(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

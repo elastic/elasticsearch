@@ -16,6 +16,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -83,8 +85,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEquals("openai", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            var modelIdFound = serviceSettings.containsKey("model_id") || taskSettings.containsKey("model_id");
-            assertTrue("model_id not found in config: " + configs.toString(), modelIdFound);
+            var modelIdFound = serviceSettings.containsKey("model_id")
+                || (taskSettings.containsKey("model") && getOldClusterTestVersion().onOrBefore(OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED));
+            assertTrue("model_id not found in config: " + configs, modelIdFound);
 
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
@@ -139,9 +142,11 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             assertCompletionInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
+            List<Map<String, Object>> configs = new LinkedList<>();
+            var request = get(testTaskType, oldClusterId);
+            configs.addAll((Collection<? extends Map<String, Object>>) request.getOrDefault("endpoints", List.of()));
             if (oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) == false) {
-                configs.addAll((List<Map<String, Object>>) get(testTaskType, oldClusterId).get(old_cluster_endpoint_identifier));
+                configs.addAll((List<Map<String, Object>>) request.getOrDefault(old_cluster_endpoint_identifier, List.of()));
                 // in version 8.15, there was a breaking change where "models" was renamed to "endpoints"
             }
             assertEquals("openai", configs.get(0).get("service"));

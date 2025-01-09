@@ -8,7 +8,6 @@
  */
 package fixture.s3;
 
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -517,37 +516,6 @@ public class S3HttpHandler implements HttpHandler {
             return result;
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
-        }
-    }
-
-    public static void sendError(final HttpExchange exchange, final RestStatus status, final String errorCode, final String message)
-        throws IOException {
-        final Headers headers = exchange.getResponseHeaders();
-        headers.add("Content-Type", "application/xml");
-
-        final String requestId = exchange.getRequestHeaders().getFirst("x-amz-request-id");
-        if (requestId != null) {
-            headers.add("x-amz-request-id", requestId);
-        }
-
-        if (errorCode == null || "HEAD".equals(exchange.getRequestMethod())) {
-            exchange.sendResponseHeaders(status.getStatus(), -1L);
-            exchange.close();
-        } else {
-            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error>"
-                + "<Code>"
-                + errorCode
-                + "</Code>"
-                + "<Message>"
-                + message
-                + "</Message>"
-                + "<RequestId>"
-                + requestId
-                + "</RequestId>"
-                + "</Error>").getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(status.getStatus(), response.length);
-            exchange.getResponseBody().write(response);
-            exchange.close();
         }
     }
 

@@ -3,10 +3,14 @@
 = Create trained models API
 [subs="attributes"]
 ++++
-
 <titleabbrev>Create trained models</titleabbrev>
-
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
 
 Creates a trained model.
 

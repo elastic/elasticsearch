@@ -23,7 +23,7 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsInte
 
         String indexName = randomIdentifier();
         createIndex(indexName);
-        indexRandom(true, indexName, randomIntBetween(10_000, 100_000));
+        indexRandom(true, indexName, randomIntBetween(1_000, 5_000));
 
         String repositoryName = randomIdentifier();
         createRepository(repositoryName, "fs");

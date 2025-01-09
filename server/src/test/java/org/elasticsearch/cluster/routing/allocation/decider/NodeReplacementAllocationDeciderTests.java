@@ -412,7 +412,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
-    public void testShouldKeepAllShardFromRemainingNodes() {
+    public void testShouldKeepAllShardOnRemainingNodes() {
 
         var indexMetadata = IndexMetadata.builder(idxName)
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
@@ -460,7 +460,6 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         state = startInitializingShardsAndReroute(allocator, state);
 
         assertThat(state.metadata().index(idxName).getNumberOfReplicas(), equalTo(desiredNodeCount - 1));
-
         for (int i = 0; i < desiredNodeCount; i++) {
             if (Objects.equals("node-" + i, nodeToShutdown) == false) {
                 assertThat(state.getRoutingNodes().node("node-" + i).getByShardId(shardId).state(), equalTo(STARTED));
@@ -471,6 +470,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         // start target shard
         state = startInitializingShardsAndReroute(allocator, state);
+
+        assertThat(state.metadata().index(idxName).getNumberOfReplicas(), equalTo(desiredNodeCount - 1));
         for (int i = 0; i < desiredNodeCount; i++) {
             if (Objects.equals("node-" + i, nodeToShutdown) == false) {
                 assertThat(state.getRoutingNodes().node("node-" + i).getByShardId(shardId).state(), equalTo(STARTED));

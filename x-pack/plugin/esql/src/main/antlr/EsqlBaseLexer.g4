@@ -177,9 +177,9 @@ DECIMAL_LITERAL
     ;
 
 BY : 'by';
-ON: 'ON';
-WITH: 'WITH';
-TOP: 'TOP';
+ON: 'on';
+WITH: 'with';
+TOP: 'top';
 
 AND : 'and';
 ASC : 'asc';

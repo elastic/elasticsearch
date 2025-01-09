@@ -146,9 +146,9 @@ CLOSING_METRICS_WS=130
 'where'=16
 '|'=30
 'by'=34
-'ON'=35
-'WITH'=36
-'TOP'=37
+'on'=35
+'with'=36
+'top'=37
 'and'=38
 'asc'=39
 '='=40

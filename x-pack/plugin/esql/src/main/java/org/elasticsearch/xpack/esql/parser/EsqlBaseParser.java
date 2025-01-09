@@ -101,7 +101,7 @@ public class EsqlBaseParser extends ParserConfig {
       "'grok'", "'keep'", "'limit'", "'mv_expand'", "'rename'", "'row'", "'show'", 
       "'sort'", "'stats'", "'where'", null, null, null, null, null, null, null, 
       null, null, null, null, null, null, "'|'", null, null, null, "'by'", 
-      "'ON'", "'WITH'", "'TOP'", "'and'", "'asc'", "'='", "'::'", "':'", "','", 
+      "'on'", "'with'", "'top'", "'and'", "'asc'", "'='", "'::'", "':'", "','", 
       "'desc'", "'.'", "'false'", "'first'", "'in'", "'is'", "'last'", "'like'", 
       "'('", "'not'", "'null'", "'nulls'", "'or'", "'?'", "'rlike'", "')'", 
       "'true'", "'=='", "'=~'", "'!='", "'<'", "'<='", "'>'", "'>='", "'+'", 

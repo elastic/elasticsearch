@@ -51,7 +51,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
         var model = createChatCompletionModel("url", "org", "api_key", "model_name", "user");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null, null)),
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -70,7 +70,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createChatCompletionModel("url", "org", "api_key", "model_name", "user");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null, null)),
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,
             null,

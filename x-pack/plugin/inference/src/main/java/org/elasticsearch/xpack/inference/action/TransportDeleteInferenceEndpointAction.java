@@ -205,16 +205,11 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private static Set<String> endpointIsReferencedInIndex(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> indexes = extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
-        return indexes;
+        return extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
     }
 
     private static Set<String> endpointIsReferencedInPipelines(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
-            state,
-            Set.of(inferenceEndpointId)
-        );
-        return modelIdsReferencedByPipelines;
+        return InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(inferenceEndpointId));
     }
 
     @Override

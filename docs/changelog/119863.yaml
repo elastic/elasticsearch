@@ -6,7 +6,6 @@ issues: []
 breaking:
   title: Restrict Connector APIs to manage/monitor_connector privileges
   area: Extract&Transform
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: Connector APIs will now enforce the manage_connector and monitor_connector privileges, introduced in 8.15. These privileges replace the previous reliance on direct index access to .elastic-connectors and .elastic-connectors-sync-jobs in order to call the APIs
+  impact: Connector APIs now require manage_connector and monitor_connector privileges
   notable: false

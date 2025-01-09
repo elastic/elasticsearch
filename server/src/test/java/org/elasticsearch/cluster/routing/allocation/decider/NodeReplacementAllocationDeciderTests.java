@@ -32,20 +32,24 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.Objects;
+import java.util.Set;
 
+import static org.elasticsearch.cluster.TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
-    private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
-    private static final DiscoveryNode NODE_B = newNode("node-b", "node-b", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
-    private static final DiscoveryNode NODE_C = newNode("node-c", "node-c", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
+    private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Set.of(DiscoveryNodeRole.DATA_ROLE));
+    private static final DiscoveryNode NODE_B = newNode("node-b", "node-b", Set.of(DiscoveryNodeRole.DATA_ROLE));
+    private static final DiscoveryNode NODE_C = newNode("node-c", "node-c", Set.of(DiscoveryNodeRole.DATA_ROLE));
     private final ShardRouting shard = ShardRouting.newUnassigned(
         new ShardId("myindex", "myindex", 0),
         true,
@@ -403,6 +407,65 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             Decision.Type.YES,
             "none of the ongoing node replacements relate to the allocation of this shard"
         );
+    }
+
+    public void testShouldKeepAllShardFromRemainingNodes() {
+
+        var indexMetadata = IndexMetadata.builder(idxName)
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .build();
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var desiredNodeCount = randomIntBetween(3, 10);
+
+        var nodes = DiscoveryNodes.builder();
+        for (int i = 0; i < desiredNodeCount; i++) {
+            nodes.add(newNode("node-" + i, "node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        }
+
+        var allocator = createAllocationService();
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes.build())
+            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata)))
+            .routingTable(RoutingTable.builder(DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+        state = applyStartedShardsUntilNoChange(state, allocator);
+
+        assertThat(state.metadata().index(idxName).getNumberOfReplicas(), equalTo(desiredNodeCount - 1));
+
+        // register node replacement
+        var nodeToShutdown = "node-" + randomIntBetween(0, desiredNodeCount - 1);
+        var replacementNode = "node-" + desiredNodeCount;
+        state = ClusterState.builder(state)
+            .nodes(
+                DiscoveryNodes.builder(state.nodes()).add(newNode(replacementNode, replacementNode, Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            )
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(nodeToShutdown, replacementNode))
+            )
+            .build();
+        state = startInitializingShardsAndReroute(allocator, state);
+
+        assertThat(state.metadata().index(idxName).getNumberOfReplicas(), equalTo(desiredNodeCount - 1));
+
+        for (int i = 0; i < desiredNodeCount; i++) {
+            if (Objects.equals("node-" + i, nodeToShutdown) == false) {
+                assertThat(state.getRoutingNodes().node("node-" + i).getByShardId(shardId).state(), equalTo(STARTED));
+            }
+        }
+        assertThat(state.getRoutingNodes().node(nodeToShutdown).getByShardId(shardId).state(), equalTo(RELOCATING));
+        assertThat(state.getRoutingNodes().node(replacementNode).getByShardId(shardId).state(), equalTo(INITIALIZING));
+
+        // start target shard
+        state = startInitializingShardsAndReroute(allocator, state);
+        for (int i = 0; i < desiredNodeCount; i++) {
+            if (Objects.equals("node-" + i, nodeToShutdown) == false) {
+                assertThat(state.getRoutingNodes().node("node-" + i).getByShardId(shardId).state(), equalTo(STARTED));
+            }
+        }
+        assertThat(state.getRoutingNodes().node(nodeToShutdown).getByShardId(shardId), nullValue());
+        assertThat(state.getRoutingNodes().node(replacementNode).getByShardId(shardId).state(), equalTo(STARTED));
     }
 
     private ClusterState prepareState(String sourceNodeId, String targetNodeName) {

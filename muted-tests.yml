@@ -102,9 +102,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
-  method: testILMDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/114233
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
@@ -256,6 +253,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119721
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119819
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/119820
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/119821
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119822
 
 # Examples:
 #

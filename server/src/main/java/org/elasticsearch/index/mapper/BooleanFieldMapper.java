@@ -62,7 +62,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
-    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension");
+    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension", true);
 
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");

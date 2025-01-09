@@ -39,7 +39,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             true,
             List.of(
                 new TestCaseSupplier(
@@ -84,12 +84,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                         )
                         .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
                 )
-            ),
-            (v, p) -> switch (p) {
-                case 0 -> "string";
-                case 1 -> "datetime";
-                default -> "";
-            }
+            )
         );
     }
 

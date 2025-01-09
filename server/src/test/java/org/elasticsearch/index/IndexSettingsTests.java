@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -837,6 +838,15 @@ public class IndexSettingsTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
+    }
+
+    public void testIndexMapperDynamic() {
+        final Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
+                .build();
+
+        newIndexMeta("test", settings);
+//        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
     }
 
     public void testSame() {

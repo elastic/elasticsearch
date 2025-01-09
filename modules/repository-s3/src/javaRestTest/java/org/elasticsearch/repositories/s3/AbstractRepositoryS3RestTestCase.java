@@ -77,11 +77,11 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         return testSuiteName + "-" + Integer.toString(Murmur3HashFunction.hash(testSuiteName + System.getProperty("tests.seed")), 16) + "-";
     }
 
-    private TestRepository newTestRepository() {
+    protected TestRepository newTestRepository() {
         return new TestRepository(randomIdentifier(), getClientName(), getBucketName(), getBasePath());
     }
 
-    private static UnaryOperator<Settings> readonlyOperator(Boolean readonly) {
+    protected static UnaryOperator<Settings> readonlyOperator(Boolean readonly) {
         return readonly == null
             ? UnaryOperator.identity()
             : s -> Settings.builder().put(s).put(BlobStoreRepository.READONLY_SETTING_KEY, readonly).build();

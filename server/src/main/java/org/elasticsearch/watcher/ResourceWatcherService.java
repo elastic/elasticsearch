@@ -38,7 +38,7 @@ public class ResourceWatcherService implements Closeable {
         /**
          * Defaults to 5 seconds
          */
-        HIGH(TimeValue.timeValueSeconds(5)),
+        HIGH(TimeValue.timeValueSeconds(3)),
 
         /**
          * Defaults to 30 seconds

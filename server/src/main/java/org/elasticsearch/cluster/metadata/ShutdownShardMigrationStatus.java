@@ -27,8 +27,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXContentObject {
@@ -168,7 +168,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             startObject(),
-            singleChunk((builder, p) -> buildHeader(builder)),
+            chunk((builder, p) -> buildHeader(builder)),
             Objects.nonNull(allocationDecision)
                 ? Iterators.concat(startObject(NODE_ALLOCATION_DECISION_KEY), allocationDecision.toXContentChunked(params), endObject())
                 : Collections.emptyIterator(),

@@ -85,7 +85,6 @@ tasks.named("yamlRestTest").configure {
     '^snapshot.restore/*/*',
     '^snapshot.status/*/*',
     '^synonyms/*/*',
-    '^tsdb/10_settings/*',
     '^tsdb/30_snapshot/*',
     '^tsdb/80_index_resize/*',
 

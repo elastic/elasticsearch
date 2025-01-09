@@ -429,8 +429,22 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "logs-cloud_security_posture.findings_latest-default*",
-                        "logs-cloud_security_posture.scores-default*",
                         "logs-cloud_security_posture.vulnerabilities_latest-default*"
+                    )
+                    .privileges(
+                        "create_index",
+                        "read",
+                        "index",
+                        "delete",
+                        TransportIndicesAliasesAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name()
+                    )
+                    .build(),
+                // For destination indices of the Cloud Security Posture packages that ships a
+                // transform (specific for scores indexes, as of 9.0.0 score indices will need to have auto_put priviliges)
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "logs-cloud_security_posture.scores-default*"
                     )
                     .privileges(
                         "create_index",

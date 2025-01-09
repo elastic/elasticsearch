@@ -356,8 +356,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
-  issue: https://github.com/elastic/elasticsearch/issues/118414
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.1.3, bwcProject: bugfix2, expectedAssembleTaskName:
     extractedAssemble, #3]"

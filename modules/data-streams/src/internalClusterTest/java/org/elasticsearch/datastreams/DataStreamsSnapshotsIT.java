@@ -31,11 +31,13 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.Index;
@@ -136,10 +138,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertTrue(response.isAcknowledged());
 
         // Initialize the failure store.
-        RolloverRequest rolloverRequest = new RolloverRequest("with-fs", null);
-        rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
-        );
+        RolloverRequest rolloverRequest = new RolloverRequest("with-fs::failures", null);
         response = client.execute(RolloverAction.INSTANCE, rolloverRequest).get();
         assertTrue(response.isAcknowledged());
 
@@ -345,7 +344,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
             .setWaitForCompletion(true)
-            .setIndices(dataStreamName)
+            .setIndices(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.ALL_APPLICABLE))
             .setIncludeGlobalState(false)
             .get();
 

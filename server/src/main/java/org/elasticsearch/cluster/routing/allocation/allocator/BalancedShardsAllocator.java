@@ -112,7 +112,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    // TODO: deduplicate these fields, use the fields in NodeAllocationStatsCalculator instead.
+    // TODO: deduplicate these fields, use the fields in NodeAllocationStatsAndWeightsCalculator instead.
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
     private volatile float writeLoadBalanceFactor;

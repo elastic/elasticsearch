@@ -69,6 +69,14 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             checked++;
         }
         logger.info("checked {} signatures", checked);
+        assertNumberOfCheckedSignatures(checked);
+    }
+
+    /**
+     * Assert the number of checked signature. Generally shouldn't be overridden but
+     * can be to assert that, for example, there weren't any unsupported signatures.
+     */
+    protected void assertNumberOfCheckedSignatures(int checked) {
         assertThat("didn't check any signatures", checked, greaterThan(0));
     }
 

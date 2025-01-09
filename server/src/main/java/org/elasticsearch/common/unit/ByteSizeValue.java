@@ -10,17 +10,16 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.text.DecimalFormat;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -233,33 +232,26 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public String toString() {
-        return format2Decimals(sizeInBytes, preferredUnit.toBytes(1)) + preferredUnit.getSuffix();
-    }
-
-    /**
-     * Strictly speaking, this is only <em>guaranteed</em> to return the exact right string
-     * when {@code numerator} is the rounded value of some multiple of 1% of {@code denominator}.
-     * Other arbitrary values could yield surprising results; for example, you might see
-     * {@code 123.0} or even {@code 1221.00} in place of {@code 123}.
-     */
-    static String format2Decimals(long numerator, long denominator) {
-        // If numerator >> denominator, we risk exceeding the precision of a double, so we enlist
-        // the help of MAX_TWO_DECIMALS only for the fractional portion, and we handle the whole-number
-        // portion ourselves.
-        long wholeNumberPortion = numerator / denominator;
-        long remainder = numerator % denominator;
-        if (remainder == 0) {
-            return Long.toString(wholeNumberPortion);
-        } else {
-            return wholeNumberPortion + MAX_TWO_DECIMALS.format(remainder / (double) denominator);
+        long bytes = getBytes();
+        double value = bytes;
+        String suffix = ByteSizeUnit.BYTES.getSuffix();
+        if (bytes >= ByteSizeUnit.C5) {
+            value = getPbFrac();
+            suffix = ByteSizeUnit.PB.getSuffix();
+        } else if (bytes >= ByteSizeUnit.C4) {
+            value = getTbFrac();
+            suffix = ByteSizeUnit.TB.getSuffix();
+        } else if (bytes >= ByteSizeUnit.C3) {
+            value = getGbFrac();
+            suffix = ByteSizeUnit.GB.getSuffix();
+        } else if (bytes >= ByteSizeUnit.C2) {
+            value = getMbFrac();
+            suffix = ByteSizeUnit.MB.getSuffix();
+        } else if (bytes >= ByteSizeUnit.C1) {
+            value = getKbFrac();
+            suffix = ByteSizeUnit.KB.getSuffix();
         }
-    }
-
-    private static final DecimalFormat MAX_TWO_DECIMALS = maxTwoDecimalsFormat();
-
-    @SuppressForbidden(reason = "We truly just want two decimals; Locale settings don't matter here")
-    private static DecimalFormat maxTwoDecimalsFormat() {
-        return new DecimalFormat(".##");
+        return Strings.format1Decimals(value, suffix);
     }
 
     public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {

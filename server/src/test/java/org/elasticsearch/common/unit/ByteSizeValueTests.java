@@ -21,11 +21,9 @@ import java.util.function.Function;
 import static java.lang.Math.multiplyExact;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
-import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
-import static org.elasticsearch.common.unit.ByteSizeValue.format2Decimals;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -73,35 +71,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testToString() {
-        assertEquals("10b", new ByteSizeValue(10, ByteSizeUnit.BYTES).toString());
-
-        long bytes = (long) (0.75 * 1024);
-        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
-        assertEquals("0.75kb", new ByteSizeValue(bytes, KB).toString());
-
-        bytes *= 1024;
-        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
-        assertEquals("768kb", new ByteSizeValue(bytes, KB).toString());
-        assertEquals("0.75mb", new ByteSizeValue(bytes, MB).toString());
-
-        bytes *= 1024;
-        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
-        assertEquals("768mb", new ByteSizeValue(bytes, MB).toString());
-        assertEquals("0.75gb", new ByteSizeValue(bytes, GB).toString());
-
-        bytes *= 1024;
-        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
-        assertEquals("768gb", new ByteSizeValue(bytes, GB).toString());
-        assertEquals("0.75tb", new ByteSizeValue(bytes, TB).toString());
-
-        bytes *= 1024;
-        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
-        assertEquals("768tb", new ByteSizeValue(bytes, TB).toString());
-        assertEquals("0.75pb", new ByteSizeValue(bytes, PB).toString());
-
-        bytes *= 1024;
-        assertEquals(bytes + "b", new ByteSizeValue(bytes, BYTES).toString());
-        assertEquals("768pb", new ByteSizeValue(bytes, PB).toString());
+        assertThat("10b", is(ByteSizeValue.of(10, ByteSizeUnit.BYTES).toString()));
+        assertThat("1.5kb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
+        assertThat("1.5mb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.KB).toString()));
+        assertThat("1.5gb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));
+        assertThat("1.5tb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.GB).toString()));
+        assertThat("1.5pb", is(ByteSizeValue.of((long) (1024 * 1.5), ByteSizeUnit.TB).toString()));
+        assertThat("1536pb", is(ByteSizeValue.of((long) (1024 * 1.5), PB).toString()));
     }
 
     public void testParsing() {
@@ -341,7 +317,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testParseFractionalNumber() throws IOException {
         ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
-        String fractionalValue = "23.55" + unit.getSuffix();
+        String fractionalValue = "23.5" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
     }
@@ -515,43 +491,6 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 ByteSizeValue parsedValue = ByteSizeValue.parseBytesSizeValue(stringToParse, "test");
                 assertEquals("Should parse correctly: " + stringToParse, expected, parsedValue);
             }
-        }
-    }
-
-    public void testFormat2DecimalsExhaustively() {
-        for (var unit : ByteSizeUnit.values()) {
-            if (unit == BYTES) {
-                // Can't specify fractions of a byte
-                continue;
-            }
-            var granularity = unit.toBytes(1);
-            long wholeUnits = Long.MAX_VALUE / granularity - 1; // Try to provoke a failure by exceeding double precision
-            assertEquals(
-                "Integers should not have decimals",
-                Long.toString(wholeUnits),
-                format2Decimals(wholeUnits * granularity, granularity)
-            );
-            for (var percent = 1; percent < 100; percent++) {
-                long numerator = wholeUnits * granularity + (long) (percent * 0.01 * granularity);
-                String expected = wholeUnits + percentToDecimal(percent);
-                assertEquals(
-                    "format2Decimals on " + percent + "% of one " + unit.getSuffix(),
-                    expected,
-                    format2Decimals(numerator, granularity)
-                );
-            }
-        }
-    }
-
-    public void testFormat2DecimalsForHugeValues() {
-        // The largest magnitude we can get with fractions is if we specify a value very close to Long.MAX_VALUE bytes using KB.
-        long granularity = KB.toBytes(1);
-        long wholeUnits = Long.MAX_VALUE / granularity;
-        for (var percent = 1; percent < 100; percent++) {
-            long fractionalPart = (long) (0.01 * percent * granularity);
-            long numerator = wholeUnits * granularity + fractionalPart;
-            String expected = wholeUnits + percentToDecimal(percent);
-            assertEquals("String should match for " + percent + "%", expected, format2Decimals(numerator, granularity));
         }
     }
 

@@ -1130,7 +1130,7 @@ The following sections provide additional ways of rescoring:
 
 [discrete]
 [[dense-vector-knn-search-reranking-rescore-section]]
-====== Use the `rescore_vector` section for top-level kNN search
+====== Use the `rescore` section for top-level kNN search
 
 You can use this option when you don't want to rescore on each shard, but on the top results from all shards.
 

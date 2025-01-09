@@ -150,8 +150,9 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
+         * We still need to accept settings using this property in v9 because they might be used in v7 read-only indices.
          */
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9.
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**

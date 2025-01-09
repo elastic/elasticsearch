@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
@@ -236,7 +237,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 Mapper hostName = mapperService.mappingLookup().getMapper("host.name");
                 hasSyntheticSourceUsage = hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic();
                 boolean addHostNameField = IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(indexTemplateAndCreateRequestSettings)
-                    || (hostName == null && mapperService.mappingLookup().getMapper("host") == null);
+                    || (hostName == null
+                        && mapperService.mappingLookup().objectMappers().get("host.name") == null
+                        && (mapperService.mappingLookup().getMapper("host") == null
+                            || mapperService.mappingLookup().getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.DISABLED));
                 boolean sortOnHostName = IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
                     || addHostNameField
                     || ((hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())

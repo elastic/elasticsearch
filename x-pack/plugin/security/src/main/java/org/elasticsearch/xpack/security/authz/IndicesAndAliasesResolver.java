@@ -305,7 +305,7 @@ class IndicesAndAliasesResolver {
                     // This parses the single all-indices expression for a second time in this conditional branch, but this is better than
                     // parsing a potentially big list of indices on every request.
                     allIndicesPatternSelector = IndexNameExpressionResolver.splitSelectorExpression(
-                        indicesList(indicesRequest.indices()).getFirst()
+                        indicesList(indicesRequest.indices()).get(0)
                     ).v2();
                 }
             } else {

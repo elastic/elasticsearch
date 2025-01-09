@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.BasicBlockTests;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -35,8 +37,10 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverTests extends ESTestCase {
@@ -268,6 +272,58 @@ public class DriverTests extends ESTestCase {
                 }
             }
             assertTrue(driverCompleted.await(30, TimeUnit.SECONDS));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testEarlyTermination() {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            int positions = between(1000, 5000);
+            List<Page> inPages = randomList(1, 100, () -> {
+                var block = driverContext.blockFactory().newConstantIntBlockWith(randomInt(), positions);
+                return new Page(block);
+            });
+            final var sourceOperator = new CannedSourceOperator(inPages.iterator());
+            final int maxAllowedRows = between(1, 100);
+            final AtomicInteger processedRows = new AtomicInteger(0);
+            final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        driverContext.checkForEarlyTermination();
+                        processedRows.incrementAndGet();
+                    }
+                    return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+                }
+
+                @Override
+                public void close() {
+
+                }
+            });
+            final List<Page> outputPages = new ArrayList<>();
+            var outputOperator = new PageConsumerOperator(outputPages::add) {
+                @Override
+                public boolean isFinished() {
+                    if (processedRows.get() >= maxAllowedRows) {
+                        return true;
+                    } else {
+                        return super.isFinished();
+                    }
+                }
+            };
+
+            Driver driver = new Driver(driverContext, sourceOperator, List.of(delayOperator), outputOperator, () -> {});
+            ThreadContext threadContext = threadPool.getThreadContext();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+            Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(outputPages, empty());
+            assertThat(processedRows.get(), equalTo(maxAllowedRows));
         } finally {
             terminate(threadPool);
         }

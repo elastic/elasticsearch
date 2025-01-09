@@ -6,14 +6,14 @@
 
 beta::[]
 
+
 .New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
 --
 
-Removes a connector and associated sync jobs.
-This is a destructive action that is not recoverable.
+Soft-deletes a connector and removes associated sync jobs.
 
 Note: this action doesn't delete any API key, ingest pipeline or data index associated with the connector. These need to be removed manually.
 

@@ -337,8 +337,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetAliasesAction.INSTANCE, request, listener);
     }
 
-    public GetAliasesRequestBuilder prepareGetAliases(String... aliases) {
-        return new GetAliasesRequestBuilder(this, aliases);
+    public GetAliasesRequestBuilder prepareGetAliases(TimeValue masterTimeout, String... aliases) {
+        return new GetAliasesRequestBuilder(this, masterTimeout, aliases);
     }
 
     public ActionFuture<GetIndexResponse> getIndex(GetIndexRequest request) {

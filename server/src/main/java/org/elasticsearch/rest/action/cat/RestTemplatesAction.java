@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestTemplatesAction extends AbstractCatAction {
@@ -55,17 +54,16 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
-        final var masterNodeTimeout = getMasterNodeTimeout(request);
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
         final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null
             ? new GetIndexTemplatesRequest(masterNodeTimeout)
             : new GetIndexTemplatesRequest(masterNodeTimeout, matchPattern);
         RestUtils.consumeDeprecatedLocalParameter(request);
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
+            masterNodeTimeout,
             matchPattern
         );
-        getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
-        getComposableTemplatesRequest.masterNodeTimeout(masterNodeTimeout);
 
         return channel -> {
 

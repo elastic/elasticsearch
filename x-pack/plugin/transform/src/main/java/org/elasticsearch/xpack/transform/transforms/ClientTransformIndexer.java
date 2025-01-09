@@ -25,8 +25,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -443,7 +445,34 @@ class ClientTransformIndexer extends TransformIndexer {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }
+        if (context.isWaitingForIndexToUnblock()) {
+            if (destinationIndexHasWriteBlock()) {
+                logger.debug("[{}] schedule was triggered but the destination index has a write block. Ignoring trigger.", getJobId());
+                return false;
+            }
+            logger.debug("[{}] destination index is no longer blocked.", getJobId());
+            context.setIsWaitingForIndexToUnblock(false);
+        }
+
         return super.maybeTriggerAsyncJob(now);
+    }
+
+    private boolean destinationIndexHasWriteBlock() {
+        var clusterState = clusterService.state();
+        if (clusterState == null) {
+            // if we can't determine if the index is blocked, we assume it isn't, even though the bulk request may fail again
+            return false;
+        }
+
+        var destinationIndexName = transformConfig.getDestination().getIndex();
+        var destinationIndex = indexNameExpressionResolver.concreteWriteIndex(
+            clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            destinationIndexName,
+            true,
+            false
+        );
+        return destinationIndex != null && clusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, destinationIndex.getName());
     }
 
     @Override

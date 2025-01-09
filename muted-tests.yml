@@ -220,9 +220,6 @@ tests:
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
-  issue: https://github.com/elastic/elasticsearch/issues/119332
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
   issue: https://github.com/elastic/elasticsearch/issues/119508
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
@@ -248,30 +245,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119721
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testConcurrentSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119819
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/119820
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testConcurrentEquals
-  issue: https://github.com/elastic/elasticsearch/issues/119821
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119822
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119859
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/119860
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testConcurrentSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119861
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testConcurrentEquals
-  issue: https://github.com/elastic/elasticsearch/issues/119862
 
 # Examples:
 #

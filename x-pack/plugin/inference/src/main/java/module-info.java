@@ -34,7 +34,6 @@ module org.elasticsearch.inference {
     requires software.amazon.awssdk.retries.api;
     requires org.reactivestreams;
     requires org.elasticsearch.logging;
-    requires org.elasticsearch.sslconfig;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

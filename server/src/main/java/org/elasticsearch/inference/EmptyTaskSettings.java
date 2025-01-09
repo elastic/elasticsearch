@@ -24,7 +24,7 @@ import java.util.Map;
 public record EmptyTaskSettings() implements TaskSettings {
     public static final String NAME = "empty_task_settings";
 
-    public static EmptyTaskSettings INSTANCE = new EmptyTaskSettings();
+    public static final EmptyTaskSettings INSTANCE = new EmptyTaskSettings();
 
     public EmptyTaskSettings(StreamInput in) {
         this();

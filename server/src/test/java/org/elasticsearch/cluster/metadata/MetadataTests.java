@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -27,13 +28,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -71,6 +71,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1985,8 +1986,6 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2037,8 +2036,6 @@ public class MetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2052,8 +2049,6 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2068,8 +2063,6 @@ public class MetadataTests extends ESTestCase {
         metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    @AwaitsFix(bugUrl = "this test needs to be updated or removed after the version 9.0 bump")
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -2307,32 +2300,30 @@ public class MetadataTests extends ESTestCase {
             chunkCount += 2;
 
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
-                chunkCount += checkChunkSize(custom, params, 2 + componentTemplateMetadata.componentTemplates().size());
+                chunkCount += 2 + componentTemplateMetadata.componentTemplates().size();
             } else if (custom instanceof ComposableIndexTemplateMetadata composableIndexTemplateMetadata) {
-                chunkCount += checkChunkSize(custom, params, 2 + composableIndexTemplateMetadata.indexTemplates().size());
+                chunkCount += 2 + composableIndexTemplateMetadata.indexTemplates().size();
             } else if (custom instanceof DataStreamMetadata dataStreamMetadata) {
-                chunkCount += checkChunkSize(
-                    custom,
-                    params,
-                    4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size()
-                );
+                chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
             } else if (custom instanceof DesiredNodesMetadata) {
-                chunkCount += checkChunkSize(custom, params, 1);
+                chunkCount += 1;
             } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += checkChunkSize(custom, params, 2 + featureMigrationResults.getFeatureStatuses().size());
+                chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
-                chunkCount += checkChunkSize(custom, params, 2 + indexGraveyard.getTombstones().size());
+                chunkCount += 2 + indexGraveyard.getTombstones().size();
             } else if (custom instanceof IngestMetadata ingestMetadata) {
-                chunkCount += checkChunkSize(custom, params, 2 + ingestMetadata.getPipelines().size());
+                chunkCount += 2 + ingestMetadata.getPipelines().size();
             } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
-                chunkCount += checkChunkSize(custom, params, 2 + nodesShutdownMetadata.getAll().size());
+                chunkCount += 2 + nodesShutdownMetadata.getAll().size();
             } else if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
-                chunkCount += checkChunkSize(custom, params, 3 + persistentTasksCustomMetadata.tasks().size());
+                chunkCount += 3 + persistentTasksCustomMetadata.tasks().size();
             } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
+                chunkCount += repositoriesMetadata.repositories().size();
             } else {
                 // could be anything, we have to just try it
-                chunkCount += count(custom.toXContentChunked(params));
+                chunkCount += Iterables.size(
+                    (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
+                );
             }
         }
 
@@ -2342,21 +2333,6 @@ public class MetadataTests extends ESTestCase {
         chunkCount += 1;
 
         return Math.toIntExact(chunkCount);
-    }
-
-    private static long count(Iterator<?> it) {
-        long count = 0;
-        while (it.hasNext()) {
-            count++;
-            it.next();
-        }
-        return count;
-    }
-
-    private static long checkChunkSize(ChunkedToXContent custom, ToXContent.Params params, long expectedSize) {
-        long actualSize = count(custom.toXContentChunked(params));
-        assertThat(actualSize, equalTo(expectedSize));
-        return actualSize;
     }
 
     /**

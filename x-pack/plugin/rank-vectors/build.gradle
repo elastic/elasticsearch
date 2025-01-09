@@ -1,0 +1,24 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name = 'rank-vectors'
+  description = 'Rank vectors in search.'
+  classname = 'org.elasticsearch.xpack.rank.vectors.RankVectorsPlugin'
+  extendedPlugins = ['x-pack-core', 'lang-painless']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly(project(':modules:lang-painless:spi'))
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(':server')))
+}

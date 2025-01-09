@@ -16,10 +16,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,46 +35,43 @@ public class GetMigrationReindexStatusAction extends ActionType<GetMigrationRein
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private final TaskResult task;
+        private final ReindexDataStreamEnrichedStatus enrichedStatus;
 
-        public Response(TaskResult task) {
-            this.task = requireNonNull(task, "task is required");
+        public Response(ReindexDataStreamEnrichedStatus enrichedStatus) {
+            this.enrichedStatus = requireNonNull(enrichedStatus, "status is required");
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            task = in.readOptionalWriteable(TaskResult::new);
+            enrichedStatus = in.readOptionalWriteable(ReindexDataStreamEnrichedStatus::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(task);
+            out.writeOptionalWriteable(enrichedStatus);
         }
 
         /**
          * Get the actual result of the fetch.
          */
-        public TaskResult getTask() {
-            return task;
+        public ReindexDataStreamEnrichedStatus getEnrichedStatus() {
+            return enrichedStatus;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Task.Status status = task.getTask().status();
-            if (status != null) {
-                task.getTask().status().toXContent(builder, params);
-            }
+            enrichedStatus.toXContent(builder, params);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(task);
+            return Objects.hashCode(enrichedStatus);
         }
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Response && task.equals(((Response) other).task);
+            return other instanceof Response && enrichedStatus.equals(((Response) other).enrichedStatus);
         }
 
         @Override

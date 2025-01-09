@@ -20,11 +20,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
@@ -194,9 +195,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         // Initialize failure store.
-        var rolloverRequest = new RolloverRequest(dataStream, null);
-        rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
+        var rolloverRequest = new RolloverRequest(
+            IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES),
+            null
         );
         var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
         var failureStoreIndex = rolloverResponse.getNewIndex();

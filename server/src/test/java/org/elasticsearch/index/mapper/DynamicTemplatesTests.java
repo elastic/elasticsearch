@@ -21,8 +21,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1373,6 +1375,42 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals(
             "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
             exception.getRootCause().getMessage()
+        );
+    }
+
+    /**
+     * test that bad mapping is accepted for indices created before 8.0.0.
+     * We still need to test this in v9 because of N-2 read compatibility
+     */
+    public void testMalformedDynamicMapping_v7() throws IOException {
+        String mapping = """
+                {
+                    "_doc": {
+                        "dynamic_templates": [
+                            {
+                                "my_template": {
+                                    "mapping": {
+                                        "ignore_malformed": true,
+                                        "type": "keyword"
+                                    },
+                                    "path_match": "*"
+                                }
+                            }
+                        ]
+                    }
+                }
+            """;
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
+
+        // the previous exception should be ignored by indices with v7 index versions
+        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        Settings settings = Settings.builder().put("number_of_shards", 1).put("index.version.created", indexVersion).build();
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> randomBoolean());
+        merge(mapperService, mapping);
+        assertWarnings(
+            "Parameter [ignore_malformed] is used in a dynamic template mapping and has no effect on type [keyword]. "
+                + "Usage will result in an error in future major versions and should be removed."
         );
     }
 

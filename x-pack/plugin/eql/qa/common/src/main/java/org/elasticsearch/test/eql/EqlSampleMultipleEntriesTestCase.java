@@ -21,9 +21,23 @@ public abstract class EqlSampleMultipleEntriesTestCase extends BaseEqlSpecTestCa
         List<long[]> eventIds,
         String[] joinKeys,
         Integer size,
-        Integer maxSamplesPerKey
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
     ) {
-        this(TEST_SAMPLE_MULTI, query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+        this(
+            TEST_SAMPLE_MULTI,
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     public EqlSampleMultipleEntriesTestCase(
@@ -33,9 +47,23 @@ public abstract class EqlSampleMultipleEntriesTestCase extends BaseEqlSpecTestCa
         List<long[]> eventIds,
         String[] joinKeys,
         Integer size,
-        Integer maxSamplesPerKey
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
     ) {
-        super(index, query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+        super(
+            index,
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)

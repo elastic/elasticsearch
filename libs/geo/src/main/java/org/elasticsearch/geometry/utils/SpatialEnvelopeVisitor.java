@@ -83,10 +83,15 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         return Optional.empty();
     }
 
+    public enum WrapLongitude {
+        NO_WRAP,
+        WRAP
+    }
+
     /**
      * Determine the BBOX assuming the CRS is geographic (eg WGS84) and optionally wrapping the longitude around the dateline.
      */
-    public static Optional<Rectangle> visitGeo(Geometry geometry, boolean wrapLongitude) {
+    public static Optional<Rectangle> visitGeo(Geometry geometry, WrapLongitude wrapLongitude) {
         var visitor = new SpatialEnvelopeVisitor(new GeoPointVisitor(wrapLongitude));
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
@@ -181,40 +186,16 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      * </ul>
      */
     public static class GeoPointVisitor implements PointVisitor {
-        private double minY = Double.POSITIVE_INFINITY;
-        private double maxY = Double.NEGATIVE_INFINITY;
-        private double minNegX = Double.POSITIVE_INFINITY;
-        private double maxNegX = Double.NEGATIVE_INFINITY;
-        private double minPosX = Double.POSITIVE_INFINITY;
-        private double maxPosX = Double.NEGATIVE_INFINITY;
+        protected double minY = Double.POSITIVE_INFINITY;
+        protected double maxY = Double.NEGATIVE_INFINITY;
+        protected double minNegX = Double.POSITIVE_INFINITY;
+        protected double maxNegX = Double.NEGATIVE_INFINITY;
+        protected double minPosX = Double.POSITIVE_INFINITY;
+        protected double maxPosX = Double.NEGATIVE_INFINITY;
 
-        public double getMinY() {
-            return minY;
-        }
+        private final WrapLongitude wrapLongitude;
 
-        public double getMaxY() {
-            return maxY;
-        }
-
-        public double getMinNegX() {
-            return minNegX;
-        }
-
-        public double getMaxNegX() {
-            return maxNegX;
-        }
-
-        public double getMinPosX() {
-            return minPosX;
-        }
-
-        public double getMaxPosX() {
-            return maxPosX;
-        }
-
-        private final boolean wrapLongitude;
-
-        public GeoPointVisitor(boolean wrapLongitude) {
+        public GeoPointVisitor(WrapLongitude wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
         }
 
@@ -253,31 +234,34 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
             return getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
         }
 
-        private static Rectangle getResult(
+        protected static Rectangle getResult(
             double minNegX,
             double minPosX,
             double maxNegX,
             double maxPosX,
             double maxY,
             double minY,
-            boolean wrapLongitude
+            WrapLongitude wrapLongitude
         ) {
             assert Double.isFinite(maxY);
             if (Double.isInfinite(minPosX)) {
                 return new Rectangle(minNegX, maxNegX, maxY, minY);
             } else if (Double.isInfinite(minNegX)) {
                 return new Rectangle(minPosX, maxPosX, maxY, minY);
-            } else if (wrapLongitude) {
-                double unwrappedWidth = maxPosX - minNegX;
-                double wrappedWidth = (180 - minPosX) - (-180 - maxNegX);
-                if (unwrappedWidth <= wrappedWidth) {
-                    return new Rectangle(minNegX, maxPosX, maxY, minY);
-                } else {
-                    return new Rectangle(minPosX, maxNegX, maxY, minY);
-                }
             } else {
-                return new Rectangle(minNegX, maxPosX, maxY, minY);
+                return switch (wrapLongitude) {
+                    case NO_WRAP -> new Rectangle(minNegX, maxPosX, maxY, minY);
+                    case WRAP -> maybeWrap(minNegX, minPosX, maxNegX, maxPosX, maxY, minY);
+                };
             }
+        }
+
+        private static Rectangle maybeWrap(double minNegX, double minPosX, double maxNegX, double maxPosX, double maxY, double minY) {
+            double unwrappedWidth = maxPosX - minNegX;
+            double wrappedWidth = 360 + maxNegX - minPosX;
+            return unwrappedWidth <= wrappedWidth
+                ? new Rectangle(minNegX, maxPosX, maxY, minY)
+                : new Rectangle(minPosX, maxNegX, maxY, minY);
         }
     }
 

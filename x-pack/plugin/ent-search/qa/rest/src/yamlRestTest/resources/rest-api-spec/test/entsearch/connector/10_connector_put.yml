@@ -58,7 +58,7 @@ setup:
       connector.put:
         connector_id: test-connector-native
         body:
-          index_name: search-test
+          index_name: content-search-test
           is_native: true
 
   - match: { result: 'created' }
@@ -68,7 +68,7 @@ setup:
         connector_id: test-connector-native
 
   - match: { id: test-connector-native }
-  - match: { index_name: search-test }
+  - match: { index_name: content-search-test }
   - match: { is_native: true }
   - match: { sync_now: false }
   - match: { status: needs_configuration }
@@ -151,6 +151,20 @@ setup:
           is_native: false
           service_type: super-connector
 
+
+---
+'Create Connector - Invalid Managed Connector Index Prefix':
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-test-managed
+        body:
+          index_name: wrong-prefix-index
+          name: my-connector
+          language: pl
+          is_native: true
+          service_type: super-connector
+
 ---
 'Create Connector - Id returned as part of response':
   - do:
@@ -203,6 +217,30 @@ setup:
         connector_id: test-connector-2
         body:
           index_name: search-test
+
+---
+'Create Connector - Index name used by deleted connector':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-1
+
+  - match: { acknowledged: true }
+
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
 
 ---
 'Create Connector - Without index attached':

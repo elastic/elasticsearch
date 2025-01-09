@@ -24,7 +24,9 @@
       "type": "keyword"
     },
     "city_location": {
-      "type": "geo_point"
+      "type": "geo_point",
+      "index": true,
+      "doc_values": false
     }
   }
 }

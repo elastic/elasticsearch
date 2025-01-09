@@ -63,7 +63,8 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            IndexMode.validateTimeSeriesSettings(settings);
+            validateRoutingPathSettings(settings);
+            validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -235,7 +236,11 @@ public enum IndexMode {
     LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            IndexMode.validateTimeSeriesSettings(settings);
+            validateTimeSeriesSettings(settings);
+            var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
+            if (setting.equals(Boolean.FALSE)) {
+                validateRoutingPathSettings(settings);
+            }
         }
 
         @Override
@@ -389,8 +394,11 @@ public enum IndexMode {
 
     private static final String HOST_NAME = "host.name";
 
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+    private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+    }
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
@@ -450,6 +458,7 @@ public enum IndexMode {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
+                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
             ),

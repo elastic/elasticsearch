@@ -19,7 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -35,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -1613,7 +1613,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -1627,15 +1627,15 @@ public class OpenAiServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("foo", floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding()));
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("bar", floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding()));
@@ -1661,117 +1661,50 @@ public class OpenAiServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                            "provider": "openai",
-                            "task_types": [
-                                 {
-                                     "task_type": "text_embedding",
-                                     "configuration": {
-                                         "user": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "textbox",
-                                             "label": "User",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the user issuing the request.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 },
-                                 {
-                                     "task_type": "completion",
-                                     "configuration": {
-                                         "user": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "textbox",
-                                             "label": "User",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the user issuing the request.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 }
-                            ],
-                            "configuration": {
+                            "service": "openai",
+                            "name": "OpenAI",
+                            "task_types": ["text_embedding", "completion"],
+                            "configurations": {
                                 "api_key": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
                                     "label": "API Key",
-                                    "order": 1,
                                     "required": true,
                                     "sensitive": true,
-                                    "tooltip": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": true,
+                                    "type": "str"
                                 },
                                 "organization_id": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The unique identifier of your organization.",
                                     "label": "Organization ID",
-                                    "order": 3,
                                     "required": false,
                                     "sensitive": false,
-                                    "tooltip": "The unique identifier of your organization.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "str"
                                 },
                                 "rate_limit.requests_per_minute": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "numeric",
+                                    "description": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
                                     "label": "Rate Limit",
-                                    "order": 6,
                                     "required": false,
                                     "sensitive": false,
-                                    "tooltip": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
-                                    "type": "int",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "int"
                                 },
                                 "model_id": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The name of the model to use for the inference task.",
                                     "label": "Model ID",
-                                    "order": 2,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The name of the model to use for the inference task.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "str"
                                 },
                                 "url": {
                                     "default_value": "https://api.openai.com/v1/chat/completions",
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The OpenAI API endpoint URL. For more information on the URL, refer to the https://platform.openai.com/docs/api-reference.",
                                     "label": "URL",
-                                    "order": 4,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The OpenAI API endpoint URL. For more information on the URL, refer to the https://platform.openai.com/docs/api-reference.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "str"
                                 }
                             }
                         }

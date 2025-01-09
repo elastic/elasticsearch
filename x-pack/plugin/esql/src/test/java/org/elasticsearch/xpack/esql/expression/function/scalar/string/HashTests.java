@@ -57,7 +57,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                 .withWarning("Line -1:-1: java.security.NoSuchAlgorithmException: invalid MessageDigest not available")
                 .withFoldingException(InvalidArgumentException.class, "invalid algorithm for []: invalid MessageDigest not available");
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     private static List<TestCaseSupplier> createTestCases(String algorithm) {

@@ -156,7 +156,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             Map.of()
         );
         request.setParentTask(parentTaskId);
-        var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", request.getDestIndex());
+        var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", request.destIndex());
         client.execute(CreateIndexFromSourceAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
     }
 

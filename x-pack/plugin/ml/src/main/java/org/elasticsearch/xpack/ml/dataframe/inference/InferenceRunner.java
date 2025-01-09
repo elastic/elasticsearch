@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.InferenceResults;
@@ -240,7 +241,7 @@ public class InferenceRunner {
         Map<String, Object> resultsMap = new LinkedHashMap<>(results.asMap());
         resultsMap.put(DestinationIndex.IS_TRAINING, false);
 
-        Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
+        Map<String, Object> source = XContentHelper.convertToMap(hit.getSourceRef(), true).v2();
         source.put(resultField, resultsMap);
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());
         indexRequest.id(hit.getId());

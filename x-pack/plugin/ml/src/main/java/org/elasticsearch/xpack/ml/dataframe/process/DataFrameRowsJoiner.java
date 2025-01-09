@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
@@ -129,7 +130,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
     }
 
     private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
-        Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
+        Map<String, Object> source = XContentHelper.convertToMap(hit.getSourceRef(), true).v2();
         source.putAll(result.getResults());
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());
         indexRequest.id(hit.getId());

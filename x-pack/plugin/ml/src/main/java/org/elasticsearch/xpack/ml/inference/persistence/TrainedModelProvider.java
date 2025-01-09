@@ -1016,11 +1016,12 @@ public class TrainedModelProvider {
                 long totalHitCount = response.getHits().getTotalHits().value() + foundResourceIds.size();
                 Set<String> foundFromDocs = new HashSet<>();
                 for (SearchHit hit : response.getHits().getHits()) {
-                    Map<String, Object> docSource = hit.getSourceAsMap();
+                    BytesReference docSource = hit.getSourceRef();
                     if (docSource == null) {
                         continue;
                     }
-                    Object idValue = docSource.get(TrainedModelConfig.MODEL_ID.getPreferredName());
+                    Map<String, Object> docSourceAsMap = XContentHelper.convertToMap(docSource, false).v2();
+                    Object idValue = docSourceAsMap.get(TrainedModelConfig.MODEL_ID.getPreferredName());
                     if (idValue instanceof String) {
                         foundFromDocs.add(idValue.toString());
                     }

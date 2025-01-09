@@ -1831,115 +1831,31 @@ public class JinaAIServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createJinaAIService()) {
-            String content = XContentHelper.stripWhitespace(
-                """
-                    {
-                            "provider": "jinaai",
-                            "task_types": [
-                                 {
-                                     "task_type": "text_embedding",
-                                     "configuration": {
-                                         "task": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "dropdown",
-                                             "label": "Task",
-                                             "options": [
-                                                 {
-                                                     "label": "retrieval.query",
-                                                     "value": "retrieval.query"
-                                                 },
-                                                 {
-                                                     "label": "retrieval.passage",
-                                                     "value": "retrieval.passage"
-                                                 },
-                                                 {
-                                                    "label": "classification",
-                                                    "value": "classification"
-                                                 },
-                                                 {
-                                                    "label": "separation",
-                                                    "value": "separation"
-                                                 }
-                                             ],
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the task type passed to the model.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 },
-                                 {
-                                     "task_type": "rerank",
-                                     "configuration": {
-                                         "top_n": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "numeric",
-                                             "label": "Top N",
-                                             "order": 2,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "The number of most relevant documents to return, defaults to the number of the documents.",
-                                             "type": "int",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": null
-                                         },
-                                         "return_documents": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "toggle",
-                                             "label": "Return Documents",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specify whether to return doc text within the results.",
-                                             "type": "bool",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": false
-                                         }
-                                     }
-                                 }
-                            ],
-                            "configuration": {
-                                "api_key": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
-                                    "label": "API Key",
-                                    "order": 1,
-                                    "required": true,
-                                    "sensitive": true,
-                                    "tooltip": "API Key for the provider you're connecting to.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
-                                },
-                                "rate_limit.requests_per_minute": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "numeric",
-                                    "label": "Rate Limit",
-                                    "order": 6,
-                                    "required": false,
-                                    "sensitive": false,
-                                    "tooltip": "Minimize the number of rate limit errors.",
-                                    "type": "int",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
-                                }
+            String content = XContentHelper.stripWhitespace("""
+                {
+                        "service": "jinaai",
+                        "name": "Jina AI",
+                        "task_types": ["text_embedding", "rerank"],
+                        "configurations": {
+                            "api_key": {
+                                "description": "API Key for the provider you're connecting to.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str"
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int"
                             }
                         }
-                    """
-            );
+                    }
+                """);
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

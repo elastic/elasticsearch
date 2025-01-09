@@ -1,5 +1,12 @@
 pr: 119863
 summary: Restrict Connector APIs to manage/monitor_connector privileges
 area: Extract&Transform
-type: feature
+type: "breaking, feature"
 issues: []
+breaking:
+  title: Restrict Connector APIs to manage/monitor_connector privileges
+  area: Extract&Transform
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

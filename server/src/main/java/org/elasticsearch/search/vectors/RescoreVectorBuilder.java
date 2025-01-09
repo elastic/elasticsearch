@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
-    public static final ParseField NUM_CANDIDATES_FACTOR_FIELD = new ParseField("num_candidates_factor");
+    public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
     public static final float MIN_OVERSAMPLE = 1.0F;
     private static final ConstructingObjectParser<RescoreVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rescore_vector",
@@ -31,16 +31,16 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), NUM_CANDIDATES_FACTOR_FIELD);
+        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
     }
 
     // Oversample is required as of now as it is the only field in the rescore vector
     private final float numCandidatesFactor;
 
     public RescoreVectorBuilder(float numCandidatesFactor) {
-        Objects.requireNonNull(numCandidatesFactor, "[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be set");
+        Objects.requireNonNull(numCandidatesFactor, "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be set");
         if (numCandidatesFactor < MIN_OVERSAMPLE) {
-            throw new IllegalArgumentException("[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
+            throw new IllegalArgumentException("[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
         }
         this.numCandidatesFactor = numCandidatesFactor;
     }
@@ -57,7 +57,7 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(NUM_CANDIDATES_FACTOR_FIELD.getPreferredName(), numCandidatesFactor);
+        builder.field(OVERSAMPLE_FIELD.getPreferredName(), numCandidatesFactor);
         builder.endObject();
         return builder;
     }
@@ -79,7 +79,7 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         return Objects.hashCode(numCandidatesFactor);
     }
 
-    public float numCandidatesFactor() {
+    public float overesample() {
         return numCandidatesFactor;
     }
 }

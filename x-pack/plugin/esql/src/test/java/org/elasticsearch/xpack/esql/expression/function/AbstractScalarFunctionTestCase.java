@@ -58,7 +58,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * </p>
      *
      * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     * @deprecated use {@link #parameterSuppliersFromTypedDataWithDefaultChecksNoErrors}
+     *             and make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase}.
+     *             It's a <strong>long</strong> faster.
      */
+    @Deprecated
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         boolean entirelyNullPreservesType,
         List<TestCaseSupplier> suppliers,
@@ -70,6 +74,23 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 positionalErrorMessageSupplier
             )
         );
+    }
+
+    /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
+        boolean entirelyNullPreservesType,
+        List<TestCaseSupplier> suppliers
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
     }
 
     /**
@@ -364,43 +385,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    public static String errorMessageStringForBinaryOperators(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            if (types.get(0).equals(DataType.UNSIGNED_LONG)) {
-                return "first argument of [] is [unsigned_long] and second is ["
-                    + types.get(1).typeName()
-                    + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
-
-            }
-            if (types.get(1).equals(DataType.UNSIGNED_LONG)) {
-                return "first argument of [] is ["
-                    + types.get(0).typeName()
-                    + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
-            }
-            return "first argument of [] is ["
-                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
-                + "] so second argument must also be ["
-                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
-                + "] but was ["
-                + types.get(1).typeName()
-                + "]";
-
-        }
-    }
-
     /**
      * Adds test cases containing unsupported parameter types that immediately fail.
      */
     protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 

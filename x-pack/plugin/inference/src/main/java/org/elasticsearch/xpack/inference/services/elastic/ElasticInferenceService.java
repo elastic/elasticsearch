@@ -72,11 +72,10 @@ public class ElasticInferenceService extends SenderService {
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
 
-    public static final String V1_EIS_COMPLETION_MODEL_ID = "temp1";
 
-    public static final String DEFAULT_EIS_COMPLETION_ENDPOINT_ID = "eis-alpha-1";
+    public static final String DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1 = ".eis-alpha-1";
 
-    public static final List<String> DEFAULT_EIS_ENDPOINT_IDS = List.of(DEFAULT_EIS_COMPLETION_ENDPOINT_ID);
+    public static final List<String> DEFAULT_EIS_ENDPOINT_IDS = List.of(DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -229,7 +228,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public List<DefaultConfigId> defaultConfigIds() {
-        return List.of(new DefaultConfigId(DEFAULT_EIS_COMPLETION_ENDPOINT_ID, TaskType.COMPLETION, this));
+        return List.of(new DefaultConfigId(DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1, TaskType.COMPLETION, this));
     }
 
     @Override
@@ -243,7 +242,7 @@ public class ElasticInferenceService extends SenderService {
         serviceSettings.put(MODEL_ID, "elastic-model"); // TODO
 
         return new ElasticInferenceServiceCompletionModel(
-            DEFAULT_EIS_COMPLETION_ENDPOINT_ID,
+            DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1,
             TaskType.COMPLETION,
             NAME,
             serviceSettings,

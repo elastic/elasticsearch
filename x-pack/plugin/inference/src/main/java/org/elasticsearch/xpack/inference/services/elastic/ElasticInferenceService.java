@@ -232,11 +232,10 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-
         defaultsListener.onResponse(List.of(firstDefaultCompletionModel()));
     }
 
-    private static ElasticInferenceServiceCompletionModel firstDefaultCompletionModel() {
+    private ElasticInferenceServiceCompletionModel firstDefaultCompletionModel() {
         var serviceSettings = new HashMap<String, Object>(1);
         serviceSettings.put(MODEL_ID, "elastic-model"); // TODO
 
@@ -247,7 +246,7 @@ public class ElasticInferenceService extends SenderService {
             serviceSettings,
             null,
             null,
-            new ElasticInferenceServiceComponents("http://localhost:8080"), // TODO
+            elasticInferenceServiceComponents,
             ConfigurationParseContext.PERSISTENT
         );
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -38,6 +37,10 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REMOVE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -47,9 +50,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
-    private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Set.of(DiscoveryNodeRole.DATA_ROLE));
-    private static final DiscoveryNode NODE_B = newNode("node-b", "node-b", Set.of(DiscoveryNodeRole.DATA_ROLE));
-    private static final DiscoveryNode NODE_C = newNode("node-c", "node-c", Set.of(DiscoveryNodeRole.DATA_ROLE));
+    private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Set.of(DATA_ROLE));
+    private static final DiscoveryNode NODE_B = newNode("node-b", "node-b", Set.of(DATA_ROLE));
+    private static final DiscoveryNode NODE_C = newNode("node-c", "node-c", Set.of(DATA_ROLE));
     private final ShardRouting shard = ShardRouting.newUnassigned(
         new ShardId("myindex", "myindex", 0),
         true,
@@ -420,7 +423,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         var nodes = DiscoveryNodes.builder();
         for (int i = 0; i < desiredNodeCount; i++) {
-            nodes.add(newNode("node-" + i, "node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+            nodes.add(newNode("node-" + i, "node-" + i, Set.of(DATA_ROLE)));
         }
 
         var allocator = createAllocationService();
@@ -436,14 +439,23 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         // register node replacement
         var nodeToShutdown = "node-" + randomIntBetween(0, desiredNodeCount - 1);
         var replacementNode = "node-" + desiredNodeCount;
+
+        var shutdownType = randomFrom(REPLACE, REMOVE, SIGTERM);
+        var nodeShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(nodeToShutdown)
+                .setNodeEphemeralId(nodeToShutdown)
+                .setTargetNodeName(shutdownType == REPLACE ? replacementNode : null)
+                .setType(shutdownType)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(1L)
+                .setGracePeriod(shutdownType == SIGTERM ? randomTimeValue() : null)
+                .build()
+        );
+
         state = ClusterState.builder(state)
-            .nodes(
-                DiscoveryNodes.builder(state.nodes()).add(newNode(replacementNode, replacementNode, Set.of(DiscoveryNodeRole.DATA_ROLE)))
-            )
-            .metadata(
-                Metadata.builder(state.metadata())
-                    .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(nodeToShutdown, replacementNode))
-            )
+            .nodes(DiscoveryNodes.builder(state.nodes()).add(newNode(replacementNode, replacementNode, Set.of(DATA_ROLE))))
+            .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
             .build();
         state = startInitializingShardsAndReroute(allocator, state);
 
@@ -485,7 +497,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                 .setNodeId(sourceNodeId)
                 .setNodeEphemeralId(sourceNodeId)
                 .setTargetNodeName(targetNodeName)
-                .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                .setType(REPLACE)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(1L)
                 .build()

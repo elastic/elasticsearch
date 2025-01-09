@@ -144,7 +144,11 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // cluster doesn't have feature
-            ClusterState stateNoFeature = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()).build();
+            ClusterState stateNoFeature = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
+                .nodeFeatures(Map.of("n1", Set.of(), "n2", Set.of()))
+                .metadata(Metadata.builder())
+                .build();
 
             Settings settings = Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build();
             DataStreamAutoShardingService noFeatureService = new DataStreamAutoShardingService(

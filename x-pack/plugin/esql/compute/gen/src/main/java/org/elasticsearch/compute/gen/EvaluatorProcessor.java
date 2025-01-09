@@ -82,7 +82,7 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
-                                evaluatorAnn.estimateCost(),
+                                evaluatorAnn.executionCost(),
                                 warnExceptionsTypes
                             ).sourceFile(),
                             env

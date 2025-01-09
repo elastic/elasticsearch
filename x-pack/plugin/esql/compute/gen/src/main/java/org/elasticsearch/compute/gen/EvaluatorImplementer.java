@@ -21,6 +21,7 @@ import org.elasticsearch.compute.ann.Fixed.Scope;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -61,7 +62,7 @@ public class EvaluatorImplementer {
     private final TypeElement declarationType;
     private final ProcessFunction processFunction;
     private final ClassName implementation;
-    private final int estimateCost;
+    private final int executionCost;
     private final boolean processOutputsMultivalued;
 
     public EvaluatorImplementer(
@@ -69,14 +70,14 @@ public class EvaluatorImplementer {
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
-        int estimateCost,
+        int executionCost,
         List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
-        this.estimateCost = estimateCost;
-        if (estimateCost <= 0) {
-            throw new IllegalArgumentException("estimateCost must be at least 1; got " + estimateCost);
+        this.executionCost = executionCost;
+        if (executionCost < 0) {
+            throw new IllegalArgumentException("executionCost must be non-negative; got " + executionCost);
         }
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -200,7 +201,9 @@ public class EvaluatorImplementer {
             if (vectorize) {
                 realEvalWithVectorizedStyle(builder, resultDataType);
             } else {
-                builder.addStatement("int accumulatedCost = 0");
+                if (executionCost > 0) {
+                    builder.addStatement("int accumulatedCost = 0");
+                }
                 builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
                 {
                     if (blockStyle) {
@@ -253,13 +256,15 @@ public class EvaluatorImplementer {
                     if (processFunction.warnExceptions.isEmpty() == false) {
                         builder.beginControlFlow("try");
                     }
-                    builder.addStatement("accumulatedCost += " + estimateCost);
-                    builder.beginControlFlow("if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD)");
-                    {
-                        builder.addStatement("accumulatedCost = 0");
-                        builder.addStatement("driverContext.checkForEarlyTermination()");
+                    if (executionCost > 0) {
+                        builder.addStatement("accumulatedCost += " + executionCost);
+                        builder.beginControlFlow("if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD)");
+                        {
+                            builder.addStatement("accumulatedCost = 0");
+                            builder.addStatement("driverContext.checkForEarlyTermination()");
+                        }
+                        builder.endControlFlow();
                     }
-                    builder.endControlFlow();
                     builder.addStatement(builtPattern, args.toArray());
 
                     if (processFunction.warnExceptions.isEmpty() == false) {
@@ -282,13 +287,8 @@ public class EvaluatorImplementer {
     }
 
     private void realEvalWithVectorizedStyle(MethodSpec.Builder builder, ClassName resultDataType) {
-        builder.addComment("generate a tight loop to allow vectorization");
-        builder.addStatement("int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / $L, 1)", estimateCost);
-        builder.beginControlFlow("for (int start = 0; start < positionCount; )");
-        {
-            builder.addStatement("int end = start + Math.min(positionCount - start, maxBatchSize)");
-            builder.addStatement("driverContext.checkForEarlyTermination()");
-            builder.beginControlFlow("for (int p = start; p < end; p++)");
+        BiConsumer<Object, String> innerLoop = (start, end) -> {
+            builder.beginControlFlow("for (int p = " + start + "; p < " + end + "; p++)");
             {
                 processFunction.args.forEach(a -> a.unpackValues(builder, false));
                 StringBuilder pattern = new StringBuilder();
@@ -313,9 +313,24 @@ public class EvaluatorImplementer {
                 builder.addStatement(builtPattern, args.toArray());
             }
             builder.endControlFlow();
-            builder.addStatement("start = end");
+        };
+        if (executionCost == 0) {
+            innerLoop.accept(0, "positionCount");
+        } else {
+            // generate tight loops to allow vectorization
+            builder.addStatement(
+                "final int maxBatchSize = Math.max(DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD / $L, 1)",
+                executionCost
+            );
+            builder.beginControlFlow("for (int start = 0; start < positionCount; )");
+            {
+                builder.addStatement("int end = start + Math.min(positionCount - start, maxBatchSize)");
+                builder.addStatement("driverContext.checkForEarlyTermination()");
+                innerLoop.accept("start", "end");
+                builder.addStatement("start = end");
+            }
+            builder.endControlFlow();
         }
-        builder.endControlFlow();
     }
 
     private static void skipNull(MethodSpec.Builder builder, String value) {

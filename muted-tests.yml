@@ -84,9 +84,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115816
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  method: testLookbackWithIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/116127
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start already started transform}
   issue: https://github.com/elastic/elasticsearch/issues/98802
@@ -102,9 +99,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
-  method: testILMDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/114233
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
@@ -155,8 +149,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/117815
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
@@ -247,9 +239,6 @@ tests:
 - class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
   method: testProfileDfs
   issue: https://github.com/elastic/elasticsearch/issues/119711
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testUpgradeDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/119717
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchFunctionFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119720
@@ -259,6 +248,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119721
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119819
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/119820
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/119821
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119822
+- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119859
+- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/119860
+- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119861
+- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/119862
 
 # Examples:
 #

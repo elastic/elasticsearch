@@ -114,22 +114,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "The [elastic] service does not support task type [completion]"
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.COMPLETION,
-                getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
-                failureListener
-            );
-        }
-    }
-
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var config = getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of());
@@ -498,7 +482,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 {
                        "service": "elastic",
                        "name": "Elastic",
-                       "task_types": ["sparse_embedding"],
+                       "task_types": ["sparse_embedding" , "completion"],
                        "configurations": {
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",

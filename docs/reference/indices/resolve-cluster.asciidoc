@@ -28,8 +28,19 @@ For each cluster in the index expression, information is returned about:
 3. whether there are any indices, aliases or data streams on that cluster that match
    the index expression
 4. whether the search is likely to have errors returned when you do the {ccs} (including any
-   authorization errors if your user does not have permission to query the index)
-5. cluster version information, including the Elasticsearch server version
+   authorization errors if your user does not have permission to query a remote cluster or
+   the indices on that cluster)
+5. (in some cases) cluster version information, including the Elasticsearch server version
+
+[TIP]
+====
+Whenever a security exception is returned for a remote cluster, that remote
+will always be marked as connected=false in the response, since your user does not have
+permissions to access that cluster (or perhaps the remote index) you are querying.
+Once the proper security permissions are obtained, then you can rely on the `connected` field
+in the response to determine whether the remote cluster is available and ready for querying.
+====
+
 
 ////
 [source,console]

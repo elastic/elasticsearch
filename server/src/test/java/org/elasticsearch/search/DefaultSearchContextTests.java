@@ -205,7 +205,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             );
 
             // resultWindow greater than maxResultWindow and scrollContext isn't null
-            when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
+            when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMillis(randomInt(1000)));
             ReaderContext readerContext = new LegacyReaderContext(
                 newContextId(),
                 indexService,
@@ -291,7 +291,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 @Override
                 public ScrollContext scrollContext() {
                     ScrollContext scrollContext = new ScrollContext();
-                    scrollContext.scroll = new Scroll(TimeValue.timeValueSeconds(5));
+                    scrollContext.scroll = TimeValue.timeValueSeconds(5);
                     return scrollContext;
                 }
             };

@@ -790,6 +790,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    */

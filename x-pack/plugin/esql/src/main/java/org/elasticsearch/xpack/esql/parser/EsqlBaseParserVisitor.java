@@ -477,6 +477,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    * @return the visitor result

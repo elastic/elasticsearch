@@ -55,6 +55,7 @@ processingCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? joinCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -258,6 +259,10 @@ grokCommand
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
+    ;
+
+rerankCommand
+    : DEV_RERANK (TOP size=INTEGER_LITERAL)? textQuery=string ON primaryExpression WITH identifierOrParameter
     ;
 
 commandOptions

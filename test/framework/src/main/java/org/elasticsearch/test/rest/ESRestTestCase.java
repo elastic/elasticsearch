@@ -802,6 +802,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "profiling-60-days@lifecycle",
             "synthetics",
             "synthetics@lifecycle",
+            "traces@lifecycle",
             "7-days-default",
             "7-days@lifecycle",
             "30-days-default",

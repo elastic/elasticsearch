@@ -260,6 +260,9 @@ tests:
 - class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
   method: testSerialization
   issue: https://github.com/elastic/elasticsearch/issues/119822
+- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119859
 
 # Examples:
 #

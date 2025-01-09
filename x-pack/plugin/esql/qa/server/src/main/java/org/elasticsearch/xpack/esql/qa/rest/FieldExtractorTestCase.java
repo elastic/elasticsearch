@@ -1447,7 +1447,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private enum SourceMode {
         DEFAULT {
             @Override
-            void sourceMapping(XContentBuilder builder) {}
+            void sourceMapping(Settings.Builder builder) {}
 
             @Override
             boolean stored() {
@@ -1456,8 +1456,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         },
         STORED {
             @Override
-            void sourceMapping(XContentBuilder builder) throws IOException {
-                builder.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject();
+            void sourceMapping(Settings.Builder builder) throws IOException {
+                builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored");
             }
 
             @Override
@@ -1480,8 +1480,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
          */
         SYNTHETIC {
             @Override
-            void sourceMapping(XContentBuilder builder) throws IOException {
-                builder.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject();
+            void sourceMapping(Settings.Builder builder) throws IOException {
+                builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
             }
 
             @Override
@@ -1490,7 +1490,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             }
         };
 
-        abstract void sourceMapping(XContentBuilder builder) throws IOException;
+        abstract void sourceMapping(Settings.Builder builder) throws IOException;
 
         abstract boolean stored();
     }
@@ -1680,8 +1680,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             }
             logger.info("source_mode: {}", sourceMode);
 
+            Settings.Builder settings = Settings.builder();
+            sourceMode.sourceMapping(settings);
+
             FieldExtractorTestCase.createIndex(name, index -> {
-                sourceMode.sourceMapping(index);
                 index.startObject("properties");
                 {
                     index.startObject(fieldName);
@@ -1782,6 +1784,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         logger.info("index: {} {}", name, configStr);
         ESRestTestCase.createIndex(name, Settings.EMPTY, configStr);
     }
+
+    private static void createIndex(String name, Settings setting, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
+        XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
+        mapping.accept(index);
+        index.endObject();
+        String configStr = Strings.toString(index);
+        logger.info("index: {} {}", name, configStr);
+        ESRestTestCase.createIndex(name, setting, configStr);
+    }
+
 
     /**
      * Yaml adds newlines and some indentation which we don't want to match.

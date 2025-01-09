@@ -123,7 +123,7 @@ public class LifecyclePolicyUtils {
 
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
             project,
-            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
         );
 
         final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {

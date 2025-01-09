@@ -12,11 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -242,9 +243,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         rolloverRequest.dryRun(true);
         rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
         if (targetFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
-            );
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES));
         }
         return rolloverRequest;
     }

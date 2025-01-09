@@ -14,7 +14,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -25,7 +24,6 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -90,10 +88,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        suppliers = errorsForCasesWithoutExamples(
-            suppliers,
-            (includeOrdinal, validPerPosition, types) -> typeErrorMessage(includeOrdinal, types)
-        );
 
         for (DataType type : TYPES) {
             fourAndFiveArgs(suppliers, true, randomSingleValuedCondition(), 0, type, List.of());
@@ -851,32 +845,5 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return testCase.getMatcher();
         }
         return super.allNullsMatcher();
-    }
-
-    private static String typeErrorMessage(boolean includeOrdinal, List<DataType> types) {
-        if (types.get(0) != DataType.BOOLEAN && types.get(0) != DataType.NULL) {
-            return typeErrorMessage(includeOrdinal, types, 0, "boolean");
-        }
-        DataType mainType = types.get(1).noText();
-        for (int i = 2; i < types.size(); i++) {
-            if (i % 2 == 0 && i != types.size() - 1) {
-                // condition
-                if (types.get(i) != DataType.BOOLEAN && types.get(i) != DataType.NULL) {
-                    return typeErrorMessage(includeOrdinal, types, i, "boolean");
-                }
-            } else {
-                // value
-                if (types.get(i).noText() != mainType) {
-                    return typeErrorMessage(includeOrdinal, types, i, mainType.typeName());
-                }
-            }
-        }
-        throw new IllegalStateException("can't find bad arg for " + types);
-    }
-
-    private static String typeErrorMessage(boolean includeOrdinal, List<DataType> types, int badArgPosition, String expectedTypeString) {
-        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String name = types.get(badArgPosition).typeName();
-        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 }

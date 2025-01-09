@@ -475,3 +475,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testApiKeySuperuser {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/119424
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDataStreams {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119394

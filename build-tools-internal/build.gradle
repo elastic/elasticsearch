@@ -22,6 +22,8 @@ plugins {
 
 group = 'org.elasticsearch.gradle'
 
+// This comment is just to test PR linking with patch/serverless-fix works as expected
+
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.

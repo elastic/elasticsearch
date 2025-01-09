@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -425,11 +425,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
             if (targetFailureStore) {
-                rolloverRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                        .build()
-                );
+                rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
             }
             // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
             // unconditional and performant rollover.
@@ -438,9 +434,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 @Override
                 public void onResponse(RolloverResponse result) {
                     logger.debug(
-                        "Data stream{} {} has {} over, the latest index is {}",
-                        rolloverRequest.targetsFailureStore() ? " failure store" : "",
-                        dataStream,
+                        "Data stream [{}] has {} over, the latest index is {}",
+                        rolloverRequest.getRolloverTarget(),
                         result.isRolledOver() ? "been successfully rolled" : "skipped rolling",
                         result.getNewIndex()
                     );

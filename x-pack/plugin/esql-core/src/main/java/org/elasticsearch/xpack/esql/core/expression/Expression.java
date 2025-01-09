@@ -87,7 +87,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     /**
      * Evaluate this expression statically to a constant. It is an error to call
-     * this if {@link #foldable} return false.
+     * this if {@link #foldable} returns false.
      */
     public Object fold(FoldContext ctx) {
         // TODO After removing FoldContext.unbounded from non-test code examine all calls

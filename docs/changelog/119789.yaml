@@ -1,12 +1,16 @@
 pr: 119789
-summary: Remove deprecated sort mode from `geo_sort`
+summary: Remove deprecated `sort_mode` from sort by `_geo_distance`
 area: Geo
 type: breaking
 issues: []
 breaking:
-  title: Remove deprecated sort mode from `geo_sort`
-  area: Geo
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: Remove deprecated `sort_mode` from sort by `_geo_distance`
+  area: Search
+  details: >-
+    The `sort_mode` parameter was replaced by `mode` in 5.0,
+    but for backwards compatibility the older syntax has been supported since then.
+    Now it is time to remove the deprecated parameter.
+  impact: >-
+    Users should have been using the newer `mode` parameter for years, so the impact should be minimal.
+    Any users still using the old parameter can easily switch to the new one with no change in behavior.
   notable: false

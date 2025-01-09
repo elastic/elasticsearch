@@ -60,7 +60,11 @@ public class WeightFunction {
         theta3 = diskUsageBalance / sum;
     }
 
-    float calculateNodeWeightWithIndex(BalancedShardsAllocator.Balancer balancer, BalancedShardsAllocator.ModelNode node, ProjectIndex index) {
+    float calculateNodeWeightWithIndex(
+        BalancedShardsAllocator.Balancer balancer,
+        BalancedShardsAllocator.ModelNode node,
+        ProjectIndex index
+    ) {
         final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
         final float nodeWeight = calculateNodeWeight(
             node.numShards(),

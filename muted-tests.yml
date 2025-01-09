@@ -478,3 +478,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/119394
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDisableFieldNameField {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/119422

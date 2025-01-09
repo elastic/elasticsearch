@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
@@ -133,12 +133,12 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
             .reconcile(desiredBalance, routingAllocation);
     }
 
-    private static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
+    private static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsAndWeightsCalculator(
         WriteLoadForecaster.DEFAULT,
         createBuiltInClusterSettings()
     ) {
         @Override
-        public Map<String, NodeAllocationAndClusterBalanceStats> stats(
+        public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
             Metadata metadata,
             RoutingNodes routingNodes,
             ClusterInfo clusterInfo,

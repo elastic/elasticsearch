@@ -456,18 +456,19 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Total results is k, internal k is multiplied by oversample
-        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, null, 500, 10);
+        checkRescoreQueryParameters(fieldType, 10, 200, randomInt(), 2.5F, null, 500, 10);
         // If numCands < k, update numCands to k
-        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, null, 50, 10);
+        checkRescoreQueryParameters(fieldType, 10, 20, randomInt(), 2.5F, null, 50, 10);
         // Oversampling limits for num candidates
-        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, null, 10000, 1000);
-        checkRescoreQueryParameters(fieldType, 5000, 7500, 2.5F, null, 10000, 5000);
+        checkRescoreQueryParameters(fieldType, 1000, 1000, randomInt(), 11.0F, null, 10000, 1000);
+        checkRescoreQueryParameters(fieldType, 5000, 7500, randomInt(), 2.5F, null, 10000, 5000);
     }
 
     private static void checkRescoreQueryParameters(
         DenseVectorFieldType fieldType,
-        Integer k,
+        int k,
         int candidates,
+        int requestSize,
         float numCandsFactor,
         Integer expectedK,
         int expectedCandidates,

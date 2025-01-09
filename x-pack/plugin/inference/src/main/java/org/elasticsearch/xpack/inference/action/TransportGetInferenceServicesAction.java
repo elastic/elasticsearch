@@ -16,11 +16,8 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 
 import java.util.ArrayList;
@@ -29,20 +26,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
-
 public class TransportGetInferenceServicesAction extends HandledTransportAction<
     GetInferenceServicesAction.Request,
     GetInferenceServicesAction.Response> {
 
-    private final XPackLicenseState licenseState;
     private final InferenceServiceRegistry serviceRegistry;
 
     @Inject
     public TransportGetInferenceServicesAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        XPackLicenseState licenseState,
         InferenceServiceRegistry serviceRegistry
     ) {
         super(
@@ -52,7 +45,6 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             GetInferenceServicesAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.licenseState = licenseState;
         this.serviceRegistry = serviceRegistry;
     }
 
@@ -62,11 +54,6 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
         GetInferenceServicesAction.Request request,
         ActionListener<GetInferenceServicesAction.Response> listener
     ) {
-        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
-            return;
-        }
-
         if (request.getTaskType() == TaskType.ANY) {
             getAllServiceConfigurations(listener);
         } else {

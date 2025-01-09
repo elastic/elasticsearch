@@ -488,11 +488,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
-        return super.doIndexMetadataRewrite(context);
-    }
-
-    @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int k;
@@ -529,8 +524,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
         Float numCandidatesFactor = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.numCandidatesFactor();
 
+        BitSetProducer parentBitSet = null;
         if (parentPath != null) {
-            final BitSetProducer parentBitSet;
             final Query parentFilter;
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {
@@ -559,17 +554,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 // Now join the filterQuery & parentFilter to provide the matching blocks of children
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
-            return vectorFieldType.createKnnQuery(
-                queryVector,
-                k,
-                adjustedNumCands,
-                numCandidatesFactor,
-                filterQuery,
-                vectorSimilarity,
-                parentBitSet
-            );
         }
-        return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, numCandidatesFactor, filterQuery, vectorSimilarity, null);
+
+        return vectorFieldType.createKnnQuery(
+            queryVector,
+            k,
+            adjustedNumCands,
+            numCandidatesFactor,
+            filterQuery,
+            vectorSimilarity,
+            parentBitSet
+        );
     }
 
     @Override

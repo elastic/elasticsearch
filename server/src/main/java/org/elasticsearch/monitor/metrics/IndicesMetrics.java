@@ -53,7 +53,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        final int TOTAL_METRICS = 48;
+        final int TOTAL_METRICS = 52;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();
@@ -154,6 +154,14 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "current indexing failures of " + name + " indices",
                     "unit",
                     diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedCount())
+                )
+            );
+            metrics.add(
+                registry.registerLongGauge(
+                    "es.indices." + name + ".indexing.failure.version_conflict.total",
+                    "current indexing failures due to version conflict of " + name + " indices",
+                    "unit",
+                    diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToVersionConflictCount())
                 )
             );
         }

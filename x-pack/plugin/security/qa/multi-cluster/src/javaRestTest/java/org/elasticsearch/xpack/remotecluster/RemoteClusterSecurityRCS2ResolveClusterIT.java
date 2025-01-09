@@ -189,6 +189,20 @@ public class RemoteClusterSecurityRCS2ResolveClusterIT extends AbstractRemoteClu
                 containsString("no remote indices privileges apply for the target cluster")
             );
 
+            // TEST CASE 1-b: Query with no index expression but still with no access to remote cluster
+            Response response2 = performRequestWithRemoteSearchUser(new Request("GET", "_resolve/cluster"));
+            assertOK(response2);
+
+            Map<String, Object> responseMap2 = responseAsMap(response2);
+            System.err.println(">>> responseMap2: " + responseMap2);
+            Map<String, ?> remoteClusterResponse2 = (Map<String, ?>) responseMap2.get("my_remote_cluster");
+            assertThat((Boolean) remoteClusterResponse2.get("connected"), equalTo(false));
+            assertThat((String) remoteClusterResponse.get("error"), containsString("is unauthorized for user"));
+            assertThat(
+                (String) remoteClusterResponse.get("error"),
+                containsString("no remote indices privileges apply for the target cluster")
+            );
+
             // TEST CASE 2: Query cluster -> add remote privs to the user role and try resolve again
             var updateRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             updateRoleRequest.setJsonEntity("""
@@ -307,6 +321,17 @@ public class RemoteClusterSecurityRCS2ResolveClusterIT extends AbstractRemoteClu
             assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("is unauthorized for user"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [secretindex]"));
+        }
+        {
+            // TEST CASE 11: Query resolve/cluster with no index expression
+            Response response = performRequestWithRemoteSearchUser(new Request("GET", "_resolve/cluster"));
+            assertOK(response);
+            Map<String, Object> responseMap = responseAsMap(response);
+            assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
+            Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
+            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
+            assertNull(remoteClusterResponse.get("error"));
+            assertNotNull(remoteClusterResponse.get("version"));
         }
     }
 

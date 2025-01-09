@@ -34,15 +34,25 @@ public class RestResolveClusterAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_resolve/cluster/{name}"));
+        return List.of(new Route(GET, "/_resolve/cluster"), new Route(GET, "/_resolve/cluster/{name}"));
     }
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String[] indexExpressions = Strings.splitStringByCommaToArray(request.param("name"));
+        String[] indexExpressions;
+        boolean clusterInfoOnly;
+        if (request.hasParam("name")) {
+            indexExpressions = Strings.splitStringByCommaToArray(request.param("name"));
+            clusterInfoOnly = false;
+        } else {
+            indexExpressions = new String[0];
+            clusterInfoOnly = true;
+        }
         ResolveClusterActionRequest resolveRequest = new ResolveClusterActionRequest(
             indexExpressions,
-            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
+            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS),
+            clusterInfoOnly,
+            true
         );
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()

@@ -263,6 +263,9 @@ tests:
 - class: org.elasticsearch.index.rankeval.RankEvalRequestTests
   method: testSerialization
   issue: https://github.com/elastic/elasticsearch/issues/119859
+- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/119860
 
 # Examples:
 #

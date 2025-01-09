@@ -49,6 +49,10 @@ public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
 
+    /**
+     * The minimum interval that log messages will be written if the number of undesired shard allocations reaches the percentage of total
+     * shards set by {@link #UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING}.
+     */
     public static final Setting<TimeValue> UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.log_interval",
         TimeValue.timeValueHours(1),
@@ -57,6 +61,10 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Warning log messages may be periodically written if the number of shards that are on undesired nodes reaches this percentage setting.
+     * Works together with {@link #UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING} to log on a periodic basis.
+     */
     public static final Setting<Double> UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING = Setting.doubleSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.threshold",
         0.1,

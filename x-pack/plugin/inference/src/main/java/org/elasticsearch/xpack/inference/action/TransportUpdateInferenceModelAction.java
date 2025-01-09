@@ -80,8 +80,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client,
-        Settings settings
+        Client client
     ) {
         super(
             UpdateInferenceModelAction.NAME,

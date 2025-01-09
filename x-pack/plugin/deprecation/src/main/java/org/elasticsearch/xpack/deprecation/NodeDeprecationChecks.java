@@ -98,6 +98,13 @@ public class NodeDeprecationChecks {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
+        // read setting to force the deprecation warning
+        if (removedSetting.exists(clusterSettings)) {
+            removedSetting.get(clusterSettings);
+        } else {
+            removedSetting.get(nodeSettings);
+        }
+
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
@@ -124,6 +131,15 @@ public class NodeDeprecationChecks {
             Setting<?> removedSetting = removedSettingsRemaining.get(0);
             return checkRemovedSetting(clusterSettings, nodeSettings, removedSetting, url, additionalDetailMessage, deprecationLevel);
         }
+
+        // read settings to force the deprecation warning
+        removedSettingsRemaining.forEach(s -> {
+            if (s.exists(clusterSettings)) {
+                s.get(clusterSettings);
+            } else {
+                s.get(nodeSettings);
+            }
+        });
 
         var removedSettingKeysRemaining = removedSettingsRemaining.stream().map(Setting::getKey).sorted().toList();
         final String message = String.format(Locale.ROOT, "Settings %s are deprecated", removedSettingKeysRemaining);

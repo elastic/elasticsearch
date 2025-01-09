@@ -1317,7 +1317,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size(),
             defaultPreFilterShardSize
         );
-        searchPhaseProvider.newSearchPhase(
+        searchPhaseProvider.runNewSearchPhase(
             task,
             searchRequest,
             asyncSearchExecutor,
@@ -1330,7 +1330,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterSearchShards,
             threadPool,
             clusters
-        ).start();
+        );
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
@@ -1435,7 +1435,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     interface SearchPhaseProvider {
-        SearchPhase newSearchPhase(
+        void runNewSearchPhase(
             SearchTask task,
             SearchRequest searchRequest,
             Executor executor,
@@ -1459,7 +1459,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         @Override
-        public SearchPhase newSearchPhase(
+        public void runNewSearchPhase(
             SearchTask task,
             SearchRequest searchRequest,
             Executor executor,
@@ -1476,7 +1476,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
                 boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
-                return new CanMatchPreFilterSearchPhase(
+                new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,
                     connectionLookup,
@@ -1490,7 +1490,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     listener.delegateFailureAndWrap(
-                        (l, iters) -> newSearchPhase(
+                        (l, iters) -> runNewSearchPhase(
                             task,
                             searchRequest,
                             executor,
@@ -1503,9 +1503,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             false,
                             threadPool,
                             clusters
-                        ).start()
+                        )
                     )
-                );
+                ).start();
+                return;
             }
             // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
             // (AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
@@ -1568,7 +1569,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                 }
                 success = true;
-                return searchPhase;
+                searchPhase.start();
             } finally {
                 if (success == false) {
                     queryResultConsumer.close();

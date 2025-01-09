@@ -194,12 +194,12 @@ public class ConnectorIndexService {
     /**
      * Gets the {@link Connector} from the underlying index.
      *
-     * @param connectorId The id of the connector object.
-     * @param isDeleted   If false, returns only the non-deleted connector with the matching ID;
-     *                    otherwise, returns the connector with the matching ID.
-     * @param listener    The action listener to invoke on response/failure.
+     * @param connectorId     The id of the connector object.
+     * @param includeDeleted  If false, returns only the non-deleted connector with the matching ID;
+     *                        if true, returns the connector with the matching ID.
+     * @param listener        The action listener to invoke on response/failure.
      */
-    public void getConnector(String connectorId, boolean isDeleted, ActionListener<ConnectorSearchResult> listener) {
+    public void getConnector(String connectorId, boolean includeDeleted, ActionListener<ConnectorSearchResult> listener) {
 
         try {
             final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
@@ -215,7 +215,7 @@ public class ConnectorIndexService {
                         .setResultMap(getResponse.getSourceAsMap())
                         .build();
 
-                    boolean connectorIsSoftDeleted = isDeleted == false && isConnectorDeleted(connector);
+                    boolean connectorIsSoftDeleted = includeDeleted == false && isConnectorDeleted(connector);
 
                     if (connectorIsSoftDeleted) {
                         l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
@@ -281,7 +281,7 @@ public class ConnectorIndexService {
      * @param connectorNames Filter connectors by connector names, if provided.
      * @param serviceTypes Filter connectors by service types, if provided.
      * @param searchQuery Apply a wildcard search on index name, connector name, and description, if provided.
-     * @param includeDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
+     * @param includeDeleted  If false, filters to include only non-deleted connectors; if true, no filter is applied.
      * @param listener Invoked with search results or upon failure.
      */
     public void listConnectors(
@@ -333,7 +333,7 @@ public class ConnectorIndexService {
      * @param connectorNames List of connector names for filtering, or null/empty to skip.
      * @param serviceTypes List of connector service types for filtering, or null/empty to skip.
      * @param searchQuery Search query for wildcard filtering on index name, connector name, and description, or null/empty to skip.
-     * @param includeDeleted  If false, filters to include only non-deleted connectors; otherwise, no filter is applied.
+     * @param includeDeleted  If false, filters to include only non-deleted connectors; if true, no filter is applied.
      * @return A {@link QueryBuilder} customized based on provided filters.
      */
     private QueryBuilder buildListQuery(

@@ -24,8 +24,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
@@ -97,7 +99,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             isLogsDB = true;
         }
 
-        MappingHints mappingHints = getMappingData(indexName, templateIndexMode, settings, combinedTemplateMappings);
+        MappingHints mappingHints = getMappingHints(indexName, templateIndexMode, settings, combinedTemplateMappings);
 
         // Inject stored source mode if synthetic source if not available per licence.
         if (mappingHints.hasSyntheticSourceUsage && supportFallbackToStoredSource.get()) {
@@ -123,6 +125,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (mappingHints.sortOnHostName) {
                 if (settingsBuilder == null) {
                     settingsBuilder = Settings.builder();
+                }
+                if (mappingHints.addHostNameField) {
+                    // Inject keyword field [host.name] too.
+                    settingsBuilder.put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true);
                 }
                 settingsBuilder.put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
             }
@@ -171,8 +177,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     }
 
-    record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName) {
-        static MappingHints EMPTY = new MappingHints(false, false);
+    record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName, boolean addHostNameField) {
+        static MappingHints EMPTY = new MappingHints(false, false, false);
     }
 
     private static boolean matchesLogsPattern(final String name) {
@@ -183,7 +189,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
     }
 
-    MappingHints getMappingData(
+    MappingHints getMappingHints(
         String indexName,
         IndexMode templateIndexMode,
         Settings indexTemplateAndCreateRequestSettings,
@@ -211,11 +217,12 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
                 if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false) {
                     // Custom sort config, no point for further checks on [host.name] field.
-                    return new MappingHints(hasSyntheticSourceUsage, false);
+                    return new MappingHints(hasSyntheticSourceUsage, false, false);
                 }
-                if (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)) {
-                    // Setting for sorting on [host.name] is already injected, propagate it.
-                    return new MappingHints(hasSyntheticSourceUsage, true);
+                if (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
+                    && IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(indexTemplateAndCreateRequestSettings)) {
+                    // Settings for adding and sorting on [host.name] are already set, propagate them.
+                    return new MappingHints(hasSyntheticSourceUsage, true, true);
                 }
             }
 
@@ -226,11 +233,15 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     combinedTemplateMappings = List.of(new CompressedXContent("{}"));
                 }
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-                return new MappingHints(
-                    hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic(),
-                    IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
-                        || mapperService.mappingLookup().getMapper("host.name") instanceof FieldMapper
-                );
+                Mapper hostName = mapperService.mappingLookup().getMapper("host.name");
+                hasSyntheticSourceUsage = hasSyntheticSourceUsage || mapperService.documentMapper().sourceMapper().isSynthetic();
+                boolean addHostNameField = IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(indexTemplateAndCreateRequestSettings)
+                    || (hostName == null && mapperService.mappingLookup().getMapper("host") == null);
+                boolean sortOnHostName = IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
+                    || addHostNameField
+                    || ((hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())
+                        || (hostName instanceof KeywordFieldMapper kfm && kfm.fieldType().hasDocValues()));
+                return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField);
             }
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.

@@ -110,7 +110,7 @@ public final class IndexSortConfig {
         TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
 
         FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
-        hostnameSpec.order = SortOrder.DESC;
+        hostnameSpec.order = SortOrder.ASC;
         hostnameSpec.missingValue = "_last";
         hostnameSpec.mode = MultiValueMode.MIN;
         HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };

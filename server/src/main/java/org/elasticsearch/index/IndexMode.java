@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -259,7 +260,9 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_MAPPING_TIMESTAMP;
+            return indexSettings != null && indexSettings.logsdbAddHostNameField()
+                ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
+                : DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -410,7 +413,7 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    private static CompressedXContent createDefaultMapping() throws IOException {
+    private static CompressedXContent createDefaultMapping(boolean includeHostName) throws IOException {
         return new CompressedXContent((builder, params) -> {
             builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject(DataStreamTimestampFieldMapper.NAME)
@@ -420,15 +423,23 @@ public enum IndexMode {
                 .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                 .field("type", DateFieldMapper.CONTENT_TYPE)
                 .endObject();
+
+            if (includeHostName) {
+                builder.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject();
+            }
+
             return builder.endObject().endObject();
         });
     }
 
     private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP;
 
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP_HOSTNAME;
+
     static {
         try {
-            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping();
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(false);
+            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }

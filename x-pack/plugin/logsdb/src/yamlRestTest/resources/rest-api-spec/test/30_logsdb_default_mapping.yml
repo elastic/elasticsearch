@@ -421,7 +421,7 @@ create logsdb data stream with custom sorting and host object:
   - match: { .$backing_index.mappings.properties.host.properties.name.type: integer }
 
 ---
-create logsdb data stream with custom sorting and no host.name:
+create logsdb data stream with custom sorting and dynamically mapped host.name:
   - skip:
       features: [ "allowed_warnings" ]
   - requires:
@@ -542,7 +542,7 @@ create logsdb data stream with custom sorting and host.name object:
   - match: { .$backing_index.mappings.properties.host.properties.name.properties.alias.type: keyword }
 
 ---
-create logsdb data stream with no host.name:
+create logsdb data stream with default sorting on malformed host.name:
   - skip:
       features: [ "allowed_warnings" ]
   - requires:
@@ -601,7 +601,8 @@ create logsdb data stream with no host.name:
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
   - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
   - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: text }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword } # LogsDB injected
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 } # LogsDB injected
   - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
 
 ---
@@ -676,8 +677,8 @@ create logsdb data stream with custom sorting and missing host.name field mappin
           template:
             settings:
               index:
-                sort.field: [ host.name, host.hostname ]
-                sort.order: [ desc, desc ]
+                sort.field: [ host.hostname ]
+                sort.order: [ desc ]
                 mode: logsdb
             mappings:
               properties:
@@ -691,12 +692,22 @@ create logsdb data stream with custom sorting and missing host.name field mappin
   - is_true: acknowledged
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: logs-http-qa
+  - is_true: acknowledged
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "unknown index sort field:[host.name]" }
+  - do:
+      indices.get_data_stream:
+        name: logs-http-qa
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name: null }
 
 ---
 create logsdb data stream with custom sorting and host.name field without doc values:
@@ -815,12 +826,21 @@ create logsdb data stream with no sorting and host.name as text:
   - is_true: acknowledged
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: logsdb-non-keyword
+  - is_true: acknowledged
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+  - do:
+      indices.get_data_stream:
+        name: logsdb-non-keyword
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: text }
 
 ---
 create logsdb data stream without index sorting and ignore_above on host.name:
@@ -981,12 +1001,21 @@ create logsdb data stream with multi-fields on host.name and no sorting:
           data_stream: {}
 
   - do:
-      catch: bad_request
       indices.create_data_stream:
         name: logsdb-no-sort-multi-fields
+  - is_true: acknowledged
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+  - do:
+      indices.get_data_stream:
+        name: logsdb-no-sort-multi-fields
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: text }
 
 ---
 create logsdb data stream with custom empty sorting:
@@ -1032,6 +1061,8 @@ create logsdb data stream with custom empty sorting:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
 
 ---
 create logsdb data stream with custom sorting on timestamp:

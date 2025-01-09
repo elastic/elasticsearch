@@ -356,11 +356,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
-- class: org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationIT
-  issue: https://github.com/elastic/elasticsearch/issues/118414
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.1.3, bwcProject: bugfix2, expectedAssembleTaskName:
     extractedAssemble, #3]"
@@ -368,6 +363,14 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: supports darwin aarch distributions
   issue: https://github.com/elastic/elasticsearch/issues/118960
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
+    extractedAssemble, #1]"
+  issue: https://github.com/elastic/elasticsearch/issues/119870
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
+    extractedAssemble, #2]"
+  issue: https://github.com/elastic/elasticsearch/issues/119871
 
 # Examples:
 #

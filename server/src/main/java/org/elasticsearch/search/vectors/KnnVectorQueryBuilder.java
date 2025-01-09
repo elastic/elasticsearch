@@ -522,7 +522,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
-        Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.overesample();
+        Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
 
         BitSetProducer parentBitSet = null;
         if (parentPath != null) {

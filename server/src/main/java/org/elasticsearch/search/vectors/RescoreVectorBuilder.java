@@ -35,29 +35,29 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     }
 
     // Oversample is required as of now as it is the only field in the rescore vector
-    private final float numCandidatesFactor;
+    private final float oversample;
 
     public RescoreVectorBuilder(float numCandidatesFactor) {
         Objects.requireNonNull(numCandidatesFactor, "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be set");
         if (numCandidatesFactor < MIN_OVERSAMPLE) {
             throw new IllegalArgumentException("[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
         }
-        this.numCandidatesFactor = numCandidatesFactor;
+        this.oversample = numCandidatesFactor;
     }
 
     public RescoreVectorBuilder(StreamInput in) throws IOException {
-        this.numCandidatesFactor = in.readFloat();
+        this.oversample = in.readFloat();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(numCandidatesFactor);
+        out.writeFloat(oversample);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(OVERSAMPLE_FIELD.getPreferredName(), numCandidatesFactor);
+        builder.field(OVERSAMPLE_FIELD.getPreferredName(), oversample);
         builder.endObject();
         return builder;
     }
@@ -71,15 +71,15 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RescoreVectorBuilder that = (RescoreVectorBuilder) o;
-        return Objects.equals(numCandidatesFactor, that.numCandidatesFactor);
+        return Objects.equals(oversample, that.oversample);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(numCandidatesFactor);
+        return Objects.hashCode(oversample);
     }
 
-    public float overesample() {
-        return numCandidatesFactor;
+    public float oversample() {
+        return oversample;
     }
 }

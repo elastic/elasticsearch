@@ -286,6 +286,7 @@
         "Command line tool",
         "CRUD",
         "ES|QL",
+        "Geo",
         "Index setting",
         "Ingest",
         "JVM option",

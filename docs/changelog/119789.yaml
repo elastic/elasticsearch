@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Remove deprecated `sort_mode` from sort by `_geo_distance`
-  area: Search
+  area: Geo
   details: >-
     The `sort_mode` parameter was replaced by `mode` in 5.0,
     but for backwards compatibility the older syntax has been supported since then.

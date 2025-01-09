@@ -248,30 +248,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119721
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testConcurrentSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119819
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/119820
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testConcurrentEquals
-  issue: https://github.com/elastic/elasticsearch/issues/119821
-- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
-  method: testSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119822
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119859
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/119860
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testConcurrentSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/119861
-- class: org.elasticsearch.index.rankeval.RankEvalRequestTests
-  method: testConcurrentEquals
-  issue: https://github.com/elastic/elasticsearch/issues/119862
 
 # Examples:
 #

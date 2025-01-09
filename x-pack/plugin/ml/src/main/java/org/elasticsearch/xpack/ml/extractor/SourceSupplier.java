@@ -15,12 +15,12 @@ import java.util.function.Supplier;
 /**
  * A supplier for the source of a search hit with caching capabilities.
  */
-public final class SourceSuppler implements Supplier<Map<String, Object>> {
+public final class SourceSupplier implements Supplier<Map<String, Object>> {
 
     private final SearchHit searchHit;
     private Map<String, Object> sourceMap;
 
-    public SourceSuppler(SearchHit searchHit) {
+    public SourceSupplier(SearchHit searchHit) {
         this.searchHit = searchHit;
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.ScriptField;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
-import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 import org.elasticsearch.xpack.ml.extractor.TimeField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
@@ -80,7 +80,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
         long millis = randomLong();
         SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
-        assertThat(extractedFields.timeFieldValue(hit, new SourceSuppler(hit)), equalTo(millis));
+        assertThat(extractedFields.timeFieldValue(hit, new SourceSupplier(hit)), equalTo(millis));
     }
 
     public void testPre6xTimeFieldValue() {
@@ -88,7 +88,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
         long millis = randomLong();
         SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
-        assertThat(extractedFields.timeFieldValue(hit, new SourceSuppler(hit)), equalTo(millis));
+        assertThat(extractedFields.timeFieldValue(hit, new SourceSupplier(hit)), equalTo(millis));
     }
 
     public void testTimeFieldValueGivenEmptyArray() {
@@ -96,7 +96,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
-        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit, new SourceSuppler(hit)));
+        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit, new SourceSupplier(hit)));
     }
 
     public void testTimeFieldValueGivenValueHasTwoElements() {
@@ -104,7 +104,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
-        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit, new SourceSuppler(hit)));
+        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit, new SourceSupplier(hit)));
     }
 
     public void testTimeFieldValueGivenValueIsString() {
@@ -112,7 +112,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
-        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit, new SourceSuppler(hit)));
+        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit, new SourceSupplier(hit)));
     }
 
     public void testBuildGivenMixtureOfTypes() {

@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.util.ArrayList;
@@ -815,14 +815,14 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         );
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
-        SourceSuppler sourceSuppler = new SourceSuppler(hit);
-        assertThat(booleanField.value(hit, sourceSuppler), arrayContaining(1));
+        SourceSupplier sourceSupplier = new SourceSupplier(hit);
+        assertThat(booleanField.value(hit, sourceSupplier), arrayContaining(1));
 
         hit = new SearchHitBuilder(42).addField("some_boolean", false).build();
-        assertThat(booleanField.value(hit, sourceSuppler), arrayContaining(0));
+        assertThat(booleanField.value(hit, sourceSupplier), arrayContaining(0));
 
         hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
-        assertThat(booleanField.value(hit, sourceSuppler), arrayContaining(0, 1, 0));
+        assertThat(booleanField.value(hit, sourceSupplier), arrayContaining(0, 1, 0));
     }
 
     public void testDetect_GivenBooleanField_OutlierDetection() {

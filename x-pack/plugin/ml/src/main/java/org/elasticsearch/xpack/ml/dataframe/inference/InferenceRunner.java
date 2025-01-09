@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.extractor.SourceSuppler;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
@@ -228,9 +228,9 @@ public class InferenceRunner {
 
     private Map<String, Object> featuresFromDoc(SearchHit doc) {
         Map<String, Object> features = new HashMap<>();
-        final SourceSuppler sourceSuppler = new SourceSuppler(doc);
+        final SourceSupplier sourceSupplier = new SourceSupplier(doc);
         for (ExtractedField extractedField : extractedFields.getAllFields()) {
-            Object[] values = extractedField.value(doc, sourceSuppler);
+            Object[] values = extractedField.value(doc, sourceSupplier);
             if (values.length == 1) {
                 features.put(extractedField.getName(), values[0]);
             }

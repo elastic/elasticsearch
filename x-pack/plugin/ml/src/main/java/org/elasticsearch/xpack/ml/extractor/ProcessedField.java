@@ -41,7 +41,7 @@ public class ProcessedField {
     public Object[] value(SearchHit hit, Function<String, ExtractedField> fieldExtractor) {
         List<String> inputFields = getInputFieldNames();
         Map<String, Object> inputs = Maps.newMapWithExpectedSize(inputFields.size());
-        SourceSuppler sourceSupplier = new SourceSuppler(hit);
+        SourceSupplier sourceSupplier = new SourceSupplier(hit);
         for (String field : inputFields) {
             ExtractedField extractedField = fieldExtractor.apply(field);
             if (extractedField == null) {

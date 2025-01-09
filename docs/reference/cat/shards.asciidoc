@@ -162,6 +162,9 @@ Number of indexing operations, such as `1`.
 `indexing.index_failed`, `iif`, `indexingIndexFailed`::
 Number of failed indexing operations, such as `0`.
 
+`indexing.index_failed_due_to_version_conflict`, `iifvc`, `indexingIndexFailedDueToVersionConflict`::
+Number of failed indexing operations due to version conflict, such as `0`.
+
 `merges.current`, `mc`, `mergesCurrent`::
 Number of current merge operations, such as `0`.
 

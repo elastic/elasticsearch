@@ -2353,4 +2353,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(), equalTo("value"));
     }
+
+    public void testFailingMetadataWithSquareBrackets() {
+        expectError(
+            "FROM test [METADATA _index] | STATS count(*)",
+            "line 1:11: mismatched input '[' expecting {<EOF>, '|', ',', 'metadata'}"
+        );
+    }
 }

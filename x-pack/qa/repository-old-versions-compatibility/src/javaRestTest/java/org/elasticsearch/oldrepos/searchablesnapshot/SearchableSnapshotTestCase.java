@@ -21,14 +21,14 @@ import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
  * Restores snapshots from old-clusters (version 5/6) and upgrades it to the current version.
  * Test methods are executed after each upgrade.
  */
-public class SearchableSnapshotTestCase extends AbstractUpgradeCompatibilityTestCase {
+abstract class SearchableSnapshotTestCase extends AbstractUpgradeCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public SearchableSnapshotTestCase(Version version) {
-        super(version);
+    protected SearchableSnapshotTestCase(Version version, String indexCreatedVersion) {
+        super(version, indexCreatedVersion);
     }
 
     /**

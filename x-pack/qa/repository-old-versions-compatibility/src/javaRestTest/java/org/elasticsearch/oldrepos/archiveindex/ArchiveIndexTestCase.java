@@ -25,14 +25,14 @@ import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
  * when deployed ES version 5/6. The cluster then upgrades to version 9, verifying that the archive index
  * is successfully restored.
  */
-public class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase {
+abstract class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public ArchiveIndexTestCase(Version version) {
-        super(version);
+    protected ArchiveIndexTestCase(Version version, String indexCreatedVersion) {
+        super(version, indexCreatedVersion);
     }
 
     /**

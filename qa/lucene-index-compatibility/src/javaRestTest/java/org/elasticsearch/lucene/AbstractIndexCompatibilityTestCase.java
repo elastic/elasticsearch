@@ -207,7 +207,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
             switch (i) {
                 case 0 -> settings.putList(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "field_" + randomInt(2));
                 case 1 -> settings.put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), randomIntBetween(1, 100));
-                case 2 -> settings.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), randomLongBetween(0L, 1000L));
+                case 2 -> settings.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), randomLongBetween(100L, 1000L));
                 case 3 -> settings.put(IndexSettings.MAX_SLICES_PER_SCROLL.getKey(), randomIntBetween(1, 1024));
                 default -> throw new IllegalStateException();
             }

@@ -21,6 +21,7 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -50,18 +51,25 @@ public abstract class BWCCodec extends Codec {
         super(name);
     }
 
+    protected final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
+        @Override
+        public PostingsFormat getPostingsFormatForField(String field) {
+            throw new UnsupportedOperationException("Old codecs can't be used for writing");
+        }
+    };
+
     @Override
-    public NormsFormat normsFormat() {
+    public final NormsFormat normsFormat() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public TermVectorsFormat termVectorsFormat() {
+    public final TermVectorsFormat termVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public KnnVectorsFormat knnVectorsFormat() {
+    public final KnnVectorsFormat knnVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 

@@ -12,6 +12,7 @@ import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
 import org.apache.lucene.backward_codecs.lucene70.Lucene70SegmentInfoFormat;
+import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
@@ -21,7 +22,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
-import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
@@ -33,24 +33,13 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPo
  */
 public class BWCLucene70Codec extends BWCCodec {
 
-    private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-    private final SegmentInfoFormat segmentInfosFormat = wrap(new Lucene70SegmentInfoFormat());
-    private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
-    private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
+    private final FieldInfosFormat fieldInfosFormat;
+    private final SegmentInfoFormat segmentInfosFormat;
     private final StoredFieldsFormat storedFieldsFormat;
-    private final DocValuesFormat defaultDVFormat = new Lucene70DocValuesFormat();
-    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
-        @Override
-        public DocValuesFormat getDocValuesFormatForField(String field) {
-            return defaultDVFormat;
-        }
-    };
-    private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
-        @Override
-        public PostingsFormat getPostingsFormatForField(String field) {
-            throw new IllegalStateException("This codec should only be used for reading, not writing");
-        }
-    };
+    private final LiveDocsFormat liveDocsFormat;
+    private final CompoundFormat compoundFormat;
+    private final DocValuesFormat docValuesFormat;
+    private final PointsFormat pointsFormat;
 
     // Needed for SPI loading
     @SuppressWarnings("unused")
@@ -60,7 +49,18 @@ public class BWCLucene70Codec extends BWCCodec {
 
     protected BWCLucene70Codec(String name) {
         super(name);
-        storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+        this.fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
+        this.segmentInfosFormat = wrap(new Lucene70SegmentInfoFormat());
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+        this.liveDocsFormat = new Lucene50LiveDocsFormat();
+        this.compoundFormat = new Lucene50CompoundFormat();
+        this.docValuesFormat = new PerFieldDocValuesFormat() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return new Lucene80DocValuesFormat();
+            }
+        };
+        this.pointsFormat = new Lucene60MetadataOnlyPointsFormat();
     }
 
     @Override
@@ -100,6 +100,6 @@ public class BWCLucene70Codec extends BWCCodec {
 
     @Override
     public PointsFormat pointsFormat() {
-        return new Lucene60MetadataOnlyPointsFormat();
+        return pointsFormat;
     }
 }

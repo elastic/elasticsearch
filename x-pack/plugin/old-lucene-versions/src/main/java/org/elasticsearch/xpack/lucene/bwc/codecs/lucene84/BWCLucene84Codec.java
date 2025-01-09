@@ -10,28 +10,22 @@ package org.elasticsearch.xpack.lucene.bwc.codecs.lucene84;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50CompoundFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50TermVectorsFormat;
 import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
-import org.apache.lucene.backward_codecs.lucene60.Lucene60PointsFormat;
 import org.apache.lucene.backward_codecs.lucene70.Lucene70SegmentInfoFormat;
-import org.apache.lucene.backward_codecs.lucene80.Lucene80NormsFormat;
+import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
-import org.apache.lucene.codecs.NormsFormat;
 import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
-import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
-
-import java.util.Objects;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
 /**
  * Implements the Lucene 8.4 index format. Loaded via SPI for indices created/written with Lucene 8.4.0-8.5.1
@@ -39,58 +33,41 @@ import java.util.Objects;
  */
 public class BWCLucene84Codec extends BWCCodec {
 
-    private final TermVectorsFormat vectorsFormat = new Lucene50TermVectorsFormat();
-    private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-    private final SegmentInfoFormat segmentInfosFormat = wrap(new Lucene70SegmentInfoFormat());
-    private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
-    private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
-    private final PostingsFormat defaultFormat;
-
-    private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
-        @Override
-        public PostingsFormat getPostingsFormatForField(String field) {
-            return BWCLucene84Codec.this.getPostingsFormatForField(field);
-        }
-    };
-
-    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
-        @Override
-        public DocValuesFormat getDocValuesFormatForField(String field) {
-            return BWCLucene84Codec.this.getDocValuesFormatForField(field);
-        }
-    };
-
+    private final FieldInfosFormat fieldInfosFormat;
+    private final SegmentInfoFormat segmentInfosFormat;
     private final StoredFieldsFormat storedFieldsFormat;
+    private final LiveDocsFormat liveDocsFormat;
+    private final CompoundFormat compoundFormat;
+    private final DocValuesFormat docValuesFormat;
+    private final PostingsFormat postingsFormat;
+    private final PointsFormat pointsFormat;
 
-    /** Instantiates a new codec. */
+    // Needed for SPI loading
+    @SuppressWarnings("unused")
     public BWCLucene84Codec() {
-        this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+        this("BWCLucene84Codec");
     }
 
-    /**
-     * Instantiates a new codec, specifying the stored fields compression mode to use.
-     *
-     * @param mode stored fields compression mode to use for newly flushed/merged segments.
-     */
-    public BWCLucene84Codec(Lucene50StoredFieldsFormat.Mode mode) {
-        super("BWCLucene84Codec");
-        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(mode));
-        this.defaultFormat = new Lucene84PostingsFormat();
-    }
-
-    @Override
-    public StoredFieldsFormat storedFieldsFormat() {
-        return storedFieldsFormat;
-    }
-
-    @Override
-    public TermVectorsFormat termVectorsFormat() {
-        return vectorsFormat;
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
+    public BWCLucene84Codec(String name) {
+        super(name);
+        this.fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
+        this.segmentInfosFormat = wrap(new Lucene70SegmentInfoFormat());
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+        this.liveDocsFormat = new Lucene50LiveDocsFormat();
+        this.compoundFormat = new Lucene50CompoundFormat();
+        this.docValuesFormat = new PerFieldDocValuesFormat() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return new Lucene80DocValuesFormat();
+            }
+        };
+        this.postingsFormat = new PerFieldPostingsFormat() {
+            @Override
+            public PostingsFormat getPostingsFormatForField(String field) {
+                return new Lucene84PostingsFormat();
+            }
+        };
+        this.pointsFormat = new Lucene60MetadataOnlyPointsFormat();
     }
 
     @Override
@@ -104,6 +81,11 @@ public class BWCLucene84Codec extends BWCCodec {
     }
 
     @Override
+    public StoredFieldsFormat storedFieldsFormat() {
+        return storedFieldsFormat;
+    }
+
+    @Override
     public final LiveDocsFormat liveDocsFormat() {
         return liveDocsFormat;
     }
@@ -114,51 +96,17 @@ public class BWCLucene84Codec extends BWCCodec {
     }
 
     @Override
-    public PointsFormat pointsFormat() {
-        return new Lucene60PointsFormat();
-    }
-
-    @Override
-    public KnnVectorsFormat knnVectorsFormat() {
-        return KnnVectorsFormat.EMPTY;
-    }
-
-    /**
-     * Returns the postings format that should be used for writing new segments of <code>field</code>.
-     *
-     * <p>The default implementation always returns "Lucene84".
-     *
-     * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
-     * future version of Lucene are only guaranteed to be able to read the default implementation.
-     */
-    public PostingsFormat getPostingsFormatForField(String field) {
-        return defaultFormat;
-    }
-
-    /**
-     * Returns the docvalues format that should be used for writing new segments of <code>field</code>
-     * .
-     *
-     * <p>The default implementation always returns "Lucene80".
-     *
-     * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
-     * future version of Lucene are only guaranteed to be able to read the default implementation.
-     */
-    public DocValuesFormat getDocValuesFormatForField(String field) {
-        return defaultDVFormat;
-    }
-
-    @Override
     public final DocValuesFormat docValuesFormat() {
         return docValuesFormat;
     }
 
-    private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName("Lucene80");
-
-    private final NormsFormat normsFormat = new Lucene80NormsFormat();
+    @Override
+    public PostingsFormat postingsFormat() {
+        return postingsFormat;
+    }
 
     @Override
-    public NormsFormat normsFormat() {
-        return normsFormat;
+    public PointsFormat pointsFormat() {
+        return pointsFormat;
     }
 }

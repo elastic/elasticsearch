@@ -183,6 +183,7 @@ public final class Authentication implements ToXContentObject {
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
+            // Note: we do not call copyUserWithRolesRemovedForLegacyApiKeys here because an API key is never the target of run-as
             effectiveSubject = new Subject(outerUser, lookedUpBy, version, Map.of());
         } else {
             authenticatingSubject = effectiveSubject = new Subject(

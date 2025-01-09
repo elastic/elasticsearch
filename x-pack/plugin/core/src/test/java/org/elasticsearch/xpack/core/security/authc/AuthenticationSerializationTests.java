@@ -25,7 +25,9 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -176,13 +178,45 @@ public class AuthenticationSerializationTests extends ESTestCase {
     }
 
     public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
-        Subject subject = new Subject(
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_7_0_0,
+            TransportVersions.V_7_8_0
+        );
+        Subject authenticatingSubject = new Subject(
             new User("foo", "role"),
             new Authentication.RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "node"),
-            TransportVersions.V_7_8_0,
+            transportVersion,
             Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
         );
-        var encodedAuthentication = Authentication.doEncode(subject, subject, Authentication.AuthenticationType.API_KEY);
-        assertThat(AuthenticationContextSerializer.decode(encodedAuthentication), is(notNullValue()));
+        Subject effectiveSubject = new Subject(
+            new User("bar", "role"),
+            new Authentication.RealmRef("native", "native", "node"),
+            transportVersion,
+            Map.of()
+        );
+
+        {
+            Authentication actual = AuthenticationContextSerializer.decode(
+                Authentication.doEncode(authenticatingSubject, authenticatingSubject, Authentication.AuthenticationType.API_KEY)
+            );
+            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(emptyArray()));
+        }
+
+        {
+            Authentication actual = AuthenticationContextSerializer.decode(
+                Authentication.doEncode(effectiveSubject, authenticatingSubject, Authentication.AuthenticationType.API_KEY)
+            );
+            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(emptyArray()));
+            assertThat(actual.getEffectiveSubject().getUser().roles(), is(arrayContaining("role")));
+        }
+
+        {
+            // do not strip roles for authentication methods other than API key
+            Authentication actual = AuthenticationContextSerializer.decode(
+                Authentication.doEncode(effectiveSubject, effectiveSubject, Authentication.AuthenticationType.REALM)
+            );
+            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(arrayContaining("role")));
+        }
     }
 }

@@ -250,6 +250,6 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
     }
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
-        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes, randomBoolean());
+        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes);
     }
 }

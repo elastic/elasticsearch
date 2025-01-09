@@ -2707,8 +2707,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     new EsField("some_field2", DataType.KEYWORD, Map.of(), true)
                 )
             ),
-            IndexMode.STANDARD,
-            false
+            IndexMode.STANDARD
         );
         Attribute some_field1 = relation.output().get(0);
         Attribute some_field2 = relation.output().get(1);

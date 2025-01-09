@@ -29,6 +29,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.ESQL_REMOVE_ES_RELATION_FROZEN;
 import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsRelation extends LeafPlan {
@@ -42,10 +43,9 @@ public class EsRelation extends LeafPlan {
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
-    private final boolean frozen;
 
-    public EsRelation(Source source, EsIndex index, IndexMode indexMode, boolean frozen) {
-        this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()), frozen);
+    public EsRelation(Source source, EsIndex index, IndexMode indexMode) {
+        this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()));
     }
 
     public EsRelation(
@@ -55,23 +55,11 @@ public class EsRelation extends LeafPlan {
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
-        this(source, indexName, indexMode, indexNameWithModes, attributes, false);
-    }
-
-    public EsRelation(
-        Source source,
-        String indexName,
-        IndexMode indexMode,
-        Map<String, IndexMode> indexNameWithModes,
-        List<Attribute> attributes,
-        boolean frozen
-    ) {
         super(source);
         this.indexName = indexName;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
-        this.frozen = frozen;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
@@ -94,8 +82,10 @@ public class EsRelation extends LeafPlan {
             in.readOptionalString();
         }
         IndexMode indexMode = readIndexMode(in);
-        boolean frozen = in.readBoolean();
-        return new EsRelation(source, indexName, indexMode, indexNameWithModes, attributes, frozen);
+        if (in.getTransportVersion().before(ESQL_REMOVE_ES_RELATION_FROZEN)) {
+            in.readBoolean();
+        }
+        return new EsRelation(source, indexName, indexMode, indexNameWithModes, attributes);
     }
 
     @Override
@@ -107,15 +97,17 @@ public class EsRelation extends LeafPlan {
         } else {
             new EsIndex(indexName, Map.of(), indexNameWithModes).writeTo(out);
         }
-        out.writeNamedWriteableCollection(output());
+        out.writeNamedWriteableCollection(attrs);
         if (supportingEsSourceOptions(out.getTransportVersion())) {
             // write (null) string fillers expected by remote
             out.writeOptionalString(null);
             out.writeOptionalString(null);
             out.writeOptionalString(null);
         }
-        writeIndexMode(out, indexMode());
-        out.writeBoolean(frozen());
+        writeIndexMode(out, indexMode);
+        if (out.getTransportVersion().before(ESQL_REMOVE_ES_RELATION_FROZEN)) {
+            out.writeBoolean(false);
+        }
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
@@ -129,7 +121,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexName, indexMode, indexNameWithModes, attrs, frozen);
+        return NodeInfo.create(this, EsRelation::new, indexName, indexMode, indexNameWithModes, attrs);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -172,10 +164,6 @@ public class EsRelation extends LeafPlan {
         return indexNameWithModes;
     }
 
-    public boolean frozen() {
-        return frozen;
-    }
-
     @Override
     public List<Attribute> output() {
         return attrs;
@@ -199,7 +187,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMode, indexNameWithModes, frozen, attrs);
+        return Objects.hash(indexName, indexMode, indexNameWithModes, attrs);
     }
 
     @Override
@@ -216,7 +204,6 @@ public class EsRelation extends LeafPlan {
         return Objects.equals(indexName, other.indexName)
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
-            && frozen == other.frozen
             && Objects.equals(attrs, other.attrs);
     }
 

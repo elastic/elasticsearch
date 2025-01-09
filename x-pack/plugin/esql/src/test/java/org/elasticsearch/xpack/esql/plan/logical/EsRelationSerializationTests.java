@@ -25,8 +25,7 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             randomIdentifier(),
             randomFrom(IndexMode.values()),
             randomIndexNameWithModes(),
-            randomFieldAttributes(0, 10, false),
-            randomBoolean()
+            randomFieldAttributes(0, 10, false)
         );
     }
 
@@ -41,16 +40,14 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
         IndexMode indexMode = instance.indexMode();
         Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
         List<Attribute> attributes = instance.output();
-        boolean frozen = instance.frozen();
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0 -> indexName = randomValueOtherThan(indexName, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
             case 3 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(0, 10, false));
-            case 4 -> frozen = false == frozen;
             default -> throw new IllegalArgumentException();
         }
-        return new EsRelation(instance.source(), indexName, indexMode, indexNameWithModes, attributes, frozen);
+        return new EsRelation(instance.source(), indexName, indexMode, indexNameWithModes, attributes);
     }
 
     @Override

@@ -1377,8 +1377,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         esr.indexName(),
                         esr.indexMode(),
                         esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing),
-                        esr.frozen()
+                        CollectionUtils.combine(esr.output(), missing)
                     );
                 }
                 return esr;

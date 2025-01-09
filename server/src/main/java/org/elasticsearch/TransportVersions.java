@@ -156,6 +156,7 @@ public class TransportVersions {
     public static final TransportVersion REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX = def(8_821_00_0);
     public static final TransportVersion ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION = def(8_822_00_0);
     public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_823_00_0);
+    public static final TransportVersion ESQL_REMOVE_ES_RELATION_FROZEN = def(8_824_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

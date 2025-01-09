@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalInt;
 
-public final class Insist extends UnaryPlan {
+public class Insist extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "INSIST", Insist::new);
 
     private final InsistParameters parameters;

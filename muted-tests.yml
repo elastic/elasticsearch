@@ -248,6 +248,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/119901
+- class: org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolverTests
+  method: testBackingIndicesAreVisibleWhenIncludedByRequestWithWildcard
+  issue: https://github.com/elastic/elasticsearch/issues/119908
 
 # Examples:
 #

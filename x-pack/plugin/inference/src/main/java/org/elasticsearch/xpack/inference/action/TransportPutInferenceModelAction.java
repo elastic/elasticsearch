@@ -153,7 +153,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         if ((assignments == null || assignments.isEmpty()) == false) {
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                    Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
                     request.getInferenceEntityId()
                 )
             );

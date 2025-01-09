@@ -141,7 +141,7 @@ final class SystemJvmOptions {
 
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
+        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // Will become conditional on useEntitlements once entitlements can run without SM
             return Stream.of("-Djava.security.manager=allow");
         }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.analysis.PostAnalysisAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 /**
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
  */
-public abstract class AggregateFunction extends Function implements PostAnalysisAware {
+public abstract class AggregateFunction extends Function implements PostAnalysisPlanVerificationAware {
 
     private final Expression field;
     private final List<? extends Expression> parameters;
@@ -134,7 +134,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return false;
     }
 
-    public BiConsumer<LogicalPlan, Failures> planChecker() {
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
             if (p instanceof OrderBy order) {
                 order.order().forEach(o -> {

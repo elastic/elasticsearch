@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.xpack.esql.analysis.PostAnalysisAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -21,7 +21,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public abstract class GroupingFunction extends Function implements EvaluatorMapper, PostAnalysisAware {
+public abstract class GroupingFunction extends Function implements EvaluatorMapper, PostAnalysisPlanVerificationAware {
 
     protected GroupingFunction(Source source, List<Expression> fields) {
         super(source, fields);
@@ -33,7 +33,7 @@ public abstract class GroupingFunction extends Function implements EvaluatorMapp
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> planChecker() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
             if (p instanceof Aggregate == false) {
                 p.forEachExpression(

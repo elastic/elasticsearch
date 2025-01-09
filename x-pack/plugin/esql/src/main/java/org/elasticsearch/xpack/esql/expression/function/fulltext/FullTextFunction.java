@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.analysis.PostAnalysisAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisAware {
+public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -176,7 +176,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
     public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> planChecker() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 

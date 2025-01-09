@@ -5,18 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.analysis;
+package org.elasticsearch.xpack.esql.capabilities;
+
 
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.function.BiConsumer;
 
-public interface PostAnalysisAware {
+public interface PostAnalysisPlanVerificationAware {
 
-    default void postAnalysisVerification(Failures failures) {}
-
-    default BiConsumer<LogicalPlan, Failures> planChecker() {
-        return null;
-    }
+    BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification();
 }

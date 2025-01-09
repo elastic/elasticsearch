@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.esql.analysis.PostAnalysisAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -24,7 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract>, PostAnalysisAware {
+public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract>, PostAnalysisVerificationAware {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 

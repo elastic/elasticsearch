@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -90,9 +92,6 @@ public class Verifier {
             }
 
             planCheckers.forEach(c -> c.accept(p, failures));
-            if (p instanceof PostAnalysisAware paa) {
-                paa.postAnalysisVerification(failures);
-            }
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
@@ -188,13 +187,21 @@ public class Verifier {
     private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
-            if (p instanceof PostAnalysisAware paa && paa.planChecker() != null) {
-                planCheckers.add(paa.planChecker());
+            if (p instanceof PostAnalysisPlanVerificationAware pva) {
+                planCheckers.add(pva.postAnalysisPlanVerification());
             }
         };
         plan.forEachDown(p -> {
             collectPlanCheckers.accept(p);
             p.forEachExpression(collectPlanCheckers);
+
+            if (p instanceof PostAnalysisVerificationAware va) {
+                planCheckers.add((lp, failures) -> {
+                    if (lp.getClass().equals(va.getClass())) {
+                        va.postAnalysisVerification(failures);
+                    }
+                });
+            }
         });
         return planCheckers;
     }

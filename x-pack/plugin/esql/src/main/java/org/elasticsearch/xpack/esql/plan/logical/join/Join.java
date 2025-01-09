@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.analysis.PostAnalysisAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
-public class Join extends BinaryPlan implements PostAnalysisAware {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;

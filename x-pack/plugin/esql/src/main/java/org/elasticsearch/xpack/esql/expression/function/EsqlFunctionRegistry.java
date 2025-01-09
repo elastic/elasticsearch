@@ -134,11 +134,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha1;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha256;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -333,11 +336,14 @@ public class EsqlFunctionRegistry {
                 def(Left.class, Left::new, "left"),
                 def(Length.class, Length::new, "length"),
                 def(Locate.class, Locate::new, "locate"),
+                def(Md5.class, Md5::new, "md5"),
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Repeat.class, Repeat::new, "repeat"),
                 def(Replace.class, Replace::new, "replace"),
                 def(Reverse.class, Reverse::new, "reverse"),
                 def(Right.class, Right::new, "right"),
+                def(Sha1.class, Sha1::new, "sha1"),
+                def(Sha256.class, Sha256::new, "sha256"),
                 def(Space.class, Space::new, "space"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
                 def(Substring.class, Substring::new, "substring"),

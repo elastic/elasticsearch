@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -59,12 +58,6 @@ public class QueryBuilderResolver {
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
-        // TODO: remove once SEMANTIC_TEXT_TYPE is enabled outside of snapshots
-        if (false == EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            callback.accept(plan, listener);
-            return;
-        }
-
         if (plan.optimized() == false) {
             listener.onFailure(new IllegalStateException("Expected optimized plan before query builder rewrite."));
             return;
@@ -157,15 +150,12 @@ public class QueryBuilderResolver {
             Map<FullTextFunction, QueryBuilder> results = new HashMap<>();
 
             boolean hasChanged = false;
-            for (FullTextFunction func : queryBuilderMap.keySet()) {
-                var initial = queryBuilderMap.get(func);
-                var rewritten = Rewriteable.rewrite(initial, ctx, false);
+            for (var entry : queryBuilderMap.entrySet()) {
+                var initial = entry.getValue();
+                var rewritten = initial.rewrite(ctx);
+                hasChanged |= rewritten != initial;
 
-                if (rewritten.equals(initial) == false) {
-                    hasChanged = true;
-                }
-
-                results.put(func, rewritten);
+                results.put(entry.getKey(), rewritten);
             }
 
             return hasChanged ? new FullTextFunctionsRewritable(results) : this;

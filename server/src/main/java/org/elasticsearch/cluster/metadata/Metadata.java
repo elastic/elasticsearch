@@ -671,10 +671,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 Iterators.flatMap(
                     customs.entrySet().iterator(),
                     entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
                         : Collections.emptyIterator()
                 ),
-                ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+                ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
                 ChunkedToXContentHelper.endObject()
             );
         } else {
@@ -700,10 +700,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 Iterators.flatMap(
                     customs.entrySet().iterator(),
                     entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
                         : Collections.emptyIterator()
                 ),
-                ChunkedToXContentHelper.wrapWithObject("reserved_state", clusterReservedState.values().iterator()),
+                ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
                 ChunkedToXContentHelper.endObject()
             );
         }

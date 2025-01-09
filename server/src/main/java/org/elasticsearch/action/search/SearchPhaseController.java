@@ -575,7 +575,7 @@ public final class SearchPhaseController {
             );
         }
         int total = queryResults.size();
-        final Collection<SearchPhaseResult> nonNullResults = new ArrayList<>();
+        final List<QuerySearchResult> nonNullResults = new ArrayList<>(total);
         boolean hasSuggest = false;
         boolean hasProfileResults = false;
         for (SearchPhaseResult queryResult : queryResults) {
@@ -585,11 +585,10 @@ public final class SearchPhaseController {
             }
             hasSuggest |= res.suggest() != null;
             hasProfileResults |= res.hasProfileResults();
-            nonNullResults.add(queryResult);
+            nonNullResults.add(res);
         }
-        queryResults = nonNullResults;
-        validateMergeSortValueFormats(queryResults);
-        if (queryResults.isEmpty()) {
+        validateMergeSortValueFormats(nonNullResults);
+        if (nonNullResults.isEmpty()) {
             var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + total);
             assert false : ex;
             throw ex;
@@ -598,13 +597,12 @@ public final class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? Maps.newMapWithExpectedSize(queryResults.size())
+            ? Maps.newMapWithExpectedSize(nonNullResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
         DocValueFormat[] sortValueFormats = null;
-        for (SearchPhaseResult entry : queryResults) {
-            QuerySearchResult result = entry.queryResult();
+        for (QuerySearchResult result : nonNullResults) {
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
@@ -650,10 +648,7 @@ public final class SearchPhaseController {
         if (queryPhaseRankCoordinatorContext == null) {
             sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         } else {
-            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
-                queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
-                topDocsStats
-            );
+            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(nonNullResults, topDocsStats);
             sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
             size = sortedTopDocs.scoreDocs.length;
             // we need to reset from here as pagination and result trimming has already taken place

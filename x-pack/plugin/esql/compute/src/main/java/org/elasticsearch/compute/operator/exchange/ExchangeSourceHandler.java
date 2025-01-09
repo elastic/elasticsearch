@@ -312,10 +312,6 @@ public final class ExchangeSourceHandler {
      */
     public void finishEarly(boolean drainingPages, ActionListener<Void> listener) {
         buffer.finish(drainingPages);
-        if (remoteSinks.isEmpty()) {
-            listener.onResponse(null);
-            return;
-        }
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
             for (RemoteSink remoteSink : remoteSinks.values()) {
                 remoteSink.close(refs.acquire());

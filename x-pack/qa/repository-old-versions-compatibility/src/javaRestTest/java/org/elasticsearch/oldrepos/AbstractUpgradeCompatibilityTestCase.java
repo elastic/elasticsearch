@@ -211,7 +211,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public final void testArchiveIndex() throws Exception {
+    public final void testIndex() throws Exception {
         verifyCompatibility(indexCreatedVersion);
     }
 }

@@ -47,9 +47,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
         suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
         suppliers.add(supplier("semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
         suppliers.add(supplier("semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
-
-        // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     public void testRandomLocale() {

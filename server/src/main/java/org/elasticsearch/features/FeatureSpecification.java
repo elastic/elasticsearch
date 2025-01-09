@@ -37,7 +37,7 @@ import java.util.Set;
  */
 public interface FeatureSpecification {
     /**
-     * Returns a set of regular features that this node supports.
+     * Returns a set of features that this node supports.
      */
     default Set<NodeFeature> getFeatures() {
         return Set.of();

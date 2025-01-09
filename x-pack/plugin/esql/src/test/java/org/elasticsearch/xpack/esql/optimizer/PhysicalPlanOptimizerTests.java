@@ -7664,7 +7664,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         TopNExec reductionTopN = as(reduction, TopNExec.class);
         assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        assertThat(reductionTopN.limit().fold(), equalTo(limit));
+        assertThat(reductionTopN.limit().fold(FoldContext.unbounded()), equalTo(limit));
     }
 
     public void testReductionPlanForAggs() {

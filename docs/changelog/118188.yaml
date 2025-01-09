@@ -1,0 +1,5 @@
+pr: 118188
+summary: Allow check for early termination in Evaluator
+area: ES|QL
+type: enhancement
+issues: []

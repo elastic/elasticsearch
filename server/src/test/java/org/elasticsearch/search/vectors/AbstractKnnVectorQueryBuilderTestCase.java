@@ -46,7 +46,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.NUM_CANDS_OVERSAMPLE_LIMIT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -194,10 +194,10 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Integer k = queryBuilder.k();
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            Float numCandsFactor = queryBuilder.rescoreVectorBuilder().numCandidatesFactor();
+            Float numCandsFactor = queryBuilder.rescoreVectorBuilder().overesample();
             int minCands = k == null ? 1 : k;
             numCands = Math.max(minCands, (int) Math.ceil(numCands * numCandsFactor));
-            numCands = Math.min(numCands, NUM_CANDS_OVERSAMPLE_LIMIT);
+            numCands = Math.min(numCands, OVERSAMPLE_LIMIT);
         }
 
         Query knnVectorQueryBuilt = switch (elementType()) {

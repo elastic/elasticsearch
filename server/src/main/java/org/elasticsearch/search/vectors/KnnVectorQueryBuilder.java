@@ -522,7 +522,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
-        Float numCandidatesFactor = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.numCandidatesFactor();
+        Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.overesample();
 
         BitSetProducer parentBitSet = null;
         if (parentPath != null) {
@@ -557,15 +557,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
 
-        return vectorFieldType.createKnnQuery(
-            queryVector,
-            k,
-            adjustedNumCands,
-            numCandidatesFactor,
-            filterQuery,
-            vectorSimilarity,
-            parentBitSet
-        );
+        return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, oversample, filterQuery, vectorSimilarity, parentBitSet);
     }
 
     @Override

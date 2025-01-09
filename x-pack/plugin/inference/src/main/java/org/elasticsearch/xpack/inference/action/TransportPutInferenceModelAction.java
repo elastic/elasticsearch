@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -65,7 +64,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private final Client client;
     private volatile boolean skipValidationAndStart;
 
     @Inject
@@ -78,7 +76,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client,
         Settings settings
     ) {
         super(
@@ -95,7 +92,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
-        this.client = client;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
@@ -165,7 +161,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         if ((assignments == null || assignments.isEmpty()) == false) {
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                    Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
                     request.getInferenceEntityId()
                 )
             );

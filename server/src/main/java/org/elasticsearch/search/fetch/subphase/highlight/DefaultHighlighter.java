@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -50,7 +51,7 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 
 public class DefaultHighlighter implements Highlighter {
 
-    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields");
+    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields", true);
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
@@ -121,7 +122,10 @@ public class DefaultHighlighter implements Highlighter {
         int maxAnalyzedOffset = indexSettings.getHighlightMaxAnalyzedOffset();
         boolean weightMatchesEnabled = indexSettings.isWeightMatchesEnabled();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(
+            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            maxAnalyzedOffset
+        );
         Analyzer analyzer = wrapAnalyzer(
             fieldContext.context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
@@ -171,7 +175,7 @@ public class DefaultHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             highlighterNumberOfFragments,
             maxAnalyzedOffset,
-            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            queryMaxAnalyzedOffset,
             fieldContext.field.fieldOptions().requireFieldMatch(),
             weightMatchesEnabled
         );
@@ -186,9 +190,9 @@ public class DefaultHighlighter implements Highlighter {
         );
     }
 
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {
         if (maxAnalyzedOffset != null) {
-            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset.getNotNull());
         }
         return analyzer;
     }

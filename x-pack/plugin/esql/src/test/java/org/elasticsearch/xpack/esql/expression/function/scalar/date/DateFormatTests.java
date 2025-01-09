@@ -31,7 +31,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             true,
             List.of(
                 new TestCaseSupplier(
@@ -58,12 +58,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                         equalTo(BytesRefs.toBytesRef("2023"))
                     )
                 )
-            ),
-            (v, p) -> switch (p) {
-                case 0 -> "string";
-                case 1 -> "datetime";
-                default -> "";
-            }
+            )
         );
     }
 

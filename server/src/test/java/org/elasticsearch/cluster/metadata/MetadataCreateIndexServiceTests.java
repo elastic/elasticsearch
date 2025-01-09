@@ -13,7 +13,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -1258,51 +1257,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata(
-            "test",
-            aliases,
-            () -> null,
-            indexSettings,
-            4,
-            sourceIndexMetadata,
-            false,
-            TransportVersion.current()
-        );
+        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-    }
-
-    public void testBuildIndexMetadataWithTransportVersionBeforeEventIngestedRangeAdded() {
-        IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .primaryTerm(0, 3L)
-            .build();
-
-        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
-        List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata(
-            "test",
-            aliases,
-            () -> null,
-            indexSettings,
-            4,
-            sourceIndexMetadata,
-            false,
-            TransportVersions.V_8_0_0
-        );
-
-        assertThat(indexMetadata.getAliases().size(), is(1));
-        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
-        assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
-        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-        // on versions before event.ingested was added to cluster state, it should default to UNKNOWN, not NO_SHARDS
-        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.UNKNOWN));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

@@ -255,11 +255,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
-        SubGroupCollector subGroups = SubGroupCollector.attach(
-            groupByStackTraceId,
-            request.getAggregationFields(),
-            request.isLegacyAggregationField()
-        );
+        SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
             .subAggregation(groupByStackTraceId);
@@ -326,11 +322,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
-        SubGroupCollector subGroups = SubGroupCollector.attach(
-            groupByStackTraceId,
-            request.getAggregationFields(),
-            request.isLegacyAggregationField()
-        );
+        SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)

@@ -1,0 +1,11 @@
+pr: 119879
+summary: Up the frozen indices deprecation to `CRITICAL`
+area: Indices APIs
+type: deprecation
+issues: []
+deprecation:
+  title: Up the frozen indices deprecation to `CRITICAL`
+  area: Indices APIs
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

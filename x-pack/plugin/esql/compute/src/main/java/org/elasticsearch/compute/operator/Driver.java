@@ -190,13 +190,13 @@ public class Driver implements Releasable, Describable {
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            IsBlockedResult isBlocked;
+            final IsBlockedResult isBlocked;
             try {
                 isBlocked = runSingleLoopIteration();
-            } catch (DriverEarlyTerminationException ignored) {
-                isBlocked = Operator.NOT_BLOCKED;
+            } catch (DriverEarlyTerminationException unused) {
+                closeEarlyFinishedOperators();
+                continue;
             }
-            closeEarlyFinishedOperators();
             iter++;
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
@@ -282,6 +282,8 @@ public class Driver implements Releasable, Describable {
                 nextOp.finish();
             }
         }
+
+        closeEarlyFinishedOperators();
 
         if (movedPage == false) {
             return oneOf(

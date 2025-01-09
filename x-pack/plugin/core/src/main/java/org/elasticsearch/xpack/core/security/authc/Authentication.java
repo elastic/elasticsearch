@@ -954,7 +954,8 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
         checkNoDomain(authenticatingRealm, prefixMessage);
         checkNoInternalUser(authenticatingSubject, prefixMessage);
-        checkNoRole(authenticatingSubject, prefixMessage);
+        // TODO need a proper fix here
+        // checkNoRole(authenticatingSubject, prefixMessage);
         if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
             throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
         }

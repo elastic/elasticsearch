@@ -97,7 +97,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
-            .<AcknowledgedResponse>andThen(l -> updateSettings(settingsBefore, destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
             .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(WRITE, settingsBefore, destIndexName, l, taskId))
             .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(READ_ONLY, settingsBefore, destIndexName, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
@@ -192,7 +192,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
     }
 
-    private void updateSettings(
+    private void copyOldSourceSettingsToDest(
         Settings settingsBefore,
         String destIndexName,
         ActionListener<AcknowledgedResponse> listener,

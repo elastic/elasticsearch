@@ -239,7 +239,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testUpdateSettingsDefaultsRestored() {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
-        // random_index_template sets value for number_of_replicas, remove template so default value is used instead
+        // ESIntegTestCase creates a template random_index_template which contains a value for number_of_replicas.
+        // Since this test checks the behavior of default settings, there cannot be a value for number_of_replicas,
+        // so we delete the template within this method. This has no effect on other tests which will still
+        // have the template created during their setup.
         assertAcked(
             indicesAdmin().execute(TransportDeleteIndexTemplateAction.TYPE, new DeleteIndexTemplateRequest("random_index_template"))
         );

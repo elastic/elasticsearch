@@ -13,10 +13,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     public KeywordFieldBlockLoaderTests() {
@@ -29,25 +31,30 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (value == null) {
             return null;
         }
+
+        var ignoreAbove = fieldMapping.get("ignore_above") == null
+            ? Integer.MAX_VALUE
+            : ((Number) fieldMapping.get("ignore_above")).intValue();
+
         if (value instanceof String s) {
-            return convert(s);
+            return convert(s, ignoreAbove);
         }
 
-        var nonNullStream = ((List<String>) value).stream().filter(Objects::nonNull);
+        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, ignoreAbove)).filter(Objects::nonNull);
 
         if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
             // Sorted and no duplicates
-            return maybeFoldList(nonNullStream.collect(Collectors.toSet()).stream().sorted().map(this::convert).toList());
+
+            var values = new HashSet<>((List<String>) value);
+            var resultList = convertValues.compose(s -> values.stream().filter(Objects::nonNull).sorted())
+                .andThen(Stream::toList)
+                .apply(values.stream());
+            return maybeFoldList(resultList);
         }
 
-        if ((boolean) fieldMapping.getOrDefault("store", false)) {
-            return maybeFoldList(nonNullStream.map(this::convert).toList());
-        }
-
-        // Using source (either stored or synthetic).
-        // Original order is preserved and values longer than ignore_above are returned.
-        // TODO actual ignore_above support in data generation
-        return maybeFoldList(nonNullStream.map(this::convert).toList());
+        // store: "true" and source
+        var resultList = convertValues.andThen(Stream::toList).apply(((List<String>) value).stream());
+        return maybeFoldList(resultList);
     }
 
     private Object maybeFoldList(List<?> list) {
@@ -62,7 +69,11 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return list;
     }
 
-    private BytesRef convert(String value) {
-        return new BytesRef(value);
+    private BytesRef convert(String value, int ignoreAbove) {
+        if (value == null) {
+            return null;
+        }
+
+        return value.length() <= ignoreAbove ? new BytesRef(value) : null;
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
-
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 

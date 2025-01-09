@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -452,35 +453,18 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(Map<String, IndexAbstraction> lookup) {
+        public Collection<String> resolveConcreteIndices(Metadata metadata) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else if (IndexComponentSelector.FAILURES.equals(selector)) {
-                if (IndexAbstraction.Type.ALIAS.equals(indexAbstraction.getType())) {
-                    Set<DataStream> aliasDataStreams = new HashSet<>();
-                    for (Index index : indexAbstraction.getIndices()) {
-                        DataStream parentDataStream = lookup.get(index.getName()).getParentDataStream();
-                        if (parentDataStream != null) {
-                            aliasDataStreams.add(parentDataStream);
-                        }
-                    }
-                    List<String> concreteIndexNames = new ArrayList<>(aliasDataStreams.size());
-                    for (DataStream aliasDataStream : aliasDataStreams) {
-                        for (Index index : aliasDataStream.getIndices()) {
-                            concreteIndexNames.add(index.getName());
-                        }
-                    }
-                    return concreteIndexNames;
-                } else {
-                    DataStream parentDataStream = (DataStream) indexAbstraction;
-                    List<String> concreteIndexNames = new ArrayList<>(parentDataStream.getFailureIndices().size());
-                    for (Index index : parentDataStream.getFailureIndices()) {
-                        concreteIndexNames.add(index.getName());
-                    }
-                    return concreteIndexNames;
+                final List<Index> failureIndices = indexAbstraction.getFailureIndices(metadata);
+                final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
+                for (var idx : failureIndices) {
+                    concreteIndexNames.add(idx.getName());
                 }
+                return concreteIndexNames;
             } else {
                 final List<Index> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndexNames = new ArrayList<>(indices.size());
@@ -502,7 +486,7 @@ public final class IndicesPermission {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> lookup,
+        Metadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
         // Short circuit if the indicesPermission allows all access to every index
@@ -514,7 +498,7 @@ public final class IndicesPermission {
 
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
-
+        Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
             // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
@@ -534,7 +518,7 @@ public final class IndicesPermission {
             resources,
             finalTotalResourceCount,
             fieldPermissionsCache,
-            lookup
+            metadata
         );
 
         return new IndicesAccessControl(overallGranted, indexPermissions);
@@ -545,11 +529,11 @@ public final class IndicesPermission {
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
-        final Map<String, IndexAbstraction> lookup
+        final Metadata metadata
     ) {
 
         // now... every index that is associated with the request, must be granted
-        // by at least one indices permission group
+        // by at least one index permission group
         final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
@@ -560,7 +544,7 @@ public final class IndicesPermission {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
 
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices(lookup);
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices(metadata);
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {

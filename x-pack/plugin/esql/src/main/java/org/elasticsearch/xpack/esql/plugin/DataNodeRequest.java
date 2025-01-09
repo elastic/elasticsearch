@@ -54,6 +54,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     private List<ShardId> shardIds;
     private String[] indices;
     private final IndicesOptions indicesOptions;
+    private final boolean runNodeLevelReduction;
 
     DataNodeRequest(
         String sessionId,
@@ -63,7 +64,8 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         Map<Index, AliasFilter> aliasFilters,
         PhysicalPlan plan,
         String[] indices,
-        IndicesOptions indicesOptions
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -73,6 +75,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         this.plan = plan;
         this.indices = indices;
         this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
@@ -97,6 +100,11 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
             this.indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
             this.indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+            this.runNodeLevelReduction = in.readBoolean();
+        } else {
+            this.runNodeLevelReduction = false;
+        }
     }
 
     @Override
@@ -113,6 +121,9 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+            out.writeBoolean(runNodeLevelReduction);
         }
     }
 
@@ -186,6 +197,10 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         return plan;
     }
 
+    boolean runNodeLevelReduction() {
+        return runNodeLevelReduction;
+    }
+
     @Override
     public String getDescription() {
         return "shards=" + shardIds + " plan=" + plan;
@@ -209,11 +224,22 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask())
             && Arrays.equals(indices, request.indices)
-            && indicesOptions.equals(request.indicesOptions);
+            && indicesOptions.equals(request.indicesOptions)
+            && runNodeLevelReduction == request.runNodeLevelReduction;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan, Arrays.hashCode(indices), indicesOptions);
+        return Objects.hash(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shardIds,
+            aliasFilters,
+            plan,
+            Arrays.hashCode(indices),
+            indicesOptions,
+            runNodeLevelReduction
+        );
     }
 }

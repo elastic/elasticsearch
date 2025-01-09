@@ -376,8 +376,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         try {
             final int rounds = scaledRandomIntBetween(100, 10000);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-            SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
-                .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+            SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(TimeValue.timeValueMinutes(1));
             for (int i = 0; i < rounds; i++) {
                 try {
                     try {
@@ -1188,8 +1187,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         });
 
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
-            .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(TimeValue.timeValueMinutes(1));
 
         // the scrolls are not explicitly freed, but should all be gone when the test finished.
         // for completeness, we also randomly test the regular search path.
@@ -1657,7 +1655,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private static class ShardScrollRequestTest extends ShardSearchRequest {
-        private Scroll scroll;
+        private final TimeValue scroll;
 
         ShardScrollRequestTest(ShardId shardId) {
             super(
@@ -1671,11 +1669,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 -1,
                 null
             );
-            this.scroll = new Scroll(TimeValue.timeValueMinutes(1));
+            this.scroll = TimeValue.timeValueMinutes(1);
         }
 
         @Override
-        public Scroll scroll() {
+        public TimeValue scroll() {
             return this.scroll;
         }
     }

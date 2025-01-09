@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -52,16 +51,15 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         return new DefaultSecretSettings(secureApiToken);
     }
 
-    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithTooltip(String tooltip) {
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(String description) {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             API_KEY,
-            new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+            new SettingsConfiguration.Builder().setDescription(description)
                 .setLabel("API Key")
-                .setOrder(1)
                 .setRequired(true)
                 .setSensitive(true)
-                .setTooltip(tooltip)
+                .setUpdatable(true)
                 .setType(SettingsConfigurationFieldType.STRING)
                 .build()
         );
@@ -69,7 +67,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfiguration() {
-        return DefaultSecretSettings.toSettingsConfigurationWithTooltip("API Key for the provider you're connecting to.");
+        return DefaultSecretSettings.toSettingsConfigurationWithDescription("API Key for the provider you're connecting to.");
     }
 
     public DefaultSecretSettings {

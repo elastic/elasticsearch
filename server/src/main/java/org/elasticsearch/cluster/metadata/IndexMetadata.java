@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -944,21 +943,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * @param timestampRange new @timestamp range
      * @param eventIngestedRange new 'event.ingested' range
-     * @param minClusterTransportVersion minimum transport version used between nodes of this cluster
      * @return copy of this instance with updated timestamp range
      */
-    public IndexMetadata withTimestampRanges(
-        IndexLongFieldRange timestampRange,
-        IndexLongFieldRange eventIngestedRange,
-        TransportVersion minClusterTransportVersion
-    ) {
+    public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
-        }
-        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove this check when 8.15 is no longer communicable
-        IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
-        if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-            allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }
         return new IndexMetadata(
             this.index,
@@ -990,7 +979,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             timestampRange,
-            allowedEventIngestedRange,
+            eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -1714,12 +1703,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                eventIngestedRange.writeTo(out);
-            } else {
-                assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                    : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
-            }
+            eventIngestedRange.writeTo(out);
         }
 
         @Override
@@ -1824,11 +1808,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            builder.eventIngestedRange(IndexLongFieldRange.readFrom(in), in.getTransportVersion());
-        } else {
-            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, in.getTransportVersion());
-        }
+        builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
         return builder.build(true);
     }
 
@@ -2191,25 +2171,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        // only for use within this class file where minClusterTransportVersion is not known (e.g., IndexMetadataDiff.apply)
-        Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
             this.eventIngestedRange = eventIngestedRange;
-            return this;
-        }
-
-        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
-            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
-            assert minClusterTransportVersion != null || eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange must be UNKNOWN when minClusterTransportVersion is null, but minClusterTransportVersion: "
-                    + minClusterTransportVersion
-                    + "; eventIngestedRange = "
-                    + eventIngestedRange;
-            if (minClusterTransportVersion != null && minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-                this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
-            } else {
-                this.eventIngestedRange = eventIngestedRange;
-            }
             return this;
         }
 

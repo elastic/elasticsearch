@@ -555,9 +555,8 @@ public final class SearchPhaseController {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
-            final TotalHits totalHits = topDocsStats.getTotalHits();
             return new ReducedQueryPhase(
-                totalHits,
+                topDocsStats.getTotalHits(),
                 topDocsStats.fetchHits,
                 topDocsStats.getMaxScore(),
                 false,
@@ -574,8 +573,7 @@ public final class SearchPhaseController {
                 true
             );
         }
-        int total = queryResults.size();
-        final List<QuerySearchResult> nonNullResults = new ArrayList<>(total);
+        final List<QuerySearchResult> nonNullResults = new ArrayList<>();
         boolean hasSuggest = false;
         boolean hasProfileResults = false;
         for (SearchPhaseResult queryResult : queryResults) {
@@ -589,7 +587,7 @@ public final class SearchPhaseController {
         }
         validateMergeSortValueFormats(nonNullResults);
         if (nonNullResults.isEmpty()) {
-            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + total);
+            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + queryResults.size());
             assert false : ex;
             throw ex;
         }
@@ -613,8 +611,7 @@ public final class SearchPhaseController {
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
-                    suggestionList.add(suggestion);
+                    groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>()).add(suggestion);
                     if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                         completionSuggestion.setShardIndex(result.getShardIndex());
                     }
@@ -622,50 +619,48 @@ public final class SearchPhaseController {
             }
             assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             if (hasProfileResults) {
-                String key = result.getSearchShardTarget().toString();
-                profileShardResults.put(key, result.consumeProfileResult());
+                profileShardResults.put(result.getSearchShardTarget().toString(), result.consumeProfileResult());
             }
         }
-        final Suggest reducedSuggest;
-        final List<CompletionSuggestion> reducedCompletionSuggestions;
-        if (groupedSuggestions.isEmpty()) {
-            reducedSuggest = null;
-            reducedCompletionSuggestions = Collections.emptyList();
-        } else {
-            reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
-            reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
-        }
-        final InternalAggregations aggregations = bufferedAggs == null
-            ? null
-            : InternalAggregations.topLevelReduceDelayable(
-                bufferedAggs,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
-        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
-            ? null
-            : new SearchProfileResultsBuilder(profileShardResults);
+        final Suggest reducedSuggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         final SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
-            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
+            sortedTopDocs = sortDocs(
+                isScrollRequest,
+                bufferedTopDocs,
+                from,
+                size,
+                reducedSuggest == null ? Collections.emptyList() : reducedSuggest.filter(CompletionSuggestion.class)
+            );
         } else {
-            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(nonNullResults, topDocsStats);
-            sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
+            sortedTopDocs = new SortedTopDocs(
+                queryPhaseRankCoordinatorContext.rankQueryPhaseResults(nonNullResults, topDocsStats),
+                false,
+                null,
+                null,
+                null,
+                0
+            );
             size = sortedTopDocs.scoreDocs.length;
             // we need to reset from here as pagination and result trimming has already taken place
             // within the `QueryPhaseRankCoordinatorContext#rankQueryPhaseResults` and we don't want
             // to apply it again in the `getHits` method.
             from = 0;
         }
-        final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
-            totalHits,
+            topDocsStats.getTotalHits(),
             topDocsStats.fetchHits,
             topDocsStats.getMaxScore(),
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
             reducedSuggest,
-            aggregations,
-            profileBuilder,
+            bufferedAggs == null
+                ? null
+                : InternalAggregations.topLevelReduceDelayable(
+                    bufferedAggs,
+                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+                ),
+            profileShardResults.isEmpty() ? null : new SearchProfileResultsBuilder(profileShardResults),
             sortedTopDocs,
             sortValueFormats,
             queryPhaseRankCoordinatorContext,

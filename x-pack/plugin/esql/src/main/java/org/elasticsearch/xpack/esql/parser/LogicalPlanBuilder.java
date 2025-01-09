@@ -258,8 +258,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            var metadataOptionContext = ctx.metadata();
-            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false // TODO: drop check below once METADATA_SCORE is no longer snapshot-only

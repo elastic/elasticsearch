@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ESQ_SKIP_ES_INDEX_SERIALIZATION;
+import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -152,7 +152,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         var source = Source.readFrom((PlanStreamInput) in);
         String indexName;
         Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().onOrAfter(ESQ_SKIP_ES_INDEX_SERIALIZATION)) {
+        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             indexName = in.readString();
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
@@ -181,7 +181,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ESQ_SKIP_ES_INDEX_SERIALIZATION)) {
+        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             out.writeString(indexName);
             out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {

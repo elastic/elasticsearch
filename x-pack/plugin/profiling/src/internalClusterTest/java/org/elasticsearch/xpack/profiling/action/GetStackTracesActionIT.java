@@ -29,7 +29,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -71,8 +70,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            "service.name",
-            null,
+            new String[] { "service.name" },
             null,
             null,
             null,
@@ -120,8 +118,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             // also match an index that does not contain stacktrace ids to ensure it is ignored
             new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
-            "transaction.name",
-            null,
+            new String[] { "transaction.name" },
             null,
             null,
             null,
@@ -168,7 +165,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-test-*" },
             "transaction.profiler_stack_trace_ids",
-            null,
             null,
             null,
             null,
@@ -226,7 +222,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -249,7 +244,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -267,7 +261,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
-            null,
             null,
             null,
             null,

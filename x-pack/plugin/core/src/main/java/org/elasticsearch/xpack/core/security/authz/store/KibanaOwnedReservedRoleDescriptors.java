@@ -443,9 +443,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For destination indices of the Cloud Security Posture packages that ships a
                 // transform (specific for scores indexes, as of 9.0.0 score indices will need to have auto_put priviliges)
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "logs-cloud_security_posture.scores-default*"
-                    )
+                    .indices("logs-cloud_security_posture.scores-default*")
                     .privileges(
                         "create_index",
                         "read",

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * Context passed to {@link Expression#fold}.
+ * Context passed to {@link Expression#fold}. This is not thread safe.
  */
 public class FoldContext {
     /**
@@ -49,7 +49,7 @@ public class FoldContext {
         allowedBytes -= bytes;
         assert allowedBytes <= initialAllowedBytes : "returned more bytes than it used";
         if (allowedBytes < 0) {
-            throw new FoldTooMuchMemoryException(source, initialAllowedBytes);
+            throw new FoldTooMuchMemoryException(source, bytes, initialAllowedBytes);
         }
     }
 
@@ -124,13 +124,15 @@ public class FoldContext {
         };
     }
 
-    private static class FoldTooMuchMemoryException extends QlClientException {
-        protected FoldTooMuchMemoryException(Source source, long initialAllowedBytes) {
+    public static class FoldTooMuchMemoryException extends QlClientException {
+        protected FoldTooMuchMemoryException(Source source, long bytesForExpression, long initialAllowedBytes) {
             super(
-                "line {}:{}: folding used more than {}",
+                "line {}:{}: Folding query used more than {}. The expression that pushed past the limit is [{}] which needed {}.",
                 source.source().getLineNumber(),
                 source.source().getColumnNumber(),
-                ByteSizeValue.ofBytes(initialAllowedBytes)
+                ByteSizeValue.ofBytes(initialAllowedBytes),
+                source.text(),
+                ByteSizeValue.ofBytes(bytesForExpression)
             );
         }
     }

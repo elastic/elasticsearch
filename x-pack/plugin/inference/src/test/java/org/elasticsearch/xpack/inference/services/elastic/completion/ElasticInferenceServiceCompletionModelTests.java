@@ -33,7 +33,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         );
 
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null, null)),
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
             "new_model_id",
             null,
             null,

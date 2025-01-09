@@ -1785,7 +1785,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         ESRestTestCase.createIndex(name, Settings.EMPTY, configStr);
     }
 
-    private static void createIndex(String name, Settings setting, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
+    private static void createIndex(String name, Settings setting, CheckedConsumer<XContentBuilder, IOException> mapping)
+        throws IOException {
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
         mapping.accept(index);
         index.endObject();
@@ -1793,7 +1794,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         logger.info("index: {} {}", name, configStr);
         ESRestTestCase.createIndex(name, setting, configStr);
     }
-
 
     /**
      * Yaml adds newlines and some indentation which we don't want to match.

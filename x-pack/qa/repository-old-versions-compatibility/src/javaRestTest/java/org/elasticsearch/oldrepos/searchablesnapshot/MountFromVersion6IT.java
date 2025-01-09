@@ -12,10 +12,6 @@ import org.elasticsearch.test.cluster.util.Version;
 public class MountFromVersion6IT extends SearchableSnapshotTestCase {
 
     public MountFromVersion6IT(Version version) {
-        super(version);
-    }
-
-    public void testSearchableSnapshot() throws Exception {
-        verifyCompatibility("6");
+        super(version, "6");
     }
 }

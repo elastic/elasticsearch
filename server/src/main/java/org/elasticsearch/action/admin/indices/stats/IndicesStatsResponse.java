@@ -206,7 +206,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(
 
-                ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                ChunkedToXContentHelper.chunk((builder, p) -> {
                     commonStats(builder, p);
                     return builder.startObject(Fields.INDICES);
                 }),
@@ -214,7 +214,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                     getIndices().values().iterator(),
                     indexStats -> Iterators.concat(
 
-                        ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                        ChunkedToXContentHelper.chunk((builder, p) -> {
                             builder.startObject(indexStats.getIndex());
                             builder.field("uuid", indexStats.getUuid());
                             if (indexStats.getHealth() != null) {
@@ -259,7 +259,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                 ChunkedToXContentHelper.endObject()
             );
         } else {
-            return ChunkedToXContentHelper.singleChunk((builder, p) -> {
+            return ChunkedToXContentHelper.chunk((builder, p) -> {
                 commonStats(builder, p);
                 return builder;
             });

@@ -27,7 +27,11 @@ public class HdfsClassPatcher {
         "org/apache/hadoop/util/ShutdownHookManager.class",
         ShutdownHookManagerPatcher::new,
         "org/apache/hadoop/util/Shell.class",
-        ShellPatcher::new
+        ShellPatcher::new,
+        "org/apache/hadoop/security/UserGroupInformation.class",
+        SubjectGetSubjectPatcher::new,
+        "org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class",
+        SubjectGetSubjectPatcher::new
     );
 
     public static void main(String[] args) throws Exception {

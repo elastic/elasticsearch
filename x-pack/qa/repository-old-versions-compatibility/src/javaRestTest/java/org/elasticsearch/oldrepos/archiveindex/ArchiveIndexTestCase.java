@@ -14,7 +14,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.oldrepos.AbstractUpgradeCompatibilityTestCase;
-import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.List;
@@ -36,11 +35,11 @@ abstract class ArchiveIndexTestCase extends AbstractUpgradeCompatibilityTestCase
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    protected ArchiveIndexTestCase(Version version, Snapshot indexCreatedVersion) {
+    protected ArchiveIndexTestCase(Version version, String indexCreatedVersion) {
         this(version, indexCreatedVersion, o -> {});
     }
 
-    protected ArchiveIndexTestCase(Version version, Snapshot indexCreatedVersion, Consumer<List<String>> consumer) {
+    protected ArchiveIndexTestCase(Version version, String indexCreatedVersion, Consumer<List<String>> consumer) {
         super(version, indexCreatedVersion, consumer);
     }
 

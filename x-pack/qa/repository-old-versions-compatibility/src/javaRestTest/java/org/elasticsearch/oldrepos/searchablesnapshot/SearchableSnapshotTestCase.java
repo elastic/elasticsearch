@@ -14,7 +14,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.oldrepos.AbstractUpgradeCompatibilityTestCase;
-import org.elasticsearch.oldrepos.Snapshot;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.List;
@@ -32,11 +31,11 @@ abstract class SearchableSnapshotTestCase extends AbstractUpgradeCompatibilityTe
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    protected SearchableSnapshotTestCase(Version version, Snapshot indexCreatedVersion) {
+    protected SearchableSnapshotTestCase(Version version, String indexCreatedVersion) {
         this(version, indexCreatedVersion, o -> {});
     }
 
-    protected SearchableSnapshotTestCase(Version version, Snapshot indexCreatedVersion, Consumer<List<String>> warningsConsumer) {
+    protected SearchableSnapshotTestCase(Version version, String indexCreatedVersion, Consumer<List<String>> warningsConsumer) {
         super(version, indexCreatedVersion, warningsConsumer);
     }
 

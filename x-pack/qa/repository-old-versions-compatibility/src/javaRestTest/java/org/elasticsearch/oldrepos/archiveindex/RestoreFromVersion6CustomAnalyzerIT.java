@@ -7,7 +7,7 @@
 
 package org.elasticsearch.oldrepos.archiveindex;
 
-import org.elasticsearch.oldrepos.Snapshot;
+import org.elasticsearch.oldrepos.TestSnapshotCases;
 import org.elasticsearch.test.cluster.util.Version;
 
 /**
@@ -44,7 +44,7 @@ import org.elasticsearch.test.cluster.util.Version;
 public class RestoreFromVersion6CustomAnalyzerIT extends ArchiveIndexTestCase {
 
     public RestoreFromVersion6CustomAnalyzerIT(Version version) {
-        super(version, Snapshot.SIX_CUSTOM_ANALYZER, warnings -> {
+        super(version, TestSnapshotCases.ES_VERSION_6_STANDARD_TOKEN_FILTER, warnings -> {
             assertEquals(1, warnings.size());
             assertEquals("The [standard] token filter is " + "deprecated and will be removed in a future version.", warnings.getFirst());
         });

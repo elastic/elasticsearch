@@ -75,12 +75,12 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
     private static boolean upgradeFailed = false;
 
     private final Version clusterVersion;
-    private final Snapshot indexCreatedVersion;
+    private final String indexCreatedVersion;
     private final Consumer<List<String>> warningsConsumer;
 
     public AbstractUpgradeCompatibilityTestCase(
         @Name("cluster") Version clusterVersion,
-        Snapshot indexCreatedVersion,
+        String indexCreatedVersion,
         Consumer<List<String>> warningsConsumer
     ) {
         this.clusterVersion = clusterVersion;
@@ -151,7 +151,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    protected final void verifyCompatibility(Snapshot version, Consumer<List<String>> warningsConsumer) throws Exception {
+    protected final void verifyCompatibility(String version, Consumer<List<String>> warningsConsumer) throws Exception {
         final String repository = "repository";
         final String snapshot = "snapshot";
         final String index = "index";
@@ -164,7 +164,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
             assertTrue(getIndices(client()).isEmpty());
 
             // Copy a snapshot of an index with 5 documents
-            copySnapshotFromResources(repositoryPath, version.getName());
+            copySnapshotFromResources(repositoryPath, version);
             registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
             recover(client(), repository, snapshot, index, warningsConsumer);
 

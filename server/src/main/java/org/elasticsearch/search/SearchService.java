@@ -1256,14 +1256,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private long getScrollKeepAlive(Scroll scroll) {
-        return getScrollKeepAlive(scroll, defaultKeepAlive, maxKeepAlive);
+    private long getScrollKeepAlive(TimeValue keepAlive) {
+        return getScrollKeepAlive(keepAlive, defaultKeepAlive, maxKeepAlive);
     }
 
-    private static long getScrollKeepAlive(Scroll scroll, long defaultKeepAlive, long maxKeepAlive) {
-        if (scroll != null && scroll.keepAlive() != null) {
-            checkKeepAliveLimit(scroll.keepAlive().millis(), maxKeepAlive);
-            return scroll.keepAlive().getMillis();
+    private static long getScrollKeepAlive(TimeValue keepAlive, long defaultKeepAlive, long maxKeepAlive) {
+        if (keepAlive != null) {
+            checkKeepAliveLimit(keepAlive.millis(), maxKeepAlive);
+            return keepAlive.getMillis();
         }
         return defaultKeepAlive;
     }

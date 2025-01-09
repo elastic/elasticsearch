@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -170,18 +171,47 @@ public final class Authentication implements ToXContentObject {
             type = AuthenticationType.REALM;
             metadata = Map.of();
         }
+
         if (innerUser != null) {
-            authenticatingSubject = new Subject(innerUser, authenticatedBy, version, metadata);
+            authenticatingSubject = new Subject(
+                copyUserWithRolesRemovedForLegacyApiKeys(version, innerUser),
+                authenticatedBy,
+                version,
+                metadata
+            );
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
             effectiveSubject = new Subject(outerUser, lookedUpBy, version, Map.of());
         } else {
-            authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
+            authenticatingSubject = effectiveSubject = new Subject(
+                copyUserWithRolesRemovedForLegacyApiKeys(version, outerUser),
+                authenticatedBy,
+                version,
+                metadata
+            );
         }
+
         if (Assertions.ENABLED) {
             checkConsistency();
+        }
+    }
+
+    private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User innerUser) {
+        // API keys prior to 7.8 had synthetic role names. Strip these out to make sure we maintain
+        // the invariant that API keys don't have role names
+        if (type == AuthenticationType.API_KEY && version.onOrBefore(TransportVersions.V_7_8_0)) {
+            return new User(
+                innerUser.principal(),
+                EMPTY_ARRAY,
+                innerUser.fullName(),
+                innerUser.email(),
+                innerUser.metadata(),
+                innerUser.enabled()
+            );
+        } else {
+            return innerUser;
         }
     }
 
@@ -954,8 +984,7 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
         checkNoDomain(authenticatingRealm, prefixMessage);
         checkNoInternalUser(authenticatingSubject, prefixMessage);
-        // TODO need a proper fix here
-        // checkNoRole(authenticatingSubject, prefixMessage);
+        checkNoRole(authenticatingSubject, prefixMessage);
         if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
             throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
         }

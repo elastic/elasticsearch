@@ -13,13 +13,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
 import static org.hamcrest.Matchers.containsString;
@@ -170,5 +173,16 @@ public class AuthenticationSerializationTests extends ESTestCase {
         readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertEquals(kibanaSystemUser, readFrom);
+    }
+
+    public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
+        Subject subject = new Subject(
+            new User("foo", "role"),
+            new Authentication.RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "node"),
+            TransportVersions.V_7_8_0,
+            Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
+        );
+        var encodedAuthentication = Authentication.doEncode(subject, subject, Authentication.AuthenticationType.API_KEY);
+        assertThat(AuthenticationContextSerializer.decode(encodedAuthentication), is(notNullValue()));
     }
 }

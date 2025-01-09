@@ -253,6 +253,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
   issue: https://github.com/elastic/elasticsearch/issues/119721
+- class: org.elasticsearch.script.mustache.SearchTemplateRequestTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/119819
 
 # Examples:
 #

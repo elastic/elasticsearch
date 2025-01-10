@@ -98,11 +98,9 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                             return;
                         }
                         LifecyclePolicyMetadata policyMetadata = entry.getValue();
-                        String policyName = entry.getKey();
-                        if (Regex.simpleMatch(name, policyName)) {
-                            policyMetadata.getPolicy().maybeAddDeprecationWarningForFreezeAction(policyName);
+                        if (Regex.simpleMatch(name, entry.getKey())) {
                             policyResponseItemMap.put(
-                                policyName,
+                                entry.getKey(),
                                 new LifecyclePolicyResponseItem(
                                     policyMetadata.getPolicy(),
                                     policyMetadata.getVersion(),
@@ -118,7 +116,6 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                         listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
                         return;
                     }
-                    policyMetadata.getPolicy().maybeAddDeprecationWarningForFreezeAction(name);
                     policyResponseItemMap.put(
                         name,
                         new LifecyclePolicyResponseItem(

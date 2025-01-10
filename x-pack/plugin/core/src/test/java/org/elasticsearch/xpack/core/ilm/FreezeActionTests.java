@@ -51,7 +51,7 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         assertEquals(3, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, FreezeAction.NAME, FreezeAction.CONDITIONAL_SKIP_FREEZE_STEP);
         StepKey expectedSecondStepKey = new StepKey(phase, FreezeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
-        StepKey expectedThirdStepKey = new StepKey(phase, FreezeAction.NAME, FreezeAction.FREEZE_STEP_NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, FreezeAction.NAME, FreezeAction.NAME);
 
         NoopStep firstStep = (NoopStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));

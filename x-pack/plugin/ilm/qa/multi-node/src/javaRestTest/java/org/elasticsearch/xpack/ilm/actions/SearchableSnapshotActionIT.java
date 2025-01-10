@@ -452,11 +452,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
-
-        // Remove policy with freeze action so the deprecation warning will not interfere with the tear down
-        assertAcknowledged(client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream)));
-        assertAcknowledged(client().performRequest(new Request("DELETE", "/_index_template/" + template)));
-        assertAcknowledged(client().performRequest(new Request("DELETE", "/_ilm/policy/" + policy)));
     }
 
     @SuppressWarnings("unchecked")

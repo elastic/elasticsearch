@@ -182,7 +182,8 @@ public class Phase implements ToXContentObject, Writeable {
             deprecationLogger.warn(
                 DeprecationCategory.OTHER,
                 "ilm_freeze_action_deprecation",
-                "The freeze action in ILM is deprecated and will be removed in a future version. Please remove the freeze action from the '"
+                "The freeze action in ILM is deprecated and will be removed in a future version;"
+                    + " this action is already a noop so it can be safely removed. Please remove the freeze action from the '"
                     + policyName
                     + "' policy."
             );

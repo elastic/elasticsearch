@@ -30,7 +30,6 @@ public class FreezeAction implements LifecycleAction {
 
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
-    public static final String FREEZE_STEP_NAME = "freeze";
 
     public static final FreezeAction INSTANCE = new FreezeAction();
 
@@ -67,7 +66,7 @@ public class FreezeAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey preFreezeMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FREEZE_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
-        StepKey freezeStepKey = new StepKey(phase, NAME, FREEZE_STEP_NAME);
+        StepKey freezeStepKey = new StepKey(phase, NAME, NAME);
         NoopStep conditionalSkipFreezeStep = new NoopStep(preFreezeMergeBranchingKey, nextStepKey);
         NoopStep checkNoWriteIndexStep = new NoopStep(checkNotWriteIndex, nextStepKey);
         NoopStep freezeStep = new NoopStep(freezeStepKey, nextStepKey);

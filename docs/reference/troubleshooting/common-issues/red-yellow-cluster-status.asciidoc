@@ -79,7 +79,7 @@ most common causes and their solutions.
 
 {es} will never assign a replica to the same node as the primary shard. A single-node cluster will always have yellow status. To change to green, set <<dynamic-index-number-of-replicas,num_of_replicas>> to 0 for all indices.
 
-Similarly if the number of replicas is equal to or exceeds the number of nodes, then it will not be possible to allocate one or more of the shards for the same reason.
+Therefore, if the number of replicas equals or exceeds the number of nodes, some shards won't be allocated.
 
 [discrete]
 [[fix-cluster-status-recover-nodes]]

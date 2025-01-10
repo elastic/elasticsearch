@@ -174,7 +174,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119713")
     public void testUpgradeDataStream() throws Exception {
         String dataStreamName = "reindex_test_data_stream";
         int numRollovers = randomIntBetween(0, 5);
@@ -281,18 +280,22 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
-            // The number of rollovers that will have happened when we call reindex:
-            final int rolloversPerformedByReindex = explicitRolloverOnNewClusterCount == 0 ? 1 : 0;
             final int originalWriteIndex = 1;
-            assertThat(
-                statusResponseMap.get("total_indices_in_data_stream"),
-                equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount + rolloversPerformedByReindex)
-            );
             if (isOriginalClusterSameMajorVersionAsCurrent()) {
+                assertThat(
+                    statusResponseMap.get("total_indices_in_data_stream"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount)
+                );
                 // If the original cluster was the same as this one, we don't want any indices reindexed:
                 assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
                 assertThat(statusResponseMap.get("successes"), equalTo(0));
             } else {
+                // The number of rollovers that will have happened when we call reindex:
+                final int rolloversPerformedByReindex = explicitRolloverOnNewClusterCount == 0 ? 1 : 0;
+                assertThat(
+                    statusResponseMap.get("total_indices_in_data_stream"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount + rolloversPerformedByReindex)
+                );
                 /*
                  * total_indices_requiring_upgrade is made up of: (the original write index) + numRolloversOnOldCluster. The number of
                  * rollovers on the upgraded cluster is irrelevant since those will not be reindexed.

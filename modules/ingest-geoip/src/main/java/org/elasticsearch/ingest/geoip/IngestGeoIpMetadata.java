@@ -92,7 +92,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(ChunkedToXContentHelper.xContentValuesMap(DATABASES_FIELD.getPreferredName(), databases));
+        return Iterators.concat(ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases));
     }
 
     @Override

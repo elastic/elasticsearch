@@ -13,6 +13,7 @@ Long passages are <<auto-text-chunking, automatically chunked>> to smaller secti
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
 You can create the inference endpoint by using the <<put-inference-api>>.
 This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data. 
+The `semantic_text` field type may also be queried with <<query-dsl-match-query, match>>, <<query-dsl-sparse-vector-query, sparse_vector>> or <<query-dsl-knn-query, knn>> queries.
 
 If you don’t specify an inference endpoint, the `inference_id` field defaults to `.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch service.
 

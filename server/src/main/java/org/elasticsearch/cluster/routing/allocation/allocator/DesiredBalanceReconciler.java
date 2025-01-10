@@ -90,7 +90,14 @@ public class DesiredBalanceReconciler {
         );
     }
 
-    public ClusterAllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    /**
+     * Applies a desired shard allocation to the routing table by initializing and relocating shards in the cluster state.
+     *
+     * @param desiredBalance The new desired cluster shard allocation
+     * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
+     *                   reach the given desired balance.
+     */
+    public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);

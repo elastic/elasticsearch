@@ -41,11 +41,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiPredicate;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ;
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ_FAILURES;
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ_FAILURES_PRIVILEGE_NAME;
 
 /**
  * A permission that is based on privileges for index related actions executed
@@ -64,6 +67,22 @@ public final class IndicesPermission {
     private final RestrictedIndices restrictedIndices;
     private final Group[] groups;
     private final boolean hasFieldOrDocumentLevelSecurity;
+
+    public enum AuthorizedComponents {
+        NONE,
+        DATA,
+        FAILURES,
+        ALL;
+
+        public AuthorizedComponents and(AuthorizedComponents other) {
+            return switch (this) {
+                case ALL -> ALL;
+                case NONE -> other;
+                case DATA -> other == FAILURES || other == ALL ? ALL : DATA;
+                case FAILURES -> other == DATA || other == ALL ? ALL : FAILURES;
+            };
+        }
+    }
 
     public static class Builder {
 
@@ -141,51 +160,31 @@ public final class IndicesPermission {
     }
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
-        final Set<String> ordinaryIndices = new HashSet<>();
-        final Set<String> restrictedIndices = new HashSet<>();
-        final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
-        final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
-        final boolean isMappingUpdateAction = isMappingUpdateAction(action);
+        IsResourceAuthorizedPredicate predicate = new IsResourceAuthorizedPredicate((name, abstraction) -> AuthorizedComponents.NONE);
         for (final Group group : groups) {
-            if (group.actionMatcher.test(action)) {
-                if (group.allowRestrictedIndices) {
-                    restrictedIndices.addAll(Arrays.asList(group.indices()));
-                } else {
-                    ordinaryIndices.addAll(Arrays.asList(group.indices()));
-                }
-            } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
-                // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
-                // the privilege definition does not currently allow it
-                if (group.allowRestrictedIndices) {
-                    grantMappingUpdatesOnRestrictedIndices.addAll(Arrays.asList(group.indices()));
-                } else {
-                    grantMappingUpdatesOnIndices.addAll(Arrays.asList(group.indices()));
-                }
-            }
+            predicate = predicate.and(group.allowedIndicesPredicate(action));
         }
-        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
-        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
+        return predicate;
     }
 
     /**
      * This encapsulates the authorization test for resources.
      * There is an additional test for resources that are missing or that are not a datastream or a backing index.
      */
-    public static class IsResourceAuthorizedPredicate implements BiPredicate<String, IndexAbstraction> {
+    public static class IsResourceAuthorizedPredicate {
 
-        private final BiPredicate<String, IndexAbstraction> biPredicate;
+        private final BiFunction<String, IndexAbstraction, AuthorizedComponents> biPredicate;
 
         // public for tests
-        public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
-            this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
-                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
-                return resourceNameMatcher.test(name)
-                    || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
-            });
-        }
+        // public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
+        // this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
+        // assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+        // return resourceNameMatcher.test(name)
+        // || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
+        // });
+        // }
 
-        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate) {
+        private IsResourceAuthorizedPredicate(BiFunction<String, IndexAbstraction, AuthorizedComponents> biPredicate) {
             this.biPredicate = biPredicate;
         }
 
@@ -194,9 +193,11 @@ public final class IndicesPermission {
         * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
         * authorization tests of that other instance and this one.
         */
-        @Override
-        public final IsResourceAuthorizedPredicate and(BiPredicate<? super String, ? super IndexAbstraction> other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other));
+        // @Override
+        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
+            return new IsResourceAuthorizedPredicate(
+                (name, abstraction) -> this.biPredicate.apply(name, abstraction).and(other.biPredicate.apply(name, abstraction))
+            );
         }
 
         /**
@@ -204,7 +205,7 @@ public final class IndicesPermission {
          * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction)} method.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public final boolean test(IndexAbstraction indexAbstraction) {
+        public final AuthorizedComponents test(IndexAbstraction indexAbstraction) {
             return test(indexAbstraction.getName(), indexAbstraction);
         }
 
@@ -214,9 +215,8 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        @Override
-        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
-            return biPredicate.test(name, indexAbstraction);
+        public AuthorizedComponents test(String name, @Nullable IndexAbstraction indexAbstraction) {
+            return biPredicate.apply(name, indexAbstraction);
         }
 
         private static boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
@@ -234,7 +234,8 @@ public final class IndicesPermission {
     public boolean check(String action) {
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (Group group : groups) {
-            if (group.checkAction(action) || (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
+            if (group.checkAction(action)
+                || (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group.privilege().name()))) {
                 return true;
             }
         }
@@ -403,21 +404,6 @@ public final class IndicesPermission {
         }
 
         /**
-         * Check whether this object is covered by the provided permission {@link Group}.
-         * For indices that are part of a data-stream, this checks both the index name and the parent data-stream name.
-         * In all other cases, it checks the name of this object only.
-         */
-        public boolean checkIndex(Group group) {
-            final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
-            if (ds != null) {
-                if (group.checkIndex(ds.getName())) {
-                    return true;
-                }
-            }
-            return group.checkIndex(name);
-        }
-
-        /**
          * @return the number of distinct objects to which this expansion refers.
          */
         public int size(Map<String, IndexAbstraction> lookup) {
@@ -524,6 +510,7 @@ public final class IndicesPermission {
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
+            // we need to consider the selector here?
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
             resources.put(resource.name, resource);
             totalResourceCount += resource.size(lookup);
@@ -564,54 +551,49 @@ public final class IndicesPermission {
 
             final Collection<String> concreteIndices = resource.resolveConcreteIndices(lookup);
             for (Group group : groups) {
+                AuthorizedComponents authorizedComponents = group.allowedIndicesPredicate(action).test(resource.indexAbstraction);
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
-                if (resource.checkIndex(group)) {
-                    if (group.checkAction(action)
-                        || (isMappingUpdateAction // for BWC reasons, mapping updates are exceptionally allowed for certain privileges on
-                            // indices and aliases (but not on data streams)
-                            && false == resource.isPartOfDataStream()
-                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
-                        granted = true;
-                        // propagate DLS and FLS permissions over the concrete indices
-                        for (String index : concreteIndices) {
-                            final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
-                                if (existingSet == null) {
-                                    // Most indices rely on the default (empty) field permissions object, so we optimize for that case
-                                    // Using an immutable single item set is significantly faster because it avoids any of the hashing
-                                    // and backing set creation.
-                                    return Set.of(group.getFieldPermissions());
-                                } else if (existingSet.size() == 1) {
-                                    FieldPermissions fp = group.getFieldPermissions();
-                                    if (existingSet.contains(fp)) {
-                                        return existingSet;
-                                    }
-                                    // This index doesn't have a single field permissions object, replace the singleton with a real Set
-                                    final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
-                                    hashSet.add(fp);
-                                    return hashSet;
-                                } else {
-                                    existingSet.add(group.getFieldPermissions());
+                if (authorizedComponents != null && authorizedComponents != AuthorizedComponents.NONE) {
+                    granted = true;
+                    // propagate DLS and FLS permissions over the concrete indices
+                    for (String index : concreteIndices) {
+                        final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
+                            if (existingSet == null) {
+                                // Most indices rely on the default (empty) field permissions object, so we optimize for that case
+                                // Using an immutable single item set is significantly faster because it avoids any of the hashing
+                                // and backing set creation.
+                                return Set.of(group.getFieldPermissions());
+                            } else if (existingSet.size() == 1) {
+                                FieldPermissions fp = group.getFieldPermissions();
+                                if (existingSet.contains(fp)) {
                                     return existingSet;
                                 }
-                            });
-
-                            DocumentLevelPermissions docPermissions;
-                            if (group.hasQuery()) {
-                                docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                                docPermissions.addAll(group.getQuery());
+                                // This index doesn't have a single field permissions object, replace the singleton with a real Set
+                                final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
+                                hashSet.add(fp);
+                                return hashSet;
                             } else {
-                                // if more than one permission matches for a concrete index here and if
-                                // a single permission doesn't have a role query then DLS will not be
-                                // applied even when other permissions do have a role query
-                                docPermissions = DocumentLevelPermissions.ALLOW_ALL;
-                                // don't worry about what's already there - just overwrite it, it avoids doing a 2nd hash lookup.
-                                roleQueriesByIndex.put(index, docPermissions);
+                                existingSet.add(group.getFieldPermissions());
+                                return existingSet;
                             }
+                        });
 
-                            if (index.equals(resource.name) == false) {
-                                fieldPermissionsByIndex.put(resource.name, fieldPermissions);
-                                roleQueriesByIndex.put(resource.name, docPermissions);
-                            }
+                        DocumentLevelPermissions docPermissions;
+                        if (group.hasQuery()) {
+                            docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
+                            docPermissions.addAll(group.getQuery());
+                        } else {
+                            // if more than one permission matches for a concrete index here and if
+                            // a single permission doesn't have a role query then DLS will not be
+                            // applied even when other permissions do have a role query
+                            docPermissions = DocumentLevelPermissions.ALLOW_ALL;
+                            // don't worry about what's already there - just overwrite it, it avoids doing a 2nd hash lookup.
+                            roleQueriesByIndex.put(index, docPermissions);
+                        }
+
+                        if (index.equals(resource.name) == false) {
+                            fieldPermissionsByIndex.put(resource.name, fieldPermissions);
+                            roleQueriesByIndex.put(resource.name, docPermissions);
                         }
                     }
                 }
@@ -661,41 +643,21 @@ public final class IndicesPermission {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
+        // check failure store here too
         for (IndexResource resource : requestedResources.values()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
-            // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
-            // an index or an alias (but not for a data stream)
-            boolean bwcGrantMappingUpdate = false;
-            final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
 
             for (Group group : groups) {
-                // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
-                if (resource.checkIndex(group)) {
+                AuthorizedComponents authResult = group.allowedIndicesPredicate(action).test(resource.indexAbstraction);
+                if (authResult != null && authResult != AuthorizedComponents.NONE) {
                     boolean actionCheck = group.checkAction(action);
                     // If action is granted we don't have to check for BWC and can stop at first granting group.
                     if (actionCheck) {
                         granted = true;
                         break;
-                    } else {
-                        // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
-                        // outside of the privilege definition
-                        boolean bwcMappingActionCheck = isMappingUpdateAction
-                            && false == resource.isPartOfDataStream()
-                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
-                        bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
-
-                        if (bwcMappingActionCheck) {
-                            logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
-                        }
                     }
                 }
-            }
-
-            if (false == granted && bwcGrantMappingUpdate) {
-                // the action is granted only due to the deprecated behaviour of certain privileges
-                granted = true;
-                bwcDeprecationLogActions.forEach(Runnable::run);
             }
 
             if (granted == false) {
@@ -706,34 +668,6 @@ public final class IndicesPermission {
 
         // None of the above resources were rejected.
         return true;
-    }
-
-    private static void logDeprecatedBwcPrivilegeUsage(
-        String action,
-        IndexResource resource,
-        Group group,
-        List<Runnable> bwcDeprecationLogActions
-    ) {
-        for (String privilegeName : group.privilege.name()) {
-            if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
-                bwcDeprecationLogActions.add(
-                    () -> deprecationLogger.warn(
-                        DeprecationCategory.SECURITY,
-                        "[" + resource.name + "] mapping update for ingest privilege [" + privilegeName + "]",
-                        "the index privilege ["
-                            + privilegeName
-                            + "] allowed the update "
-                            + "mapping action ["
-                            + action
-                            + "] on index ["
-                            + resource.name
-                            + "], this privilege "
-                            + "will not permit mapping updates in the next major release - users who require access "
-                            + "to update mappings must be granted explicit privileges"
-                    )
-                );
-            }
-        }
     }
 
     private boolean isConcreteRestrictedIndex(String indexPattern) {
@@ -747,8 +681,16 @@ public final class IndicesPermission {
         return action.equals(TransportPutMappingAction.TYPE.name()) || action.equals(TransportAutoPutMappingAction.TYPE.name());
     }
 
-    private static boolean containsPrivilegeThatGrantsMappingUpdatesForBwc(Group group) {
-        return group.privilege().name().stream().anyMatch(PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE::contains);
+    private static boolean containsPrivilegeThatGrantsMappingUpdatesForBwc(Set<String> names) {
+        return names.stream().anyMatch(PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE::contains);
+    }
+
+    private static boolean isFailureReadAction(String action) {
+        return READ_FAILURES.predicate().test(action);
+    }
+
+    private static boolean containsReadFailuresPrivilege(Group group) {
+        return group.privilege().name().contains(READ_FAILURES_PRIVILEGE_NAME);
     }
 
     /**
@@ -821,6 +763,9 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
+        // These two flags are just a cache so we don't have to constantly re-check strings
+        private final boolean hasMappingUpdateBwcPermissions;
+        private final boolean hasReadFailuresPrivilege;
 
         public Group(
             IndexPrivilege privilege,
@@ -848,6 +793,8 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+            this.hasMappingUpdateBwcPermissions = containsPrivilegeThatGrantsMappingUpdatesForBwc(privilege.name());
+            this.hasReadFailuresPrivilege = this.privilege.name().stream().anyMatch(READ_FAILURES_PRIVILEGE_NAME::equals);
         }
 
         public IndexPrivilege privilege() {
@@ -865,6 +812,111 @@ public final class IndicesPermission {
 
         public FieldPermissions getFieldPermissions() {
             return fieldPermissions;
+        }
+
+        IsResourceAuthorizedPredicate allowedIndicesPredicate(String action) {
+            return new IsResourceAuthorizedPredicate(allowedIndicesChecker(action));
+        }
+
+        /**
+         * Returns a checker which checks if users are permitted to access index abstractions for the given action.
+         * @param action
+         * @return A function which checks an index name and returns the components of this abstraction the user is authorized to access
+         *          with the given action.
+         */
+        private BiFunction<String, IndexAbstraction, AuthorizedComponents> allowedIndicesChecker(String action) {
+            boolean isReadAction = READ.predicate().test(action);
+            boolean isMappingUpdateAction = isMappingUpdateAction(action);
+            boolean actionMatches = actionMatcher.test(action);
+            boolean actionAuthorized = actionMatches || (isReadAction && hasReadFailuresPrivilege);
+            if (actionAuthorized == false) {
+                return (name, resource) -> {
+                    if (isMappingUpdateAction && hasMappingUpdateBwcPermissions && resource.getParentDataStream() == null) {
+                        for (String privilegeName : this.privilege.name()) {
+                            if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
+                                // ATHE: Does this log more often?
+                                deprecationLogger.warn(
+                                    DeprecationCategory.SECURITY,
+                                    "[" + resource.getName() + "] mapping update for ingest privilege [" + privilegeName + "]",
+                                    "the index privilege ["
+                                        + privilegeName
+                                        + "] allowed the update "
+                                        + "mapping action ["
+                                        + action
+                                        + "] on index ["
+                                        + resource.getName()
+                                        + "], this privilege "
+                                        + "will not permit mapping updates in the next major release - users who require access "
+                                        + "to update mappings must be granted explicit privileges"
+                                );
+                            }
+                        }
+                        return AuthorizedComponents.ALL;
+                    }
+                    return AuthorizedComponents.NONE;
+                };
+            }
+
+            return (String abstractionName, IndexAbstraction resource) -> {
+                assert resource == null || abstractionName.equals(resource.getName());
+                return switch (resource) {
+                    case IndexAbstraction.Alias alias -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
+                    case DataStream dataStream -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
+                    case IndexAbstraction.ConcreteIndex index -> {
+                        final DataStream ds = index.getParentDataStream();
+
+                        if (ds != null) {
+                            boolean isFailureStoreIndex = ds.getFailureIndices().containsIndex(resource.getName());
+
+                            if (isReadAction) {
+                                // If we're trying to read a failure store index, we need to have read_failures for the data stream
+                                if (isFailureStoreIndex) {
+                                    if ((hasReadFailuresPrivilege && indexNameMatcher.test(ds.getName()))) {
+                                        yield AuthorizedComponents.FAILURES; // And authorize it as a failures index (i.e. no DLS/FLS)
+                                    }
+                                } else { // not a failure store index
+                                    if (indexNameMatcher.test(ds.getName()) || indexNameMatcher.test(resource.getName())) {
+                                        yield AuthorizedComponents.DATA;
+                                    }
+                                }
+                            } else { // Not a read action, authenticate as normal
+                                if (checkParentNameAndResourceName(ds.getName(), resource.getName())) {
+                                    yield AuthorizedComponents.DATA;
+                                }
+                            }
+                        } else if (indexNameMatcher.test(resource.getName())) {
+                            yield AuthorizedComponents.DATA;
+                        }
+                        yield AuthorizedComponents.NONE;
+                    }
+                    case null -> indexNameMatcher.test(abstractionName) ? AuthorizedComponents.DATA : AuthorizedComponents.NONE;
+                    default -> {
+                        assert false
+                            : "unsupported index abstraction type, add support for your new index abstraction type "
+                                + resource.getClass().getCanonicalName()
+                                + " here";
+                        throw new IllegalStateException("unsupported index abstraction type: " + resource.getClass().getCanonicalName());
+                    }
+                };
+            };
+        }
+
+        private boolean checkParentNameAndResourceName(String dsName, String indexName) {
+            return indexNameMatcher.test(dsName) || indexNameMatcher.test(indexName);
+        }
+
+        private AuthorizedComponents checkMultiIndexAbstraction(boolean isReadAction, boolean actionMatches, IndexAbstraction resource) {
+            if (indexNameMatcher.test(resource.getName())) {
+                if (actionMatches && (isReadAction == false || hasReadFailuresPrivilege)) {
+                    // User has both normal read privileges and read_failures OR normal privileges and action is not read
+                    return AuthorizedComponents.ALL;
+                } else if (actionMatches && hasReadFailuresPrivilege == false) {
+                    return AuthorizedComponents.DATA;
+                } else if (hasReadFailuresPrivilege) { // action not authorized by typical match
+                    return AuthorizedComponents.FAILURES;
+                }
+            }
+            return AuthorizedComponents.NONE;
         }
 
         private boolean checkAction(String action) {

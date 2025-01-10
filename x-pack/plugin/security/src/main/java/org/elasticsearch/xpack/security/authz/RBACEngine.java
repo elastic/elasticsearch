@@ -874,23 +874,33 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction)) {
+                    IndicesPermission.AuthorizedComponents authResult = predicate.test(indexAbstraction);
+                    if (authResult != null && authResult != IndicesPermission.AuthorizedComponents.NONE) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                            // add data stream and its backing indices for any authorized data streams
-                            for (Index index : indexAbstraction.getIndices()) {
-                                indicesAndAliases.add(index.getName());
+                            if (authResult == IndicesPermission.AuthorizedComponents.ALL
+                                || authResult == IndicesPermission.AuthorizedComponents.DATA) {
+                                for (Index index : indexAbstraction.getIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
                             }
-                            // TODO: We need to limit if a data stream's failure indices should return here.
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices().getIndices()) {
-                                indicesAndAliases.add(index.getName());
+
+                            if (authResult == IndicesPermission.AuthorizedComponents.ALL
+                                || authResult == IndicesPermission.AuthorizedComponents.FAILURES) {
+                                for (Index index : ((DataStream) indexAbstraction).getFailureIndices().getIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
                             }
+
                         }
                     }
                 }
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
+                    IndicesPermission.AuthorizedComponents authResult = predicate.test(indexAbstraction);
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                        && authResult != null
+                        && authResult != IndicesPermission.AuthorizedComponents.NONE) {
                         indicesAndAliases.add(indexAbstraction.getName());
                     }
                 }

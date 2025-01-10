@@ -187,7 +187,7 @@ public class ApiKeyWorkflowsRestrictionRestIT extends SecurityOnTrialLicenseRest
                     + apiKeyId
                     + "] of user ["
                     + WORKFLOW_API_KEY_USER
-                    + "] on indices [my-app-b], this action is granted by the index privileges [read,all]"
+                    + "] on indices [my-app-b], this action is granted by the index privileges [read,read_failures,all]"
             )
         );
         assertThat(e.getMessage(), not(containsString("access restricted by workflow")));

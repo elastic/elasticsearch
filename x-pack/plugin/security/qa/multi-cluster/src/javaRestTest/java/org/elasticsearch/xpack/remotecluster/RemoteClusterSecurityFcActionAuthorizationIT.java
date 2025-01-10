@@ -435,7 +435,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                         + "for user [foo] with assigned roles [role] authenticated by API key id ["
                         + apiKeyId
                         + "] of user [test_user] on indices [index], this action is granted by the index privileges "
-                        + "[view_index_metadata,manage,read,all]"
+                        + "[view_index_metadata,manage,read,read_failures,all]"
                 )
             );
 

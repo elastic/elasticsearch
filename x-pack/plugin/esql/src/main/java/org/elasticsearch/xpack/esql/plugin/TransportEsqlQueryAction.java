@@ -190,7 +190,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        FoldContext foldCtx = new FoldContext(configuration.pragmas().foldLimit().getBytes());
+        FoldContext foldCtx = configuration.newFoldContext();
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,

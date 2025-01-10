@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 
 import java.io.IOException;
 import java.util.Objects;

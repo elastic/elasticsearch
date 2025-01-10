@@ -59,10 +59,6 @@ public final class OptimizerRules {
                 : plan.transformExpressionsUp(expressionTypeToken, e -> rule(e, ctx));
         }
 
-        protected LogicalPlan rule(LogicalPlan plan) {
-            return plan;
-        }
-
         protected abstract Expression rule(E e, LogicalOptimizerContext ctx);
 
         public Class<E> expressionToken() {

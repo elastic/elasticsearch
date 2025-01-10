@@ -724,7 +724,7 @@ public class ComputeService {
                     clusterAlias,
                     searchContexts,
                     configuration,
-                    new FoldContext(configuration.pragmas().foldLimit().getBytes()),
+                    configuration.newFoldContext(),
                     null,
                     exchangeSink
                 );
@@ -919,7 +919,7 @@ public class ComputeService {
                     clusterAlias,
                     List.of(),
                     configuration,
-                    new FoldContext(configuration.pragmas().foldLimit().getBytes()),
+                    configuration.newFoldContext(),
                     exchangeSource,
                     exchangeSink
                 ),

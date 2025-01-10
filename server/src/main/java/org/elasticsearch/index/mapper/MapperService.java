@@ -623,6 +623,29 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    public Mapping parseMapping(String mappingType, MergeReason reason, List<CompressedXContent> mappings) {
+        Map<String, Object> mergedRawMapping = null;
+        for (CompressedXContent mappingSource : mappings) {
+            Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
+
+            // normalize mappings, making sure that all have the provided type as a single root
+            if (rawMapping.containsKey(mappingType)) {
+                if (rawMapping.size() > 1) {
+                    throw new MapperParsingException("cannot merge a map with multiple roots, one of which is [_doc]");
+                }
+            } else {
+                rawMapping = Map.of(mappingType, rawMapping);
+            }
+
+            if (mergedRawMapping == null) {
+                mergedRawMapping = rawMapping;
+            } else {
+                XContentHelper.merge(mappingType, mergedRawMapping, rawMapping, MapperService.RawFieldMappingMerge.INSTANCE);
+            }
+        }
+        return parseMapping(mappingType, reason, mergedRawMapping);
+    }
+
     public static Mapping mergeMappings(
         DocumentMapper currentMapper,
         Mapping incomingMapping,

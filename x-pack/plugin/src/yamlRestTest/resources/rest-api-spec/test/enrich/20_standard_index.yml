@@ -145,6 +145,7 @@ enrich documents over _bulk via an alias:
           - '{"baz": "lazy", "c": 2}'
           - '{"index": {"_id": "3"}}'
           - '{"baz": "slow", "c": 3}'
+  - match: { errors: false }
 
   - do:
       get:

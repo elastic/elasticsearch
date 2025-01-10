@@ -56,7 +56,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
-    public static final NodeFeature K_PARAM_SUPPORTED = new NodeFeature("search.vectors.k_param_supported");
+    public static final NodeFeature K_PARAM_SUPPORTED = new NodeFeature("search.vectors.k_param_supported", true);
 
     public static final String NAME = "knn";
     private static final int NUM_CANDS_LIMIT = 10_000;
@@ -488,22 +488,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
-        return super.doIndexMetadataRewrite(context);
-    }
-
-    @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
-        int requestSize;
-        if (k != null) {
-            requestSize = k;
+        int k;
+        if (this.k != null) {
+            k = this.k;
         } else {
-            requestSize = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
+            k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
+            if (numCands != null) {
+                k = Math.min(k, numCands);
+            }
         }
-        int adjustedNumCands = numCands == null
-            ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * requestSize, NUM_CANDS_LIMIT))
-            : numCands;
+        int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
         if (fieldType == null) {
             return new MatchNoDocsQuery();
         }
@@ -528,8 +524,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
         Float numCandidatesFactor = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.numCandidatesFactor();
 
+        BitSetProducer parentBitSet = null;
         if (parentPath != null) {
-            final BitSetProducer parentBitSet;
             final Query parentFilter;
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {
@@ -558,17 +554,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 // Now join the filterQuery & parentFilter to provide the matching blocks of children
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
-            return vectorFieldType.createKnnQuery(
-                queryVector,
-                k,
-                adjustedNumCands,
-                numCandidatesFactor,
-                filterQuery,
-                vectorSimilarity,
-                parentBitSet
-            );
         }
-        return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, numCandidatesFactor, filterQuery, vectorSimilarity, null);
+
+        return vectorFieldType.createKnnQuery(
+            queryVector,
+            k,
+            adjustedNumCands,
+            numCandidatesFactor,
+            filterQuery,
+            vectorSimilarity,
+            parentBitSet
+        );
     }
 
     @Override

@@ -394,7 +394,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new RepositoryIntegrityHealthIndicatorService(clusterService, featureService);
+        return new RepositoryIntegrityHealthIndicatorService(clusterService);
     }
 
     private SimpleHealthIndicatorDetails createDetails(int total, int corruptedCount, List<String> corrupted, int unknown, int invalid) {

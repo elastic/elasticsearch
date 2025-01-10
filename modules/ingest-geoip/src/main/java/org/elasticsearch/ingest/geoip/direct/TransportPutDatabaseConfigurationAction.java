@@ -59,7 +59,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         }
     };
 
-    private final FeatureService featureService;
     private final MasterServiceTaskQueue<UpdateDatabaseConfigurationTask> updateDatabaseConfigurationTaskQueue;
 
     @Inject
@@ -68,8 +67,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        FeatureService featureService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             PutDatabaseConfigurationAction.NAME,
@@ -82,7 +80,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.featureService = featureService;
         this.updateDatabaseConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-geoip-database-configuration-state-update",
             Priority.NORMAL,

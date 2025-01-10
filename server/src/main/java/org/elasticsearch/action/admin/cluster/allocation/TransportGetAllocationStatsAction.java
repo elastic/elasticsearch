@@ -49,7 +49,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     private final AllocationStatsService allocationStatsService;
     private final DiskThresholdSettings diskThresholdSettings;
-    private final FeatureService featureService;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -58,8 +57,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationStatsService allocationStatsService,
-        FeatureService featureService
+        AllocationStatsService allocationStatsService
     ) {
         super(
             TYPE.name(),
@@ -74,7 +72,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         );
         this.allocationStatsService = allocationStatsService;
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.featureService = featureService;
     }
 
     @Override

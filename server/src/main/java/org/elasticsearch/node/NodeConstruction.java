@@ -1350,7 +1350,7 @@ class NodeConstruction {
 
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService, featureService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
             new DiskHealthIndicatorService(clusterService, featureService),
             new ShardsCapacityHealthIndicatorService(clusterService, featureService),
             fileSettingsHealthIndicatorService

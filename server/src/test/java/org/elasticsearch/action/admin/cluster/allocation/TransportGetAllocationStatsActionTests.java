@@ -46,7 +46,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private AllocationStatsService allocationStatsService;
-    private FeatureService featureService;
 
     private TransportGetAllocationStatsAction action;
 
@@ -65,15 +64,13 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             Set.of()
         );
         allocationStatsService = mock(AllocationStatsService.class);
-        featureService = mock(FeatureService.class);
         action = new TransportGetAllocationStatsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
             null,
-            allocationStatsService,
-            featureService
+            allocationStatsService
         );
     }
 

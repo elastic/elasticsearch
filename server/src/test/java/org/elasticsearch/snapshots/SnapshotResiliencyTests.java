@@ -2403,8 +2403,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             null,
                             FailureStoreMetrics.NOOP
                         ),
-                        mockFeatureService,
-                        client,
+                            client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),

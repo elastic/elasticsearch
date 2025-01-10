@@ -86,8 +86,7 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
             Settings.EMPTY,
             client,
             clusterService,
-            errorStore,
-            new FeatureService(List.of(new DataStreamFeatures()))
+            errorStore
         );
     }
 

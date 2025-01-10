@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
@@ -48,7 +47,6 @@ public class DataStreamLifecycleHealthInfoPublisher {
     private final Client client;
     private final ClusterService clusterService;
     private final DataStreamLifecycleErrorStore errorStore;
-    private final FeatureService featureService;
     private volatile int signallingErrorRetryInterval;
     private volatile int maxNumberOfErrorsToPublish;
 
@@ -56,13 +54,11 @@ public class DataStreamLifecycleHealthInfoPublisher {
         Settings settings,
         Client client,
         ClusterService clusterService,
-        DataStreamLifecycleErrorStore errorStore,
-        FeatureService featureService
+        DataStreamLifecycleErrorStore errorStore
     ) {
         this.client = client;
         this.clusterService = clusterService;
         this.errorStore = errorStore;
-        this.featureService = featureService;
         this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.maxNumberOfErrorsToPublish = DATA_STREAM_LIFECYCLE_MAX_ERRORS_TO_PUBLISH_SETTING.get(settings);
     }

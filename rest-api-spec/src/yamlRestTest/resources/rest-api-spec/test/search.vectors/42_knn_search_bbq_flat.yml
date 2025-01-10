@@ -1,7 +1,4 @@
 setup:
-  - requires:
-      cluster_features: "mapper.vectors.bbq"
-      reason: 'kNN float to better-binary quantization is required'
   - do:
       indices.create:
         index: bbq_flat

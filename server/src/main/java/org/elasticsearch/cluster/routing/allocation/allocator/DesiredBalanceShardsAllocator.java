@@ -91,6 +91,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final Set<String> processedNodeShutdowns = new HashSet<>();
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
+    /**
+     * Manages balancer round results in order to report metrics on the balancer activity in a configurable manner.
+     */
+    private final AllocationBalancingRoundSummaryService balancerRoundSummaryService;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -135,6 +139,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
+        this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService();        
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;

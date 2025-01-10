@@ -771,8 +771,17 @@ The tenant name for the Azure account hosting the Sharepoint Online instance.
 `client_id`::
 The client id to authenticate with SharePoint Online.
 
+`auth_method`::
+Authentication method to use to connector to Sharepoint Online and Rest APIs. `secret` is deprecated and `certificate` is recommended.
+
 `secret_value`::
-The secret value to authenticate with SharePoint Online.
+The secret value to authenticate with SharePoint Online, if auth_method: `secret` is chosen.
+
+`certificate`::
+Content of certificate file if auth_method: `certificate` is chosen.
+
+`private_key`::
+Content of private key file if auth_method: `certificate` is chosen.
 
 `site_collections`::
 List of site collection names or paths to fetch from SharePoint.

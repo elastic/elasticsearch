@@ -11,7 +11,7 @@ package org.elasticsearch.jdk;
 
 public class RuntimeVersionFeature {
     private RuntimeVersionFeature() {}
-    
+
     public static boolean isSecurityManagerAvailable() {
         return Runtime.version().feature() < 24;
     }

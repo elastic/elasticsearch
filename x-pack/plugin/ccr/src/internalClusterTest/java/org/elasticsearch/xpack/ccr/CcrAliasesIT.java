@@ -306,7 +306,10 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     }
 
     private String[] getAliasesOnLeader() throws InterruptedException, ExecutionException {
-        final GetAliasesResponse response = leaderClient().admin().indices().getAliases(new GetAliasesRequest().indices("leader")).get();
+        final GetAliasesResponse response = leaderClient().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices("leader"))
+            .get();
         return response.getAliases().get("leader").stream().map(AliasMetadata::alias).toArray(String[]::new);
     }
 
@@ -328,7 +331,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
         assertBusy(() -> {
             final GetAliasesResponse followerResponse = followerClient().admin()
                 .indices()
-                .getAliases(new GetAliasesRequest().indices(followerIndex))
+                .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices(followerIndex))
                 .get();
             assertThat(
                 "expected follower to have [" + aliases.length + "] aliases, but was " + followerResponse.getAliases().toString(),
@@ -340,7 +343,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
                 final GetAliasesResponse leaderResponse = leaderClient().admin()
                     .indices()
-                    .getAliases(new GetAliasesRequest().indices(leaderIndex).aliases(alias))
+                    .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices(leaderIndex).aliases(alias))
                     .get();
                 final AliasMetadata leaderAliasMetadata = getAliasMetadata(leaderResponse, leaderIndex, alias);
 
@@ -374,7 +377,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
             // we must check serially because aliases exist will return true if any but not necessarily all of the requested aliases exist
             final GetAliasesResponse response = followerClient().admin()
                 .indices()
-                .getAliases(new GetAliasesRequest().indices("follower").aliases(alias))
+                .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices("follower").aliases(alias))
                 .get();
             if (exists) {
                 assertFalse("alias [" + alias + "] did not exist", response.getAliases().isEmpty());

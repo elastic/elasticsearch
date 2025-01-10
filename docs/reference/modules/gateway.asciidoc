@@ -1,10 +1,11 @@
 [[modules-gateway]]
 === Local gateway settings
 
+[[dangling-indices]]
 The local gateway stores the cluster state and shard data across full
 cluster restarts.
 
-The following _static_ settings, which must be set on every <<master-node,master-eligible node>>,
+The following _static_ settings, which must be set on every <<master-node-role,master-eligible node>>,
 control how long a freshly elected master should wait before it tries to
 recover the <<cluster-state,cluster state>> and the cluster's data.
 
@@ -37,16 +38,3 @@ gateway.expected_data_nodes: 3
 gateway.recover_after_time: 600s
 gateway.recover_after_data_nodes: 3
 --------------------------------------------------
-
-[[dangling-indices]]
-==== Dangling indices
-
-When a node joins the cluster, if it finds any shards stored in its local
-data directory that do not already exist in the cluster, it will consider
-those shards to belong to a "dangling" index. You can list, import or
-delete dangling indices using the <<dangling-indices-api,Dangling indices
-API>>.
-
-NOTE: The API cannot offer any guarantees as to whether the imported data
-truly represents the latest state of the data when the index was still part
-of the cluster.

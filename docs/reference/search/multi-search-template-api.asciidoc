@@ -85,7 +85,7 @@ cross-cluster search requests. Defaults to `true`.
 
 `max_concurrent_searches`::
 (Optional, integer) Maximum number of concurrent searches the API can run.
-Defaults to +max(1, (# of <<data-node,data nodes>> *
+Defaults to +max(1, (# of <<data-node-role,data nodes>> *
 min(<<search-threadpool,search thread pool size>>, 10)))+.
 
 `rest_total_hits_as_int`::

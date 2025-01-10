@@ -1,5 +1,5 @@
 pr: 119679
-summary: Support mTLS in Elastic Inference Service plugin
+summary: Support mTLS for the Elastic Inference Service integration inside the inference API
 area: Machine Learning
 type: feature
 issues: []

@@ -572,7 +572,6 @@ BBOX (-0.6067969836294651, 6.621946580708027, 36.69972063973546, 35.620274716056
 
 stExtentGeoShapes
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -585,7 +584,6 @@ BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.476599964313
 
 stExtentGeoPoints
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -598,7 +596,6 @@ BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.694299992173
 
 stExtentGeoShapesAndPoints
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -611,7 +608,6 @@ BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.476599964313
 
 stExtentGeoShapesGrouped
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -629,7 +625,6 @@ L              | 1          | BBOX (-74.25880000926554, -73.70020005851984, 40.9
 
 stExtentGeoPointsGrouped
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -647,7 +642,6 @@ L              | 1          | BBOX (-73.92490002326667, -73.92490002326667, 40.6
 
 stExtentGeoShapesAndPointsGrouped
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -665,7 +659,6 @@ L              | 1          | BBOX (-74.25880000926554, -73.70020005851984, 40.9
 
 stExtentManyGeoShapesGrouped
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)
@@ -683,7 +676,6 @@ B              | 61         | BBOX (-116.51340007781982, 153.2021999359131, 60.6
 
 stExtentManyGeoPointsGrouped
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)
@@ -701,7 +693,6 @@ B              | 61         | BBOX (-116.23080002143979, 153.02809992805123, 60.
 
 stExtentManyGeoShapesAndPointsGrouped
 required_capability: st_extent_agg
-required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)

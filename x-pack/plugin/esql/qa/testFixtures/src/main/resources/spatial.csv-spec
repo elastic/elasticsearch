@@ -524,6 +524,8 @@ POINT (42.97109629958868 14.7552534006536)    | 1
 
 stExtentSingleGeoPoint
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
 ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
 | STATS extent = ST_EXTENT_AGG(point)
 ;
@@ -534,6 +536,8 @@ BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
 
 stExtentMultipleGeoPoints
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
 // tag::st_extent_agg-airports[]
 FROM airports
 | WHERE country == "India"
@@ -549,6 +553,7 @@ BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
 
 stExtentMultipleGeoPointsCount
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airports
 | WHERE country == "India"
@@ -561,6 +566,7 @@ BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) |
 
 stExtentMultipleGeoPointsCountNoDocValues
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airports_no_doc_values
 | WHERE country == "India"
@@ -573,6 +579,7 @@ BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) |
 
 stExtentMultipleGeoPointGrouping
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airports
 | STATS extent = ST_EXTENT_AGG(location), count = COUNT() BY country
@@ -590,6 +597,7 @@ BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520
 
 stExtentGeoShapes
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -602,6 +610,7 @@ BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.476599964313
 
 stExtentGeoPoints
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -614,6 +623,7 @@ BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.694299992173
 
 stExtentGeoShapesAndPoints
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -626,6 +636,7 @@ BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.476599964313
 
 stExtentGeoShapesGrouped
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -643,6 +654,7 @@ L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352
 
 stExtentGeoPointsGrouped
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -660,6 +672,7 @@ L              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391
 
 stExtentGeoShapesAndPointsGrouped
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 
 FROM airport_city_boundaries
 | WHERE region == "City of New York"
@@ -677,6 +690,7 @@ L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352
 
 stExtentManyGeoShapesGrouped
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 required_capability: enrich_load
 
 FROM airport_city_boundaries
@@ -695,6 +709,7 @@ C              | BBOX (-107.51820000819862, 172.6055999379605, 55.73269999120384
 
 stExtentManyGeoPointsGrouped
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 required_capability: enrich_load
 
 FROM airport_city_boundaries
@@ -713,6 +728,7 @@ C              | BBOX (-107.39390007220209, 172.38329996354878, 55.6760999746620
 
 stExtentManyGeoShapesAndPointsGrouped
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 required_capability: enrich_load
 
 FROM airport_city_boundaries
@@ -731,6 +747,7 @@ C              | BBOX (-107.51820000819862, 172.6055999379605, 55.73269999120384
 
 stExtentManyGeoShapesGroupedEnrich
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 required_capability: enrich_load
 
 FROM airports
@@ -750,6 +767,7 @@ B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.6
 
 stExtentManyGeoPointsGroupedEnrich
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 required_capability: enrich_load
 
 FROM airports
@@ -769,6 +787,7 @@ B              | 69         | BBOX (-116.23080002143979, 153.02809992805123, 60.
 
 stExtentManyGeoShapesAndPointsGroupedEnrich
 required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
 required_capability: enrich_load
 
 FROM airports

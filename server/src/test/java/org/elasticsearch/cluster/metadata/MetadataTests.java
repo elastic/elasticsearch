@@ -134,16 +134,16 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
             Map<String, List<AliasMetadata>> aliases = metadata.getProject().findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
         {
             final GetAliasesRequest request;
             if (randomBoolean()) {
-                request = new GetAliasesRequest();
+                request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
             } else {
-                request = new GetAliasesRequest(randomFrom("alias1", "alias2"));
+                request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, randomFrom("alias1", "alias2"));
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
@@ -153,7 +153,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
         }
         {
-            GetAliasesRequest request = new GetAliasesRequest("alias*");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "alias*");
             Map<String, List<AliasMetadata>> aliases = metadata.getProject()
                 .findAliases(request.aliases(), new String[] { "index", "index2" });
             assertThat(aliases, aMapWithSize(2));
@@ -163,7 +163,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(index2AliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias2", "alias3")));
         }
         {
-            GetAliasesRequest request = new GetAliasesRequest("alias1");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "alias1");
             Map<String, List<AliasMetadata>> aliases = metadata.getProject().findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, aMapWithSize(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
@@ -196,21 +196,21 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = builder.build();
 
         {
-            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
             Map<String, List<DataStreamAlias>> aliases = metadata.getProject()
                 .findDataStreamAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
 
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("alias1");
             Map<String, List<DataStreamAlias>> aliases = metadata.getProject()
                 .findDataStreamAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, anEmptyMap());
         }
 
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("alias1");
             Map<String, List<DataStreamAlias>> aliases = metadata.getProject()
                 .findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2" });
             assertEquals(1, aliases.size());
@@ -219,7 +219,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("ali*");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("ali*");
             Map<String, List<DataStreamAlias>> aliases = metadata.getProject()
                 .findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
             assertEquals(1, aliases.size());
@@ -229,7 +229,7 @@ public class MetadataTests extends ESTestCase {
 
         // test exclusion
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("*");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("*");
             Map<String, List<DataStreamAlias>> aliases = metadata.getProject()
                 .findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2", "d3", "d4" });
             assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
@@ -288,7 +288,7 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias3").build())
             )
             .build();
-        GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("*", "-alias1");
         Map<String, List<AliasMetadata>> aliases = metadata.getProject().findAliases(request.aliases(), new String[] { "index", "index2" });
         assertThat(aliases.get("index"), transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
         assertThat(aliases.get("index2"), transformedItemsMatch(AliasMetadata::alias, contains("alias3")));
@@ -323,7 +323,7 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("bb").build())
             )
             .build();
-        GetAliasesRequest request = new GetAliasesRequest().aliases("a*", "-*b", "b*");
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("a*", "-*b", "b*");
         List<AliasMetadata> aliases = metadata.getProject().findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("aa", "bb")));
     }

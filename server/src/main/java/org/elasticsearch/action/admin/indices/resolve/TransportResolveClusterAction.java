@@ -100,7 +100,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         if (request.clusterInfoOnly()) {
             if (request.queryingCluster()) {
                 /*
-                 * User does not want to check whether an index expression matches, so we use the "*:dummy: index pattern to
+                 * User does not want to check whether an index expression matches, so we use the "*:dummy*" index pattern to
                  * 1) determine all the local configured remotes and
                  * 2) for older clusters that do not understand the new clusterInfoOnly setting (or for even older clusters
                  *    where we need to fall back to using _resolve/index), fallback to matching any/all index/alias/datastreams
@@ -318,7 +318,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                 clusterInfoMap.put(clusterAlias, resolveClusterInfo);
                             }
                         };
-                        return resolveIndexActionListener;
                     }
                 };
 

@@ -203,7 +203,10 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
     private void promoteFakePolicyIndex(String indexName, String forPolicy) {
         String enrichIndexBase = EnrichPolicy.getBaseName(forPolicy);
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest(enrichIndexBase)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, enrichIndexBase))
+            .actionGet();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = getAliasesResponse.getAliases().keySet().toArray(new String[0]);
         if (indices.length > 0) {

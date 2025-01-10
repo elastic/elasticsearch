@@ -245,6 +245,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     if (host instanceof ObjectMapper hostObj) {
                         hostName = hostObj.getMapper("name");
                         addHostNameField = hostName == null;
+                    } else if (host == null || mapping.getRoot().subobjects() == ObjectMapper.Subobjects.DISABLED) {
+                        addHostNameField = true;
                     }
                 }
                 boolean hasNameHasDocValues = hostName != null

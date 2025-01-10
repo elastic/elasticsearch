@@ -62,6 +62,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     ClusterBlocks(Set<ClusterBlock> global, Map<ProjectId, ProjectBlocks> projectBlocksMap) {
         this.global = global;
+        assert projectBlocksMap.values().stream().allMatch(projectBlocks -> projectBlocks.isEmpty() == false)
+            : "Map must not contain projects with empty blocks " + projectBlocksMap;
         this.projectBlocksMap = projectBlocksMap;
         this.levelHolders = generateLevelHolders(global, projectBlocksMap);
     }

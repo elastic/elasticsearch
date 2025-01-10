@@ -3574,6 +3574,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public enum PrimaryPermitCheck {
         CHECK_PRIMARY_MODE,
+        /**
+         * IMPORTANT: Currently intented to be used only for acquiring primary permits during the recovery of hollow shards.
+         * Don't disable primary mode checks unless you're really sure.
+         */
         NONE
     }
 

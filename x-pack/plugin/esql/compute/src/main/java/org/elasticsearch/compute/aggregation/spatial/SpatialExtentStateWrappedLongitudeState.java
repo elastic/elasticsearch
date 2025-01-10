@@ -26,12 +26,12 @@ final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
     // Only geo points support longitude wrapping.
     private static final PointType POINT_TYPE = PointType.GEO;
     private boolean seen = false;
-    private int maxY = Integer.MIN_VALUE;
-    private int minY = Integer.MAX_VALUE;
-    private int minNegX = Integer.MAX_VALUE;
-    private int maxNegX = Integer.MIN_VALUE;
-    private int minPosX = Integer.MAX_VALUE;
-    private int maxPosX = Integer.MIN_VALUE;
+    private int top = Integer.MIN_VALUE;
+    private int bottom = Integer.MAX_VALUE;
+    private int negLeft = Integer.MAX_VALUE;
+    private int negRight = Integer.MIN_VALUE;
+    private int posLeft = Integer.MAX_VALUE;
+    private int posRight = Integer.MIN_VALUE;
 
     private final SpatialEnvelopeVisitor.GeoPointVisitor geoPointVisitor = new SpatialEnvelopeVisitor.GeoPointVisitor(
         SpatialEnvelopeVisitor.WrapLongitude.WRAP
@@ -44,24 +44,24 @@ final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 6;
         var blockFactory = driverContext.blockFactory();
-        blocks[offset + 0] = blockFactory.newConstantIntBlockWith(minNegX, 1);
-        blocks[offset + 1] = blockFactory.newConstantIntBlockWith(minPosX, 1);
-        blocks[offset + 2] = blockFactory.newConstantIntBlockWith(maxNegX, 1);
-        blocks[offset + 3] = blockFactory.newConstantIntBlockWith(maxPosX, 1);
-        blocks[offset + 4] = blockFactory.newConstantIntBlockWith(maxY, 1);
-        blocks[offset + 5] = blockFactory.newConstantIntBlockWith(minY, 1);
+        blocks[offset + 0] = blockFactory.newConstantIntBlockWith(top, 1);
+        blocks[offset + 1] = blockFactory.newConstantIntBlockWith(bottom, 1);
+        blocks[offset + 2] = blockFactory.newConstantIntBlockWith(negLeft, 1);
+        blocks[offset + 3] = blockFactory.newConstantIntBlockWith(negRight, 1);
+        blocks[offset + 4] = blockFactory.newConstantIntBlockWith(posLeft, 1);
+        blocks[offset + 5] = blockFactory.newConstantIntBlockWith(posRight, 1);
     }
 
     public void add(Geometry geo) {
         geoPointVisitor.reset();
         if (geo.visit(new SpatialEnvelopeVisitor(geoPointVisitor))) {
             add(
-                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMinNegX()),
-                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMinPosX()),
-                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMaxNegX()),
-                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getMaxPosX()),
-                POINT_TYPE.encoder().encodeY(geoPointVisitor.getMaxY()),
-                POINT_TYPE.encoder().encodeY(geoPointVisitor.getMinY())
+                POINT_TYPE.encoder().encodeY(geoPointVisitor.getTop()),
+                POINT_TYPE.encoder().encodeY(geoPointVisitor.getBottom()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getNegLeft()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getNegRight()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getPosLeft()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getPosRight())
             );
         }
     }
@@ -79,20 +79,20 @@ final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
             int negRight = values[3];
             int posLeft = values[4];
             int posRight = values[5];
-            add(negLeft, posLeft, negRight, posRight, top, bottom);
+            add(top, bottom, negLeft, negRight, posLeft, posRight);
         } else {
             throw new IllegalArgumentException("Expected 6 values, got " + values.length);
         }
     }
 
-    public void add(int minNegX, int minPosX, int maxNegX, int maxPosX, int maxY, int minY) {
+    public void add(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         seen = true;
-        this.minNegX = Math.min(this.minNegX, minNegX);
-        this.minPosX = SpatialAggregationUtils.minPos(this.minPosX, minPosX);
-        this.maxNegX = SpatialAggregationUtils.maxNeg(this.maxNegX, maxNegX);
-        this.maxPosX = Math.max(this.maxPosX, maxPosX);
-        this.maxY = Math.max(this.maxY, maxY);
-        this.minY = Math.min(this.minY, minY);
+        this.top = Math.max(this.top, top);
+        this.bottom = Math.min(this.bottom, bottom);
+        this.negLeft = Math.min(this.negLeft, negLeft);
+        this.negRight = SpatialAggregationUtils.maxNeg(this.negRight, negRight);
+        this.posLeft = SpatialAggregationUtils.minPos(this.posLeft, posLeft);
+        this.posRight = Math.max(this.posRight, posRight);
     }
 
     /**
@@ -102,7 +102,7 @@ final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
     public void add(long encoded) {
         int x = POINT_TYPE.extractX(encoded);
         int y = POINT_TYPE.extractY(encoded);
-        add(x, x, x, x, y, y);
+        add(y, y, x, x, x, x);
     }
 
     public Block toBlock(DriverContext driverContext) {
@@ -111,17 +111,17 @@ final class SpatialExtentStateWrappedLongitudeState implements AggregatorState {
     }
 
     private byte[] toWKB() {
-        return WellKnownBinary.toWKB(asRectangle(minNegX, minPosX, maxNegX, maxPosX, maxY, minY), ByteOrder.LITTLE_ENDIAN);
+        return WellKnownBinary.toWKB(asRectangle(top, bottom, negLeft, negRight, posLeft, posRight), ByteOrder.LITTLE_ENDIAN);
     }
 
-    static Rectangle asRectangle(int minNegX, int minPosX, int maxNegX, int maxPosX, int maxY, int minY) {
+    static Rectangle asRectangle(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         return SpatialEnvelopeVisitor.GeoPointVisitor.getResult(
-            minNegX <= 0 ? decodeLongitude(minNegX) : Double.POSITIVE_INFINITY,
-            minPosX >= 0 ? decodeLongitude(minPosX) : Double.POSITIVE_INFINITY,
-            maxNegX <= 0 ? decodeLongitude(maxNegX) : Double.NEGATIVE_INFINITY,
-            maxPosX >= 0 ? decodeLongitude(maxPosX) : Double.NEGATIVE_INFINITY,
-            GeoEncodingUtils.decodeLatitude(maxY),
-            GeoEncodingUtils.decodeLatitude(minY),
+            GeoEncodingUtils.decodeLatitude(top),
+            GeoEncodingUtils.decodeLatitude(bottom),
+            negLeft <= 0 ? decodeLongitude(negLeft) : Double.POSITIVE_INFINITY,
+            negRight <= 0 ? decodeLongitude(negRight) : Double.NEGATIVE_INFINITY,
+            posLeft >= 0 ? decodeLongitude(posLeft) : Double.POSITIVE_INFINITY,
+            posRight >= 0 ? decodeLongitude(posRight) : Double.NEGATIVE_INFINITY,
             SpatialEnvelopeVisitor.WrapLongitude.WRAP
         );
     }

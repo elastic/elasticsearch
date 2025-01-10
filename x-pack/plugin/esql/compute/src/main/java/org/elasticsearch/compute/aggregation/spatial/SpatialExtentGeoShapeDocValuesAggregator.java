@@ -12,17 +12,21 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 /**
- * Computes the extent of a set of geo shapes. It is assumed that the geo shapes are encoded as WKB BytesRef.
- * We do not currently support reading shape values or extents from doc values.
+ * Computes the extent of a set of geo shapes read from doc-values, which means they are encoded as an array of integers.
+ * This requires that the planner has planned that the shape extent is loaded from the index as doc-values.
+ * The intermediate state is the extent of the shapes, encoded as six integers: top, bottom, negLeft, negRight, posLeft, posRight.
+ * The order of the integers is the same as defined in the constructor of the Extent class,
+ * as that is the order in which the values are stored in shape doc-values.
+ * Note that this is very different from the four values used for the intermediate state of cartesian_shape geometries.
  */
 @Aggregator(
     {
-        @IntermediateState(name = "minNegX", type = "INT"),
-        @IntermediateState(name = "minPosX", type = "INT"),
-        @IntermediateState(name = "maxNegX", type = "INT"),
-        @IntermediateState(name = "maxPosX", type = "INT"),
-        @IntermediateState(name = "maxY", type = "INT"),
-        @IntermediateState(name = "minY", type = "INT") }
+        @IntermediateState(name = "top", type = "INT"),
+        @IntermediateState(name = "bottom", type = "INT"),
+        @IntermediateState(name = "negLeft", type = "INT"),
+        @IntermediateState(name = "negRight", type = "INT"),
+        @IntermediateState(name = "posLeft", type = "INT"),
+        @IntermediateState(name = "posRight", type = "INT") }
 )
 @GroupingAggregator
 class SpatialExtentGeoShapeDocValuesAggregator extends SpatialExtentLongitudeWrappingAggregator {

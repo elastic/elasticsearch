@@ -555,12 +555,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 // This requires that consumers also know the meaning of the values, which they can learn from the Extent class
                 SpatialEnvelopeVisitor.GeoPointVisitor visitor = (SpatialEnvelopeVisitor.GeoPointVisitor) pointVisitor;
                 builder.beginPositionEntry();
-                builder.appendInt(CoordinateEncoder.GEO.encodeY(visitor.getMaxY()));
-                builder.appendInt(CoordinateEncoder.GEO.encodeY(visitor.getMinY()));
-                builder.appendInt(encodeLongitude(visitor.getMinNegX()));
-                builder.appendInt(encodeLongitude(visitor.getMaxNegX()));
-                builder.appendInt(encodeLongitude(visitor.getMinPosX()));
-                builder.appendInt(encodeLongitude(visitor.getMaxPosX()));
+                builder.appendInt(CoordinateEncoder.GEO.encodeY(visitor.getTop()));
+                builder.appendInt(CoordinateEncoder.GEO.encodeY(visitor.getBottom()));
+                builder.appendInt(encodeLongitude(visitor.getNegLeft()));
+                builder.appendInt(encodeLongitude(visitor.getNegRight()));
+                builder.appendInt(encodeLongitude(visitor.getPosLeft()));
+                builder.appendInt(encodeLongitude(visitor.getPosRight()));
                 builder.endPositionEntry();
             }
         }

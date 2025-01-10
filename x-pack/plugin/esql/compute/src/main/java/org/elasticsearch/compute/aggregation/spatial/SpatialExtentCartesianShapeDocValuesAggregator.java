@@ -12,8 +12,11 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 /**
- * Computes the extent of a set of cartesian shapes. It is assumed that the cartesian shapes are encoded as WKB BytesRef.
- * We do not currently support reading shape values or extents from doc values.
+ * Computes the extent of a set of cartesian shapes read from doc-values, which means they are encoded as an array of integers.
+ * This requires that the planner has planned that the shape extent is loaded from the index as doc-values.
+ * The intermediate state is the extent of the shapes, encoded as four integers: minX, maxX, maxY, minY.
+ * The order of the integers is the same as defined in the constructor of the Rectangle class.
+ * Note that this is very different from the six values used for the intermediate state of geo_shape geometries.
  */
 @Aggregator(
     {

@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction.Request;
 import org.elasticsearch.injection.guice.Inject;

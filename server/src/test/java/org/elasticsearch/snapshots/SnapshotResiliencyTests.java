@@ -2403,7 +2403,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             null,
                             FailureStoreMetrics.NOOP
                         ),
-                            client,
+                        client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),

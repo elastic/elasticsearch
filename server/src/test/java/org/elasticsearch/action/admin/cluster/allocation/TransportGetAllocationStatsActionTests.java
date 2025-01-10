@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;

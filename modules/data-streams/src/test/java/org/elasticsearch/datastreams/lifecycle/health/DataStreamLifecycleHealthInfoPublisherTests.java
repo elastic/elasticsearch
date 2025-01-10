@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.DataStreamFeatures;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
@@ -82,12 +80,7 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
 
         final Client client = getTransportRequestsRecordingClient();
         errorStore = new DataStreamLifecycleErrorStore(() -> now);
-        dslHealthInfoPublisher = new DataStreamLifecycleHealthInfoPublisher(
-            Settings.EMPTY,
-            client,
-            clusterService,
-            errorStore
-        );
+        dslHealthInfoPublisher = new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore);
     }
 
     @After

@@ -11,6 +11,10 @@ depleted, {es} will reject search requests until more threads are available.
 
 You might experience high CPU usage if a <<data-tiers,data tier>>, and therefore the nodes assigned to that tier, is experiencing more traffic than other tiers. This imbalance in resource utilization is also known as <<hotspotting,hot spotting>>.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[diagnose-high-cpu-usage]]
 ==== Diagnose high CPU usage

@@ -1,0 +1,5 @@
+pr: 119797
+summary: "[Inference API] Fix bug checking for e5 or reranker default IDs"
+area: Machine Learning
+type: bug
+issues: []

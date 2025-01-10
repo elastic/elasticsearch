@@ -99,26 +99,26 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
 
     @Override
     public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
-//        if (shouldEvictCacheFiles(reason)) {
-//            if (indexService.getMetadata().isSearchableSnapshot()) {
-//                final IndexSettings indexSettings = indexService.getIndexSettings();
-//                for (IndexShard indexShard : indexService) {
-//                    final ShardId shardId = indexShard.shardId();
-//
-//                    logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: {})", shardId, reason);
-//                    if (cacheService != null) {
-//                        cacheService.markShardAsEvictedInCache(
-//                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-//                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-//                            shardId
-//                        );
-//                    }
-//                    if (sharedBlobCacheService != null) {
-//                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
-//                    }
-//                }
-//            }
-//        }
+        if (shouldEvictCacheFiles(reason)) {
+            if (indexService.getMetadata().isSearchableSnapshot()) {
+                final IndexSettings indexSettings = indexService.getIndexSettings();
+                for (IndexShard indexShard : indexService) {
+                    final ShardId shardId = indexShard.shardId();
+
+                    logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: {})", shardId, reason);
+                    if (cacheService != null) {
+                        cacheService.markShardAsEvictedInCache(
+                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+                            shardId
+                        );
+                    }
+                    if (sharedBlobCacheService != null) {
+                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                    }
+                }
+            }
+        }
     }
 
     private static boolean shouldEvictCacheFiles(IndexRemovalReason reason) {

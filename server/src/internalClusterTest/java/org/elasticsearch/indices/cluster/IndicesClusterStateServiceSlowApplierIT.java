@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 public class IndicesClusterStateServiceSlowApplierIT extends ESIntegTestCase {
 
-    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "50"));
+    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "300"));
 
     public void testDeleteManyIndices() {
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -27,7 +27,7 @@ public class IndicesClusterStateServiceSlowApplierIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfIndices; i++) {
             String indexName = indexPrefix + i;
             createIndex(indexName);
-            indexRandom(true, indexName, randomIntBetween(20, 50));
+            indexRandom(true, indexName, 20);
             ensureGreen(indexName);
         }
 
@@ -38,6 +38,6 @@ public class IndicesClusterStateServiceSlowApplierIT extends ESIntegTestCase {
 
     @Override
     protected int maximumNumberOfShards() {
-        return 3;
+        return 1;
     }
 }

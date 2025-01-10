@@ -16,14 +16,14 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import java.util.List;
 
 public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsIntegTestCase {
-    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "50"));
+    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "300"));
 
     public void testDeleteManySearchableSnapshotIndices() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
 
         String indexName = randomIdentifier();
         createIndex(indexName);
-        indexRandom(true, indexName, randomIntBetween(1_000, 5_000));
+        indexRandom(true, indexName, 20);
 
         String repositoryName = randomIdentifier();
         createRepository(repositoryName, "fs");
@@ -43,5 +43,10 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsInte
         long startTime = System.currentTimeMillis();
         client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest("_all")).actionGet();
         logger.info("Deleting {} indices took {}", numberOfIndices, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
+    }
+
+    @Override
+    protected int maximumNumberOfShards() {
+        return 1;
     }
 }

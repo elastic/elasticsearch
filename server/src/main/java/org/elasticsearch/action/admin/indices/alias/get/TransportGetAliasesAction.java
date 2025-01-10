@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -42,10 +42,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TransportGetAliasesAction extends TransportLocalClusterStateAction<GetAliasesRequest, GetAliasesResponse> {
+public class TransportGetAliasesAction extends TransportLocalProjectMetadataAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
-    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ThreadContext threadContext;
@@ -64,23 +63,22 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT)
+            clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
         );
-        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
         this.threadContext = clusterService.threadPool().getThreadContext();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+    protected ClusterBlockException checkBlock(GetAliasesRequest request, ProjectState state) {
         // Resolve with system index access since we're just checking blocks
         return state.blocks()
             .indicesBlockedException(
-                projectMetadata.id(),
+                state.projectId(),
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(projectMetadata, request)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state.metadata(), request)
             );
     }
 
@@ -88,15 +86,15 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
     protected void localClusterStateOperation(
         Task task,
         GetAliasesRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetAliasesResponse> listener
     ) {
         assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
         final var cancellableTask = (CancellableTask) task;
         // resolve all concrete indices upfront and warn/error later
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
+        final ProjectMetadata projectMetadata = state.metadata();
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(projectMetadata, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
-        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         Map<String, List<AliasMetadata>> aliases = projectMetadata.findAliases(request.aliases(), concreteIndices);
         cancellableTask.ensureNotCancelled();
         listener.onResponse(

@@ -1,6 +1,5 @@
 pr: 119935
-summary: Optimize `LogsdbIndexModeSettingsProvider#newIndexHasSyntheticSourceUsage(...)`
-  logic
+summary: Optimize mapping usage in LogsdbIndexModeSettingsProvider
 area: Logs
 type: enhancement
 issues: []

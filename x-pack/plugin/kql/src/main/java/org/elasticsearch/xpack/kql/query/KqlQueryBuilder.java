@@ -97,7 +97,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.KQL_QUERY_ADDED;
+        return TransportVersions.KQL_QUERY_TECH_PREVIEW;
     }
 
     public String queryString() {

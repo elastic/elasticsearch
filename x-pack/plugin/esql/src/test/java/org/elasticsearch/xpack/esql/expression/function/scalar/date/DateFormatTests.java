@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
 public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
@@ -36,6 +34,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        // Formatter supplied cases
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 (format, value) -> new BytesRef(
@@ -44,7 +43,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 DataType.KEYWORD,
                 TestCaseSupplier.dateFormatCases(),
                 TestCaseSupplier.dateCases(Instant.parse("1900-01-01T00:00:00.00Z"), Instant.parse("9999-12-31T00:00:00.00Z")),
-                matchesPattern("DateFormatEvaluator\\[val=Attribute\\[channel=\\d], formatter=Attribute\\[.+], locale=en_US]"),
+                matchesPattern("DateFormatEvaluator\\[val=Attribute\\[channel=1], formatter=Attribute\\[(channel=0|\\w+)], locale=en_US]"),
                 (lhs, rhs) -> List.of(),
                 false
             )

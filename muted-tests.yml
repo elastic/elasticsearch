@@ -429,12 +429,6 @@ tests:
   method: testCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/118718
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {p0=search.vectors/110_knn_query_with_filter/PRE_FILTER: knn query with internal filter as pre-filter}"
-  issue: https://github.com/elastic/elasticsearch/issues/119804
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {p0=search.vectors/110_knn_query_with_filter/PRE_FILTER: knn query with alias filter as pre-filter}"
-  issue: https://github.com/elastic/elasticsearch/issues/119805
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119806
 - class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
   method: testProfileDfs

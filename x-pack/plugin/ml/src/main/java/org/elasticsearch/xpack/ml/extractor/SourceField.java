@@ -11,7 +11,6 @@ import org.elasticsearch.search.SearchHit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class SourceField extends AbstractField {
 
@@ -28,7 +27,7 @@ public class SourceField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         // This is the only one that might be problematic
         Map<String, Object> sourceMap = source.get();
         int level = 0;

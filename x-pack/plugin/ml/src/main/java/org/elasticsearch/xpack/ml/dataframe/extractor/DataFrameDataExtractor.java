@@ -265,7 +265,7 @@ public class DataFrameDataExtractor {
         return rows;
     }
 
-    private String extractNonProcessedValues(SearchHit hit, Supplier<Map<String, Object>> source, String organicFeature) {
+    private String extractNonProcessedValues(SearchHit hit, SourceSupplier source, String organicFeature) {
         ExtractedField field = extractedFieldsByName.get(organicFeature);
         Object[] values = field.value(hit, source);
         if (values.length == 1 && isValidValue(values[0])) {

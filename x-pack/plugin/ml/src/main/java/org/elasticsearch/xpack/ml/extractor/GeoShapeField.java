@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class GeoShapeField extends SourceField {
 
@@ -34,7 +33,7 @@ public class GeoShapeField extends SourceField {
     }
 
     @Override
-    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         Object[] value = super.value(hit, source);
         if (value.length == 0) {
             return value;

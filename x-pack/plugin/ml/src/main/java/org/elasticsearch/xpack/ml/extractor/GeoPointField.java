@@ -10,9 +10,7 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class GeoPointField extends DocValueField {
 
@@ -25,7 +23,7 @@ public class GeoPointField extends DocValueField {
     }
 
     @Override
-    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         Object[] value = super.value(hit, source);
         if (value.length == 0) {
             return value;

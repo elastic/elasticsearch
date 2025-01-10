@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Describes how to extract an analyzed field
@@ -52,10 +50,10 @@ public interface ExtractedField {
      * Extracts the value from a {@link SearchHit}
      *
      * @param hit    the search hit
-     * @param source the source supplier with caching capabilities
+     * @param source the source supplier
      * @return the extracted value
      */
-    Object[] value(SearchHit hit, Supplier<Map<String, Object>> source);
+    Object[] value(SearchHit hit, SourceSupplier source);
 
     /**
      * @return Whether the field can be fetched from source instead

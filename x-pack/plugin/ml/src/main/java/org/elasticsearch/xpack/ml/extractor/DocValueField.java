@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.ml.extractor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class DocValueField extends AbstractField {
 
@@ -25,7 +23,7 @@ public class DocValueField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         return getFieldValue(hit);
     }
 

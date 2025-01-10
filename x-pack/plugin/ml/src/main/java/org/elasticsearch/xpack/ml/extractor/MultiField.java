@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class MultiField implements ExtractedField {
 
@@ -52,7 +50,7 @@ public class MultiField implements ExtractedField {
     }
 
     @Override
-    public Object[] value(SearchHit hit, Supplier<Map<String, Object>> source) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         return field.value(hit, source);
     }
 

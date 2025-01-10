@@ -173,10 +173,30 @@ final class RequestDispatcher {
         final DiscoveryNode node = clusterState.nodes().get(nodeId);
         assert node != null;
         LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
-        final ActionListener<FieldCapabilitiesNodeResponse> listener = ActionListener.wrap(
-            this::onRequestResponse,
-            failure -> onRequestFailure(shardIds, failure)
-        );
+        final ActionListener<FieldCapabilitiesNodeResponse> listener = ActionListener.wrap(nodeResponse -> {
+            for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
+                if (indexResponse.canMatch()) {
+                    if (fieldCapsRequest.includeEmptyFields() == false) {
+                        // we accept all the responses because they may vary from node to node if we exclude empty fields
+                        onIndexResponse.accept(indexResponse);
+                    } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
+                        onIndexResponse.accept(indexResponse);
+                    }
+                }
+            }
+            for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
+                final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
+                if (indexSelector != null) {
+                    indexSelector.addUnmatchedShardId(unmatchedShardId);
+                }
+            }
+            for (Map.Entry<ShardId, Exception> e : nodeResponse.getFailures().entrySet()) {
+                final IndexSelector indexSelector = indexSelectors.get(e.getKey().getIndexName());
+                if (indexSelector != null) {
+                    indexSelector.setFailure(e.getKey(), e.getValue());
+                }
+            }
+        }, failure -> onRequestFailure(shardIds, failure));
         final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
             shardIds,
             fieldCapsRequest.fields(),
@@ -196,7 +216,16 @@ final class RequestDispatcher {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 ActionListener.runAfter(listener, () -> afterRequestsCompleted(shardIds.size())),
-                FieldCapabilitiesNodeResponse::new,
+                in -> new FieldCapabilitiesNodeResponse(in, indexResponse -> {
+                    if (indexResponse.canMatch()) {
+                        if (fieldCapsRequest.includeEmptyFields() == false) {
+                            // we accept all the responses because they may vary from node to node if we exclude empty fields
+                            onIndexResponse.accept(indexResponse);
+                        } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
+                            onIndexResponse.accept(indexResponse);
+                        }
+                    }
+                }),
                 executor
             )
         );
@@ -208,31 +237,6 @@ final class RequestDispatcher {
             // when the cluster is unstable or overloaded as an eager retry approach can add more load to the cluster.
             executionRound.incrementAndGet();
             execute();
-        }
-    }
-
-    private void onRequestResponse(FieldCapabilitiesNodeResponse nodeResponse) {
-        for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
-            if (indexResponse.canMatch()) {
-                if (fieldCapsRequest.includeEmptyFields() == false) {
-                    // we accept all the responses because they may vary from node to node if we exclude empty fields
-                    onIndexResponse.accept(indexResponse);
-                } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
-                    onIndexResponse.accept(indexResponse);
-                }
-            }
-        }
-        for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
-            final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
-            if (indexSelector != null) {
-                indexSelector.addUnmatchedShardId(unmatchedShardId);
-            }
-        }
-        for (Map.Entry<ShardId, Exception> e : nodeResponse.getFailures().entrySet()) {
-            final IndexSelector indexSelector = indexSelectors.get(e.getKey().getIndexName());
-            if (indexSelector != null) {
-                indexSelector.setFailure(e.getKey(), e.getValue());
-            }
         }
     }
 

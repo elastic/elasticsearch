@@ -12,7 +12,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 
 import java.util.List;
@@ -36,8 +35,8 @@ public class RestEsqlStopAsyncAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        AsyncStopRequest get = new AsyncStopRequest(request.param("id"));
-        return channel -> client.execute(EsqlAsyncStopAction.INSTANCE, get, new RestRefCountedChunkedToXContentListener<>(channel));
+        AsyncStopRequest stopReq = new AsyncStopRequest(request.param("id"));
+        return channel -> client.execute(EsqlAsyncStopAction.INSTANCE, stopReq, new EsqlResponseListener(channel, request));
     }
 
     @Override

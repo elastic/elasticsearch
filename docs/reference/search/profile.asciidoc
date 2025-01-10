@@ -176,7 +176,7 @@ The API returns the following result:
                 "time_in_nanos": 775274,
                 "children" : [
                   {
-                    "name": "SimpleTopScoreDocCollector",
+                    "name": "TopScoreDocCollector",
                     "reason": "search_top_hits",
                     "time_in_nanos": 775274
                   }
@@ -537,7 +537,7 @@ Looking at the previous example:
     "time_in_nanos": 775274,
     "children" : [
       {
-        "name": "SimpleTopScoreDocCollector",
+        "name": "TopScoreDocCollector",
         "reason": "search_top_hits",
         "time_in_nanos": 775274
       }
@@ -551,7 +551,7 @@ Looking at the previous example:
 
 
 We see a top-level collector named `QueryPhaseCollector` which holds a child
-`SimpleTopScoreDocCollector`. `SimpleTopScoreDocCollector` is the  default
+`TopScoreDocCollector`. `TopScoreDocCollector` is the  default
 "scoring and sorting" `Collector` used by {es}. The `reason` field attempts
 to give a plain English description of the class name. The `time_in_nanos`
 is similar to the time in the Query tree: a wall-clock time inclusive of all
@@ -751,7 +751,7 @@ The API returns the following result:
                 "time_in_nanos": 1945072,
                 "children": [
                   {
-                    "name": "SimpleTopScoreDocCollector",
+                    "name": "TopScoreDocCollector",
                     "reason": "search_top_hits",
                     "time_in_nanos": 22577
                   },
@@ -788,7 +788,7 @@ major portions of the query are represented:
 2. The second `TermQuery` (message:search) represents the `post_filter` query.
 
 The Collector tree is fairly straightforward, showing how a single
-QueryPhaseCollector that holds the normal scoring SimpleTopScoreDocCollector
+QueryPhaseCollector that holds the normal scoring TopScoreDocCollector
 used to collect top hits, as well as BucketCollectorWrapper to run all scoped
 aggregations.
 
@@ -1332,7 +1332,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "rewrite_time" : 1275732,
         "collector" : [
             {
-                "name" : "SimpleTopScoreDocCollector",
+                "name" : "TopScoreDocCollector",
                 "reason" : "search_top_hits",
                 "time_in_nanos" : 17163
             }

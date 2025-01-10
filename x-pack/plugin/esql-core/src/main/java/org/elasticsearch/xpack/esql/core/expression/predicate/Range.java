@@ -91,7 +91,7 @@ public class Range extends ScalarFunction {
         if (lower.foldable() && upper.foldable()) {
             // TODO rework this to not use unbounded
             Object lowerValue = lower.fold(FoldContext.unbounded());
-            Object upperValue = lower.fold(FoldContext.unbounded());
+            Object upperValue = upper.fold(FoldContext.unbounded());
             return areBoundariesInvalid(lowerValue, upperValue) || value.foldable();
         }
         return false;

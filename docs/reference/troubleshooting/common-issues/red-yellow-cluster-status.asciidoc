@@ -97,7 +97,7 @@ occur for several reasons:
 After you resolve the issue and recover the node, it will rejoin the cluster.
 {es} will then automatically allocate any unassigned shards.
 
-You can monitor this process by <<cluster-health,checking your cluster health>>. You will see that the number of unallocated shards progressively reduces until green status is reached.
+You can monitor this process by <<cluster-health,checking your cluster health>>. The number of unallocated shards should progressively decrease until green status is reached.
 
 To avoid wasting resources on temporary issues, {es} <<delayed-allocation,delays
 allocation>> by one minute by default. If you've recovered a node and don’t want

@@ -159,8 +159,7 @@ public class DataFrameDataExtractor {
                 List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     var unpooled = hit.asUnpooled();
-                    SourceSupplier sourceSupplier = new SourceSupplier(hit);
-                    String[] extractedValues = extractValues(unpooled, sourceSupplier);
+                    String[] extractedValues = extractValues(unpooled, new SourceSupplier(unpooled));
                     rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
                 }
                 delegate.onResponse(rows);

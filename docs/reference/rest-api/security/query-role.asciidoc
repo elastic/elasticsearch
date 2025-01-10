@@ -6,6 +6,12 @@
 <titleabbrev>Query Role</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Retrieves roles with <<query-dsl,Query DSL>> in a <<paginate-search-results,paginated>> fashion.
 
 [[security-api-query-role-request]]

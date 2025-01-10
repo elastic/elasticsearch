@@ -127,7 +127,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             ],
                             "version": "%s",
                             "min_index_version": %s,
-                            "min_read_only_index_version": %s,
                             "max_index_version": %s
                           }
                         },
@@ -219,7 +218,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 clusterState.getNodes().get("node0").getEphemeralId(),
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current()
@@ -314,15 +312,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             fail(e);
         }
 
-        int[] expectedChunks = new int[] { 3 };
-        if (Objects.equals(params.param("metric"), "none") == false) {
-            expectedChunks[0] += 2 + ClusterStateTests.expectedChunkCount(params, response.getState());
-        }
-        if (params.paramAsBoolean("explain", false)) {
-            expectedChunks[0]++;
-        }
+        final var expectedChunks = Objects.equals(params.param("metric"), "none")
+            ? 2
+            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks[0]);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks);
         assertCriticalWarnings(criticalDeprecationWarnings);
     }
 

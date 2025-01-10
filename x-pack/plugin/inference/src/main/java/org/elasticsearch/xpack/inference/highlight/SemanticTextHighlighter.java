@@ -53,8 +53,9 @@ public class SemanticTextHighlighter implements Highlighter {
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
-        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType) {
-            return true;
+        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            // TODO: Implement highlighting when using inference metadata fields
+            return semanticTextFieldType.useLegacyFormat();
         }
         return false;
     }

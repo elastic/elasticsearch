@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -235,30 +234,27 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     combinedTemplateMappings = List.of(new CompressedXContent("{}"));
                 }
 
-                boolean addHostNameField = false;
-                boolean sortOnHostName = false;
-
                 var mapping = mapperService.parseMapping(
                     MapperService.SINGLE_MAPPING_NAME,
                     MapperService.MergeReason.INDEX_TEMPLATE,
                     combinedTemplateMappings
                 );
-                Mapper hostName = mapping.getRoot().getMapper("host.name");
-                if (hostName == null || hostName instanceof ObjectMapper) {
-                    Mapper host = mapping.getRoot().getMapper("host");
-                    if (host instanceof ObjectMapper hostObj) {
-                        hostName = hostObj.getMapper("name");
-                        addHostNameField = hostName == null;
-                    } else if (host == null || mapping.getRoot().subobjects() == ObjectMapper.Subobjects.DISABLED) {
-                        addHostNameField = true;
-                    }
-                }
-                boolean hasNameHasDocValues = hostName != null
-                    && ((FieldMapper) hostName).fieldType().hasDocValues()
-                    && (hostName instanceof KeywordFieldMapper || hostName instanceof NumberFieldMapper);
-                sortOnHostName = addHostNameField || hasNameHasDocValues;
                 hasSyntheticSourceUsage = hasSyntheticSourceUsage
                     || mapping.getMetadataMapperByClass(SourceFieldMapper.class).isSynthetic();
+
+                var root = mapping.getRoot();
+                Mapper host = root.getMapper("host");
+                Mapper hostName;
+                if (host instanceof ObjectMapper obj) {
+                    hostName = obj.getMapper("name");
+                } else {
+                    hostName = root.getMapper("host.name");
+                }
+                boolean addHostNameField = hostName == null
+                    && (host == null || host instanceof ObjectMapper || root.subobjects() == ObjectMapper.Subobjects.DISABLED);
+                boolean sortOnHostName = addHostNameField
+                    || ((hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())
+                        || (hostName instanceof KeywordFieldMapper kfm && kfm.fieldType().hasDocValues()));
                 return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField);
             }
         } catch (AssertionError | Exception e) {

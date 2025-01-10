@@ -35,12 +35,13 @@ import java.util.Map;
 import java.util.Set;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
+    private final FieldType fieldType;
     private final String fieldName;
-    private final Template template;
     private final MappingGenerator mappingGenerator;
-    private final FieldDataGenerator generator;
+    private final FieldDataGenerator keywordDataGenerator;
 
     protected BlockLoaderTestCase(FieldType fieldType) {
+        this.fieldType = fieldType;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
         // Disable all dynamic mapping
@@ -54,53 +55,31 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }))
             .build();
 
-        this.template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         this.mappingGenerator = new MappingGenerator(specification);
-        this.generator = fieldType.generator(fieldName, specification.dataSource());
+        this.keywordDataGenerator = fieldType.generator(fieldName, specification.dataSource());
     }
 
     public void testBlockLoader() throws IOException {
+        var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
+        runTest(template, fieldName);
+    }
+
+    public void testBlockLoaderForFieldInObject() throws IOException {
+        var template = new Template(Map.of("object", new Template.Object("object", false, Map.of(fieldName, new Template.Leaf(fieldName, fieldType)))));
+        runTest(template,  "object." + fieldName);
+    }
+
+    private void runTest(Template template, String fieldName) throws IOException {
         var mapping = mappingGenerator.generate(template);
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
         var syntheticSource = randomBoolean();
         var mapperService = syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
 
-        var fieldValue = generator.generateValue();
-
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldName, fieldValue);
-        Object expected = expected(mapping.lookup().get(fieldName), fieldValue, syntheticSource);
-        assertEquals(expected, blockLoaderResult);
-    }
-
-    public void testSynth() throws IOException {
-        Map<String, Object> raw = Map.of("type", "keyword", "doc_values", false, "store", false);
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of(fieldName, raw))), Map.of(fieldName, raw));
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-
-        var mapperService = createSytheticSourceMapperService(mappingXContent);
-
-        var fieldValue = generator.generateValue();
+        var fieldValue = keywordDataGenerator.generateValue();
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldName, fieldValue);
         Object expected = expected(mapping.lookup().get(fieldName), fieldValue, true);
-        assertEquals(expected, blockLoaderResult);
-    }
-
-    public void testSynthInObject() throws IOException {
-        Map<String, Object> raw = Map.of("type", "keyword", "doc_values", false, "store", false);
-        var mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", Map.of("obj", Map.of("enabled", "false", "properties", Map.of(fieldName, raw))))),
-            Map.of("obj", Map.of("enabled", "false"), "obj." + fieldName, raw)
-        );
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-
-        var mapperService = createSytheticSourceMapperService(mappingXContent);
-
-        var fieldValue = generator.generateValue();
-
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, "obj." + fieldName, fieldValue);
-        Object expected = expected(mapping.lookup().get("obj." + fieldName), fieldValue, true);
         assertEquals(expected, blockLoaderResult);
     }
 

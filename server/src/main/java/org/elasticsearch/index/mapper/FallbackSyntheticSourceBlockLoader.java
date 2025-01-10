@@ -206,8 +206,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
         @Override
         public boolean canReuse(int startingDocID) {
-            // TODO
-            return false;
+            return true;
         }
     }
 

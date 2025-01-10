@@ -139,7 +139,11 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
-     * The maximum amount of memory we can use for {@link Expression#fold} during planing.
+     * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
+     * defaults to 5% of memory available on the current node. If this method is called on the
+     * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
+     * node, it's 5% of the data node. That's an <strong>exciting</strong> inconsistency. But it's
+     * important. Bigger nodes have more space to do folding.
      */
     public ByteSizeValue foldLimit() {
         return FOLD_LIMIT.get(settings);

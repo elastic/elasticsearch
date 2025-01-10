@@ -166,10 +166,10 @@ public class ConstantFoldingTests extends ESTestCase {
         // Just applying this to the range directly won't perform a transformDown.
         LogicalPlan filter = new Filter(EMPTY, emptySource(), range);
 
-        Filter foldedOnce = as(new ConstantFolding().apply(filter), Filter.class);
+        Filter foldedOnce = as(new ConstantFolding().apply(filter, unboundLogicalOptimizerContext()), Filter.class);
         // We need to run the rule twice, because during the first run only the boundaries can be folded - the range doesn't know it's
         // foldable, yet.
-        Filter foldedTwice = as(new ConstantFolding().apply(foldedOnce), Filter.class);
+        Filter foldedTwice = as(new ConstantFolding().apply(foldedOnce, unboundLogicalOptimizerContext()), Filter.class);
 
         assertFalse((Boolean) as(foldedTwice.condition(), Literal.class).value());
     }

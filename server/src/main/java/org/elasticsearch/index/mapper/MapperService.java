@@ -428,25 +428,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return currentMapper;
         }
 
-        Map<String, Object> mergedRawMapping = null;
-        for (CompressedXContent mappingSource : mappingSources) {
-            Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
-
-            // normalize mappings, making sure that all have the provided type as a single root
-            if (rawMapping.containsKey(type)) {
-                if (rawMapping.size() > 1) {
-                    throw new MapperParsingException("cannot merge a map with multiple roots, one of which is [" + type + "]");
-                }
-            } else {
-                rawMapping = Map.of(type, rawMapping);
-            }
-
-            if (mergedRawMapping == null) {
-                mergedRawMapping = rawMapping;
-            } else {
-                XContentHelper.merge(type, mergedRawMapping, rawMapping, RawFieldMappingMerge.INSTANCE);
-            }
-        }
+        Map<String, Object> mergedRawMapping = mergeRawMappings(type, mappingSources);
         if (mergedRawMapping != null && mergedRawMapping.size() > 1) {
             throw new MapperParsingException("cannot merge mapping sources with different roots");
         }
@@ -624,6 +606,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public Mapping parseMapping(String mappingType, MergeReason reason, List<CompressedXContent> mappings) {
+        Map<String, Object> mergedRawMapping = mergeRawMappings(mappingType, mappings);
+        return parseMapping(mappingType, reason, mergedRawMapping);
+    }
+
+    private static Map<String, Object> mergeRawMappings(String mappingType, List<CompressedXContent> mappings) {
         Map<String, Object> mergedRawMapping = null;
         for (CompressedXContent mappingSource : mappings) {
             Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
@@ -640,10 +627,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (mergedRawMapping == null) {
                 mergedRawMapping = rawMapping;
             } else {
-                XContentHelper.merge(mappingType, mergedRawMapping, rawMapping, MapperService.RawFieldMappingMerge.INSTANCE);
+                XContentHelper.merge(mappingType, mergedRawMapping, rawMapping, RawFieldMappingMerge.INSTANCE);
             }
         }
-        return parseMapping(mappingType, reason, mergedRawMapping);
+        return mergedRawMapping;
     }
 
     public static Mapping mergeMappings(

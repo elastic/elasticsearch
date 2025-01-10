@@ -35,7 +35,7 @@ public class LogicalOptimizerContext {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (LogicalOptimizerContext) obj;
-        return Objects.equals(this.configuration, that.configuration);
+        return this.configuration.equals(that.configuration) && this.foldCtx.equals(that.foldCtx);
     }
 
     @Override

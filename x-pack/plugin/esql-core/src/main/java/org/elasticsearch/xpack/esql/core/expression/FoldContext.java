@@ -14,6 +14,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Objects;
+
 /**
  * Context passed to {@link Expression#fold}. This is not thread safe.
  */
@@ -31,6 +33,26 @@ public class FoldContext {
     public FoldContext(long allowedBytes) {
         this.initialAllowedBytes = allowedBytes;
         this.allowedBytes = allowedBytes;
+    }
+
+    long initialAllowedBytes() {
+        return initialAllowedBytes;
+    }
+
+    long allowedBytes() {
+        return allowedBytes;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        FoldContext that = (FoldContext) o;
+        return initialAllowedBytes == that.initialAllowedBytes && allowedBytes == that.allowedBytes;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(initialAllowedBytes, allowedBytes);
     }
 
     /**

@@ -266,7 +266,7 @@ public final class Case extends EsqlScalarFunction {
      * {@code EVAL c=CASE(b, bar, bort)}.
      */
     public Expression partiallyFold(FoldContext ctx) {
-        // TODO don't fold here - look for literal TRUE
+        // TODO don't throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
         List<Expression> newChildren = new ArrayList<>(children().size());
         boolean modified = false;
         for (Condition condition : conditions) {

@@ -113,7 +113,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField(toEvaluator.foldCtx());
             if (chrono == null) {
-                BytesRef field = (BytesRef) children().getFirst().fold(toEvaluator.foldCtx());
+                BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
                 throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
             return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());

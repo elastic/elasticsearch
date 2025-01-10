@@ -253,7 +253,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     && ((FieldMapper) hostName).fieldType().hasDocValues()
                     && (hostName instanceof KeywordFieldMapper || hostName instanceof NumberFieldMapper);
                 sortOnHostName = addHostNameField || hasNameHasDocValues;
-                hasSyntheticSourceUsage = hasSyntheticSourceUsage || mapping.getMetadataMapperByClass(SourceFieldMapper.class).isSynthetic();
+                hasSyntheticSourceUsage = hasSyntheticSourceUsage
+                    || mapping.getMetadataMapperByClass(SourceFieldMapper.class).isSynthetic();
                 return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField);
             }
         } catch (AssertionError | Exception e) {

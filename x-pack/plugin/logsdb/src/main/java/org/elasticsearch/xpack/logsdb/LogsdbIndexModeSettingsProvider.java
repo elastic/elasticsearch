@@ -238,7 +238,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 boolean addHostNameField = false;
                 boolean sortOnHostName = false;
 
-                var mapping = mapperService.parseMapping("_doc", MapperService.MergeReason.INDEX_TEMPLATE, combinedTemplateMappings);
+                var mapping = mapperService.parseMapping(
+                    MapperService.SINGLE_MAPPING_NAME,
+                    MapperService.MergeReason.INDEX_TEMPLATE,
+                    combinedTemplateMappings
+                );
                 Mapper hostName = mapping.getRoot().getMapper("host.name");
                 if (hostName == null || hostName instanceof ObjectMapper) {
                     Mapper host = mapping.getRoot().getMapper("host");

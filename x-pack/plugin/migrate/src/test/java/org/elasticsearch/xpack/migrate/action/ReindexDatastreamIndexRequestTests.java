@@ -27,10 +27,13 @@ public class ReindexDatastreamIndexRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return new ReindexDataStreamIndexAction.Request(
-            randomValueOtherThan(instance.getSourceIndex(), () -> randomAlphaOfLength(20)),
-            randomValueOtherThan(instance.getSourceBlocks(), this::randomAPIBlockSet)
-        );
+        String sourceIndex = instance.getSourceIndex();
+        EnumSet<IndexMetadata.APIBlock> sourceBlocks = instance.getSourceBlocks();
+        switch (between(0, 1)) {
+            case 0 -> sourceIndex = randomValueOtherThan(instance.getSourceIndex(), () -> randomAlphaOfLength(20));
+            case 1 -> sourceBlocks = randomValueOtherThan(instance.getSourceBlocks(), this::randomAPIBlockSet);
+        }
+        return new ReindexDataStreamIndexAction.Request(sourceIndex, sourceBlocks);
     }
 
     private EnumSet<IndexMetadata.APIBlock> randomAPIBlockSet() {

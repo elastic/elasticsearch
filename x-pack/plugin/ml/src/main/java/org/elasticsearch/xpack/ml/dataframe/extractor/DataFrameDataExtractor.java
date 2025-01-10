@@ -260,7 +260,7 @@ public class DataFrameDataExtractor {
                 hasNext = false;
                 break;
             }
-            rows.add(createRow(hit, new SourceSupplier(hit)));
+            rows.add(createRow(hit));
         }
         return rows;
     }
@@ -318,9 +318,9 @@ public class DataFrameDataExtractor {
         return extractedValue;
     }
 
-    private Row createRow(SearchHit hit, SourceSupplier sourceSupplier) {
+    private Row createRow(SearchHit hit) {
         var unpooled = hit.asUnpooled();
-        String[] extractedValues = extractValues(unpooled, sourceSupplier);
+        String[] extractedValues = extractValues(unpooled, new SourceSupplier(unpooled));
         if (extractedValues == null) {
             return new Row(null, unpooled, true);
         }

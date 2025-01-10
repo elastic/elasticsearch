@@ -36,8 +36,8 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 /**
@@ -162,7 +162,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             }
             return builder.endObject(); // end $nodename
         }),
-            singleChunk(
+            chunk(
                 (builder, p) -> builder.endObject() // end "nodes"
                     .startObject("shard_sizes")
             ),
@@ -171,7 +171,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 shardSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
             ),
-            singleChunk(
+            chunk(
                 (builder, p) -> builder.endObject() // end "shard_sizes"
                     .startObject("shard_data_set_sizes")
             ),
@@ -183,12 +183,12 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     ByteSizeValue.ofBytes(c.getValue())
                 )
             ),
-            singleChunk(
+            chunk(
                 (builder, p) -> builder.endObject() // end "shard_data_set_sizes"
                     .startObject("shard_paths")
             ),
             Iterators.map(dataPath.entrySet().iterator(), c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue())),
-            singleChunk(
+            chunk(
                 (builder, p) -> builder.endObject() // end "shard_paths"
                     .startArray("reserved_sizes")
             ),

@@ -1298,6 +1298,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }));
     }
 
+    public boolean hasRelocationFailures() {
+        for (var shardRoutings : assignedShards.values()) {
+            for (var routing : shardRoutings) {
+                if (routing.relocationFailureInfo() != null && routing.relocationFailureInfo().failedRelocations() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public void resetFailedCounter(RoutingChangesObserver routingChangesObserver) {
         final var unassignedIterator = unassigned().iterator();
         while (unassignedIterator.hasNext()) {

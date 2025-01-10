@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,6 +53,7 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +83,8 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    // Tracks node IDs whose shutdown metadata has already been considered for resetting allocation/relocation failures
+    private final Set<String> processedNodeShutdowns = new HashSet<>();
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -573,10 +578,41 @@ public class AllocationService {
         });
 
         clusterService.addListener((changeEvent) -> {
-            if (changeEvent.nodesAdded() && changeEvent.state().getRoutingNodes().hasAllocationFailures()) {
+            if (shouldResetAllocationFailures(changeEvent)) {
                 taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
             }
         });
+    }
+
+    /**
+     *  We should reset allocation/relocation failure count to allow further retries when:
+     *
+     *  1. A new node joins the cluster.
+     *  2. A node shutdown metadata is added that could lead to a node being removed or replaced in the cluster.
+     *
+     * Note that removing a non-RESTART shutdown metadata from a node that is still in the cluster is treated similarly and
+     * will cause resetting the allocation/relocation failures.
+     */
+    private boolean shouldResetAllocationFailures(ClusterChangedEvent changeEvent) {
+        final var clusterState = changeEvent.state();
+        boolean hasAllocationFailures = clusterState.getRoutingNodes().hasAllocationFailures();
+        boolean hasRelocationFailures = clusterState.getRoutingNodes().hasRelocationFailures();
+        var shutdownEventAffectsAllocation = false;
+        final var nodes = clusterState.nodes();
+        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
+        // If we remove a shutdown marker from a node, but it is still in the cluster, we could re-attempt failed relocations/allocations.
+        shutdownEventAffectsAllocation = processedNodeShutdowns.stream()
+            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
+        // Clean up processed shutdowns that are removed from the cluster metadata
+        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
+        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
+            // A RESTART doesn't necessarily move around shards, so no need to consider it for a reset.
+            // Furthermore, once the node rejoins after restarting, there will be a reset if necessary.
+            if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+                shutdownEventAffectsAllocation |= processedNodeShutdowns.add(shutdown.getKey());
+            }
+        }
+        return (changeEvent.nodesAdded() || shutdownEventAffectsAllocation) && (hasAllocationFailures || hasRelocationFailures);
     }
 
     private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {

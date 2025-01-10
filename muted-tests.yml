@@ -254,6 +254,8 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolverTests
   method: testBackingIndicesAreNotVisibleWhenNotIncludedByRequestWithoutWildcard
   issue: https://github.com/elastic/elasticsearch/issues/119909
+- class: org.elasticsearch.xpack.esql.CsvTests
+  issue: https://github.com/elastic/elasticsearch/issues/119918
 
 # Examples:
 #

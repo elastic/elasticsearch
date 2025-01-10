@@ -73,8 +73,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final DesiredBalanceReconciler desiredBalanceReconciler;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     /**
-     * Accepts listeners with an index value (see {#link #indexGenerator}) and run them whenever a DesiredBalance computation completes with
-     * an equal or greater index value.
+     * Saves and runs listeners after DesiredBalance computations complete.
      */
     private final PendingListenersQueue pendingListenersQueue;
     /**

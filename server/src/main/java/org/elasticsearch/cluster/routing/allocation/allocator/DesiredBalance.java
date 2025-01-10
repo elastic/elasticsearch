@@ -20,7 +20,7 @@ import java.util.Objects;
  * The desired balance of the cluster, indicating which nodes should hold a copy of each shard.
  *
  * @param lastConvergedIndex Identifies what input data the balancer computation round used to produce this {@link DesiredBalance}. See
- *                           {@link DesiredBalanceInput#index()} for details. Each reroute request gets assigned a monotonically increasing
+ *                           {@link DesiredBalanceInput#index()} for details. Each reroute request gets assigned a strictly increasing
  *                           sequence number, and the balancer, which runs async to reroute, uses the latest request's data to compute the
  *                           desired balance.
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated

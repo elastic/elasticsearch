@@ -32,7 +32,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
     // Version just before MINIMUM_COMPATIBLE in order to check that UpgradeStatus.MIGRATION_NEEDED is set correctly
-    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 100);
+    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
 

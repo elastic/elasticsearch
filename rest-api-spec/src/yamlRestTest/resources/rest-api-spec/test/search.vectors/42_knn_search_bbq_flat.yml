@@ -114,7 +114,7 @@ setup:
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [knn_quantized_vector_rescore]
+          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 

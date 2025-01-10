@@ -40,7 +40,6 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -105,16 +104,6 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
         }
         errorStore.recordError("testIndex", new IllegalStateException("bad state"));
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
-        stateWithHealthNode = ClusterState.builder(stateWithHealthNode)
-            .nodeFeatures(
-                Map.of(
-                    node1.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id()),
-                    node2.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id())
-                )
-            )
-            .build();
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
@@ -143,16 +132,6 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
         errorStore.recordError("testIndex", new IllegalStateException("bad state"));
 
         ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
-        stateNoHealthNode = ClusterState.builder(stateNoHealthNode)
-            .nodeFeatures(
-                Map.of(
-                    node1.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id()),
-                    node2.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id())
-                )
-            )
-            .build();
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
@@ -170,16 +149,6 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     public void testPublishDslErrorEntriesEmptyErrorStore() {
         // publishes the empty error store (this is the "back to healthy" state where all errors have been fixed)
         ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
-        state = ClusterState.builder(state)
-            .nodeFeatures(
-                Map.of(
-                    node1.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id()),
-                    node2.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id())
-                )
-            )
-            .build();
         ClusterServiceUtils.setState(clusterService, state);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override

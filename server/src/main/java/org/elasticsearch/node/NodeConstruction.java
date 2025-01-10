@@ -1200,7 +1200,6 @@ class NodeConstruction {
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
             settings,
             clusterService,
-            featureService,
             threadPool::absoluteTimeInMillis
         );
         dataStreamAutoShardingService.init();

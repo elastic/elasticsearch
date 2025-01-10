@@ -42,8 +42,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.ingest.IngestGeoIpFeatures.PUT_DATABASE_CONFIGURATION_ACTION_IPINFO;
-
 public class TransportPutDatabaseConfigurationAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDatabaseConfigurationAction.class);
@@ -95,18 +93,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final String id = request.getDatabase().id();
-
-        // if this is an ipinfo configuration, then make sure the whole cluster supports that feature
-        if (request.getDatabase().provider() instanceof DatabaseConfiguration.Ipinfo
-            && featureService.clusterHasFeature(clusterService.state(), PUT_DATABASE_CONFIGURATION_ACTION_IPINFO) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Unable to use ipinfo database configurations in mixed-clusters with nodes that do not support feature "
-                        + PUT_DATABASE_CONFIGURATION_ACTION_IPINFO.id()
-                )
-            );
-            return;
-        }
 
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),

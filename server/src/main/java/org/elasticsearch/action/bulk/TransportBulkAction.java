@@ -283,7 +283,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // A map for memorizing which indices exist.
         Map<String, Boolean> indexExistence = new HashMap<>();
         Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
-        boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
         boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
@@ -328,18 +327,15 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }
             // Determine which data streams and failure stores need to be rolled over.
-            if (lazyRolloverFeature) {
-                DataStream dataStream = state.metadata().dataStreams().get(request.index());
-                if (dataStream != null) {
-                    if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
-                        dataStreamsToBeRolledOver.add(request.index());
-                    } else if (lazyRolloverFailureStoreFeature
-                        && writeToFailureStore
-                        && dataStream.getFailureIndices().isRolloverOnWrite()) {
-                            failureStoresToBeRolledOver.add(request.index());
-                        }
+            DataStream dataStream = state.metadata().dataStreams().get(request.index());
+            if (dataStream != null) {
+                if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
+                    dataStreamsToBeRolledOver.add(request.index());
+                } else if (lazyRolloverFailureStoreFeature && writeToFailureStore && dataStream.getFailureIndices().isRolloverOnWrite()) {
+                    failureStoresToBeRolledOver.add(request.index());
                 }
             }
+
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -175,15 +174,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 || invalidRepositories.isEmpty() == false) {
                 healthStatus = YELLOW;
             } else if (repositoriesHealthByNode.isEmpty()) {
-                clusterHasFeature = featureService.clusterHasFeature(
-                    clusterState,
-                    HealthFeatures.SUPPORTS_EXTENDED_REPOSITORY_INDICATOR
-                ) == false;
-                if (clusterHasFeature) {
-                    healthStatus = GREEN;
-                } else {
-                    healthStatus = UNKNOWN;
-                }
+                clusterHasFeature = false;
+                healthStatus = UNKNOWN;
             } else {
                 healthStatus = GREEN;
             }

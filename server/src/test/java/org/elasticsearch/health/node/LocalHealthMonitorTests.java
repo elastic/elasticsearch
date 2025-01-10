@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -119,7 +118,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         client = mock(Client.class);
 
-        FeatureService featureService = new FeatureService(List.of(new HealthFeatures()));
+        FeatureService featureService = new FeatureService(List.of());
 
         mockHealthTracker = new MockHealthTracker();
 

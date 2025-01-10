@@ -35,8 +35,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -99,8 +97,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         );
 
         when(allocationStatsService.stats()).thenReturn(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
-        when(featureService.clusterHasFeature(any(ClusterState.class), eq(AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)))
-            .thenReturn(true);
 
         var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
         action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);

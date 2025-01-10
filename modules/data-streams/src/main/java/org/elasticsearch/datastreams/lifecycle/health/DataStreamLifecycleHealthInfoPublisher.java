@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
@@ -45,7 +44,6 @@ public class DataStreamLifecycleHealthInfoPublisher {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final NodeFeature DSL_HEALTH_INFO_FEATURE = new NodeFeature("health.dsl.info", true);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -89,9 +87,6 @@ public class DataStreamLifecycleHealthInfoPublisher {
      * {@link org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService#DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING}
      */
     public void publishDslErrorEntries(ActionListener<AcknowledgedResponse> actionListener) {
-        if (featureService.clusterHasFeature(clusterService.state(), DSL_HEALTH_INFO_FEATURE) == false) {
-            return;
-        }
         // fetching the entries that persist in the error store for more than the signalling retry interval
         // note that we're reporting this view into the error store on every publishing iteration
         List<DslErrorInfo> errorEntriesToSignal = errorStore.getErrorsInfo(

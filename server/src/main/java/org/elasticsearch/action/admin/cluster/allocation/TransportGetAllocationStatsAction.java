@@ -92,10 +92,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         listener.onResponse(
             new Response(
                 request.metrics().contains(Metric.ALLOCATIONS) ? allocationStatsService.stats() : Map.of(),
-                request.metrics().contains(Metric.FS)
-                    && featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
-                        ? diskThresholdSettings
-                        : null
+                request.metrics().contains(Metric.FS) ? diskThresholdSettings : null
             )
         );
     }

@@ -206,9 +206,8 @@ shared scripts for operations like scoring, aggregating, filtering, and
 reindexing. Instead of embedding scripts inline in each query, you can reference 
 these shared operations.
 
-Stored scripts also contribute to reducing the request payload. Depending
-on the size of the scripts and the frequency of the requests, that can
-help lowering the request latency and data transfer costs.
+Stored scripts can also reduce request payload size. Depending on script size 
+and request frequency, this can help lower latency and data transfer costs.
 
 NOTE: Unlike regular scripts, stored scripts require that you specify a script
 language using the `lang` parameter.

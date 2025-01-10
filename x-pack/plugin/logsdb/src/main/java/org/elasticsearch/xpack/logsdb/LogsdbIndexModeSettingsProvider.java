@@ -169,7 +169,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     if (settingsBuilder == null) {
                         settingsBuilder = Settings.builder();
                     }
-                    settingsBuilder.putList(INDEX_ROUTING_PATH.getKey(), sortFields).build();
+                    settingsBuilder.putList(INDEX_ROUTING_PATH.getKey(), sortFields);
                 }
             }
         }

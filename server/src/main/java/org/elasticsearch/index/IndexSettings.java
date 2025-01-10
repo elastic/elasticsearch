@@ -715,6 +715,7 @@ public final class IndexSettings {
         "index.logsdb.add_host_name_field",
         false,
         Property.IndexScope,
+        Property.PrivateIndex,
         Property.Final
     );
 
@@ -722,6 +723,7 @@ public final class IndexSettings {
         "index.logsdb.sort_on_host_name",
         false,
         Property.IndexScope,
+        Property.PrivateIndex,
         Property.Final
     );
 

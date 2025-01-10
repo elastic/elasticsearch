@@ -54,17 +54,16 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
         final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null
-            ? new GetIndexTemplatesRequest()
-            : new GetIndexTemplatesRequest(matchPattern);
-        getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(RestUtils.getMasterNodeTimeout(request));
+            ? new GetIndexTemplatesRequest(masterNodeTimeout)
+            : new GetIndexTemplatesRequest(masterNodeTimeout, matchPattern);
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
-            RestUtils.getMasterNodeTimeout(request),
+            masterNodeTimeout,
             matchPattern
         );
-        RestUtils.consumeDeprecatedLocalParameter(request);
 
         return channel -> {
 

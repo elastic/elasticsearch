@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<LifecyclePolicy> {
 
+    // Excluding the deprecated freeze action and test it separately
     private String lifecycleName;
 
     @Override

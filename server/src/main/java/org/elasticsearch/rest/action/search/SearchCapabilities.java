@@ -9,8 +9,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.Build;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -60,9 +58,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE);
         capabilities.add(MOVING_FN_RIGHT_MATH);
         capabilities.add(K_DEFAULT_TO_SIZE);
-        if (Build.current().isSnapshot()) {
-            capabilities.add(KQL_QUERY_SUPPORTED);
-        }
+        capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         CAPABILITIES = Set.copyOf(capabilities);
     }

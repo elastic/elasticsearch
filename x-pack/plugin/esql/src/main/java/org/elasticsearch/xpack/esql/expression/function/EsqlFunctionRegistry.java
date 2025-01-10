@@ -425,7 +425,10 @@ public class EsqlFunctionRegistry {
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
             // fulltext functions
-            new FunctionDefinition[] { def(Match.class, bi(Match::new), "match"), def(QueryString.class, uni(QueryString::new), "qstr") } };
+            new FunctionDefinition[] {
+                def(Kql.class, uni(Kql::new), "kql"),
+                def(Match.class, bi(Match::new), "match"),
+                def(QueryString.class, uni(QueryString::new), "qstr") } };
 
     }
 
@@ -435,7 +438,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(Kql.class, uni(Kql::new), "kql"),
                 // log_with_base_in_map is for debug/snapshot environments only
                 // and should never be enabled in a non-snapshot build. They are for the purpose of testing MapExpression only.
                 def(LogWithBaseInMap.class, LogWithBaseInMap::new, "log_with_base_in_map"),

@@ -452,7 +452,7 @@ public class EsqlCapabilities {
         /**
          * KQL function
          */
-        KQL_FUNCTION(Build.current().isSnapshot()),
+        KQL_FUNCTION,
 
         /**
          * Hash function
@@ -605,6 +605,11 @@ public class EsqlCapabilities {
          * Full text functions can be used in disjunctions
          */
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        /**
+         * Change field caps response for semantic_text fields to be reported as text
+         */
+        SEMANTIC_TEXT_FIELD_CAPS,
 
         /**
          * Support named argument for function in map format.

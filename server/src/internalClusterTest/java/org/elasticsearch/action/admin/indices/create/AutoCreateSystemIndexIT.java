@@ -273,7 +273,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     private void assertAliasesHidden(String nonPrimaryIndex, Set<String> aliasNames, int aliasCount) throws InterruptedException,
         ExecutionException {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));

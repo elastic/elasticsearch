@@ -262,6 +262,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/119981
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119983
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119989
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119990
 
 # Examples:
 #

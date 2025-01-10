@@ -271,7 +271,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
             || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
-            providerList.add(1, "elastic");
+            providerList.add(6, "elastic");
         }
 
         assertArrayEquals(providers, providerList.toArray());

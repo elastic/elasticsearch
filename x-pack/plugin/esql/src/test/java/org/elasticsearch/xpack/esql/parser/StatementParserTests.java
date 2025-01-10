@@ -2742,7 +2742,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named function argument [null], NULL is not supported")
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"option\":null], NULL is not supported"
+                )
             );
         }
     }
@@ -2781,6 +2786,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "line 1:{}: {}",
                     error,
                     "Invalid named function argument [\"  \":1], empty key is not supported"
+                )
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentMapWithDuplicatedKey() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"dup\":1,\"dup\":2})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Duplicated function arguments with the same name [dup] is not supported"
                 )
             );
         }

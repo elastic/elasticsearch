@@ -938,7 +938,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < sig.getKey().size(); i++) {
                 DataType argType = sig.getKey().get(i);
-                if (args.get(i) instanceof EsqlFunctionRegistry.MapArgSignature) {
+                if (args.get(i).mapArg()) {
                     b.append("map | ");
                 } else {
                     b.append(argType.esNameIfPossible()).append(" | ");
@@ -1177,11 +1177,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                     builder.startObject();
                     builder.field("name", arg.name());
-                    if (arg instanceof EsqlFunctionRegistry.MapArgSignature mp) {
+                    if (arg.mapArg()) {
                         builder.field("type", "map");
                         builder.field(
                             "mapParams",
-                            mp.mapParams()
+                            arg.mapParams()
                                 .values()
                                 .stream()
                                 .map(mapArgSignature -> "{" + mapArgSignature + "}")

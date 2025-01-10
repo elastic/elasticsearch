@@ -626,6 +626,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public MapExpression visitMapExpression(EsqlBaseParser.MapExpressionContext ctx) {
         List<Expression> namedArgs = new ArrayList<>(ctx.entryExpression().size());
+        List<String> names = new ArrayList<>(ctx.entryExpression().size());
         List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
             String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
@@ -636,15 +637,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     entry.getText()
                 );
             }
+            if (names.contains(key)) {
+                throw new ParsingException(source(ctx), "Duplicated function arguments with the same name [{}] is not supported", key);
+            }
             Expression value = expression(entry.constant());
+            String entryText = entry.getText();
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", l);
+                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
                 }
                 namedArgs.add(new Literal(source(entry.string()), key, KEYWORD));
                 namedArgs.add(l);
+                names.add(key);
             } else {
-                throw new ParsingException(source(ctx), "Invalid named function argument [{}], only constant value is supported", value);
+                throw new ParsingException(
+                    source(ctx),
+                    "Invalid named function argument [{}], only constant value is supported",
+                    entryText
+                );
             }
         }
         return new MapExpression(Source.EMPTY, namedArgs);

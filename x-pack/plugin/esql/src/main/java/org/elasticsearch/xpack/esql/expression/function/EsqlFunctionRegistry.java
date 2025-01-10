@@ -511,6 +511,14 @@ public class EsqlFunctionRegistry {
             return targetDataType;
         }
 
+        public Map<String, MapEntryArgSignature> mapParams() {
+            return Map.of();
+        }
+
+        public boolean mapArg() {
+            return false;
+        }
+
         @Override
         public String toString() {
             return "ArgSignature{"
@@ -536,8 +544,14 @@ public class EsqlFunctionRegistry {
             this.mapParams = mapParams;
         }
 
+        @Override
         public Map<String, MapEntryArgSignature> mapParams() {
             return mapParams;
+        }
+
+        @Override
+        public boolean mapArg() {
+            return true;
         }
 
         @Override

@@ -17,13 +17,11 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -31,7 +29,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 /**
  * Represent a collect of key-value pairs.
  */
-public class MapExpression extends Expression implements Map<Expression, Expression> {
+public class MapExpression extends Expression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MapExpression",
@@ -117,17 +115,6 @@ public class MapExpression extends Expression implements Map<Expression, Express
         return Objects.hash(entryExpressions);
     }
 
-    @Override
-    public int size() {
-        return map.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return map.isEmpty();
-    }
-
-    @Override
     public Expression get(Object key) {
         if (key instanceof Expression) {
             return map.get(key);
@@ -136,51 +123,6 @@ public class MapExpression extends Expression implements Map<Expression, Express
             // the key(literal) could be converted to BytesRef by ConvertStringToByteRef
             return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(new BytesRef(key.toString()));
         }
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-        return map.containsKey(key);
-    }
-
-    @Override
-    public boolean containsValue(Object value) {
-        return map.containsValue(value);
-    }
-
-    @Override
-    public Expression put(Expression key, Expression value) {
-        throw new UnsupportedOperationException("MapExpression cannot be modified");
-    }
-
-    @Override
-    public Expression remove(Object key) {
-        throw new UnsupportedOperationException("MapExpression cannot be modified");
-    }
-
-    @Override
-    public void putAll(Map<? extends Expression, ? extends Expression> m) {
-        throw new UnsupportedOperationException("MapExpression cannot be modified");
-    }
-
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException("MapExpression cannot be modified");
-    }
-
-    @Override
-    public Set<Expression> keySet() {
-        return map.keySet();
-    }
-
-    @Override
-    public Collection<Expression> values() {
-        return map.values();
-    }
-
-    @Override
-    public Set<Entry<Expression, Expression>> entrySet() {
-        return map.entrySet();
     }
 
     @Override

@@ -103,13 +103,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         Client client,
         List<HealthTracker<?>> healthTrackers
     ) {
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(
-            settings,
-            clusterService,
-            threadPool,
-            client,
-            healthTrackers
-        );
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, threadPool, client, healthTrackers);
         localHealthMonitor.registerListeners();
         return localHealthMonitor;
     }

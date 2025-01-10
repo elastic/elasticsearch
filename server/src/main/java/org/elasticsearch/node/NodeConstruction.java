@@ -1375,13 +1375,7 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService)
         );
-        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
-            settings,
-            clusterService,
-            threadPool,
-            client,
-            healthTrackers
-        );
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 
         return b -> {

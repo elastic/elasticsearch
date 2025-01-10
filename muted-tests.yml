@@ -155,12 +155,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/117805
-- class: org.elasticsearch.upgrades.QueryBuilderBWCIT
-  method: testQueryBuilderBWC {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
-  method: testQueryBuilderBWC {p0=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/116989
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
@@ -251,8 +245,32 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolverTests
   method: testBackingIndicesAreNotVisibleWhenNotIncludedByRequestWithoutWildcard
   issue: https://github.com/elastic/elasticsearch/issues/119909
-- class: org.elasticsearch.xpack.esql.CsvTests
-  issue: https://github.com/elastic/elasticsearch/issues/119918
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testGetServicesWithCompletionTaskType
+  issue: https://github.com/elastic/elasticsearch/issues/119959
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119978
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119979
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 8.18.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119550
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 8.18.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119980
+- class: org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormatTests
+  method: testRandomExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/119981
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/119983
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119989
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 9.0.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/119990
 
 # Examples:
 #

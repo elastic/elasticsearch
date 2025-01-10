@@ -3,5 +3,4 @@ summary: Optimize `LogsdbIndexModeSettingsProvider#newIndexHasSyntheticSourceUsa
   logic
 area: Logs
 type: enhancement
-issues:
- - 119552
+issues: []

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -202,5 +204,60 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbRouteOnSortFields() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"cluster.logsdb.enabled\": true } }");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["my-log-*"],
+                "data_stream": {
+                },
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "logsdb",
+                            "sort.field": [ "host.name", "message", "@timestamp" ],
+                            "logsdb.route_on_sort_fields": true
+                        }
+                    },
+                    "mappings": {
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "host.name": {
+                                "type": "keyword"
+                            },
+                            "message": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/my-log-foo/_doc");
+        request.setJsonEntity("""
+            {
+                "@timestamp": "2020-01-01T00:00:00.000Z",
+                "host.name": "foo",
+                "message": "bar"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        String index = DataStream.getDefaultBackingIndexName("my-log-foo", 1);
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+        assertEquals("true", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
+        assertEquals(List.of("host.name", "message"), settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
     }
 }

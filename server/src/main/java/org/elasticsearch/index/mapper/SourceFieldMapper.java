@@ -41,21 +41,25 @@ import java.util.List;
 import java.util.Locale;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
+    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback", true);
     public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
-        "mapper.source.synthetic_source_stored_fields_advance_fix"
+        "mapper.source.synthetic_source_stored_fields_advance_fix",
+        true
     );
     public static final NodeFeature SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT = new NodeFeature(
-        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false"
+        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false",
+        true
     );
-    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix");
+    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix", true);
     public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX = new NodeFeature(
-        "mapper.source.synthetic_source_copy_to_inside_objects_fix"
+        "mapper.source.synthetic_source_copy_to_inside_objects_fix",
+        true
     );
     public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
         "mapper.source.remove_synthetic_source_only_validation"
     );
     public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
+    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -404,7 +408,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
+        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -432,13 +436,32 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Nullable
-    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (stored() == false) {
+    public BytesReference applyFilters(
+        @Nullable MappingLookup mappingLookup,
+        @Nullable BytesReference originalSource,
+        @Nullable XContentType contentType
+    ) throws IOException {
+        if (stored() == false || originalSource == null) {
             return null;
         }
-        if (originalSource != null && sourceFilter != null) {
+        var modSourceFilter = sourceFilter;
+        if (mappingLookup != null
+            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false) {
+            /**
+             * Removes {@link InferenceMetadataFieldsMapper} content from _source.
+             * This content is re-generated at query time (if requested) using stored fields and doc values.
+             */
+            String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
+            if (excludes != null) {
+                System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);
+            }
+            modExcludes[modExcludes.length - 1] = InferenceMetadataFieldsMapper.NAME;
+            modSourceFilter = new SourceFilter(includes, modExcludes);
+        }
+        if (modSourceFilter != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
+            return Source.fromBytes(originalSource, contentType).filter(modSourceFilter).internalSourceRef();
         } else {
             return originalSource;
         }
@@ -452,16 +475,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
-    }
-
-    /**
-     * Build something to load source {@code _source}.
-     */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
-        if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
-        }
-        return SourceLoader.FROM_STORED_SOURCE;
     }
 
     public boolean isSynthetic() {

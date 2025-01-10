@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
@@ -41,10 +40,6 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestGraphAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in graph requests is deprecated.";
-    private static final String URI_BASE = "/_xpack";
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");

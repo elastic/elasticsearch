@@ -89,8 +89,6 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final String language;
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(StemmerTokenFilterFactory.class);
-
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(name);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
@@ -192,7 +190,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("german".equalsIgnoreCase(language)) {
                 return new SnowballFilter(tokenStream, new GermanStemmer());
             } else if ("german2".equalsIgnoreCase(language)) {
-                DEPRECATION_LOGGER.critical(
+                deprecationLogger.critical(
                     DeprecationCategory.ANALYSIS,
                     "german2_stemmer_deprecation",
                     "The 'german2' stemmer has been deprecated and folded into the 'german' Stemmer. "

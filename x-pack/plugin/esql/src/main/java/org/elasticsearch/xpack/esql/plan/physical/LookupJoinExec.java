@@ -120,6 +120,21 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     }
 
     @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(leftFields);
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        // TODO: currently it's hard coded that we add all fields from the lookup index. But the output we "officially" get from the right
+        // hand side is inconsistent:
+        // - After logical optimization, there's a FragmentExec with an EsRelation on the right hand side with all the fields.
+        // - After local physical optimization, there's just an EsQueryExec here, with no fields other than _doc mentioned and we don't
+        // insert field extractions in the plan, either.
+        return AttributeSet.EMPTY;
+    }
+
+    @Override
     public LookupJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
         return new LookupJoinExec(source(), left, right, leftFields, rightFields, addedFields);
     }

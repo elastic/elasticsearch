@@ -18,8 +18,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,10 +27,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -43,6 +40,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Flow;
@@ -142,7 +140,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private StreamingChatCompletionResults makeResults(List<String> input) {
-            var responseIter = input.stream().map(String::toUpperCase).iterator();
+            var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
             return new StreamingChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -173,7 +171,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
-            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase()).iterator();
+            var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
             return new StreamingUnifiedChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
@@ -233,7 +231,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -259,23 +257,18 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
                     configurationMap.put(
                         "model_id",
-                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        new SettingsConfiguration.Builder().setDescription("")
                             .setLabel("Model ID")
-                            .setOrder(1)
                             .setRequired(true)
                             .setSensitive(true)
-                            .setTooltip("")
                             .setType(SettingsConfigurationFieldType.STRING)
                             .build()
                     );
 
-                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                        Map<String, SettingsConfiguration> taskSettingsConfig;
-                        switch (t) {
-                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                        }
-                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                    }).toList()).setConfiguration(configurationMap).build();
+                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setTaskTypes(supportedTaskTypes)
+                        .setConfigurations(configurationMap)
+                        .build();
                 }
             );
         }

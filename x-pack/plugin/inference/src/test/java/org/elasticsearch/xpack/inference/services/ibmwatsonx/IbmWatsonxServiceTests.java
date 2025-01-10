@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -35,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -684,7 +684,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 apiKey,
                 getUrl(webServer)
             );
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
@@ -692,8 +692,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
             // first result
             {
-                assertThat(results.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding()));
@@ -701,8 +701,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
             // second result
             {
-                assertThat(results.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0456f, -0.0456f }, floatResult.chunks().get(0).embedding()));
@@ -975,83 +975,49 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         try (var service = createIbmWatsonxService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "watsonxai",
-                       "task_types": [
-                            {
-                                "task_type": "text_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "watsonxai",
+                       "name": "IBM Watsonx",
+                       "task_types": ["text_embedding"],
+                       "configurations": {
                            "project_id": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "",
                                "label": "Project ID",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            },
                            "model_id": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
-                               "order": 3,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The name of the model to use for the inference task.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            },
                            "api_version": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The IBM Watsonx API version ID to use.",
                                "label": "API Version",
-                               "order": 1,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The IBM Watsonx API version ID to use.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            },
                            "max_input_tokens": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
-                               "order": 5,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Allows you to specify the maximum number of tokens per input.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            },
                            "url": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "",
                                "label": "URL",
-                               "order": 4,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            }
                        }
                    }

@@ -661,7 +661,8 @@ public class InternalEngine extends Engine {
             translogDeletionPolicy,
             globalCheckpointSupplier,
             engineConfig.getPrimaryTermSupplier(),
-            persistedSequenceNumberConsumer
+            persistedSequenceNumberConsumer,
+            TranslogOperationAsserter.withEngineConfig(engineConfig)
         );
     }
 
@@ -3134,18 +3135,6 @@ public class InternalEngine extends Engine {
             }
             throw e;
         }
-    }
-
-    @Override
-    public Translog.Snapshot newChangesSnapshot(
-        String source,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange,
-        boolean singleConsumer,
-        boolean accessStats
-    ) throws IOException {
-        return newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, -1);
     }
 
     @Override

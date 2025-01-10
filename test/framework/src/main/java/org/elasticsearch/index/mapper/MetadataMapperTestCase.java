@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -141,5 +142,89 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
         );
         assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
+    }
+
+    public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
+        // we randomly also pick read-only versions to test that we can still parse the parameters for them
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersionUtils.getLowestReadCompatibleVersion(),
+            previousVersion
+        );
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        // these parameters were previously silently ignored, they will still be ignored in existing indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
+            assertNotNull(mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString)));
+        }
+    }
+
+    public void testTypeAndFriendsAreDeprecatedFrom_8_6_0_TO_9_0_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_6_0, previousVersion);
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        // these parameters were deprecated, they now should throw an error in new indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
+            assertNotNull(mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString)));
+            assertWarnings("Parameter [" + param + "] has no effect on metadata field [" + fieldName() + "] and will be removed in future");
+        }
+    }
+
+    public void testTypeAndFriendsThrow_After_9_0_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersion.current()
+        );
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        // these parameters were previously silently ignored, they are now deprecated in new indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
+            expectThrows(
+                MapperParsingException.class,
+                () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
+            );
+        }
     }
 }

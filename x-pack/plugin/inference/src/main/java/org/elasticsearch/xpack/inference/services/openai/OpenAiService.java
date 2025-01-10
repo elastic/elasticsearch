@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrl;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
@@ -70,7 +71,8 @@ public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
 
     private static final String SERVICE_NAME = "OpenAI";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_EXTERNAL = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -164,7 +166,7 @@ public class OpenAiService extends SenderService {
                 secretSettings,
                 context
             );
-            case COMPLETION -> new OpenAiChatCompletionModel(
+            case COMPLETION, CHAT_COMPLETION -> new OpenAiChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -236,7 +238,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES_FOR_EXTERNAL;
     }
 
     @Override
@@ -248,6 +250,15 @@ public class OpenAiService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(model.getTaskType()) == false) {
+            var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES);
+
+            if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
+                responseString = responseString + " " + useChatCompletionUrl(model);
+            }
+            listener.onFailure(new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST));
+        }
+
         if (model instanceof OpenAiModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
@@ -356,7 +367,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION, TaskType.ANY);
     }
 
     /**
@@ -444,7 +455,7 @@ public class OpenAiService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_EXTERNAL)
                     .setConfigurations(configurationMap)
                     .build();
             }

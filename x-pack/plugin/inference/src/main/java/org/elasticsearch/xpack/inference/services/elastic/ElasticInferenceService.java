@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -61,6 +62,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrl;
 
 public class ElasticInferenceService extends SenderService {
 
@@ -69,8 +71,10 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
+    // TODO since we're doing a limit release do we want to expose the chat completion task type yet for EIS?
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_EXTERNAL = EnumSet.of(TaskType.SPARSE_EMBEDDING);
     private static final String SERVICE_NAME = "Elastic";
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -83,7 +87,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY);
     }
 
     @Override
@@ -129,6 +133,15 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(model.getTaskType()) == false) {
+            var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES);
+
+            if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
+                responseString = responseString + " " + useChatCompletionUrl(model);
+            }
+            listener.onFailure(new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST));
+        }
+
         if (model instanceof ElasticInferenceServiceExecutableActionModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
@@ -207,7 +220,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES_FOR_EXTERNAL;
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -383,7 +396,7 @@ public class ElasticInferenceService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_EXTERNAL)
                     .setConfigurations(configurationMap)
                     .build();
             }

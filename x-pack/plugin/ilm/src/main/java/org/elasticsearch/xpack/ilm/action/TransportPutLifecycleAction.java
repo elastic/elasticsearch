@@ -115,6 +115,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
 
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
+        request.getPolicy().maybeAddDeprecationWarningForFreezeAction(request.getPolicy().getName());
 
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         IndexLifecycleMetadata lifecycleMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);

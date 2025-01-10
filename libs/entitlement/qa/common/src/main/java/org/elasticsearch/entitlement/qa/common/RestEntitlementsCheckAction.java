@@ -83,6 +83,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
+        entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
         entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
         entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
         entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
@@ -151,6 +152,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     @SuppressForbidden(reason = "Specifically testing Runtime.halt")
     private static void runtimeHalt() {
         Runtime.getRuntime().halt(123);
+    }
+
+    @SuppressForbidden(reason = "Specifically testing System.exit")
+    private static void systemExit() {
+        System.exit(123);
     }
 
     private static void createClassLoader() {

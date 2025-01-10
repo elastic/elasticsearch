@@ -714,6 +714,22 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
+        "index.logsdb.add_host_name_field",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
+        "index.logsdb.sort_on_host_name",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -836,6 +852,8 @@ public final class IndexSettings {
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
     private final boolean logsdbRouteOnSortFields;
+    private final boolean logsdbSortOnHostName;
+    private final boolean logsdbAddHostNameField;
 
     private volatile long retentionLeaseMillis;
 
@@ -954,6 +972,13 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
+     */
+    public boolean logsdbAddHostNameField() {
+        return logsdbAddHostNameField;
+    }
+
+    /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
@@ -1046,6 +1071,8 @@ public final class IndexSettings {
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
+        logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
+        logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);

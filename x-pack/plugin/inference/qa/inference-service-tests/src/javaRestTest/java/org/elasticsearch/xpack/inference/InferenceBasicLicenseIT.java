@@ -67,9 +67,9 @@ public class InferenceBasicLicenseIT extends InferenceLicenseBaseRestTest {
         sendRestrictedRequest("POST", endpoint, requestBody);
     }
 
-    public void testGetServices_RestrictedWithBasicLicense() throws Exception {
+    public void testGetServices_NonRestrictedWithBasicLicense() throws Exception {
         var endpoint = "_inference/_services";
-        sendRestrictedRequest("GET", endpoint, null);
+        sendNonRestrictedRequest("GET", endpoint, null, 200, false);
     }
 
     public void testGetModels_NonRestrictedWithBasicLicense() throws Exception {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -28,12 +29,16 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
@@ -120,6 +125,53 @@ public class ConstantFoldingTests extends ESTestCase {
         assertEquals(21, foldOperator(new Mul(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
         assertEquals(2, foldOperator(new Div(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
         assertEquals(1, foldOperator(new Mod(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
+    }
+
+    public void testFoldRange() {
+        // 1 + 9 < value AND value < 20-1
+        // with value = 12 and randomly replacing the `<` by `<=`
+        Expression lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER));
+        Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 20, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER));
+        Expression value = new Literal(EMPTY, 12, DataType.INTEGER);
+        Range range = new Range(EMPTY, value, lowerBound, randomBoolean(), upperBound, randomBoolean(), randomZone());
+
+        Expression folded = constantFolding(range);
+        assertTrue((Boolean) as(folded, Literal.class).value());
+    }
+
+    public void testFoldRangeWithInvalidBoundaries() {
+        // 1 + 9 < value AND value <= 11 - 1
+        // This is always false. We also randomly test versions with `<=`.
+        Expression lowerBound;
+        boolean includeLowerBound = randomBoolean();
+        if (includeLowerBound) {
+            // 1 + 10 <= value
+            lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 10, DataType.INTEGER));
+        } else {
+            // 1 + 9 < value
+            lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER));
+        }
+
+        boolean includeUpperBound = randomBoolean();
+        // value < 11 - 1
+        // or
+        // value <= 11 - 1
+        Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 11, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER));
+
+        Expression value = fieldAttribute();
+
+        Range range = new Range(EMPTY, value, lowerBound, includeLowerBound, upperBound, includeUpperBound, randomZone());
+
+        // We need to test this as part of a logical plan, to correctly simulate how we traverse down the expression tree.
+        // Just applying this to the range directly won't perform a transformDown.
+        LogicalPlan filter = new Filter(EMPTY, emptySource(), range);
+
+        Filter foldedOnce = as(new ConstantFolding().apply(filter), Filter.class);
+        // We need to run the rule twice, because during the first run only the boundaries can be folded - the range doesn't know it's
+        // foldable, yet.
+        Filter foldedTwice = as(new ConstantFolding().apply(foldedOnce), Filter.class);
+
+        assertFalse((Boolean) as(foldedTwice.condition(), Literal.class).value());
     }
 
     private Object foldOperator(BinaryOperator<?, ?, ?, ?> b) {

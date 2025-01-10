@@ -150,13 +150,13 @@ public class HiddenIndexIT extends ESIntegTestCase {
         );
 
         // The index should be returned here when queried by name or by wildcard because the alias is visible
-        final GetAliasesRequestBuilder req = indicesAdmin().prepareGetAliases(visibleAlias);
+        final GetAliasesRequestBuilder req = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, visibleAlias);
         GetAliasesResponse response = req.get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
 
-        response = indicesAdmin().prepareGetAliases("alias*").get();
+        response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
@@ -169,19 +169,21 @@ public class HiddenIndexIT extends ESIntegTestCase {
         );
 
         // Querying by name directly should get the right result
-        response = indicesAdmin().prepareGetAliases(hiddenAlias).get();
+        response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, hiddenAlias).get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(hiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
 
         // querying by wildcard should get the right result because the indices options include hidden by default
-        response = indicesAdmin().prepareGetAliases("alias*").get();
+        response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(hiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));
 
         // But we should get no results if we specify indices options that don't include hidden
-        response = indicesAdmin().prepareGetAliases("alias*").setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
+        response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*")
+            .setIndicesOptions(IndicesOptions.strictExpandOpen())
+            .get();
         assertThat(response.getAliases().get(hiddenIndex), nullValue());
 
         // Now try with a hidden alias that starts with a dot
@@ -192,7 +194,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
         );
 
         // Check that querying by dot-prefixed pattern returns the alias
-        response = indicesAdmin().prepareGetAliases(".alias*").get();
+        response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, ".alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), equalTo(dotHiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), equalTo(true));

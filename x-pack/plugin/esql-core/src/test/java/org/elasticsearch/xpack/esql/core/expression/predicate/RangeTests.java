@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
 import java.time.ZoneId;
@@ -31,7 +27,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.util.TestUtils.fieldAttribute;
 
 public class RangeTests extends ESTestCase {
 
@@ -235,41 +230,5 @@ public class RangeTests extends ESTestCase {
 
     private static DataType randomTextType() {
         return randomFrom(KEYWORD, TEXT);
-    }
-
-    @Repeat(iterations = 100)
-    public void testFoldableFromInvalid() {
-        assertTrue(new Range(Source.EMPTY,
-            fieldAttribute("test", INTEGER),
-            l(2, INTEGER),
-            randomBoolean(),
-            l(-2, INTEGER),
-            randomBoolean(),
-            null
-        ).foldable());
-        assertFalse(new Range(Source.EMPTY,
-            fieldAttribute("test", INTEGER),
-            l(2, INTEGER),
-            randomBoolean(),
-            fieldAttribute("test2", INTEGER),
-            randomBoolean(),
-            null
-        ).foldable());
-        assertFalse(new Range(Source.EMPTY,
-            fieldAttribute("test", INTEGER),
-            fieldAttribute("test2", INTEGER),
-            randomBoolean(),
-            l(2, INTEGER),
-            randomBoolean(),
-            null
-        ).foldable());
-        assertFalse(new Range(Source.EMPTY,
-            fieldAttribute("test", INTEGER),
-            fieldAttribute("test2", INTEGER),
-            randomBoolean(),
-            fieldAttribute("test3", INTEGER),
-            randomBoolean(),
-            null
-        ).foldable());
     }
 }

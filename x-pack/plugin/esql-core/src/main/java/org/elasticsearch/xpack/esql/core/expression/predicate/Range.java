@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -86,13 +87,22 @@ public class Range extends ScalarFunction {
         return zoneId;
     }
 
+    /**
+     * In case that the range is empty due to foldable, invalid bounds, but the bounds themselves are not yet folded, the optimizer will
+     * need two passes to fold this.
+     * That's because we shouldn't perform folding when trying to determine foldability.
+     */
     @Override
     public boolean foldable() {
         if (lower.foldable() && upper.foldable()) {
-            // TODO rework this to not use unbounded
-            Object lowerValue = lower.fold(FoldContext.unbounded());
-            Object upperValue = upper.fold(FoldContext.unbounded());
-            return areBoundariesInvalid(lowerValue, upperValue) || value.foldable();
+            if (value().foldable()) {
+                return true;
+            }
+
+            // We cannot fold the bounds here; but if they're already literals, we can check if the range is always empty.
+            if (lower() instanceof Literal l && upper() instanceof Literal u) {
+                return areBoundariesInvalid(l.value(), u.value());
+            }
         }
         return false;
     }

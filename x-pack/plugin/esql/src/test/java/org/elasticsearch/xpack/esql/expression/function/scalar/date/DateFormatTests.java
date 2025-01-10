@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,10 +20,13 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
     public DateFormatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -31,35 +35,21 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
-            true,
-            List.of(
-                new TestCaseSupplier(
-                    List.of(DataType.KEYWORD, DataType.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy"), DataType.KEYWORD, "formatter"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "val")
-                        ),
-                        "DateFormatEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], locale=en_US]",
-                        DataType.KEYWORD,
-                        equalTo(BytesRefs.toBytesRef("2023"))
-                    )
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                (format, value) -> new BytesRef(
+                    DateFormatter.forPattern(((BytesRef) format).utf8ToString()).formatMillis(((Instant) value).toEpochMilli())
                 ),
-                new TestCaseSupplier(
-                    List.of(DataType.TEXT, DataType.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("yyyy"), DataType.TEXT, "formatter"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "val")
-                        ),
-                        "DateFormatEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], locale=en_US]",
-                        DataType.KEYWORD,
-                        equalTo(BytesRefs.toBytesRef("2023"))
-                    )
-                )
+                DataType.KEYWORD,
+                TestCaseSupplier.dateFormatCases(),
+                TestCaseSupplier.dateCases(Instant.parse("1900-01-01T00:00:00.00Z"), Instant.parse("9999-12-31T00:00:00.00Z")),
+                matchesPattern("DateFormatEvaluator\\[val=Attribute\\[channel=\\d], formatter=Attribute\\[.+], locale=en_US]"),
+                (lhs, rhs) -> List.of(),
+                false
             )
         );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

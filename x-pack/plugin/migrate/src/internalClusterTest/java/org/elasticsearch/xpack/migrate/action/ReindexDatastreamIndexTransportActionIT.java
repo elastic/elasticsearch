@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.migrate.MigratePlugin;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,7 +88,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
-        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet();
 
         // verify that dest still exists, but is now empty
         assertTrue(indexExists(destIndex));
@@ -101,8 +105,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
+        var response = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet();
 
         var expectedDestIndexName = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         assertEquals(expectedDestIndexName, response.getDestIndex());
@@ -118,8 +124,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indexDocs(sourceIndex, numDocs);
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
+        var response = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet();
         indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
 
         // verify that dest contains docs
@@ -136,7 +144,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).get();
 
         // call reindex
-        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet();
 
         // assert that write to source fails
         var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
@@ -159,9 +170,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().updateSettings(new UpdateSettingsRequest(dynamicSettings, sourceIndex)).actionGet();
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet().getDestIndex();
 
         // assert both static and dynamic settings set on dest index
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
@@ -188,9 +200,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mapping)).actionGet();
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet().getDestIndex();
 
         var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
@@ -216,9 +229,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet().getDestIndex();
 
         // assert read-only settings added back to dest index
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
@@ -253,9 +267,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet().getDestIndex();
 
         // verify settings from templates copied to dest index
         {
@@ -356,9 +371,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         rolloverResponse.getNewIndex();
 
         // call reindex on the original backing index
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndexName))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(backingIndexName, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet().getDestIndex();
 
         var destSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet().getSettings().get(destIndex);
         var destStart = IndexSettings.TIME_SERIES_START_TIME.get(destSettings);
@@ -398,13 +414,5 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     private static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
-    }
-
-    private static String getIndexUUID(String index) {
-        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
-            .actionGet()
-            .getSettings()
-            .get(index)
-            .get(IndexMetadata.SETTING_INDEX_UUID);
     }
 }

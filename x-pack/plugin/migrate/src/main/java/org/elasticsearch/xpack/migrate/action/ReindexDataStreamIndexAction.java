@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Objects;
 
 public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIndexAction.Response> {
@@ -32,19 +34,35 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
 
         private final String sourceIndex;
 
-        public Request(String sourceIndex) {
+        /**
+         * The api blocks which were set on the source index before the reindex operation.
+         * A `read-only` block is set on the source index before reindexing so that it is not
+         * modified. Setting this block could require modifying other blocks, for example if the
+         * index has a `metadata` block. For this reason, all block are removed before setting
+         * the `read-only` block. The original blocks are restored on the destination index after
+         * reindexing. If a reindex operation fails and is retried, the blocks on the source
+         * at the start of this action may be different from the original blocks, thus all
+         * blocks are stored in the task state, so they survive retries and can be copied to the
+         * destination index.
+         */
+        private EnumSet<IndexMetadata.APIBlock> sourceBlocks;
+
+        public Request(String sourceIndex, EnumSet<IndexMetadata.APIBlock> sourceBlocks) {
             this.sourceIndex = sourceIndex;
+            this.sourceBlocks = sourceBlocks;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.sourceIndex = in.readString();
+            this.sourceBlocks = in.readEnumSet(IndexMetadata.APIBlock.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(sourceIndex);
+            out.writeEnumSet(sourceBlocks);
         }
 
         @Override
@@ -56,17 +74,21 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
             return sourceIndex;
         }
 
+        public EnumSet<IndexMetadata.APIBlock> getSourceBlocks() {
+            return sourceBlocks;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(sourceIndex, request.sourceIndex);
+            return Objects.equals(sourceIndex, request.sourceIndex) && Objects.equals(sourceBlocks, request.sourceBlocks);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sourceIndex);
+            return Objects.hash(sourceIndex, sourceBlocks);
         }
 
         @Override

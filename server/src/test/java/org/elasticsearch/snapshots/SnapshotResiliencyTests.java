@@ -2111,8 +2111,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
-                FeatureService mockFeatureService = mock(FeatureService.class);
-                when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {

@@ -1380,7 +1380,6 @@ class NodeConstruction {
             clusterService,
             threadPool,
             client,
-            featureService,
             healthTrackers
         );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

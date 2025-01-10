@@ -122,7 +122,6 @@ missing dimension on routing path field:
 multi-value routing path field succeeds:
   - requires:
       test_runner_features: close_to
-      reason: support for multi-value dimensions
 
   - do:
       indices.create:

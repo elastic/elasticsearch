@@ -118,8 +118,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         client = mock(Client.class);
 
-        FeatureService featureService = new FeatureService(List.of());
-
         mockHealthTracker = new MockHealthTracker();
 
         localHealthMonitor = LocalHealthMonitor.create(
@@ -127,7 +125,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            featureService,
             List.of(mockHealthTracker)
         );
     }

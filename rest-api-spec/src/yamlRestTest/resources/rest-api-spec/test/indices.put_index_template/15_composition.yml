@@ -453,7 +453,6 @@
 ---
 "Composable index templates that include subobjects: auto at root":
   - requires:
-      reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
       test_runner_features: "allowed_warnings"
 
   - do:
@@ -503,7 +502,6 @@
 ---
 "Composable index templates that include subobjects: auto on arbitrary field":
   - requires:
-      reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
       test_runner_features: "allowed_warnings"
 
   - do:

@@ -408,7 +408,6 @@ setup:
 ---
 "geo_point with ignore_malformed":
   - requires:
-      reason: introduced in 8.15.0
       test_runner_features: close_to
 
   - do:

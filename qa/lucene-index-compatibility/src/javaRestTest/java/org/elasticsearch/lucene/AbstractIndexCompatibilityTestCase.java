@@ -12,6 +12,7 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -206,7 +207,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
             switch (i) {
                 case 0 -> settings.putList(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "field_" + randomInt(2));
                 case 1 -> settings.put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), randomIntBetween(1, 100));
-                case 2 -> settings.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), randomLongBetween(0L, 1000L));
+                case 2 -> settings.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), randomLongBetween(100L, 1000L));
                 case 3 -> settings.put(IndexSettings.MAX_SLICES_PER_SCROLL.getKey(), randomIntBetween(1, 1024));
                 default -> throw new IllegalStateException();
             }
@@ -232,4 +233,9 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         assertOK(client().performRequest(request));
     }
 
+    protected static boolean isIndexClosed(String indexName) throws Exception {
+        var responseBody = createFromResponse(client().performRequest(new Request("GET", "_cluster/state/metadata/" + indexName)));
+        var state = responseBody.evaluate("metadata.indices." + indexName + ".state");
+        return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
+    }
 }

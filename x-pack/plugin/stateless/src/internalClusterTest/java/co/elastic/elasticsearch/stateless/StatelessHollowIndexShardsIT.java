@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -62,6 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -279,6 +281,56 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         Throwable cause = ExceptionsHelper.unwrapCause(exception.getCause());
         assertThat(cause, instanceOf(IllegalStateException.class));
         assertThat(cause.getMessage(), containsString("cannot ingest"));
+    }
+
+    public void testRecoverHollowShard() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+
+        var indexName = randomIdentifier();
+        int numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 64));
+        flush(indexName);
+
+        List<Integer> shardIds = IntStream.range(0, numberOfShards).boxed().toList();
+        for (var shardId : shardIds) {
+            var indexShard = findIndexShard(index, shardId);
+            var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            assertFalse(indexEngine.isLastCommitHollow());
+            assertFalse(indexEngine.getStatelessCommitService().getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().hollow());
+        }
+
+        indexDocs(indexName, randomIntBetween(16, 64));
+        // Manually mark subset of shards as hollow
+        List<Integer> hollowShardIds = randomSubsetOf(shardIds);
+        for (var shardId : hollowShardIds) {
+            var indexShard = findIndexShard(index, shardId);
+            var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            var sync = new PlainActionFuture<Engine.FlushResult>();
+            indexEngine.flushHollow(sync);
+            safeGet(sync);
+            assertTrue(indexEngine.isLastCommitHollow());
+            assertTrue(indexEngine.getStatelessCommitService().getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().hollow());
+        }
+
+        logger.warn("--> restarting node {}", indexNode);
+        internalCluster().restartNode(indexNode);
+        logger.warn("--> restarted");
+        ensureGreen(indexName);
+
+        for (int i = 0; i < numberOfShards; i++) {
+            var engine = findIndexShard(index, i).getEngineOrNull();
+            if (hollowShardIds.contains(i)) {
+                // After recovery, hollow shards switch to HollowIndexEngine
+                assertThat(engine, instanceOf(HollowIndexEngine.class));
+            } else {
+                assertThat(engine, instanceOf(IndexEngine.class));
+            }
+        }
     }
 
     protected void createDataStreamWithMultipleBackingIndices(String dataStream, boolean failureStore) throws Exception {

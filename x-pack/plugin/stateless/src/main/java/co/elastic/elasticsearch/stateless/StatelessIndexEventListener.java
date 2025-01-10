@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -211,10 +212,12 @@ class StatelessIndexEventListener implements IndexEventListener {
                     recoveryCommit.getAllFilesSizeInBytes(),
                     blobFileRanges
                 );
-                // We must use a copied instance for warming as the index directory will move forward with new commits
-                var warmingDirectory = indexDirectory.createNewInstance();
-                warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
-                warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
+                if (recoveryCommit.hollow() == false) {
+                    // We must use a copied instance for warming as the index directory will move forward with new commits
+                    var warmingDirectory = indexDirectory.createNewInstance();
+                    warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
+                    warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
+                }
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -333,6 +336,17 @@ class StatelessIndexEventListener implements IndexEventListener {
                     } else {
                         engine.flush(true, true, l.map(f -> null));
                     }
+                } else if (engineOrNull instanceof HollowIndexEngine hollowIndexEngine) {
+                    // TODO https://elasticco.atlassian.net/browse/ES-10487
+                    // Acquiring primary permits fails with `org.elasticsearch.index.shard.ShardNotInPrimaryModeException:
+                    // CurrentState[POST_RECOVERY] shard is not in primary mode` due to the `replicationTracker.isPrimaryMode()` check in
+                    // `IndexShard#wrapPrimaryOperationPermitListener`.
+                    /* indexShard.acquireAllPrimaryOperationsPermits(listener.map(r -> {
+                        engine.setPrimaryPermits(r);
+                        return null;
+                    }), TimeValue.timeValueMinutes(1));*/
+                    hollowIndexEngine.callRefreshListeners();
+                    l.onResponse(null);
                 } else if (engineOrNull == null) {
                     throw new AlreadyClosedException("engine is closed");
                 } else {

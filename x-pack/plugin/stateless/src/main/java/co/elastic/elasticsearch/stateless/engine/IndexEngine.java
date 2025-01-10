@@ -33,6 +33,7 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
@@ -394,11 +395,12 @@ public class IndexEngine extends InternalEngine {
     }
 
     public boolean isLastCommitHollow() {
-        String translogRecoveryStartFile = getLastCommittedSegmentInfos().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
-        if (translogRecoveryStartFile != null) {
-            return Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE;
-        }
-        return false;
+        return isLastCommitHollow(getLastCommittedSegmentInfos());
+    }
+
+    public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
+        String translogRecoveryStartFile = segmentInfos.getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
+        return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 
     @Override

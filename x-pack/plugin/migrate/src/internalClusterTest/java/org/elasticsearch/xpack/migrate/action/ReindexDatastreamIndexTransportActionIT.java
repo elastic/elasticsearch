@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -166,7 +168,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // update with a dynamic setting
         var numReplicas = randomIntBetween(0, 10);
-        var dynamicSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas).build();
+        var refreshInterval = randomIntBetween(1, 100) + "s";
+        var dynamicSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
+            .build();
         indicesAdmin().updateSettings(new UpdateSettingsRequest(dynamicSettings, sourceIndex)).actionGet();
 
         // call reindex
@@ -179,6 +185,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
         assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+        assertEquals(refreshInterval, settingsResponse.getSetting(destIndex, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()));
     }
 
     public void testMappingsAddedToDestIndex() throws Exception {
@@ -241,6 +248,38 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         removeReadOnly(sourceIndex);
         removeReadOnly(destIndex);
+    }
+
+    public void testUpdateSettingsDefaultsRestored() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        // ESIntegTestCase creates a template random_index_template which contains a value for number_of_replicas.
+        // Since this test checks the behavior of default settings, there cannot be a value for number_of_replicas,
+        // so we delete the template within this method. This has no effect on other tests which will still
+        // have the template created during their setup.
+        assertAcked(
+            indicesAdmin().execute(TransportDeleteIndexTemplateAction.TYPE, new DeleteIndexTemplateRequest("random_index_template"))
+        );
+
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        assertAcked(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+
+        assertEquals(
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getDefault(destSettings),
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(destSettings)
+        );
+        assertEquals(
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getDefault(destSettings),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(destSettings)
+        );
     }
 
     public void testSettingsAndMappingsFromTemplate() throws IOException {

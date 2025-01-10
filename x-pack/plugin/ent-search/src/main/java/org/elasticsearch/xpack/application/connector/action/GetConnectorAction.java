@@ -30,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class GetConnectorAction {
 
-    public static final String NAME = "indices:data/read/xpack/connector/get";
+    public static final String NAME = "cluster:admin/xpack/connector/get";
     public static final ActionType<GetConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetConnectorAction() {/* no instances */}

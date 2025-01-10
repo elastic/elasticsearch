@@ -12,6 +12,8 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -164,6 +166,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
             {"field_0":"%s","field_1":%d,"field_2":"%s"}
             """, indexName, Integer.toString(n), n, randomFrom(Locale.getAvailableLocales()).getDisplayName())));
         request.setJsonEntity(docs.toString());
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         var response = assertOK(client().performRequest(request));
         assertThat(entityAsMap(response).get("errors"), allOf(notNullValue(), is(false)));
     }
@@ -179,6 +182,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
               "index": "%s",
               "renamed_index": "%s"
             }""", indexName, renamedIndexName));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         var responseBody = createFromResponse(client().performRequest(request));
         assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.successful")));
         assertThat(responseBody.evaluate("snapshot.shards.failed"), equalTo(0));

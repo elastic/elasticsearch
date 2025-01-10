@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -40,6 +39,7 @@ import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_IN
 import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -841,12 +841,19 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testIndexMapperDynamic() {
-        final Settings settings = Settings.builder()
-                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
+        Settings settings = Settings.builder()
+                .put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
                 .build();
 
+        Boolean b = INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
         newIndexMeta("test", settings);
-//        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
+        settings = Settings.builder()
+                .put("unknown", randomBoolean())
+                .build();
+        newIndexMeta("test", settings);
     }
 
     public void testSame() {

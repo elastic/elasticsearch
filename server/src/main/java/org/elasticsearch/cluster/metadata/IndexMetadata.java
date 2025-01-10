@@ -1703,12 +1703,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                eventIngestedRange.writeTo(out);
-            } else {
-                assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                    : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
-            }
+            eventIngestedRange.writeTo(out);
         }
 
         @Override
@@ -1813,11 +1808,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            builder.eventIngestedRange(IndexLongFieldRange.readFrom(in), in.getTransportVersion());
-        } else {
-            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, in.getTransportVersion());
-        }
+        builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
         return builder.build(true);
     }
 
@@ -2180,25 +2171,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        // only for use within this class file where minClusterTransportVersion is not known (e.g., IndexMetadataDiff.apply)
-        Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
             this.eventIngestedRange = eventIngestedRange;
-            return this;
-        }
-
-        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
-            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
-            assert minClusterTransportVersion != null || eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange must be UNKNOWN when minClusterTransportVersion is null, but minClusterTransportVersion: "
-                    + minClusterTransportVersion
-                    + "; eventIngestedRange = "
-                    + eventIngestedRange;
-            if (minClusterTransportVersion != null && minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-                this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
-            } else {
-                this.eventIngestedRange = eventIngestedRange;
-            }
             return this;
         }
 

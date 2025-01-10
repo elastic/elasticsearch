@@ -77,9 +77,6 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
                     }
 
                     builder.field(ROLE_FIELD, message.role());
-                    if (message.name() != null) {
-                        builder.field(NAME_FIELD, message.name());
-                    }
                     if (message.toolCallId() != null) {
                         builder.field(TOOL_CALL_ID_FIELD, message.toolCallId());
                     }

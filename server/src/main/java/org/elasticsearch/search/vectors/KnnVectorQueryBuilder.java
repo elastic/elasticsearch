@@ -56,7 +56,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
-    public static final NodeFeature K_PARAM_SUPPORTED = new NodeFeature("search.vectors.k_param_supported");
+    public static final NodeFeature K_PARAM_SUPPORTED = new NodeFeature("search.vectors.k_param_supported", true);
 
     public static final String NAME = "knn";
     private static final int NUM_CANDS_LIMIT = 10_000;
@@ -488,11 +488,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
-        return super.doIndexMetadataRewrite(context);
-    }
-
-    @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int k;
@@ -527,10 +522,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
-        Float numCandidatesFactor = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.numCandidatesFactor();
+        Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
 
+        BitSetProducer parentBitSet = null;
         if (parentPath != null) {
-            final BitSetProducer parentBitSet;
             final Query parentFilter;
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {
@@ -559,17 +554,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 // Now join the filterQuery & parentFilter to provide the matching blocks of children
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
-            return vectorFieldType.createKnnQuery(
-                queryVector,
-                k,
-                adjustedNumCands,
-                numCandidatesFactor,
-                filterQuery,
-                vectorSimilarity,
-                parentBitSet
-            );
         }
-        return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, numCandidatesFactor, filterQuery, vectorSimilarity, null);
+
+        return vectorFieldType.createKnnQuery(queryVector, k, adjustedNumCands, oversample, filterQuery, vectorSimilarity, parentBitSet);
     }
 
     @Override

@@ -748,7 +748,7 @@ public class EnrichPolicyRunner {
     private void updateEnrichPolicyAlias(ActionListener<IndicesAliasesResponse> listener) {
         String enrichIndexBase = EnrichPolicy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, enrichIndexName, enrichIndexBase);
-        GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
+        GetAliasesRequest aliasRequest = new GetAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, enrichIndexBase);
         ClusterState clusterState = clusterService.state();
         validateIndexBeforePromotion(enrichIndexName, clusterState);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);

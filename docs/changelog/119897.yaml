@@ -1,0 +1,5 @@
+pr: 119897
+summary: Fix ESQL async get while task is being cancelled
+area: ES|QL
+type: bug
+issues: []

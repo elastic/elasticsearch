@@ -497,7 +497,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     public void testPutAlias() throws Exception {
         createIndex("foobar");
         verify(indicesAdmin().prepareAliases().addAlias("foobar", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
 
     }
 
@@ -505,16 +507,24 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         createIndex("foo", "foobar", "bar", "barbaz");
 
         verify(indicesAdmin().prepareAliases().addAlias("foo*", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("bar").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("barbaz").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("bar").get().getAliases().isEmpty());
+        assertTrue(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
+        );
 
         verify(indicesAdmin().prepareAliases().addAlias("*", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("bar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("barbaz").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("bar").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
+        );
 
     }
 
@@ -646,7 +656,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static GetAliasesRequestBuilder getAliases(String... indices) {
-        return indicesAdmin().prepareGetAliases("dummy").setIndices(indices);
+        return indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "dummy").setIndices(indices);
     }
 
     static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {

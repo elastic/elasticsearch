@@ -190,7 +190,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * @param returnLocalAll whether to support the _all functionality needed by _search
      *        (See https://github.com/elastic/elasticsearch/pull/33899). If true, and no indices are specified,
      *        then a Map with one entry for the local cluster with an empty index array is returned.
-     *        If false, an empty map is returned when when no indices are specified.
+     *        If false, an empty map is returned when no indices are specified.
      * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
      */
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {

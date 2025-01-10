@@ -263,6 +263,8 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormatTests
   method: testRandomExceptions
   issue: https://github.com/elastic/elasticsearch/issues/119981
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/119983
 
 # Examples:
 #

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -27,7 +26,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomNonNegativeLong();
         long undesiredAllocations = randomNonNegativeLong();
-        metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
+        metrics.updateMetrics(new ClusterAllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
         assertEquals(totalAllocations, metrics.totalAllocations());
         assertEquals(unassignedShards, metrics.unassignedShards());
         assertEquals(undesiredAllocations, metrics.undesiredAllocations());
@@ -44,7 +43,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomLongBetween(100, 10000000);
         long undesiredAllocations = randomLongBetween(0, totalAllocations);
-        metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
+        metrics.updateMetrics(new ClusterAllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
 
         // Collect when not master
         meterRegistry.getRecorder().collect();
@@ -104,7 +103,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         DesiredBalanceMetrics metrics = new DesiredBalanceMetrics(meterRegistry);
         long unassignedShards = randomNonNegativeLong();
-        metrics.updateMetrics(new AllocationStats(unassignedShards, 0, 0), Map.of(), Map.of());
+        metrics.updateMetrics(new ClusterAllocationStats(unassignedShards, 0, 0), Map.of(), Map.of());
 
         metrics.setNodeIsMaster(true);
         meterRegistry.getRecorder().collect();

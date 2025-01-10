@@ -28,11 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DesiredBalanceMetrics {
 
-    public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
-
     public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {}
-
-    public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
 
     public static final String UNASSIGNED_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.unassigned.current";
     public static final String TOTAL_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.current";
@@ -56,8 +52,6 @@ public class DesiredBalanceMetrics {
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
         "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
-    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1);
-
     private volatile boolean nodeIsMaster = false;
     /**
      * Number of unassigned shards during last reconciliation
@@ -80,16 +74,16 @@ public class DesiredBalanceMetrics {
     );
 
     public void updateMetrics(
-        AllocationStats allocationStats,
+        ClusterAllocationStats clusterAllocationStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
         Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats
     ) {
-        assert allocationStats != null : "allocation stats cannot be null";
+        assert clusterAllocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
-        if (allocationStats != EMPTY_ALLOCATION_STATS) {
-            this.unassignedShards = allocationStats.unassignedShards;
-            this.totalAllocations = allocationStats.totalAllocations;
-            this.undesiredAllocations = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
+        if (clusterAllocationStats != ClusterAllocationStats.EMPTY_ALLOCATION_STATS) {
+            this.unassignedShards = clusterAllocationStats.unassignedShards();
+            this.totalAllocations = clusterAllocationStats.totalAllocations();
+            this.undesiredAllocations = clusterAllocationStats.undesiredAllocationsExcludingShuttingDownNodes();
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);

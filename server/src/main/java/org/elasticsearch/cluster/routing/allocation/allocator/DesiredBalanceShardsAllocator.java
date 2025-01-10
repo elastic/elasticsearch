@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
@@ -38,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +69,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicReference<DesiredBalance> currentDesiredBalanceRef = new AtomicReference<>(DesiredBalance.NOT_MASTER);
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
+    private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
 
     // stats
@@ -112,16 +115,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
+        this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = new DesiredBalanceReconciler(
-            clusterService.getClusterSettings(),
-            threadPool,
-            desiredBalanceMetrics,
-            nodeAllocationStatsAndWeightsCalculator
-        );
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
@@ -324,7 +323,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         } else {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
-        recordTime(cumulativeReconciliationTime, () -> desiredBalanceReconciler.reconcile(desiredBalance, allocation));
+        recordTime(cumulativeReconciliationTime, () -> {
+            ClusterAllocationStats clusterAllocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
+            updateDesireBalanceMetrics(desiredBalance, allocation, clusterAllocationStats);
+        });
+
         if (logger.isTraceEnabled()) {
             logger.trace("Reconciled desired balance: {}", desiredBalance);
         } else {
@@ -356,6 +359,32 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     public void resetDesiredBalance() {
         resetCurrentDesiredBalance = true;
+    }
+
+    private void updateDesireBalanceMetrics(
+        DesiredBalance desiredBalance,
+        RoutingAllocation routingAllocation,
+        ClusterAllocationStats clusterAllocationStats
+    ) {
+        if (clusterAllocationStats == ClusterAllocationStats.EMPTY_ALLOCATION_STATS) {
+            return;
+        }
+
+        var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
+            routingAllocation.metadata(),
+            routingAllocation.routingNodes(),
+            routingAllocation.clusterInfo(),
+            desiredBalance
+        );
+        Map<DiscoveryNode, NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights =
+            new HashMap<>(nodesStatsAndWeights.size());
+        for (var nodeStatsAndWeight : nodesStatsAndWeights.entrySet()) {
+            var node = routingAllocation.nodes().get(nodeStatsAndWeight.getKey());
+            if (node != null) {
+                filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
+            }
+        }
+        desiredBalanceMetrics.updateMetrics(clusterAllocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
     }
 
     public DesiredBalanceStats getStats() {

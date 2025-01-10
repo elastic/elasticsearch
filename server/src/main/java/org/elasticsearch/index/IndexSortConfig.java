@@ -178,8 +178,7 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch");
             }
             var version = indexSettings.getIndexVersionCreated();
-            if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
-                || version.between(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+            if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT)) {
                 sortSpecs = (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
             } else {
                 sortSpecs = HOSTNAME_TIMESTAMP_BWC_SORT;

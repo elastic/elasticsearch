@@ -207,8 +207,9 @@ class ScrollDataExtractor implements DataExtractor {
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit, new SourceSupplier(lastHit));
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
             for (SearchHit hit : hits) {
+                SourceSupplier sourceSupplier = new SourceSupplier(hit);
                 if (isCancelled) {
-                    Long timestamp = context.extractedFields.timeFieldValue(hit, new SourceSupplier(hit));
+                    Long timestamp = context.extractedFields.timeFieldValue(hit, sourceSupplier);
                     if (timestamp != null) {
                         if (timestampOnCancel == null) {
                             timestampOnCancel = timestamp;
@@ -219,7 +220,7 @@ class ScrollDataExtractor implements DataExtractor {
                         }
                     }
                 }
-                hitProcessor.process(hit);
+                hitProcessor.process(hit, sourceSupplier);
             }
         }
         return outputStream.bytes().streamInput();

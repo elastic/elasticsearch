@@ -211,7 +211,8 @@ public class InferenceRunner {
 
                 for (SearchHit doc : batch) {
                     dataCountsTracker.incrementTestDocsCount();
-                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc));
+                    final SourceSupplier sourceSupplier = new SourceSupplier(doc);
+                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
                     bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
 
                     processedDocCount++;
@@ -226,9 +227,8 @@ public class InferenceRunner {
         }
     }
 
-    private Map<String, Object> featuresFromDoc(SearchHit doc) {
+    private Map<String, Object> featuresFromDoc(SearchHit doc, SourceSupplier sourceSupplier) {
         Map<String, Object> features = new HashMap<>();
-        final SourceSupplier sourceSupplier = new SourceSupplier(doc);
         for (ExtractedField extractedField : extractedFields.getAllFields()) {
             Object[] values = extractedField.value(doc, sourceSupplier);
             if (values.length == 1) {

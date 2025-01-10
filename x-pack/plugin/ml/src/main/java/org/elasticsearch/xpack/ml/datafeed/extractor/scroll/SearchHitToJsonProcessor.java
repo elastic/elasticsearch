@@ -28,9 +28,8 @@ class SearchHitToJsonProcessor implements Releasable {
         this.jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
     }
 
-    public void process(SearchHit hit) throws IOException {
+    public void process(SearchHit hit, SourceSupplier sourceSupplier) throws IOException {
         jsonBuilder.startObject();
-        SourceSupplier sourceSupplier = new SourceSupplier(hit);
         for (ExtractedField field : fields.getAllFields()) {
             writeKeyValue(field.getName(), field.value(hit, sourceSupplier));
         }

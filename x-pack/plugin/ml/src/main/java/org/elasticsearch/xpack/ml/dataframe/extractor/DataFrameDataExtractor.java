@@ -159,7 +159,8 @@ public class DataFrameDataExtractor {
                 List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     var unpooled = hit.asUnpooled();
-                    String[] extractedValues = extractValues(unpooled);
+                    SourceSupplier sourceSupplier = new SourceSupplier(hit);
+                    String[] extractedValues = extractValues(unpooled, sourceSupplier);
                     rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
                 }
                 delegate.onResponse(rows);
@@ -260,7 +261,7 @@ public class DataFrameDataExtractor {
                 hasNext = false;
                 break;
             }
-            rows.add(createRow(hit));
+            rows.add(createRow(hit, new SourceSupplier(hit)));
         }
         return rows;
     }
@@ -318,9 +319,9 @@ public class DataFrameDataExtractor {
         return extractedValue;
     }
 
-    private Row createRow(SearchHit hit) {
+    private Row createRow(SearchHit hit, SourceSupplier sourceSupplier) {
         var unpooled = hit.asUnpooled();
-        String[] extractedValues = extractValues(unpooled);
+        String[] extractedValues = extractValues(unpooled, sourceSupplier);
         if (extractedValues == null) {
             return new Row(null, unpooled, true);
         }
@@ -338,10 +339,9 @@ public class DataFrameDataExtractor {
         return row;
     }
 
-    private String[] extractValues(SearchHit hit) {
+    private String[] extractValues(SearchHit hit, SourceSupplier sourceSupplier) {
         String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
         int i = 0;
-        SourceSupplier sourceSupplier = new SourceSupplier(hit);
         for (String organicFeature : organicFeatures) {
             String extractedValue = extractNonProcessedValues(hit, sourceSupplier, organicFeature);
             if (extractedValue == null) {

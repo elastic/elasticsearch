@@ -588,7 +588,11 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareForceMerge(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareValidateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareRecoveries(dataStreamName), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetAliases("dummy").setIndices(dataStreamName), false);
+        verifyResolvability(
+            dataStreamName,
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "dummy").setIndices(dataStreamName),
+            false
+        );
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
@@ -635,7 +639,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareForceMerge(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareValidateQuery(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareRecoveries(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetAliases(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().preparePutMapping(wildcardExpression).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
@@ -718,7 +722,7 @@ public class DataStreamIT extends ESIntegTestCase {
         TransportDeleteComposableIndexTemplateAction.Request deleteRequest = new TransportDeleteComposableIndexTemplateAction.Request("id");
         client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, deleteRequest).get();
 
-        GetComposableIndexTemplateAction.Request getReq = new GetComposableIndexTemplateAction.Request("id");
+        GetComposableIndexTemplateAction.Request getReq = new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "id");
         Exception e3 = expectThrows(Exception.class, client().execute(GetComposableIndexTemplateAction.INSTANCE, getReq));
         maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e3, err -> err.getMessage().contains("index template matching [id] not found"));
         assertTrue(maybeE.isPresent());
@@ -738,7 +742,7 @@ public class DataStreamIT extends ESIntegTestCase {
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
         assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(
             response.getDataStreamAliases(),
             equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null, null))))
@@ -764,7 +768,7 @@ public class DataStreamIT extends ESIntegTestCase {
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
         assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(
             response.getDataStreamAliases(),
             equalTo(
@@ -794,7 +798,7 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
         assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-        response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(
             response.getDataStreamAliases(),
             equalTo(
@@ -840,7 +844,7 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesAddRequest.addAliasAction(addFilteredAliasAction);
         aliasesAddRequest.addAliasAction(addUnfilteredAliasAction);
         assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(response.getDataStreamAliases(), hasKey("logs-foobar"));
         assertThat(
             response.getDataStreamAliases().get("logs-foobar"),
@@ -884,7 +888,7 @@ public class DataStreamIT extends ESIntegTestCase {
         addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).filter(indexFilters).writeIndex(true);
         assertAcked(indicesAdmin().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
-        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(response.getDataStreamAliases().size(), equalTo(dataStreams.length));
         List<DataStreamAlias> result = response.getDataStreamAliases()
             .values()
@@ -933,7 +937,7 @@ public class DataStreamIT extends ESIntegTestCase {
             indicesAdmin().aliases(new IndicesAliasesRequest().addAliasAction(addAction))
         );
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [" + alias + "]"));
-        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(response.getDataStreamAliases(), anEmptyMap());
     }
 
@@ -998,7 +1002,7 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("metrics-foo").aliases("my-alias1"));
         aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("metrics-myindex").aliases("my-alias2"));
         assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(
             response.getDataStreamAliases(),
             equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("my-alias1", List.of("metrics-foo"), null, null))))
@@ -1013,7 +1017,7 @@ public class DataStreamIT extends ESIntegTestCase {
             aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).index("_all").aliases("my-*"));
         }
         assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-        response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+        response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(response.getDataStreamAliases(), anEmptyMap());
         assertThat(response.getAliases().get("metrics-myindex").size(), equalTo(0));
         assertThat(response.getAliases().size(), equalTo(1));
@@ -1034,7 +1038,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 new AliasActions(AliasActions.Type.ADD).index("metrics-foo").aliases("my-alias1", "my-alias2")
             );
             assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-            GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+            GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
             assertThat(response.getDataStreamAliases().keySet(), containsInAnyOrder("metrics-foo"));
             assertThat(
                 response.getDataStreamAliases().get("metrics-foo"),
@@ -1060,7 +1064,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).index("_all").aliases("_all"));
             }
             assertAcked(indicesAdmin().aliases(aliasesAddRequest).actionGet());
-            GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest()).actionGet();
+            GetAliasesResponse response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT)).actionGet();
             assertThat(response.getDataStreamAliases(), anEmptyMap());
             assertThat(response.getAliases().size(), equalTo(0));
         }

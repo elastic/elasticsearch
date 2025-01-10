@@ -485,7 +485,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = followerClient().admin()
             .indices()
-            .getAliases(new GetAliasesRequest("follower_alias"))
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "follower_alias"))
             .actionGet();
         assertThat(response.getAliases().keySet().size(), equalTo(1));
         assertThat(response.getAliases().keySet().iterator().next(), equalTo("follower"));

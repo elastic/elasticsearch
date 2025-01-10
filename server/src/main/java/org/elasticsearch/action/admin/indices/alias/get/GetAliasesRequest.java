@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -29,16 +28,6 @@ public class GetAliasesRequest extends LocalClusterStateRequest implements Alias
     private String[] originalAliases;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-
-    @Deprecated
-    public GetAliasesRequest(String... aliases) {
-        this(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, aliases);
-    }
-
-    @Deprecated
-    public GetAliasesRequest() {
-        this(Strings.EMPTY_ARRAY);
-    }
 
     public GetAliasesRequest(TimeValue masterTimeout, String... aliases) {
         super(masterTimeout);

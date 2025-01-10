@@ -63,7 +63,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-	logsdbIndexModeSettingsProvider.init(
+        logsdbIndexModeSettingsProvider.init(
             parameters.mapperServiceFactory(),
             () -> IndexVersion.min(
                 IndexVersion.current(),

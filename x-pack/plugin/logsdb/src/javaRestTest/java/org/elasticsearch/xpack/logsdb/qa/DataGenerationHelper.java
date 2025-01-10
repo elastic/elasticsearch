@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.logsdb.qa;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.Template;
+import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.Mapping;
-import org.elasticsearch.logsdb.datageneration.MappingGenerator;
-import org.elasticsearch.logsdb.datageneration.Template;
-import org.elasticsearch.logsdb.datageneration.TemplateGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 

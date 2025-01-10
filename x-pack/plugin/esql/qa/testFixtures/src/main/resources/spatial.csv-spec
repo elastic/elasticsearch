@@ -679,6 +679,60 @@ stExtentManyGeoShapesGrouped
 required_capability: st_extent_agg
 required_capability: enrich_load
 
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:geo_shape
+A              | BBOX (-171.91890003159642, 175.90319998562336, 64.61419996339828, -37.36450002528727)
+B              | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132)
+C              | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521)
+;
+
+stExtentManyGeoPointsGrouped
+required_capability: st_extent_agg
+required_capability: enrich_load
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:geo_shape
+A              | BBOX (-171.75000007264316, 174.73999994806945, 64.54999999143183, -36.84060002211481)
+B              | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+C              | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+;
+
+stExtentManyGeoShapesAndPointsGrouped
+required_capability: st_extent_agg
+required_capability: enrich_load
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent_shapes, extent_points
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent_shapes:geo_shape                                                               | extent_points:geo_shape
+A              | BBOX (-171.91890003159642, 175.90319998562336, 64.61419996339828, -37.36450002528727) | BBOX (-171.75000007264316, 174.73999994806945, 64.54999999143183, -36.84060002211481)
+B              | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+C              | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521) | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+;
+
+stExtentManyGeoShapesGroupedEnrich
+required_capability: st_extent_agg
+required_capability: enrich_load
+
 FROM airports
 | ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)
@@ -694,7 +748,7 @@ C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.7
 B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132)
 ;
 
-stExtentManyGeoPointsGrouped
+stExtentManyGeoPointsGroupedEnrich
 required_capability: st_extent_agg
 required_capability: enrich_load
 
@@ -713,7 +767,7 @@ C              | 75         | BBOX (-107.39390007220209, 172.38329996354878, 55.
 B              | 69         | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
 ;
 
-stExtentManyGeoShapesAndPointsGrouped
+stExtentManyGeoShapesAndPointsGroupedEnrich
 required_capability: st_extent_agg
 required_capability: enrich_load
 

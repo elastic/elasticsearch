@@ -146,9 +146,6 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                 });
             }
         });
-        if (lostStackTraces.get() != 0) {
-            log.warn("Lost {} stacktraces.", lostStackTraces);
-        }
         return builder.build();
     }
 

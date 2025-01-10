@@ -32,7 +32,7 @@ Available task types:
 
 [NOTE]
 ====
-The `chat_completion` task type only supports streaming and therefore the path must include `_stream`.
+The `chat_completion` task type only supports streaming and only through the `_unified` API.
 
 include::inference-shared.asciidoc[tag=chat-completion-docs]
 ====

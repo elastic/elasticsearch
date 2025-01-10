@@ -13,9 +13,9 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 [[chat-completion-inference-api-request]]
 ==== {api-request-title}
 
-`POST /_inference/<inference_id>/_stream`
+`POST /_inference/<inference_id>/_unified`
 
-`POST /_inference/chat_completion/<inference_id>/_stream`
+`POST /_inference/chat_completion/<inference_id>/_unified`
 
 
 [discrete]
@@ -36,7 +36,7 @@ It only works with the `chat_completion` task type for OpenAI and Elastic Infere
 
 [NOTE]
 ====
-The `chat_completion` task type only supports streaming and therefore the path must include `_stream`.
+The `chat_completion` task type is only available within the _unified API and only supports streaming.
 ====
 
 [discrete]

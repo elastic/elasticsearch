@@ -973,16 +973,11 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeQueryRequest::new,
             (request, channel, task) -> {
-                final int workers = Math.min(
-                    request.shards.size(),
-                    transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax()
-                );
+                final int shardCount = request.shards.size();
+                final int workers = Math.min(shardCount, transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax());
                 var executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
-                final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
                 // TODO: start at 0
                 request.searchRequest.setBatchedReduceSize(Integer.MAX_VALUE);
-                final int shardCount = request.shards.size();
-                final CountDown countDown = new CountDown(shardCount);
                 final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                     request.searchRequest,
                     executor,
@@ -993,6 +988,14 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                     shardCount,
                     e -> logger.error("failed to merge on data node", e)
                 );
+                final var state = new QueryPerNodeState(
+                    new AtomicInteger(workers - 1),
+                    queryPhaseResultConsumer,
+                    request,
+                    (CancellableTask) task,
+                    searchService
+                );
+                final CountDown countDown = new CountDown(shardCount);
                 final Runnable onDone = () -> {
                     if (countDown.countDown()) {
                         var channelListener = new ChannelActionListener<>(channel);
@@ -1018,7 +1021,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                             }
                             final Object[] results = new Object[shardCount];
                             for (int i = 0; i < results.length; i++) {
-                                var e = failures.get(i);
+                                var e = state.failures.get(i);
                                 var res = queryPhaseResultConsumer.results.get(i);
                                 if (e != null) {
                                     results[i] = e;
@@ -1049,21 +1052,8 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         }
                     }
                 };
-                final AtomicInteger shardIndex = new AtomicInteger(workers - 1);
                 for (int i = 0; i < workers; i++) {
-                    executor.execute(
-                        shardTask(
-                            searchService,
-                            request,
-                            (CancellableTask) task,
-                            i,
-                            shardIndex,
-                            executor,
-                            queryPhaseResultConsumer,
-                            failures,
-                            onDone
-                        )
-                    );
+                    executor.execute(shardTask(state, i, executor, onDone));
                 }
             }
         );
@@ -1079,23 +1069,14 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         }
     }
 
-    private static AbstractRunnable shardTask(
-        SearchService searchService,
-        NodeQueryRequest request,
-        CancellableTask task,
-        int dataNodeLocalIdx,
-        AtomicInteger shardIndex,
-        Executor executor,
-        QueryPhaseResultConsumer queryPhaseResultConsumer,
-        Map<Integer, Exception> failures,
-        Runnable onDone
-    ) {
-        var pitBuilder = request.searchRequest.pointInTimeBuilder();
-        var shardToQuery = request.shards.get(dataNodeLocalIdx);
+    private static AbstractRunnable shardTask(QueryPerNodeState state, int dataNodeLocalIdx, Executor executor, Runnable onDone) {
         return new AbstractRunnable() {
             @Override
             protected void doRun() {
-                searchService.executeQueryPhase(
+                var request = state.searchRequest;
+                var pitBuilder = request.searchRequest.pointInTimeBuilder();
+                var shardToQuery = request.shards.get(dataNodeLocalIdx);
+                state.searchService.executeQueryPhase(
                     buildShardSearchRequest(
                         shardToQuery.shardId,
                         request.searchRequest.getLocalClusterAlias(),
@@ -1110,13 +1091,13 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         request.absoluteStartMillis,
                         false
                     ),
-                    task,
+                    state.task,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(SearchPhaseResult searchPhaseResult) {
                             try {
                                 searchPhaseResult.setShardIndex(dataNodeLocalIdx);
-                                queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
+                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
                             } catch (Throwable e) {
                                 throw new AssertionError(e);
                             } finally {
@@ -1127,7 +1108,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         @Override
                         public void onFailure(Exception e) {
                             try {
-                                failures.put(dataNodeLocalIdx, e);
+                                state.failures.put(dataNodeLocalIdx, e);
                                 onDone.run();
                                 maybeNext();
                             } catch (Throwable expected) {
@@ -1137,21 +1118,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         }
 
                         private void maybeNext() {
-                            final int shardToQuery = shardIndex.incrementAndGet();
+                            final int shardToQuery = state.currentShardIndex.incrementAndGet();
                             if (shardToQuery < request.shards.size()) {
-                                executor.execute(
-                                    shardTask(
-                                        searchService,
-                                        request,
-                                        task,
-                                        shardToQuery,
-                                        shardIndex,
-                                        executor,
-                                        queryPhaseResultConsumer,
-                                        failures,
-                                        onDone
-                                    )
-                                );
+                                executor.execute(shardTask(state, shardToQuery, executor, onDone));
                             }
                         }
                     }
@@ -1162,7 +1131,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             public void onFailure(Exception e) {
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
-                failures.put(dataNodeLocalIdx, e);
+                state.failures.put(dataNodeLocalIdx, e);
                 onDone.run();
                 // TODO SO risk!
                 maybeNext();
@@ -1175,23 +1144,35 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             }
 
             private void maybeNext() {
-                final int shardToQuery = shardIndex.incrementAndGet();
-                if (shardToQuery < request.shards.size()) {
-                    executor.execute(
-                        shardTask(
-                            searchService,
-                            request,
-                            task,
-                            shardToQuery,
-                            shardIndex,
-                            executor,
-                            queryPhaseResultConsumer,
-                            failures,
-                            onDone
-                        )
-                    );
+                final int shardToQuery = state.currentShardIndex.incrementAndGet();
+                if (shardToQuery < state.searchRequest.shards.size()) {
+                    executor.execute(shardTask(state, shardToQuery, executor, onDone));
                 }
             }
         };
+    }
+
+    private static final class QueryPerNodeState {
+
+        private final AtomicInteger currentShardIndex;
+        private final QueryPhaseResultConsumer queryPhaseResultConsumer;
+        private final NodeQueryRequest searchRequest;
+        private final CancellableTask task;
+        private final SearchService searchService;
+        private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
+
+        private QueryPerNodeState(
+            AtomicInteger currentShardIndex,
+            QueryPhaseResultConsumer queryPhaseResultConsumer,
+            NodeQueryRequest searchRequest,
+            CancellableTask task,
+            SearchService searchService
+        ) {
+            this.currentShardIndex = currentShardIndex;
+            this.queryPhaseResultConsumer = queryPhaseResultConsumer;
+            this.searchRequest = searchRequest;
+            this.task = task;
+            this.searchService = searchService;
+        }
     }
 }

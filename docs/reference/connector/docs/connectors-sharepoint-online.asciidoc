@@ -125,7 +125,10 @@ This authentication method does not require additional setup other than creating
 [discrete#es-connectors-sharepoint-online-oauth-app-secret-auth]
 ===== Secret Authentication
 
+[IMPORTANT]
+====
 This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.
+====
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -659,7 +662,10 @@ This authentication method does not require additional setup other than creating
 [discrete#es-connectors-sharepoint-online-client-oauth-app-secret-auth]
 ===== Secret Authentication
 
+[IMPORTANT]
+====
 This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.
+====
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 

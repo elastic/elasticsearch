@@ -790,16 +790,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
-   * @param ctx the parse tree
-   */
-  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
-   * @param ctx the parse tree
-   */
-  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    */
@@ -869,6 +859,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitString(EsqlBaseParser.StringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   */
+  void enterStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   */
+  void exitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
@@ -951,6 +951,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommandOptions}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommandOptions(EsqlBaseParser.RerankCommandOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommandOptions}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommandOptions(EsqlBaseParser.RerankCommandOptionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommandWindowSize}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommandWindowSize}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#joinCommand}.
    * @param ctx the parse tree

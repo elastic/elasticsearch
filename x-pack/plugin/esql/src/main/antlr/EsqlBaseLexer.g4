@@ -179,7 +179,7 @@ DECIMAL_LITERAL
 BY : 'by';
 ON: 'on';
 WITH: 'with';
-TOP: 'top';
+WINDOW_SIZE: 'window_size';
 
 AND : 'and';
 ASC : 'asc';

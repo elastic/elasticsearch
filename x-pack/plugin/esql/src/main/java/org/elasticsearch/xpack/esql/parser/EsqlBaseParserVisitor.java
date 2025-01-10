@@ -477,12 +477,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -524,6 +518,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitString(EsqlBaseParser.StringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
@@ -573,6 +573,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommandOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommandOptions(EsqlBaseParser.RerankCommandOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommandWindowSize}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
    * @param ctx the parse tree

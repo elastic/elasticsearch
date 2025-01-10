@@ -261,10 +261,6 @@ mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
-rerankCommand
-    : DEV_RERANK (TOP size=INTEGER_LITERAL)? textQuery=string ON primaryExpression WITH identifierOrParameter
-    ;
-
 commandOptions
     : commandOption (COMMA commandOption)*
     ;
@@ -292,6 +288,11 @@ integerValue
 
 string
     : QUOTED_STRING
+    ;
+
+stringOrParameter
+    : QUOTED_STRING
+    | {this.isDevVersion()}? parameter
     ;
 
 comparisonOperator
@@ -327,6 +328,18 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=stringOrParameter ON source=primaryExpression WITH inferenceId=identifierOrParameter (COMMA rerankCommandOptions)*
+    ;
+
+rerankCommandOptions
+    : rerankCommandWindowSize
+    ;
+
+rerankCommandWindowSize
+    : WINDOW_SIZE ASSIGN windowSize=INTEGER_LITERAL
     ;
 
 joinCommand

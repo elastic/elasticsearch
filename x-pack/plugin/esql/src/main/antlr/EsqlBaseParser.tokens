@@ -34,7 +34,7 @@ DECIMAL_LITERAL=33
 BY=34
 ON=35
 WITH=36
-TOP=37
+WINDOW_SIZE=37
 AND=38
 ASC=39
 ASSIGN=40
@@ -148,7 +148,7 @@ CLOSING_METRICS_WS=130
 'by'=34
 'on'=35
 'with'=36
-'top'=37
+'window_size'=37
 'and'=38
 'asc'=39
 '='=40

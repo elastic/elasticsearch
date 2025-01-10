@@ -181,7 +181,7 @@ public class EvaluatorImplementer {
         boolean vectorize = false;
         if (blockStyle == false && processFunction.warnExceptions.isEmpty() && processOutputsMultivalued == false) {
             ClassName type = processFunction.resultDataType(false);
-            vectorize = type.simpleName().startsWith("BytesRef") == false && processFunction.warnExceptions.isEmpty();
+            vectorize = type.simpleName().startsWith("BytesRef") == false;
         }
 
         TypeName builderType = vectorize ? vectorFixedBuilderType(elementType(resultDataType)) : builderType(resultDataType);
@@ -287,6 +287,8 @@ public class EvaluatorImplementer {
     }
 
     private void realEvalWithVectorizedStyle(MethodSpec.Builder builder, ClassName resultDataType) {
+        boolean checkForEarlyTerminationPerRow = processFunction.args.stream()
+            .anyMatch(a -> a.dataType(false).getClass().getSimpleName().startsWith("BytesRef"));
         BiConsumer<String, Object[]> innerLoop = (label, bounds) -> {
             builder.beginControlFlow(label + "for (int p = " + bounds[0] + "; p < " + bounds[1] + "; p++)");
             {

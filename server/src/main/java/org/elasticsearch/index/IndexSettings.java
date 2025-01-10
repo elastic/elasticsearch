@@ -710,7 +710,7 @@ public final class IndexSettings {
         "index.recovery.use_synthetic_source",
         settings -> {
             if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)) {
-                return String.valueOf(true);
+                return String.valueOf(false);
             }
             final SourceFieldMapper.Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
             return String.valueOf(sourceMode == SourceFieldMapper.Mode.SYNTHETIC);

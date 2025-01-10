@@ -72,6 +72,7 @@ import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommi
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
@@ -117,6 +118,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
@@ -173,6 +175,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -1013,8 +1016,8 @@ public class Stateless extends Plugin
                         }
                     );
                     localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNo -> {
-                        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
-                        if (indexEngine != null) {
+                        var engine = indexShard.getEngineOrNull();
+                        if (engine != null && engine instanceof IndexEngine indexEngine) {
                             indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNo);
                             // The local checkpoint is updated as part of the post-replication actions of ReplicationOperation. However, if
                             // a bulk request has a refresh included, the post-replication actions happen after the refresh. And the refresh
@@ -1042,9 +1045,9 @@ public class Stateless extends Plugin
                     // for the search shard to wait for), it could be safe to trigger the pruning earlier, e.g., once the
                     // commit upload is successful.
                     statelessCommitService.registerCommitNotificationSuccessListener(indexShard.shardId(), (gen) -> {
-                        var engine = (IndexEngine) indexShard.getEngineOrNull();
-                        if (engine != null) {
-                            engine.commitSuccess(gen);
+                        var engine = indexShard.getEngineOrNull();
+                        if (engine != null && engine instanceof IndexEngine e) {
+                            e.commitSuccess(gen);
                         }
                     });
                 }
@@ -1198,6 +1201,16 @@ public class Stateless extends Plugin
                     config.isPromotableToPrimary(),
                     config.getMapperService()
                 );
+                SegmentInfos segmentCommitInfos;
+                try {
+                    segmentCommitInfos = config.getStore().readLastCommittedSegmentsInfo();
+                } catch (IOException e) {
+                    throw new EngineCreationFailureException(config.getShardId(), "failed to read last segments info", e);
+                }
+                if (IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
+                    logger.info("--> Using hollow engine for shard {}", config.getShardId());
+                    return new HollowIndexEngine(config, getCommitService());
+                }
                 return newIndexEngine(
                     newConfig,
                     translogReplicator.get(),

@@ -112,7 +112,10 @@ When entities are not available via the Graph API the connector falls back to us
 [discrete#es-connectors-sharepoint-online-oauth-app-permissions]
 ====== SharePoint permissions
 
-Microsoft is retiring Azure ACS: https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs. Because of that, setting up permissions for new tenants and for old tenants can be different. We recommend switching to usage of certificates for older tenants too, but if it's not yet possible, a legacy permission setup can still be used.
+Microsoft is https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs[retiring Azure Access Control Service (ACS)]. This affects permission configuration:
+
+* *Tenants created after November 1st, 2024*: Certificate authentication is required
+* *Tenants created before November 1st, 2024*: Secret-based authentication must be migrated to certificate authentication by April 2nd, 2026
 
 [discrete#es-connectors-sharepoint-online-oauth-app-certificate-auth]
 ===== Certificate Authentication
@@ -641,17 +644,19 @@ The connector uses the https://learn.microsoft.com/en-us/sharepoint/dev/apis/sha
 When entities are not available via the Graph API the connector falls back to using the Sharepoint https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/get-to-know-the-sharepoint-rest-service[REST API^].
 ====
 
-[discrete#es-connectors-sharepoint-online-oauth-app-permissions]
+[discrete#es-connectors-sharepoint-online-client-oauth-app-permissions]
 ====== SharePoint permissions
 
-Microsoft is retiring Azure ACS: https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs. Because of that, setting up permissions for new tenants and for old tenants can be different. We recommend switching to usage of certificates for older tenants too, but if it's not yet possible, a legacy permission setup can still be used.
+Microsoft is https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs[retiring Azure Access Control Service (ACS)]. This affects permission configuration:
+* *Tenants created after November 1st, 2024*: Certificate authentication is required
+* *Tenants created before November 1st, 2024*: Secret-based authentication must be migrated to certificate authentication by April 2nd, 2026
 
-[discrete#es-connectors-sharepoint-online-oauth-app-certificate-auth]
+[discrete#es-connectors-sharepoint-online-client-oauth-app-certificate-auth]
 ===== Certificate Authentication
 
 This authentication method does not require additional setup other than creating and uploading certificates to the OAuth App.
 
-[discrete#es-connectors-sharepoint-online-oauth-app-secret-auth]
+[discrete#es-connectors-sharepoint-online-client-oauth-app-secret-auth]
 ===== Secret Authentication
 
 This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.

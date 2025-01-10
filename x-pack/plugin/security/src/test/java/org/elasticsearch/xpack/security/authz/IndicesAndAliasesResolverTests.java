@@ -161,7 +161,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndexMetadata dataStreamFailureStore1 = DataStreamTestHelper.createFailureStore(dataStreamName, 1).build();
         IndexMetadata dataStreamFailureStore2 = DataStreamTestHelper.createFailureStore(dataStreamName, 2).build();
         IndexMetadata dataStreamIndex3 = DataStreamTestHelper.createBackingIndex(otherDataStreamName, 1).build();
-        Metadata metadata = Metadata.builder()
+        Metadata.Builder metadataBuilder = Metadata.builder()
             .put(
                 indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar"))
                     .putAlias(AliasMetadata.builder("foounauthorized"))
@@ -219,23 +219,27 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex1, true)
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
-            .put(dataStreamFailureStore1, true)
-            .put(dataStreamFailureStore2, true)
-            .put(
-                newInstance(
-                    dataStreamName,
-                    List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
-                    List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
-                )
-            )
             .put(newInstance(otherDataStreamName, List.of(dataStreamIndex3.getIndex())))
-            .put(indexBuilder(securityIndexName).settings(settings))
-            .build();
+            .put(indexBuilder(securityIndexName).settings(settings));
 
-        if (withAlias) {
-            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
+        // Only add the failure indices if the failure store flag is enabled
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            metadataBuilder.put(dataStreamFailureStore1, true).put(dataStreamFailureStore2, true);
         }
-        this.metadata = metadata;
+        metadataBuilder.put(
+            newInstance(
+                dataStreamName,
+                List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
+                DataStream.isFailureStoreFeatureFlagEnabled()
+                    ? List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
+                    : List.of()
+            )
+        );
+        if (withAlias) {
+            this.metadata = SecurityTestUtils.addAliasToMetadata(metadataBuilder.build(), securityIndexName);
+        } else {
+            this.metadata = metadataBuilder.build();
+        }
 
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");

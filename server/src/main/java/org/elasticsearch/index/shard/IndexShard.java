@@ -189,6 +189,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.shard.IndexShard.PrimaryPermitCheck.CHECK_PRIMARY_MODE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -3569,13 +3570,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Check to run before running the primary permit operation
+     */
+    public enum PrimaryPermitCheck {
+        CHECK_PRIMARY_MODE,
+        /**
+         * IMPORTANT: Currently intented to be used only for acquiring primary permits during the recovery of hollow shards.
+         * Don't disable primary mode checks unless you're really sure.
+         */
+        NONE
+    }
+
+    /**
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
-     *
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
     }
 
     public void acquirePrimaryOperationPermit(
@@ -3583,9 +3595,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Executor executorOnDelay,
         boolean forceExecution
     ) {
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, forceExecution, CHECK_PRIMARY_MODE);
+    }
+
+    public void acquirePrimaryOperationPermit(
+        ActionListener<Releasable> onPermitAcquired,
+        Executor executorOnDelay,
+        boolean forceExecution,
+        PrimaryPermitCheck primaryPermitCheck
+    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
+        indexShardOperationPermits.acquire(
+            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
+            executorOnDelay,
+            forceExecution
+        );
     }
 
     public boolean isPrimaryMode() {
@@ -3593,33 +3618,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationTracker.isPrimaryMode();
     }
 
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+        acquireAllPrimaryOperationsPermits(onPermitAcquired, timeout, CHECK_PRIMARY_MODE);
+    }
+
     /**
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
      */
-    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+    public void acquireAllPrimaryOperationsPermits(
+        final ActionListener<Releasable> onPermitAcquired,
+        final TimeValue timeout,
+        final PrimaryPermitCheck primaryPermitCheck
+    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
+        asyncBlockOperations(
+            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
+            timeout.duration(),
+            timeout.timeUnit()
+        );
     }
 
     /**
-     * Wraps the action to run on a primary after acquiring permit. This wrapping is used to check if the shard is in primary mode before
-     * executing the action.
+     * Wraps the action to run on a primary after acquiring permit.
      *
+     * @param primaryPermitCheck check to run before the primary mode operation
      * @param listener the listener to wrap
      * @return the wrapped listener
      */
-    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
-        return listener.delegateFailure((l, r) -> {
-            if (isPrimaryMode()) {
-                l.onResponse(r);
-            } else {
-                r.close();
-                l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
-            }
-        });
+    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(
+        final PrimaryPermitCheck primaryPermitCheck,
+        final ActionListener<Releasable> listener
+    ) {
+        return switch (primaryPermitCheck) {
+            case CHECK_PRIMARY_MODE -> listener.delegateFailure((l, r) -> {
+                if (isPrimaryMode()) {
+                    l.onResponse(r);
+                } else {
+                    r.close();
+                    l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
+                }
+            });
+            case NONE -> listener;
+        };
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
@@ -3657,7 +3700,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 runnable.run();
             }
         }, onFailure);
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
     }
 
     private <E extends Exception> void bumpPrimaryTerm(

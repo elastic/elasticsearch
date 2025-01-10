@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +33,8 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -364,5 +367,14 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
+        Phase coldPhase = phases.get(COLD_PHASE);
+        if (coldPhase != null) {
+            return coldPhase.maybeAddDeprecationWarningForFreezeAction(policyName);
+        }
+        return false;
     }
 }

@@ -75,7 +75,7 @@ most common causes and their solutions.
 
 [discrete]
 [[fix-cluster-status-only-one-node]]
-===== Single Node Cluster
+===== Single node cluster
 
 {es} will never assign a replica to the same node as the primary shard. A single-node cluster will always have yellow status. To change to green, set <<dynamic-index-number-of-replicas,num_of_replicas>> to 0 for all indices.
 

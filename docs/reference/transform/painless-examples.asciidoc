@@ -119,8 +119,8 @@ You can retrieve the last value in a similar way:
 
 You can also use the power of
 {ref}/create-stored-script-api.html[stored scripts] to get the latest value.
-Stored scripts are updatable and they also make it easier for several people
-to collaborate on queries that involve scripting.
+Stored scripts are updatable, enable collaboration, and avoid duplication across 
+queries.
 
 1. Create the stored scripts:
 +

@@ -87,7 +87,8 @@ public class Range extends ScalarFunction {
     }
 
     /**
-     * In case that the boundaries are not yet folded, but turn out to be invalid after folding, this will still return {@code false}.
+     * In case that the range is empty due to foldable, invalid bounds, but the bounds themselves are not yet folded, the optimizer will
+     * need two passes to fold this.
      * That's because we shouldn't perform folding when trying to determine foldability.
      */
     @Override
@@ -97,6 +98,7 @@ public class Range extends ScalarFunction {
                 return true;
             }
 
+            // We cannot fold the bounds here; but if they're already literals, we can check if the range is always empty.
             if (lower() instanceof Literal && upper() instanceof Literal) {
                 return areBoundariesInvalid();
             }

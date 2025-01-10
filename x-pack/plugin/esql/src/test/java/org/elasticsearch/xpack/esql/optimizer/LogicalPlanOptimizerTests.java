@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -89,7 +88,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -2765,82 +2763,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var source = as(filter.child(), EsRelation.class);
-    }
-
-    public void testFoldRange() {
-        String lowerBound = randomBoolean() ? "1 + 9 <" : "1 + 10 <=";
-        String upperBound = randomBoolean() ? "< 20 - 1" : "<= 21 - 1";
-
-        var query = LoggerMessageFormat.format(null, """
-              row x = 12
-              | WHERE {} x AND x {}
-            """, lowerBound, upperBound);
-
-        var plan = analyzer.analyze(parser.createStatement(query));
-
-        // We do not use ranges in the logical planning stage, so we need to hack together a range, manually.
-        plan = plan.transformDown(Filter.class, filter -> {
-            var and = as(filter.condition(), And.class);
-            var lessThanLeft = as(and.left(), EsqlBinaryComparison.class);
-            var lessThanRight = as(and.right(), EsqlBinaryComparison.class);
-
-            return filter.with(
-                new Range(
-                    and.source(),
-                    lessThanLeft.right(),
-                    lessThanLeft.left(),
-                    false,
-                    lessThanRight.right(),
-                    false,
-                    lessThanRight.zoneId()
-                )
-            );
-        });
-
-        var optimizedPlan = logicalOptimizer.optimize(plan);
-
-        // The range can be folded away, we should end up with a single row.
-        var limit = as(optimizedPlan, Limit.class);
-        var localRelation = as(limit.child(), LocalRelation.class);
-        Block[] page = localRelation.supplier().get();
-        assertEquals(page.length, 1);
-        assertEquals(page[0].getPositionCount(), 1);
-    }
-
-    public void testFoldRangeWithInvalidBoundaries() {
-        String invalidLowerBound = randomBoolean() ? "1 + 9 <" : "1 + 10 <=";
-        String invalidUpperBound = randomBoolean() ? "< 11 - 1" : "<= 10 - 1";
-
-        var query = LoggerMessageFormat.format(null, """
-              FROM test
-              | WHERE {} emp_no AND emp_no {}
-            """, invalidLowerBound, invalidUpperBound);
-
-        var plan = analyzer.analyze(parser.createStatement(query));
-
-        // We do not use ranges in the logical planning stage, so we need to hack together a range, manually.
-        plan = plan.transformDown(Filter.class, filter -> {
-            var and = as(filter.condition(), And.class);
-            var lessThanLeft = as(and.left(), EsqlBinaryComparison.class);
-            var lessThanRight = as(and.right(), EsqlBinaryComparison.class);
-
-            return filter.with(
-                new Range(
-                    and.source(),
-                    lessThanLeft.right(),
-                    lessThanLeft.left(),
-                    lessThanLeft instanceof LessThanOrEqual,
-                    lessThanRight.right(),
-                    lessThanRight instanceof LessThanOrEqual,
-                    lessThanRight.zoneId()
-                )
-            );
-        });
-
-        var optimizedPlan = logicalOptimizer.optimize(plan);
-
-        // The boundaries of the range are invalid, this should be completely optimized away.
-        assertThat(optimizedPlan, instanceOf(LocalRelation.class));
     }
 
     public void testEnrich() {

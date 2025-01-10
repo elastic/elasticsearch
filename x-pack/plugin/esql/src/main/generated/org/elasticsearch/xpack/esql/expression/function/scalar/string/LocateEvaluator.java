@@ -75,7 +75,6 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -110,11 +109,6 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendInt(Locate.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -126,14 +120,8 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
-      final int batchSize = DriverContext.batchSizeForEarlyTermination(10);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, batchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)));
       }
       return result.build();
     }

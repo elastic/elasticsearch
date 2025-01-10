@@ -71,7 +71,7 @@ public class Length extends UnaryScalarFunction {
         return isString(field(), sourceText(), DEFAULT);
     }
 
-    @Evaluator(executionCost = 5)
+    @Evaluator
     static int process(BytesRef val) {
         return UnicodeUtil.codePointCount(val);
     }

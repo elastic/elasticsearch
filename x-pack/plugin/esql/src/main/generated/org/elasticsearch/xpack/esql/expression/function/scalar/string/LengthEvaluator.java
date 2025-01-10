@@ -54,7 +54,6 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -67,11 +66,6 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 5;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendInt(Length.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
       }
       return result.build();
@@ -81,14 +75,8 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntVector eval(int positionCount, BytesRefVector valVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
-      final int batchSize = DriverContext.batchSizeForEarlyTermination(5);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, batchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendInt(p, Length.process(valVector.getBytesRef(p, valScratch)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(p, Length.process(valVector.getBytesRef(p, valScratch)));
       }
       return result.build();
     }

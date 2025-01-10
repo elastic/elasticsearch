@@ -114,7 +114,7 @@ public class Replace extends EsqlScalarFunction {
         return str.foldable() && regex.foldable() && newStr.foldable();
     }
 
-    @Evaluator(extraName = "Constant", warnExceptions = PatternSyntaxException.class, executionCost = 10)
+    @Evaluator(extraName = "Constant", warnExceptions = PatternSyntaxException.class)
     static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
             return null;
@@ -122,7 +122,7 @@ public class Replace extends EsqlScalarFunction {
         return new BytesRef(regex.matcher(str.utf8ToString()).replaceAll(newStr.utf8ToString()));
     }
 
-    @Evaluator(warnExceptions = PatternSyntaxException.class, executionCost = 10)
+    @Evaluator(warnExceptions = PatternSyntaxException.class)
     static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
         if (str == null) {
             return null;

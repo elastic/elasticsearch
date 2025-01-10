@@ -100,7 +100,7 @@ public class Hash extends EsqlScalarFunction {
         return algorithm.foldable() && input.foldable();
     }
 
-    @Evaluator(warnExceptions = NoSuchAlgorithmException.class, executionCost = 10)
+    @Evaluator(warnExceptions = NoSuchAlgorithmException.class)
     static BytesRef process(
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
         BytesRef algorithm,
@@ -109,7 +109,7 @@ public class Hash extends EsqlScalarFunction {
         return hash(scratch, MessageDigest.getInstance(algorithm.utf8ToString()), input);
     }
 
-    @Evaluator(extraName = "Constant", executionCost = 10)
+    @Evaluator(extraName = "Constant")
     static BytesRef processConstant(
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
         @Fixed(scope = THREAD_LOCAL) HashFunction algorithm,

@@ -106,7 +106,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         return EvaluatorMapper.super.fold();
     }
 
-    @Evaluator(extraName = "SingleByte", executionCost = 10)
+    @Evaluator(extraName = "SingleByte")
     static void process(
         BytesRefBlock.Builder builder,
         BytesRef str,
@@ -136,7 +136,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         builder.endPositionEntry();
     }
 
-    @Evaluator(extraName = "Variable", executionCost = 10)
+    @Evaluator(extraName = "Variable")
     static void process(
         BytesRefBlock.Builder builder,
         BytesRef str,

@@ -21,7 +21,6 @@ import org.elasticsearch.compute.ann.Fixed.Scope;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,6 +40,7 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -257,13 +257,7 @@ public class EvaluatorImplementer {
                         builder.beginControlFlow("try");
                     }
                     if (executionCost > 0) {
-                        builder.addStatement("accumulatedCost += " + executionCost);
-                        builder.beginControlFlow("if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD)");
-                        {
-                            builder.addStatement("accumulatedCost = 0");
-                            builder.addStatement("driverContext.checkForEarlyTermination()");
-                        }
-                        builder.endControlFlow();
+                        addEarlyTerminationCheck(builder, executionCost);
                     }
                     builder.addStatement(builtPattern, args.toArray());
 
@@ -287,49 +281,49 @@ public class EvaluatorImplementer {
     }
 
     private void realEvalWithVectorizedStyle(MethodSpec.Builder builder, ClassName resultDataType) {
-        boolean checkForEarlyTerminationPerRow = processFunction.args.stream()
-            .anyMatch(a -> a.dataType(false).getClass().getSimpleName().startsWith("BytesRef"));
-        BiConsumer<String, Object[]> innerLoop = (label, bounds) -> {
-            builder.beginControlFlow(label + "for (int p = " + bounds[0] + "; p < " + bounds[1] + "; p++)");
-            {
-                processFunction.args.forEach(a -> a.unpackValues(builder, false));
-                StringBuilder pattern = new StringBuilder();
-                List<Object> args = new ArrayList<>();
-                pattern.append("$T.$N(");
-                args.add(declarationType);
-                args.add(processFunction.function.getSimpleName());
-                processFunction.args.forEach(a -> {
-                    if (args.size() > 2) {
-                        pattern.append(", ");
-                    }
-                    a.buildInvocation(pattern, args, false);
-                });
-                pattern.append(")");
-                String builtPattern;
-                if (processFunction.builderArg == null) {
-                    builtPattern = "result.$L(p, " + pattern + ")";
-                    args.add(0, appendMethod(resultDataType));
-                } else {
-                    builtPattern = pattern.toString();
-                }
-                builder.addStatement(builtPattern, args.toArray());
-            }
-            builder.endControlFlow();
-        };
-        if (executionCost == 0) {
-            innerLoop.accept("position: ", new Object[] { 0, "positionCount" });
-        } else {
-            // generate tight loops to allow vectorization
-            builder.addStatement("final int batchSize = DriverContext.batchSizeForEarlyTermination($L)", executionCost);
-            builder.beginControlFlow("for (int start = 0; start < positionCount; )");
-            {
-                builder.addStatement("int end = start + Math.min(positionCount - start, batchSize)");
-                builder.addStatement("driverContext.checkForEarlyTermination()");
-                innerLoop.accept("", new Object[] { "start", "end" });
-                builder.addStatement("start = end");
-            }
-            builder.endControlFlow();
+        boolean checkEarlyTerminationPerRow = executionCost > 0
+            && processFunction.args.stream().anyMatch(a -> a.dataType(false).equals(BYTES_REF_VECTOR));
+        if (checkEarlyTerminationPerRow) {
+            builder.addStatement("int accumulatedCost = 0");
         }
+        builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
+        {
+            processFunction.args.forEach(a -> a.unpackValues(builder, false));
+            StringBuilder pattern = new StringBuilder();
+            List<Object> args = new ArrayList<>();
+            pattern.append("$T.$N(");
+            args.add(declarationType);
+            args.add(processFunction.function.getSimpleName());
+            processFunction.args.forEach(a -> {
+                if (args.size() > 2) {
+                    pattern.append(", ");
+                }
+                a.buildInvocation(pattern, args, false);
+            });
+            pattern.append(")");
+            String builtPattern;
+            if (processFunction.builderArg == null) {
+                builtPattern = "result.$L(p, " + pattern + ")";
+                args.add(0, appendMethod(resultDataType));
+            } else {
+                builtPattern = pattern.toString();
+            }
+            if (checkEarlyTerminationPerRow) {
+                addEarlyTerminationCheck(builder, executionCost);
+            }
+            builder.addStatement(builtPattern, args.toArray());
+        }
+        builder.endControlFlow();
+    }
+
+    static void addEarlyTerminationCheck(MethodSpec.Builder builder, int executionCost) {
+        builder.addStatement("accumulatedCost += $L", executionCost);
+        builder.beginControlFlow("if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD)");
+        {
+            builder.addStatement("accumulatedCost = 0");
+            builder.addStatement("driverContext.checkForEarlyTermination()");
+        }
+        builder.endControlFlow();
     }
 
     private static void skipNull(MethodSpec.Builder builder, String value) {

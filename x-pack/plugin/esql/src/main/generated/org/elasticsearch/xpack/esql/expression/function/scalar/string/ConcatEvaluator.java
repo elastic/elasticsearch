@@ -70,7 +70,6 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
       for (int i = 0; i < values.length; i++) {
         valuesScratch[i] = new BytesRef();
       }
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -90,11 +89,6 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
         }
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
@@ -108,16 +102,10 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
       for (int i = 0; i < values.length; i++) {
         valuesScratch[i] = new BytesRef();
       }
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
-        }
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
         }
         result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }

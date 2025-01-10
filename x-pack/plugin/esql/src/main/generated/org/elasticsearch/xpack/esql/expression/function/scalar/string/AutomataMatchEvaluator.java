@@ -74,7 +74,7 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 20;
+        accumulatedCost += 50;
         if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
           accumulatedCost = 0;
           driverContext.checkForEarlyTermination();
@@ -88,14 +88,14 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
-      final int batchSize = DriverContext.batchSizeForEarlyTermination(20);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, batchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendBoolean(p, AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), this.automaton, this.pattern));
+      int accumulatedCost = 0;
+      position: for (int p = 0; p < positionCount; p++) {
+        accumulatedCost += 50;
+        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
+          accumulatedCost = 0;
+          driverContext.checkForEarlyTermination();
         }
-        start = end;
+        result.appendBoolean(p, AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), this.automaton, this.pattern));
       }
       return result.build();
     }

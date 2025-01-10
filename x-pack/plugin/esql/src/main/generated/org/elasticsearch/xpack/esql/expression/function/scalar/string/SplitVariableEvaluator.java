@@ -66,7 +66,6 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -90,11 +89,6 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch), this.scratch);
       }
       return result.build();
@@ -106,13 +100,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         Split.process(result, strVector.getBytesRef(p, strScratch), delimVector.getBytesRef(p, delimScratch), this.scratch);
       }
       return result.build();

@@ -74,7 +74,6 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
       IntBlock lengthBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -109,11 +108,6 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p)), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
       }
       return result.build();
@@ -124,13 +118,7 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
       IntVector lengthVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
-        accumulatedCost += 10;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p), lengthVector.getInt(p)));
       }
       return result.build();

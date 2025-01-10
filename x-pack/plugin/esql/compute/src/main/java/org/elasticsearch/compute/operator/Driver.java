@@ -139,10 +139,7 @@ public class Driver implements Releasable, Describable {
                 DriverSleeps.empty()
             )
         );
-        driverContext.initializeEarlyTerminationChecker(() -> {
-            ensureNotCancelled();
-            checkForEarlyTermination();
-        });
+        driverContext.initializeEarlyTerminationChecker(this::checkForEarlyTerminationOrCancellation);
     }
 
     /**
@@ -252,7 +249,6 @@ public class Driver implements Releasable, Describable {
     }
 
     private IsBlockedResult runSingleLoopIteration() {
-        ensureNotCancelled();
         boolean movedPage = false;
 
         for (int i = 0; i < activeOperators.size() - 1; i++) {
@@ -265,6 +261,7 @@ public class Driver implements Releasable, Describable {
             }
 
             if (op.isFinished() == false && nextOp.needsInput()) {
+                checkForEarlyTerminationOrCancellation();
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
@@ -273,12 +270,19 @@ public class Driver implements Releasable, Describable {
                     page.releaseBlocks();
                 } else {
                     // Non-empty result from the previous operation, move it to the next operation
+                    try {
+                        checkForEarlyTerminationOrCancellation();
+                    } catch (DriverEarlyTerminationException | TaskCancelledException e) {
+                        page.releaseBlocks();
+                        throw e;
+                    }
                     nextOp.addInput(page);
                     movedPage = true;
                 }
             }
 
             if (op.isFinished()) {
+                checkForEarlyTerminationOrCancellation();
                 nextOp.finish();
             }
         }
@@ -350,7 +354,8 @@ public class Driver implements Releasable, Describable {
 
     }
 
-    private void checkForEarlyTermination() throws DriverEarlyTerminationException {
+    private void checkForEarlyTerminationOrCancellation() throws DriverEarlyTerminationException, TaskCancelledException {
+        ensureNotCancelled();
         // If the last operation is finished, then we can discard all operations in the driver
         if (activeOperators.size() >= 2 && activeOperators.getLast().isFinished()) {
             for (int i = 0; i < activeOperators.size() - 1; i++) {

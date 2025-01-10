@@ -99,7 +99,7 @@ public class EndsWith extends EsqlScalarFunction {
         return str.foldable() && suffix.foldable();
     }
 
-    @Evaluator(executionCost = 5)
+    @Evaluator
     static boolean process(BytesRef str, BytesRef suffix) {
         if (str.length < suffix.length) {
             return false;

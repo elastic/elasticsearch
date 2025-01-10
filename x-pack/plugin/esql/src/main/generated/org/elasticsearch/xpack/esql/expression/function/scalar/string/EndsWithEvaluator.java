@@ -64,7 +64,6 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
-      int accumulatedCost = 0;
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -88,11 +87,6 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        accumulatedCost += 5;
-        if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD) {
-          accumulatedCost = 0;
-          driverContext.checkForEarlyTermination();
-        }
         result.appendBoolean(EndsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch)));
       }
       return result.build();
@@ -104,14 +98,8 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
-      final int batchSize = DriverContext.batchSizeForEarlyTermination(5);
-      for (int start = 0; start < positionCount; ) {
-        int end = start + Math.min(positionCount - start, batchSize);
-        driverContext.checkForEarlyTermination();
-        for (int p = start; p < end; p++) {
-          result.appendBoolean(p, EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
-        }
-        start = end;
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(p, EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
       }
       return result.build();
     }

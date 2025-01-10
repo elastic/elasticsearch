@@ -12,14 +12,27 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
 
+import static org.elasticsearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
+
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = true, numClientNodes = 0, numDataNodes = 0)
 public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsIntegTestCase {
-    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "300"));
+    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "100"));
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(3000))
+            .build();
+    }
 
     public void testDeleteManySearchableSnapshotIndices() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(3);
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNodes(2);
 
         String indexName = randomIdentifier();
         createIndex(indexName);
@@ -43,6 +56,18 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsInte
         long startTime = System.currentTimeMillis();
         client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest("_all")).actionGet();
         logger.info("Deleting {} indices took {}", numberOfIndices, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
+
+        createIndex("bump_cluster_state_1");
+        safeSleep(1_000);
+
+        createIndex("bump_cluster_state_2");
+        safeSleep(1_000);
+
+        createIndex("bump_cluster_state_3");
+        safeSleep(1_000);
+
+        safeSleep(30_000);
+        logger.info("Continuing");
     }
 
     @Override

@@ -35,7 +35,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(
             ThreadPool.Names.GENERIC,
-            new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
+            new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, 20, TimeValue.timeValueSeconds(30), false)
         );
         result.put(
             ThreadPool.Names.WRITE,

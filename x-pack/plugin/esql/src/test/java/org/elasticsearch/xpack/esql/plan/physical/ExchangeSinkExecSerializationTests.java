@@ -66,15 +66,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1040608));
         /*
          * History:
          *  2.3mb - shorten error messages for UnsupportedAttributes #111973
          *  1.8mb - cache EsFields #112008
          *  1.4mb - string serialization #112929
          *  1424046b - remove node-level plan #117422
-         *  1040608b - remove EsIndex mapping serialization #119580
+         *  1040607b - remove EsIndex mapping serialization #119580
          */
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1040607));
     }
 
     /**
@@ -82,7 +82,6 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2007289));
         /*
          * History:
          *  2 gb+ - start
@@ -92,8 +91,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2774214b - string serialization #112929
          *  2774192b - remove field attribute #112881
          *  2774190b - remove node-level plan #117422
-         *  2007289b - remove EsIndex mapping serialization #119580
+         *  2007288b - remove EsIndex mapping serialization #119580
          */
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2007288));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -107,20 +107,19 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFields() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(43927170);
         /*
          * History:
          *  48223371b - string serialization #112929
          *  47252411b - remove field attribute #112881
          *  47252409b - remove node-level plan #117422
-         *  43927170b - remove EsIndex mapping serialization #119580
+         *  43927169b - remove EsIndex mapping serialization #119580
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, expected);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927169));
     }
 
     /**
@@ -129,20 +128,19 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * with a single root field that has many children, grandchildren etc.
      */
     public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
-        ByteSizeValue expected = ByteSizeValue.ofBytes(353);
         /*
          * History:
          *  9426058b - string serialization #112929
          *  9425806b - remove field attribute #112881
          *  9425804b - remove node-level plan #117422
-         *  353b - remove EsIndex mapping serialization #119580
+         *  352b - remove EsIndex mapping serialization #119580
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, expected, false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(352), false);
     }
 
     /**

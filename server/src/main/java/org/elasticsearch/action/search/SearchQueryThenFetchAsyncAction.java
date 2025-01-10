@@ -60,6 +60,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -968,92 +969,40 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
     public static void registerNodeSearchAction(SearchTransportService searchTransportService, SearchService searchService) {
         var transportService = searchTransportService.transportService();
+        final Dependencies dependencies = new Dependencies(
+            searchService,
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+        );
+        final int searchPoolMax = transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax();
+        final SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
         transportService.registerRequestHandler(
             NODE_SEARCH_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeQueryRequest::new,
             (request, channel, task) -> {
                 final int shardCount = request.shards.size();
-                final int workers = Math.min(shardCount, transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax());
-                var executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
                 // TODO: start at 0
                 request.searchRequest.setBatchedReduceSize(Integer.MAX_VALUE);
-                final QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
-                    request.searchRequest,
-                    executor,
-                    new NoopCircuitBreaker("request"),
-                    new SearchPhaseController(searchService::aggReduceContextBuilder),
-                    ((CancellableTask) task)::isCancelled,
-                    SearchProgressListener.NOOP,
-                    shardCount,
-                    e -> logger.error("failed to merge on data node", e)
-                );
+                final int workers = Math.min(shardCount, searchPoolMax);
                 final var state = new QueryPerNodeState(
                     new AtomicInteger(workers - 1),
-                    queryPhaseResultConsumer,
+                    new QueryPhaseResultConsumer(
+                        request.searchRequest,
+                        dependencies.executor,
+                        new NoopCircuitBreaker("request"),
+                        searchPhaseController,
+                        ((CancellableTask) task)::isCancelled,
+                        SearchProgressListener.NOOP,
+                        shardCount,
+                        e -> logger.error("failed to merge on data node", e)
+                    ),
                     request,
                     (CancellableTask) task,
-                    searchService
+                    channel,
+                    dependencies
                 );
-                final CountDown countDown = new CountDown(shardCount);
-                final Runnable onDone = () -> {
-                    if (countDown.countDown()) {
-                        var channelListener = new ChannelActionListener<>(channel);
-                        try {
-                            var failure = queryPhaseResultConsumer.failure.get();
-                            if (failure != null) {
-                                try {
-                                    queryPhaseResultConsumer.getSuccessfulResults()
-                                        .forEach(
-                                            searchPhaseResult -> maybeRelease(
-                                                searchService,
-                                                request,
-                                                searchPhaseResult.queryResult() != null
-                                                    ? searchPhaseResult.queryResult()
-                                                    : searchPhaseResult.rankFeatureResult()
-                                            )
-                                        );
-                                } catch (Throwable e) {
-                                    throw new RuntimeException(e);
-                                }
-                                channelListener.onFailure(failure);
-                                return;
-                            }
-                            final Object[] results = new Object[shardCount];
-                            for (int i = 0; i < results.length; i++) {
-                                var e = state.failures.get(i);
-                                var res = queryPhaseResultConsumer.results.get(i);
-                                if (e != null) {
-                                    results[i] = e;
-                                    assert res == null;
-                                } else {
-                                    results[i] = res;
-                                    assert results[i] != null;
-                                }
-                            }
-                            // TODO: facepalm
-                            queryPhaseResultConsumer.buffer.clear();
-                            channelListener.onResponse(
-                                new NodeQueryResponse(
-                                    new QueryPhaseResultConsumer.MergeResult(
-                                        request.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
-                                        Lucene.EMPTY_TOP_DOCS,
-                                        null,
-                                        0L
-                                    ),
-                                    results,
-                                    queryPhaseResultConsumer.topDocsStats
-                                )
-                            );
-                        } catch (Throwable e) {
-                            throw new AssertionError(e);
-                        } finally {
-                            queryPhaseResultConsumer.close();
-                        }
-                    }
-                };
                 for (int i = 0; i < workers; i++) {
-                    executor.execute(shardTask(state, i, executor, onDone));
+                    dependencies.executor.execute(shardTask(state, i));
                 }
             }
         );
@@ -1069,14 +1018,14 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         }
     }
 
-    private static AbstractRunnable shardTask(QueryPerNodeState state, int dataNodeLocalIdx, Executor executor, Runnable onDone) {
+    private static AbstractRunnable shardTask(QueryPerNodeState state, int dataNodeLocalIdx) {
         return new AbstractRunnable() {
             @Override
             protected void doRun() {
                 var request = state.searchRequest;
                 var pitBuilder = request.searchRequest.pointInTimeBuilder();
                 var shardToQuery = request.shards.get(dataNodeLocalIdx);
-                state.searchService.executeQueryPhase(
+                state.dependencies.searchService.executeQueryPhase(
                     buildShardSearchRequest(
                         shardToQuery.shardId,
                         request.searchRequest.getLocalClusterAlias(),
@@ -1097,7 +1046,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         public void onResponse(SearchPhaseResult searchPhaseResult) {
                             try {
                                 searchPhaseResult.setShardIndex(dataNodeLocalIdx);
-                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, onDone);
+                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state.onDone);
                             } catch (Throwable e) {
                                 throw new AssertionError(e);
                             } finally {
@@ -1109,7 +1058,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         public void onFailure(Exception e) {
                             try {
                                 state.failures.put(dataNodeLocalIdx, e);
-                                onDone.run();
+                                state.onDone.run();
                                 maybeNext();
                             } catch (Throwable expected) {
                                 expected.addSuppressed(e);
@@ -1120,7 +1069,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         private void maybeNext() {
                             final int shardToQuery = state.currentShardIndex.incrementAndGet();
                             if (shardToQuery < request.shards.size()) {
-                                executor.execute(shardTask(state, shardToQuery, executor, onDone));
+                                state.dependencies.executor.execute(shardTask(state, shardToQuery));
                             }
                         }
                     }
@@ -1132,7 +1081,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
                 state.failures.put(dataNodeLocalIdx, e);
-                onDone.run();
+                state.onDone.run();
                 // TODO SO risk!
                 maybeNext();
             }
@@ -1146,11 +1095,13 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             private void maybeNext() {
                 final int shardToQuery = state.currentShardIndex.incrementAndGet();
                 if (shardToQuery < state.searchRequest.shards.size()) {
-                    executor.execute(shardTask(state, shardToQuery, executor, onDone));
+                    state.dependencies.executor.execute(shardTask(state, shardToQuery));
                 }
             }
         };
     }
+
+    private record Dependencies(SearchService searchService, Executor executor) {}
 
     private static final class QueryPerNodeState {
 
@@ -1158,21 +1109,79 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         private final QueryPhaseResultConsumer queryPhaseResultConsumer;
         private final NodeQueryRequest searchRequest;
         private final CancellableTask task;
-        private final SearchService searchService;
         private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
+        private final Dependencies dependencies;
+        private final Runnable onDone;
 
         private QueryPerNodeState(
             AtomicInteger currentShardIndex,
             QueryPhaseResultConsumer queryPhaseResultConsumer,
             NodeQueryRequest searchRequest,
             CancellableTask task,
-            SearchService searchService
+            TransportChannel channel,
+            Dependencies dependencies
         ) {
             this.currentShardIndex = currentShardIndex;
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
             this.searchRequest = searchRequest;
             this.task = task;
-            this.searchService = searchService;
+            final int shardCount = queryPhaseResultConsumer.getNumShards();
+            final CountDown countDown = new CountDown(shardCount);
+            this.dependencies = dependencies;
+            this.onDone = () -> {
+                if (countDown.countDown()) {
+                    var channelListener = new ChannelActionListener<>(channel);
+                    try (queryPhaseResultConsumer) {
+                        var failure = queryPhaseResultConsumer.failure.get();
+                        if (failure != null) {
+                            try {
+                                queryPhaseResultConsumer.getSuccessfulResults()
+                                    .forEach(
+                                        searchPhaseResult -> maybeRelease(
+                                            dependencies.searchService,
+                                            searchRequest,
+                                            searchPhaseResult.queryResult() != null
+                                                ? searchPhaseResult.queryResult()
+                                                : searchPhaseResult.rankFeatureResult()
+                                        )
+                                    );
+                            } catch (Throwable e) {
+                                throw new RuntimeException(e);
+                            }
+                            channelListener.onFailure(failure);
+                            return;
+                        }
+                        final Object[] results = new Object[shardCount];
+                        for (int i = 0; i < results.length; i++) {
+                            var e = failures.get(i);
+                            var res = queryPhaseResultConsumer.results.get(i);
+                            if (e != null) {
+                                results[i] = e;
+                                assert res == null;
+                            } else {
+                                results[i] = res;
+                                assert results[i] != null;
+                            }
+                        }
+                        // TODO: facepalm
+                        queryPhaseResultConsumer.buffer.clear();
+                        channelListener.onResponse(
+                            new NodeQueryResponse(
+                                new QueryPhaseResultConsumer.MergeResult(
+                                    searchRequest.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
+                                    Lucene.EMPTY_TOP_DOCS,
+                                    null,
+                                    0L
+                                ),
+                                results,
+                                queryPhaseResultConsumer.topDocsStats
+                            )
+                        );
+                    } catch (Throwable e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            };
         }
     }
 }

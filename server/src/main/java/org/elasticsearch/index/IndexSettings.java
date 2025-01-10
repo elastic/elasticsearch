@@ -725,8 +725,9 @@ public final class IndexSettings {
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
-            if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
-                .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT)
+            if (DiscoveryNode.isStateless(settings) == false
+                && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
+                    .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT)
                 || SETTING_INDEX_VERSION_CREATED.get(settings)
                     .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
                 final SourceFieldMapper.Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);

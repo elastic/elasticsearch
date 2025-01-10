@@ -21,6 +21,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.WaitUntilReplicateForTimePassesStep.approximateTimeRemaining;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCase<WaitUntilReplicateForTimePassesStep> {
@@ -116,6 +118,21 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
                 throw new AssertionError("Unexpected method call", e);
             }
         }, MASTER_TIMEOUT);
+    }
+
+    public void testApproximateTimeRemaining() {
+        assertThat("0h", equalTo(approximateTimeRemaining(TimeValue.ZERO)));
+
+        for (int i : new int[] { -2000, 0, 2000 }) {
+            assertThat("2d", equalTo(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueDays(2).millis() + i))));
+            assertThat("2h", equalTo(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueHours(2).millis() + i))));
+        }
+
+        assertThat("1d", equalTo(approximateTimeRemaining(TimeValue.timeValueHours(12))));
+        assertThat("12h", equalTo(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueHours(12).millis() - 1))));
+        assertThat("11h", equalTo(approximateTimeRemaining(TimeValue.timeValueHours(11))));
+        assertThat("1h", equalTo(approximateTimeRemaining(TimeValue.timeValueMinutes(30))));
+        assertThat("0h", equalTo(approximateTimeRemaining(TimeValue.timeValueMinutes(29))));
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, WaitUntilReplicateForTimePassesStep step) {

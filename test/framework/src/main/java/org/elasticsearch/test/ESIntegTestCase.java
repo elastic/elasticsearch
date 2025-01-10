@@ -82,6 +82,7 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -110,6 +111,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -1221,6 +1223,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    // some integration tests don't work when run multi-project, so explicitly enable it here
+    // we also need to decide what we do about the multi-project xcontent param
+    @FixForMultiProject
+    protected boolean multiProjectIntegrationTest() {
+        return false;
+    }
+
+    private ToXContent.Params xContentParams() {
+        return multiProjectIntegrationTest() ? new ToXContent.MapParams(Map.of("multi-project", "true")) : ToXContent.EMPTY_PARAMS;
+    }
+
+    private void setMultiProjectParams(Map<String, String> xContentParams) {
+        if (multiProjectIntegrationTest()) {
+            xContentParams.put("multi-project", "true");
+        }
+    }
+
     protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
@@ -1242,7 +1261,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     null,
                     namedWriteableRegistry
                 );
-                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
                 int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
                 String masterId = masterClusterState.nodes().getMasterNodeId();
                 for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
@@ -1254,7 +1273,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             null,
                             namedWriteableRegistry
                         );
-                        final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                        final Map<String, Object> localStateMap = convertToMap(localClusterState, xContentParams());
                         final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                         // Check that the non-master node has the same version of the cluster state as the master and
                         // that the master node matches the master (otherwise there is no requirement for the cluster state to
@@ -1298,15 +1317,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
             final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+            setMultiProjectParams(serializationParams);
             final ToXContent.Params serializationFormatParams = new ToXContent.MapParams(serializationParams);
 
             // when comparing XContent output, do not use binary format
             final Map<String, String> compareParams = Maps.newMapWithExpectedSize(2);
             compareParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+            setMultiProjectParams(compareParams);
             final ToXContent.Params compareFormatParams = new ToXContent.MapParams(compareParams);
 
             {
-                Metadata metadataWithoutIndices = Metadata.builder(metadata).removeAllIndices().build();
+                Metadata metadataWithoutIndices = Metadata.builder(metadata)
+                    .forEachProject(ProjectMetadata.Builder::removeAllIndices)
+                    .build();
 
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
@@ -1348,45 +1371,47 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 );
             }
 
-            for (IndexMetadata indexMetadata : metadata.getProject()) {
-                XContentBuilder builder = SmileXContent.contentBuilder();
-                builder.startObject();
-                indexMetadata.toXContent(builder, serializationFormatParams);
-                builder.endObject();
-                final BytesReference originalBytes = BytesReference.bytes(builder);
+            for (ProjectMetadata project : metadata.projects().values()) {
+                for (IndexMetadata indexMetadata : project) {
+                    XContentBuilder builder = SmileXContent.contentBuilder();
+                    builder.startObject();
+                    indexMetadata.toXContent(builder, serializationFormatParams);
+                    builder.endObject();
+                    final BytesReference originalBytes = BytesReference.bytes(builder);
 
-                XContentBuilder compareBuilder = SmileXContent.contentBuilder();
-                compareBuilder.startObject();
-                indexMetadata.toXContent(compareBuilder, compareFormatParams);
-                compareBuilder.endObject();
-                final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
+                    XContentBuilder compareBuilder = SmileXContent.contentBuilder();
+                    compareBuilder.startObject();
+                    indexMetadata.toXContent(compareBuilder, compareFormatParams);
+                    compareBuilder.endObject();
+                    final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
-                final IndexMetadata loadedIndexMetadata;
-                try (
-                    XContentParser parser = createParser(
-                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
-                        SmileXContent.smileXContent,
-                        originalBytes
-                    )
-                ) {
-                    loadedIndexMetadata = IndexMetadata.fromXContent(parser);
+                    final IndexMetadata loadedIndexMetadata;
+                    try (
+                        XContentParser parser = createParser(
+                            parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
+                            SmileXContent.smileXContent,
+                            originalBytes
+                        )
+                    ) {
+                        loadedIndexMetadata = IndexMetadata.fromXContent(parser);
+                    }
+                    builder = SmileXContent.contentBuilder();
+                    builder.startObject();
+                    loadedIndexMetadata.toXContent(builder, compareFormatParams);
+                    builder.endObject();
+                    final BytesReference parsedBytes = BytesReference.bytes(builder);
+
+                    assertNull(
+                        "cluster state XContent serialization does not match, expected "
+                            + XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE)
+                            + " but got "
+                            + XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
+                        differenceBetweenMapsIgnoringArrayOrder(
+                            XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
+                            XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()
+                        )
+                    );
                 }
-                builder = SmileXContent.contentBuilder();
-                builder.startObject();
-                loadedIndexMetadata.toXContent(builder, compareFormatParams);
-                builder.endObject();
-                final BytesReference parsedBytes = BytesReference.bytes(builder);
-
-                assertNull(
-                    "cluster state XContent serialization does not match, expected "
-                        + XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE)
-                        + " but got "
-                        + XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
-                    differenceBetweenMapsIgnoringArrayOrder(
-                        XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
-                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()
-                    )
-                );
             }
         }
     }

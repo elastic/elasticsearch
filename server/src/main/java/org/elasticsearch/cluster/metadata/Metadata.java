@@ -67,6 +67,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 
@@ -1159,6 +1160,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         public ProjectMetadata.Builder getProject(ProjectId projectId) {
             return projectMetadata.get(projectId);
+        }
+
+        public Builder forEachProject(UnaryOperator<ProjectMetadata.Builder> modifier) {
+            projectMetadata.replaceAll((p, b) -> modifier.apply(b));
+            return this;
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {

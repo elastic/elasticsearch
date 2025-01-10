@@ -194,6 +194,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -1088,12 +1089,10 @@ class NodeConstruction {
         actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedPipelineAction());
 
         FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService();
-        FileSettingsService fileSettingsService = new FileSettingsService(
-            clusterService,
-            actionModule.getReservedClusterStateService(),
-            environment,
-            fileSettingsHealthIndicatorService
-        );
+        FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(
+            FileSettingsServiceProvider.class,
+            () -> FileSettingsService::new
+        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthIndicatorService);
 
         RestoreService restoreService = new RestoreService(
             clusterService,

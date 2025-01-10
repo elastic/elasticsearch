@@ -280,9 +280,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, originalIndexOrAlias)
+            .get()
+            .getAliases()
+            .isEmpty() == false;
         if (watchesIsAlias) {
-            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get();
+            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
             aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
                 assertEquals(1, aliasRecord.getValue().size());
@@ -510,7 +513,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertBusy(() -> {
             GetComposableIndexTemplateAction.Response response = client().execute(
                 GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, HISTORY_TEMPLATE_NAME)
             ).get();
             assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });

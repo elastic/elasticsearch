@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -475,8 +476,10 @@ public class JobDataDeleter {
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
 
         // first find the concrete indices associated with the aliases
-        GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
-            .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).aliases(
+            readAliasName,
+            writeAliasName
+        ).indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

@@ -32,7 +32,6 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
             null,
-            null,
             null
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();

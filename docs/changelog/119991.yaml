@@ -1,0 +1,5 @@
+pr: 119991
+summary: Add source api block set to reindex data stream index action params
+area: Data streams
+type: enhancement
+issues: []

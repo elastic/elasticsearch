@@ -611,7 +611,7 @@ setup:
                   type: foo
 
 ---
-"Specifying unsupported index option types will fail":
+"Index option type is required":
   - requires:
       cluster_features: "semantic_text.index_options"
       reason: Index options introduced in 8.18.0

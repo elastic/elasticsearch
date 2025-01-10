@@ -222,6 +222,11 @@ public record SemanticTextField(
             return type;
         }
 
+        @Override
+        public String toString() {
+            return asMap().toString();
+        }
+
         public abstract Map<String, Object> asMap();
     }
 
@@ -236,6 +241,18 @@ public record SemanticTextField(
             this.m = m;
             this.efConstruction = efConstruction;
             this.confidenceInterval = confidenceInterval;
+        }
+
+        public Integer m() {
+            return m;
+        }
+
+        public Integer efConstruction() {
+            return efConstruction;
+        }
+
+        public Integer confidenceInterval() {
+            return confidenceInterval;
         }
 
         public Map<String, Object> asMap() {
@@ -253,6 +270,22 @@ public record SemanticTextField(
                 map.put(CONFIDENCE_INTERVAL_FIELD, confidenceInterval);
             }
             return map;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DenseVectorIndexOptions that = (DenseVectorIndexOptions) o;
+            return Objects.equals(type, that.type)
+                && Objects.equals(m, that.m)
+                && Objects.equals(efConstruction, that.efConstruction)
+                && Objects.equals(confidenceInterval, that.confidenceInterval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, m, efConstruction, confidenceInterval);
         }
     }
 
@@ -314,7 +347,7 @@ public record SemanticTextField(
             );
             IndexOptions indexOptions = INDEX_OPTIONS_PARSER.parse(parser, null);
 
-            if (indexOptions.type != null && DenseVectorFieldMapper.SUPPORTED_TYPES.contains(indexOptions.type)) {
+            if (indexOptions.type != null && isDenseVectorIndexType(indexOptions.type)) {
                 // Run dense vector index options through the dense vector field mapper validation
                 // so we error on invalid options at index creation time
                 DenseVectorFieldMapper.parseIndexOptions(fieldName, node);
@@ -324,6 +357,10 @@ public record SemanticTextField(
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
+    }
+
+    private static boolean isDenseVectorIndexType(String type) {
+        return DenseVectorFieldMapper.VectorIndexType.fromString(type).isPresent();
     }
 
     @Override
@@ -437,7 +474,7 @@ public record SemanticTextField(
         true,
         args -> {
             String type = (String) args[0];
-            if (type != null && DenseVectorFieldMapper.SUPPORTED_TYPES.contains(type)) {
+            if (type != null && isDenseVectorIndexType(type)) {
                 Integer m = (Integer) args[1];
                 Integer efConstruction = (Integer) args[2];
                 Integer confidenceInterval = (Integer) args[3];

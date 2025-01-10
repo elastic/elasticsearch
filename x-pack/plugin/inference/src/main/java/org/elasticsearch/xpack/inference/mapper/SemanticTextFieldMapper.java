@@ -88,10 +88,13 @@ import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CONFIDENCE_INTERVAL_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.EF_CONSTRUCTION_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.M_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TYPE_FIELD;
@@ -986,7 +989,49 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (previous == null || current == null) {
             return true;
         }
+
+        if (previous.getClass() != current.getClass()) {
+            conflicts.addConflict(INDEX_OPTIONS_FIELD, "Incompatible classes");
+            return false;
+        }
+
+        if (current instanceof SemanticTextField.DenseVectorIndexOptions) {
+            return canMergeDenseVectorIndexOptions(
+                (SemanticTextField.DenseVectorIndexOptions) previous,
+                (SemanticTextField.DenseVectorIndexOptions) current,
+                conflicts
+            );
+        }
+
         conflicts.addConflict(INDEX_OPTIONS_FIELD, "");
         return false;
+    }
+
+    private static boolean canMergeDenseVectorIndexOptions(
+        SemanticTextField.DenseVectorIndexOptions previous,
+        SemanticTextField.DenseVectorIndexOptions current,
+        Conflicts conflicts
+    ) {
+        if (Objects.equals(previous.type(), current.type()) == false) {
+            conflicts.addConflict(TYPE_FIELD, "");
+            return false;
+        }
+
+        if (previous.m() != null && Objects.equals(previous.m(), current.m()) == false) {
+            conflicts.addConflict(M_FIELD, "");
+            return false;
+        }
+
+        if (previous.efConstruction() != null && Objects.equals(previous.efConstruction(), current.efConstruction()) == false) {
+            conflicts.addConflict(EF_CONSTRUCTION_FIELD, "");
+            return false;
+        }
+
+        if (previous.confidenceInterval() != null && Objects.equals(previous.confidenceInterval(), current.confidenceInterval()) == false) {
+            conflicts.addConflict(CONFIDENCE_INTERVAL_FIELD, "");
+            return false;
+        }
+
+        return true;
     }
 }

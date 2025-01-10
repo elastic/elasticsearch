@@ -88,7 +88,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -127,18 +126,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                                                         // vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int NUM_CANDS_OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
-
-    // Supported types for index options for dense_vector field and semantic_text fields based on dense inference IDs
-    public static final Set<String> SUPPORTED_TYPES = Set.of(
-        "hnsw",
-        "int8_hnsw",
-        "int4_hnsw",
-        "bbq_hnsw",
-        "flat",
-        "int8_flat",
-        "int4_flat",
-        "bbq_flat"
-    );
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;

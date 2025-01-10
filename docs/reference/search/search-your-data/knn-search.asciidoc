@@ -1070,7 +1070,7 @@ the global top `k` matches across shards. You cannot set the
 
 
 [discrete]
-[[dense-vector-knn-search-reranking]]
+[[dense-vector-knn-search-rescoring]]
 ==== Oversampling and rescoring for quantized vectors
 
 When using <<dense-vector-quantization,quantized vectors>> for kNN search, you can optionally rescore results to balance performance and accuracy, by doing:
@@ -1091,10 +1091,13 @@ Generally, we have found that:
 * `bbq` requires rescoring except on exceptionally large indices or models specifically designed for quantization. We have found that between 3x-5x oversampling is generally sufficient. But for fewer dimensions or vectors that do not quantize well, higher oversampling may be required.
 
 You can use the `rescore_vector` preview:[] option to automatically perform reranking.
-When a rescore `num_candidates_factor` parameter is specified, the approximate kNN search will retrieve the top `num_candidates * oversample` candidates per shard.
-It will then use the original vectors to rescore them, and return the top `k` results.
+When a rescore `oversample` parameter is specified, the approximate kNN search will:
 
-Here is an example of using the `rescore_vector` option with the `num_candidates_factor` parameter:
+* Retrieve `num_candidates` candidates per shard.
+* From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
+* The top `k` rescored candidates will be returned.
+
+Here is an example of using the `rescore_vector` option with the `oversample` parameter:
 
 [source,console]
 ----
@@ -1106,7 +1109,7 @@ POST image-index/_search
     "k": 10,
     "num_candidates": 100,
     "rescore_vector": {
-      "num_candidates_factor": 2.0
+      "oversample": 2.0
     }
   },
   "fields": [ "title", "file-type" ]
@@ -1118,18 +1121,19 @@ POST image-index/_search
 
 This example will:
 
-* Search using approximate kNN with `num_candidates` set to 200 (`num_candidates` * `num_candidates_factor`).
-* Rescore the top 200 candidates per shard using the original, non quantized vectors.
+* Search using approximate kNN for the top 100 candidates.
+* Rescore the top 20 candidates (`oversample * k`) per shard using the original, non quantized vectors.
+* Return the top 10 (`k`) rescored candidates.
 * Merge the rescored canddidates from all shards, and return the top 10 (`k`) results.
 
 [discrete]
-[[dense-vector-knn-search-reranking-rescore-additional]]
+[[dense-vector-knn-search-rescoring-rescore-additional]]
 ===== Additional rescoring techniques
 
 The following sections provide additional ways of rescoring:
 
 [discrete]
-[[dense-vector-knn-search-reranking-rescore-section]]
+[[dense-vector-knn-search-rescoring-rescore-section]]
 ====== Use the `rescore` section for top-level kNN search
 
 You can use this option when you don't want to rescore on each shard, but on the top results from all shards.
@@ -1185,7 +1189,7 @@ gathering 20 nearest neighbors according to quantized scoring and rescoring with
 
 
 [discrete]
-[[dense-vector-knn-search-reranking-script-score]]
+[[dense-vector-knn-search-rescoring-script-score]]
 ====== Use a `script_score` query to rescore per shard
 
 You can use this option when you want to rescore on each shard and want more fine-grained control on the rescoring

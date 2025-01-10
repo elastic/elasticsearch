@@ -9,11 +9,14 @@
 
 package org.elasticsearch.reservedstate.service;
 
-/**
- * Listener interface for the file watching service. Listeners will get
- * notified when the watched file has been updated, or if there is no file
- * on initial start.
- */
-public interface FileChangedListener {
-    void watchedFileChanged();
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.env.Environment;
+
+public interface FileSettingsServiceProvider {
+    FileSettingsService construct(
+        ClusterService clusterService,
+        ReservedClusterStateService stateService,
+        Environment environment,
+        FileSettingsService.FileSettingsHealthIndicatorService healthIndicatorService
+    );
 }

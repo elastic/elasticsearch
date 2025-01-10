@@ -371,7 +371,14 @@ public class ReservedClusterStateService {
         }
 
         ClusterState state = clusterService.state();
-        ProjectMetadata projectMetadata = state.metadata().getProject(projectId);
+        ProjectMetadata projectMetadata;
+        if (state.metadata().hasProject(projectId)) {
+            projectMetadata = state.metadata().getProject(projectId);
+        } else {
+            // use empty project if it doesnt exist
+            // this isn't actually added to ClusterState, that's done as part of the state update task itself
+            projectMetadata = ProjectMetadata.builder(projectId).build();
+        }
         ReservedStateMetadata existingMetadata = projectMetadata.reservedStateMetadata().get(namespace);
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask

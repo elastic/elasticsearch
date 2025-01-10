@@ -266,7 +266,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         Map<String, ResolveClusterInfo> clusterInfoMap,
                         CancellableTask resolveClusterTask
                     ) {
-                        ActionListener<ResolveIndexAction.Response> resolveIndexActionListener = new ActionListener<>() {
+                        return new ActionListener<>() {
                             @Override
                             public void onResponse(ResolveIndexAction.Response response) {
                                 if (resolveClusterTask.isCancelled()) {

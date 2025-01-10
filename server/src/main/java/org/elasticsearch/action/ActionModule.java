@@ -994,7 +994,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestClusterInfoAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction());
+        registerHandler.accept(new RestIndicesAction(projectIdResolver));
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction());

@@ -27,6 +27,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -71,9 +72,13 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    // TODO since we're doing a limit release do we want to expose the chat completion task type yet for EIS?
+    // TODO since we're doing a limited release do we want to expose the chat completion task type yet for EIS?
+    // The task types exposed via the _inference/_services API
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_EXTERNAL = EnumSet.of(TaskType.SPARSE_EMBEDDING);
     private static final String SERVICE_NAME = "Elastic";
+    /**
+     * The task types that the {@link InferenceAction.Request} can accept.
+     */
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public ElasticInferenceService(

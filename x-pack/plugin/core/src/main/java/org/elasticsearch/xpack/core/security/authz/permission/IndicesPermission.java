@@ -10,8 +10,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -355,17 +357,33 @@ public final class IndicesPermission {
         private final String name;
 
         /**
+         * The selector to be applied to the IndexAbstraction which selects which indices to return when resolving
+         */
+        @Nullable
+        private final IndexComponentSelector selector;
+
+        /**
          * The IndexAbstraction on which authorization is being performed, or {@code null} if nothing in the cluster matches the name
          */
         @Nullable
         private final IndexAbstraction indexAbstraction;
 
-        private IndexResource(String name, @Nullable IndexAbstraction abstraction) {
+        private IndexResource(String name, @Nullable IndexAbstraction abstraction, @Nullable IndexComponentSelector selector) {
             assert name != null : "Resource name cannot be null";
             assert abstraction == null || abstraction.getName().equals(name)
                 : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
+            assert abstraction == null
+                || selector == null
+                || IndexComponentSelector.FAILURES.equals(selector) == false
+                || abstraction.isDataStreamRelated()
+                : "Invalid index component selector ["
+                    + selector.getKey()
+                    + "] applied to abstraction of type ["
+                    + abstraction.getType()
+                    + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
+            this.selector = selector;
         }
 
         /**
@@ -402,21 +420,69 @@ public final class IndicesPermission {
         /**
          * @return the number of distinct objects to which this expansion refers.
          */
-        public int size() {
+        public int size(Map<String, IndexAbstraction> lookup) {
             if (indexAbstraction == null) {
                 return 1;
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return 1;
+            } else if (selector != null) {
+                int size = 1;
+                if (selector.shouldIncludeData()) {
+                    size += indexAbstraction.getIndices().size();
+                }
+                if (selector.shouldIncludeFailures()) {
+                    if (IndexAbstraction.Type.ALIAS.equals(indexAbstraction.getType())) {
+                        Set<DataStream> aliasDataStreams = new HashSet<>();
+                        int failureIndices = 0;
+                        for (Index index : indexAbstraction.getIndices()) {
+                            DataStream parentDataStream = lookup.get(index.getName()).getParentDataStream();
+                            if (parentDataStream != null && aliasDataStreams.add(parentDataStream)) {
+                                failureIndices += parentDataStream.getFailureIndices().getIndices().size();
+                            }
+                        }
+                        size += failureIndices;
+                    } else {
+                        DataStream parentDataStream = (DataStream) indexAbstraction;
+                        size += parentDataStream.getFailureIndices().getIndices().size();
+                    }
+                }
+                return size;
             } else {
                 return 1 + indexAbstraction.getIndices().size();
             }
         }
 
-        public Collection<String> resolveConcreteIndices() {
+        public Collection<String> resolveConcreteIndices(Map<String, IndexAbstraction> lookup) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
+            } else if (IndexComponentSelector.FAILURES.equals(selector)) {
+                if (IndexAbstraction.Type.ALIAS.equals(indexAbstraction.getType())) {
+                    Set<DataStream> aliasDataStreams = new HashSet<>();
+                    for (Index index : indexAbstraction.getIndices()) {
+                        DataStream parentDataStream = lookup.get(index.getName()).getParentDataStream();
+                        if (parentDataStream != null) {
+                            aliasDataStreams.add(parentDataStream);
+                        }
+                    }
+                    List<String> concreteIndexNames = new ArrayList<>(aliasDataStreams.size());
+                    for (DataStream aliasDataStream : aliasDataStreams) {
+                        DataStream.DataStreamIndices failureIndices = aliasDataStream.getFailureIndices();
+                        for (Index index : failureIndices.getIndices()) {
+                            concreteIndexNames.add(index.getName());
+                        }
+                    }
+                    return concreteIndexNames;
+                } else {
+                    DataStream parentDataStream = (DataStream) indexAbstraction;
+                    DataStream.DataStreamIndices failureIndices = parentDataStream.getFailureIndices();
+                    List<String> concreteIndexNames = new ArrayList<>(failureIndices.getIndices().size());
+                    for (Index index : failureIndices.getIndices()) {
+                        concreteIndexNames.add(index.getName());
+                    }
+                    return concreteIndexNames;
+                }
             } else {
                 final List<Index> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndexNames = new ArrayList<>(indices.size());
@@ -452,9 +518,15 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias));
+            // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
+            Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
+            indexOrAlias = expressionAndSelector.v1();
+            IndexComponentSelector selector = expressionAndSelector.v2() == null
+                ? null
+                : IndexComponentSelector.getByKey(expressionAndSelector.v2());
+            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
             resources.put(resource.name, resource);
-            totalResourceCount += resource.size();
+            totalResourceCount += resource.size(lookup);
         }
 
         final boolean overallGranted = isActionGranted(action, resources);
@@ -463,7 +535,8 @@ public final class IndicesPermission {
             action,
             resources,
             finalTotalResourceCount,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            lookup
         );
 
         return new IndicesAccessControl(overallGranted, indexPermissions);
@@ -473,7 +546,8 @@ public final class IndicesPermission {
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
-        final FieldPermissionsCache fieldPermissionsCache
+        final FieldPermissionsCache fieldPermissionsCache,
+        final Map<String, IndexAbstraction> lookup
     ) {
 
         // now... every index that is associated with the request, must be granted
@@ -488,7 +562,7 @@ public final class IndicesPermission {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
 
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices();
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices(lookup);
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {

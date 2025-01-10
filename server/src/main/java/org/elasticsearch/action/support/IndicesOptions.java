@@ -884,7 +884,8 @@ public record IndicesOptions(
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
-        if (allowSelectors()) {
+        // Until the feature flag is removed we access the field directly from the gatekeeper options.
+        if (gatekeeperOptions().allowSelectors()) {
             if (out.getTransportVersion()
                 .between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
                 backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
@@ -1464,7 +1465,8 @@ public record IndicesOptions(
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
-            + (DataStream.isFailureStoreFeatureFlagEnabled() ? ", allow_selectors=" + allowSelectors() : "")
+            // Until the feature flag is removed we access the field directly from the gatekeeper options.
+            + (DataStream.isFailureStoreFeatureFlagEnabled() ? ", allow_selectors=" + gatekeeperOptions().allowSelectors() : "")
             + ']';
     }
 }

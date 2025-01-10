@@ -86,7 +86,7 @@ Therefore, if the number of replicas equals or exceeds the number of nodes, some
 ===== Recover lost nodes
 
 Shards often become unassigned when a data node leaves the cluster. This can
-occur for several reasons.
+occur for several reasons:
 
 * If you manually restart a node, then it will temporarily cause an unhealthy cluster until the node has recovered.
 

@@ -242,7 +242,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     protected ByteSizeValue mutateInstance(final ByteSizeValue instance) {
         // There's just one way to create an unequal ByteSizeValue: change the size in bytes.
         // Changing only the unit does not make the ByteSizeValue unequal.
-        return new ByteSizeValue(randomValueOtherThan(instance.sizeInBytes, ESTestCase::randomNonNegativeLong), instance.preferredUnit);
+        return new ByteSizeValue(
+            randomValueOtherThan(instance.sizeInBytes, ESTestCase::randomNonNegativeLong),
+            instance.preferredUnit,
+            0xdead
+        );
     }
 
     public void testParse() {
@@ -487,7 +491,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             long wholeUnits = Long.MAX_VALUE / granularity - 1; // Try to provoke a failure by exceeding double precision
             for (var percent = 0; percent < 100; percent++) {
                 String stringToParse = wholeUnits + percentToDecimal(percent) + unit.getSuffix();
-                ByteSizeValue expected = new ByteSizeValue(wholeUnits * granularity + multiplyExact(granularity, percent) / 100, unit);
+                ByteSizeValue expected = new ByteSizeValue(
+                    wholeUnits * granularity + multiplyExact(granularity, percent) / 100,
+                    unit,
+                    0xdead
+                );
                 ByteSizeValue parsedValue = ByteSizeValue.parseBytesSizeValue(stringToParse, "test");
                 assertEquals("Should parse correctly: " + stringToParse, expected, parsedValue);
             }
@@ -519,18 +527,18 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     private void checkAutomaticUnitWithCornerCases(long sizeInBytes, ByteSizeUnit expectedUnit) {
         assertEquals(
             sizeInBytes + " should use " + expectedUnit,
-            new ByteSizeValue(sizeInBytes, expectedUnit),
+            new ByteSizeValue(sizeInBytes, expectedUnit, 0xdead),
             ByteSizeValue.withAutomaticUnit(sizeInBytes)
         );
         // Plus or minus one byte, it should revert to bytes
         assertEquals(
             sizeInBytes - 1 + " should use " + BYTES,
-            new ByteSizeValue(sizeInBytes - 1, BYTES),
+            new ByteSizeValue(sizeInBytes - 1, BYTES, 0xdead),
             ByteSizeValue.withAutomaticUnit(sizeInBytes - 1)
         );
         assertEquals(
             sizeInBytes + 1 + " should use " + BYTES,
-            new ByteSizeValue(sizeInBytes + 1, BYTES),
+            new ByteSizeValue(sizeInBytes + 1, BYTES, 0xdead),
             ByteSizeValue.withAutomaticUnit(sizeInBytes + 1)
         );
     }

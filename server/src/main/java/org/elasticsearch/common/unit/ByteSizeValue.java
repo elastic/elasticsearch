@@ -44,15 +44,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      * @param size denominated in the given {@code unit}
      */
     public static ByteSizeValue of(long size, ByteSizeUnit unit) {
-        if (size < -1 || (size == -1 && unit != BYTES)) {
-            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
-        }
-        if (size > Long.MAX_VALUE / unit.toBytes(1)) {
-            throw new IllegalArgumentException(
-                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
-            );
-        }
-        return new ByteSizeValue(unit.toBytes(size), unit);
+        return new ByteSizeValue(size, unit);
     }
 
     /**
@@ -72,7 +64,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 continue;
             }
             if (sizeInBytes % (candidateUnit.toBytes(1) / 4) == 0) {
-                return new ByteSizeValue(sizeInBytes, candidateUnit);
+                return new ByteSizeValue(sizeInBytes, candidateUnit, 0xdead);
             }
         }
         return ofBytes(sizeInBytes);
@@ -140,9 +132,29 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
     }
 
-    ByteSizeValue(long sizeInBytes, ByteSizeUnit unit) {
-        this.sizeInBytes = sizeInBytes;
+    /**
+     * @deprecated use {@link #of}.
+     */
+    @Deprecated(forRemoval = true)
+    public ByteSizeValue(long size, ByteSizeUnit unit) {
+        if (size < -1 || (size == -1 && unit != BYTES)) {
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
+        }
+        if (size > Long.MAX_VALUE / unit.toBytes(1)) {
+            throw new IllegalArgumentException(
+                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
+            );
+        }
+        this.sizeInBytes = unit.toBytes(size);
         this.preferredUnit = unit;
+    }
+
+    /**
+     * @param ignored distinguishes this overload from {@link ByteSizeValue#ByteSizeValue(long, ByteSizeUnit)}
+     */
+    ByteSizeValue(long sizeInBytes, ByteSizeUnit preferredUnit, int ignored) {
+        this.sizeInBytes = sizeInBytes;
+        this.preferredUnit = preferredUnit;
     }
 
     @Deprecated
@@ -348,7 +360,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                             initialInput
                         );
                     }
-                    return new ByteSizeValue(decimalValue.multiply(new BigDecimal(unit.toBytes(1))).longValue(), unit);
+                    return new ByteSizeValue(decimalValue.multiply(new BigDecimal(unit.toBytes(1))).longValue(), unit, 0xdead);
                 } catch (final NumberFormatException ignored) {
                     throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }

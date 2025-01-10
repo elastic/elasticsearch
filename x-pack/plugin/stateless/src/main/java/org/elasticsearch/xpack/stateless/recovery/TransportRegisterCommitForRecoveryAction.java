@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.ElasticsearchException;
@@ -113,8 +115,14 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
                 listener.onResponse(RegisterCommitResponse.EMPTY);
                 return;
             }
-            assert engine instanceof IndexEngine;
-            var statelessCommitService = ((IndexEngine) engine).getStatelessCommitService();
+            StatelessCommitService statelessCommitService;
+            if (engine instanceof IndexEngine e) {
+                statelessCommitService = e.getStatelessCommitService();
+            } else if (engine instanceof HollowIndexEngine e) {
+                statelessCommitService = e.getStatelessCommitService();
+            } else {
+                throw new IllegalStateException("Unable to get stateless commit service for engine " + engine);
+            }
             statelessCommitService.registerCommitForUnpromotableRecovery(
                 request.getBatchedCompoundCommitPrimaryTermAndGeneration(),
                 request.getCompoundCommitPrimaryTermAndGeneration(),

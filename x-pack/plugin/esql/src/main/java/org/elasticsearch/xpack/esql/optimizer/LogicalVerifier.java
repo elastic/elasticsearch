@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostLogicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -28,8 +28,8 @@ public final class LogicalVerifier {
 
             if (failures.hasFailures() == false) {
                 p.forEachExpression(ex -> {
-                    if (ex instanceof Validatable v) {
-                        v.validate(failures);
+                    if (ex instanceof PostLogicalOptimizationVerificationAware va) {
+                        va.postLogicalOptimizationVerification(failures);
                     }
                 });
             }

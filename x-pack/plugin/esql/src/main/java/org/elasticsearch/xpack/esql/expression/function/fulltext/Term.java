@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostLogicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Full text function that performs a {@link TermQuery} .
  */
-public class Term extends FullTextFunction implements Validatable {
+public class Term extends FullTextFunction implements PostLogicalOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Term", Term::readFrom);
 
@@ -100,7 +100,7 @@ public class Term extends FullTextFunction implements Validatable {
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postLogicalOptimizationVerification(Failures failures) {
         if (field instanceof FieldAttribute == false) {
             failures.add(
                 Failure.fail(

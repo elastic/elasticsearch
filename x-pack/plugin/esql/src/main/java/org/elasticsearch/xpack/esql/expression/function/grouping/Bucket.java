@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostLogicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * from a number of desired buckets (as a hint) and a range (auto mode).
  * In the former case, two parameters will be provided, in the latter four.
  */
-public class Bucket extends GroupingFunction implements Validatable, TwoOptionalArguments {
+public class Bucket extends GroupingFunction implements PostLogicalOptimizationVerificationAware, TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -408,7 +408,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postLogicalOptimizationVerification(Failures failures) {
         String operation = sourceText();
 
         failures.add(isFoldable(buckets, operation, SECOND))

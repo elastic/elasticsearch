@@ -51,7 +51,7 @@ public class LogsIndexModeTests extends ESTestCase {
     public void testDefaultHostNameSortFieldBwc() {
         final IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(
-                indexSettings(IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME), 1, 1).put(
+                indexSettings(IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT), 1, 1).put(
                     buildSettings()
                 )
             )

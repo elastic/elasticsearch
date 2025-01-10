@@ -639,8 +639,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                     @Override
                     public void convertValue(Object value, List<BytesRef> accumulator) {
                         assert value instanceof BytesRef;
-                        // TODO apply ignore_above/normalizer same as sourceValueFetcher()
-                        accumulator.add((BytesRef) value);
+
+                        String stringValue = ((BytesRef) value).utf8ToString();
+                        String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
+                        if (adjusted != null) {
+                            // TODO what if the value didn't change?
+                            accumulator.add(new BytesRef(adjusted));
+                        }
                     }
 
                     @Override
@@ -656,13 +661,20 @@ public final class KeywordFieldMapper extends FieldMapper {
                                 }
 
                                 assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
-                                accumulator.add(new BytesRef(parser.charBuffer()));
+
+                                var value = applyIgnoreAboveAndNormalizer(parser.text());
+                                if (value != null) {
+                                    accumulator.add(new BytesRef(value));
+                                }
                             }
                             return;
                         }
 
                         assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
-                        accumulator.add(new BytesRef(parser.charBuffer()));
+                        var value = applyIgnoreAboveAndNormalizer(parser.text());
+                        if (value != null) {
+                            accumulator.add(new BytesRef(value));
+                        }
                     }
 
                     @Override
@@ -766,13 +778,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
-                        return null;
-                    }
-
-                    return normalizeValue(normalizer(), name(), keywordValue);
+                    return applyIgnoreAboveAndNormalizer(keywordValue);
                 }
             };
+        }
+
+        private String applyIgnoreAboveAndNormalizer(String value) {
+            if (value.length() > ignoreAbove) {
+                return null;
+            }
+
+            return normalizeValue(normalizer(), name(), value);
         }
 
         @Override

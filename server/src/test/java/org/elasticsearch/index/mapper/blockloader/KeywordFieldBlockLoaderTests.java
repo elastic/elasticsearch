@@ -46,7 +46,9 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             // Sorted and no duplicates
 
             var values = new HashSet<>((List<String>) value);
-            var resultList = convertValues.compose(s -> values.stream().filter(Objects::nonNull).sorted())
+            var resultList = Function.identity()
+                .andThen(s -> values.stream().filter(Objects::nonNull).sorted())
+                .andThen(convertValues)
                 .andThen(Stream::toList)
                 .apply(values.stream());
             return maybeFoldList(resultList);

@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -69,6 +71,14 @@ public class RestActionCancellationIT extends HttpSmokeTestCase {
 
     public void testGetComponentTemplateCancellation() {
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_component_template"), GetComponentTemplateAction.NAME);
+    }
+
+    public void testGetIndexTemplateCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_template"), GetIndexTemplatesAction.NAME);
+    }
+
+    public void testGetComposableTemplateCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_index_template"), GetComposableIndexTemplateAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {

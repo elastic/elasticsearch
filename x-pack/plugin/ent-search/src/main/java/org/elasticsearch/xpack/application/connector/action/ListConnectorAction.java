@@ -46,24 +46,28 @@ public class ListConnectorAction {
         private final List<String> connectorNames;
         private final List<String> connectorServiceTypes;
         private final String connectorSearchQuery;
+        private final Boolean includeDeleted;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
         private static final ParseField INDEX_NAMES_FIELD = new ParseField("index_names");
         private static final ParseField NAMES_FIELD = new ParseField("names");
         private static final ParseField SEARCH_QUERY_FIELD = new ParseField("query");
+        private static final ParseField INCLUDE_DELETED_FIELD = new ParseField("include_deleted");
 
         public Request(
             PageParams pageParams,
             List<String> indexNames,
             List<String> connectorNames,
             List<String> serviceTypes,
-            String connectorSearchQuery
+            String connectorSearchQuery,
+            Boolean includeDeleted
         ) {
             this.pageParams = pageParams;
             this.indexNames = indexNames;
             this.connectorNames = connectorNames;
             this.connectorServiceTypes = serviceTypes;
             this.connectorSearchQuery = connectorSearchQuery;
+            this.includeDeleted = includeDeleted;
         }
 
         public PageParams getPageParams() {
@@ -84,6 +88,10 @@ public class ListConnectorAction {
 
         public String getConnectorSearchQuery() {
             return connectorSearchQuery;
+        }
+
+        public Boolean getIncludeDeleted() {
+            return includeDeleted;
         }
 
         @Override
@@ -117,7 +125,8 @@ public class ListConnectorAction {
                 && Objects.equals(indexNames, request.indexNames)
                 && Objects.equals(connectorNames, request.connectorNames)
                 && Objects.equals(connectorServiceTypes, request.connectorServiceTypes)
-                && Objects.equals(connectorSearchQuery, request.connectorSearchQuery);
+                && Objects.equals(connectorSearchQuery, request.connectorSearchQuery)
+                && Objects.equals(includeDeleted, request.includeDeleted);
         }
 
         @Override
@@ -133,7 +142,8 @@ public class ListConnectorAction {
                 (List<String>) p[1],
                 (List<String>) p[2],
                 (List<String>) p[3],
-                (String) p[4]
+                (String) p[4],
+                (Boolean) p[5]
             )
         );
 
@@ -143,6 +153,7 @@ public class ListConnectorAction {
             PARSER.declareStringArray(optionalConstructorArg(), NAMES_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
             PARSER.declareString(optionalConstructorArg(), SEARCH_QUERY_FIELD);
+            PARSER.declareBoolean(optionalConstructorArg(), INCLUDE_DELETED_FIELD);
         }
 
         public static ListConnectorAction.Request parse(XContentParser parser) {
@@ -158,6 +169,7 @@ public class ListConnectorAction {
                 builder.field(NAMES_FIELD.getPreferredName(), connectorNames);
                 builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connectorServiceTypes);
                 builder.field(SEARCH_QUERY_FIELD.getPreferredName(), connectorSearchQuery);
+                builder.field(INCLUDE_DELETED_FIELD.getPreferredName(), includeDeleted);
             }
             builder.endObject();
             return builder;

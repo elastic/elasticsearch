@@ -39,7 +39,7 @@ import java.util.stream.Stream;
  */
 public class License implements ToXContentObject {
 
-    public static final NodeFeature INDEPENDENT_TRIAL_VERSION_FEATURE = new NodeFeature("license-trial-independent-version");
+    public static final NodeFeature INDEPENDENT_TRIAL_VERSION_FEATURE = new NodeFeature("license-trial-independent-version", true);
 
     public enum LicenseType {
         BASIC,

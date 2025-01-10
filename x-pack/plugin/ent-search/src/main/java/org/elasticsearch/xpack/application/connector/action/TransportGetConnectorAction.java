@@ -28,6 +28,10 @@ public class TransportGetConnectorAction extends TransportAction<GetConnectorAct
 
     @Override
     protected void doExecute(Task task, GetConnectorAction.Request request, ActionListener<GetConnectorAction.Response> listener) {
-        connectorIndexService.getConnector(request.getConnectorId(), listener.map(GetConnectorAction.Response::new));
+        connectorIndexService.getConnector(
+            request.getConnectorId(),
+            request.getIncludeDeleted(),
+            listener.map(GetConnectorAction.Response::new)
+        );
     }
 }

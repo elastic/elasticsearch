@@ -23,7 +23,7 @@ import java.io.IOException;
  */
 public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
 
-    public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention");
+    public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention", true);
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
 
     /**

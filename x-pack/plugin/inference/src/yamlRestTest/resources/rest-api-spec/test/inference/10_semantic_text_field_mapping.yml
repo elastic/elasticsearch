@@ -134,8 +134,8 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
   - do:
       field_caps:
@@ -146,7 +146,7 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - not_exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
 
 ---
 "Indexes dense vector document":
@@ -251,8 +251,8 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
   - do:
       field_caps:
@@ -263,7 +263,7 @@ setup:
   - match: { indices: [ "test-index" ] }
   - not_exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
 ---
 "Can't be used as a multifield":

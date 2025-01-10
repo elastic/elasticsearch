@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -48,11 +49,20 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                 false
             )
         );
+        // Default formatter cases
+        TestCaseSupplier.unary(
+            suppliers,
+            "DateFormatConstantEvaluator[val=Attribute[channel=0], formatter=format[strict_date_optional_time] locale[]]",
+            TestCaseSupplier.dateCases(Instant.parse("1900-01-01T00:00:00.00Z"), Instant.parse("9999-12-31T00:00:00.00Z")),
+            DataType.KEYWORD,
+            (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) value).toEpochMilli())),
+            List.of()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
-        return new DateFormat(source, args.get(0), args.get(1), configuration);
+        return new DateFormat(source, args.get(0), args.size() == 2 ? args.get(1) : null, configuration);
     }
 }

@@ -224,7 +224,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             contains(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "Index [test] is a frozen index. The frozen indices feature will be removed in version 9.0.",
+                    "Index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in version 9.0.",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
                     "Frozen indices must be unfrozen before upgrading to version 9.0."
                         + " (The legacy frozen indices feature no longer offers any advantages."

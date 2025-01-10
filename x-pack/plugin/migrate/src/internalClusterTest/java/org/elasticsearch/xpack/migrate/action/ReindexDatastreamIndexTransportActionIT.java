@@ -265,9 +265,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = client().execute(
+            ReindexDataStreamIndexAction.INSTANCE,
+            new ReindexDataStreamIndexAction.Request(sourceIndex, EnumSet.noneOf(IndexMetadata.APIBlock.class))
+        ).actionGet().getDestIndex();
 
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);

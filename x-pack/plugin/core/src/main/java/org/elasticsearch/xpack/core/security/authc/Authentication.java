@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -170,18 +171,46 @@ public final class Authentication implements ToXContentObject {
             type = AuthenticationType.REALM;
             metadata = Map.of();
         }
+
         if (innerUser != null) {
-            authenticatingSubject = new Subject(innerUser, authenticatedBy, version, metadata);
+            authenticatingSubject = new Subject(
+                copyUserWithRolesRemovedForLegacyApiKeys(version, innerUser),
+                authenticatedBy,
+                version,
+                metadata
+            );
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
+            // Note: we do not call copyUserWithRolesRemovedForLegacyApiKeys here because an API key is never the target of run-as
             effectiveSubject = new Subject(outerUser, lookedUpBy, version, Map.of());
         } else {
-            authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
+            authenticatingSubject = effectiveSubject = new Subject(
+                copyUserWithRolesRemovedForLegacyApiKeys(version, outerUser),
+                authenticatedBy,
+                version,
+                metadata
+            );
         }
+
         if (Assertions.ENABLED) {
             checkConsistency();
+        }
+    }
+
+    private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User user) {
+        // API keys prior to 7.8 had synthetic role names. Strip these out to maintain the invariant that API keys don't have role names
+        if (type == AuthenticationType.API_KEY && version.onOrBefore(TransportVersions.V_7_8_0) && user.roles().length > 0) {
+            logger.debug(
+                "Stripping [{}] roles from API key user [{}] for legacy version [{}]",
+                user.roles().length,
+                user.principal(),
+                version
+            );
+            return new User(user.principal(), EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
+        } else {
+            return user;
         }
     }
 

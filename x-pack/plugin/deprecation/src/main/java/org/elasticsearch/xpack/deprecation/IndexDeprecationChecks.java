@@ -119,12 +119,12 @@ public class IndexDeprecationChecks {
         if (Boolean.TRUE.equals(isIndexFrozen)) {
             String indexName = indexMetadata.getIndex().getName();
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
-                "index ["
-                    + indexName
-                    + "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                DeprecationIssue.Level.CRITICAL,
+                "Index [" + indexName + "] is a frozen index. The frozen indices feature is deprecated and will be removed in version 9.0.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
-                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                "Frozen indices must be unfrozen before upgrading to version 9.0."
+                    + " (The legacy frozen indices feature no longer offers any advantages."
+                    + " You may consider cold or frozen tiers in place of frozen indices.)",
                 false,
                 null
             );

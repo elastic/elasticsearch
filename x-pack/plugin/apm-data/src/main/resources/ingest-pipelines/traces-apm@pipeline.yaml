@@ -33,7 +33,7 @@ processors:
 - script:
     if: ctx.event?.outcome == 'success'
     source: |
-        ctx.event.success_count = ctx[ctx.processor?.event].representative_count;
+        ctx.event.success_count = ctx[ctx.processor?.event]?.representative_count;
 - set:
     if: ctx.event?.outcome == 'failure'
     field: event.success_count

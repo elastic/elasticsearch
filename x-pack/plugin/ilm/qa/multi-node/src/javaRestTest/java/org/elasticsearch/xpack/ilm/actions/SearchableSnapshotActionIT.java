@@ -425,7 +425,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             );
             fail("Expected a deprecation warning.");
         } catch (WarningFailureException e) {
-            assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version."));
+            assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
         }
 
         // restore the datastream
@@ -445,7 +445,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             } catch (WarningFailureException e) {
                 assertThat(
                     e.getMessage(),
-                    containsString("The freeze action in ILM is deprecated and will be removed in a future version.")
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version")
                 );
                 stepKeyForIndex = getKeyForIndex(e.getResponse(), searchableSnapMountedIndexName);
             }

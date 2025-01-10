@@ -199,25 +199,18 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
-    private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User innerUser) {
+    private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User user) {
         // API keys prior to 7.8 had synthetic role names. Strip these out to maintain the invariant that API keys don't have role names
-        if (type == AuthenticationType.API_KEY && version.onOrBefore(TransportVersions.V_7_8_0) && innerUser.roles().length > 0) {
+        if (type == AuthenticationType.API_KEY && version.onOrBefore(TransportVersions.V_7_8_0) && user.roles().length > 0) {
             logger.debug(
                 "Stripping [{}] roles from API key user [{}] for legacy version [{}]",
-                innerUser.roles().length,
-                innerUser.principal(),
+                user.roles().length,
+                user.principal(),
                 version
             );
-            return new User(
-                innerUser.principal(),
-                EMPTY_ARRAY,
-                innerUser.fullName(),
-                innerUser.email(),
-                innerUser.metadata(),
-                innerUser.enabled()
-            );
+            return new User(user.principal(), EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
         } else {
-            return innerUser;
+            return user;
         }
     }
 

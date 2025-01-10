@@ -260,6 +260,9 @@ tests:
 - class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
   method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 8.18.0]}
   issue: https://github.com/elastic/elasticsearch/issues/119980
+- class: org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormatTests
+  method: testRandomExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/119981
 
 # Examples:
 #

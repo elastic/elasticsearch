@@ -93,9 +93,9 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
-            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
-            optional("executables", executables, ChunkedToXContentHelper::map),
+            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentObjectFields),
+            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentObjectFields),
+            optional("executables", executables, ChunkedToXContentHelper::object),
             // render only count for backwards-compatibility
             optional(
                 "stack_trace_events",

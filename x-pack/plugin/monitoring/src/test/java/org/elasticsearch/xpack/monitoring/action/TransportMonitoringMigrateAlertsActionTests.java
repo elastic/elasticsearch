@@ -520,7 +520,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         templates.add(".monitoring-logstash");
         templates.add(".monitoring-beats");
 
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT, ".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
     }

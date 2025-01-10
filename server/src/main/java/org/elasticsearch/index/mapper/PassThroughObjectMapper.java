@@ -39,7 +39,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String PRIORITY_PARAM_NAME = "priority";
 
-    static final NodeFeature PASS_THROUGH_PRIORITY = new NodeFeature("mapper.pass_through_priority");
+    static final NodeFeature PASS_THROUGH_PRIORITY = new NodeFeature("mapper.pass_through_priority", true);
 
     public static class Builder extends ObjectMapper.Builder {
 

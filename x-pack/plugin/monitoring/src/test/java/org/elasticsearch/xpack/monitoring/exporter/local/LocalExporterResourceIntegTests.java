@@ -319,7 +319,11 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     private void assertTemplateNotUpdated() {
         final String name = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(system).getTemplateName();
 
-        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin()
+            .indices()
+            .prepareGetTemplates(TEST_REQUEST_TIMEOUT, name)
+            .get()
+            .getIndexTemplates()) {
             final String docMapping = template.getMappings().toString();
 
             assertThat(docMapping, notNullValue());

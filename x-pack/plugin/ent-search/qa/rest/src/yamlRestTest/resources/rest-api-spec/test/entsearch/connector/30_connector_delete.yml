@@ -109,6 +109,33 @@ setup:
 
 
 ---
+"Delete Connector - Supports soft deletes":
+  - requires:
+      cluster_features: ["connector_soft_deletes"]
+      reason: Soft deletes were introduced in 9.0 release
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      connector.get:
+        connector_id: test-connector-to-delete
+
+  - do:
+      connector.get:
+        connector_id: test-connector-to-delete
+        include_deleted: true
+
+  - match: { id: test-connector-to-delete }
+  - match: { index_name: search-1-test }
+  - match: { service_type: super-connector }
+  - match: { name: my-connector }
+
+---
 "Delete connector fails for unprivileged user":
   - skip:
       features: headers

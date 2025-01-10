@@ -39,7 +39,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
             null,
-            null,
             null
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
@@ -78,7 +77,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
-            "name",
             "tool_call_id",
             Collections.singletonList(
                 new UnifiedCompletionRequest.ToolCall(
@@ -127,7 +125,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                     {
                         "content": "Hello, world!",
                         "role": "user",
-                        "name": "name",
                         "tool_call_id": "tool_call_id",
                         "tool_calls": [
                             {
@@ -189,7 +186,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
             null,
-            null,
             null
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
@@ -240,7 +236,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
             null,
-            null,
             Collections.emptyList() // empty toolCalls list
         );
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
@@ -290,7 +285,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         Random random = Randomness.get();
 
         String randomContent = "Hello, world! " + random.nextInt(1000);
-        String randomName = "name" + random.nextInt(1000);
         String randomToolCallId = "tool_call_id" + random.nextInt(1000);
         String randomArguments = "arguments" + random.nextInt(1000);
         String randomFunctionName = "function_name" + random.nextInt(1000);
@@ -303,7 +297,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(randomContent),
             ROLE,
-            randomName,
             randomToolCallId,
             Collections.singletonList(
                 new UnifiedCompletionRequest.ToolCall(
@@ -357,7 +350,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                         {
                             "content": "%s",
                             "role": "user",
-                            "name": "%s",
                             "tool_call_id": "%s",
                             "tool_calls": [
                                 {
@@ -416,7 +408,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                 }
                 """,
             randomContent,
-            randomName,
             randomToolCallId,
             randomArguments,
             randomFunctionName,
@@ -449,11 +440,10 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             new UnifiedCompletionRequest.ContentString(randomContentString),
             ROLE,
             null,
-            null,
             null
         );
 
-        UnifiedCompletionRequest.Message messageWithObjects = new UnifiedCompletionRequest.Message(contentObjects, ROLE, null, null, null);
+        UnifiedCompletionRequest.Message messageWithObjects = new UnifiedCompletionRequest.Message(contentObjects, ROLE, null, null);
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(messageWithString);
         messageList.add(messageWithObjects);
@@ -502,7 +492,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world! \n \"Special\" characters: \t \\ /"),
             ROLE,
-            "name\nwith\nnewlines",
             "tool_call_id\twith\ttabs",
             Collections.singletonList(
                 new UnifiedCompletionRequest.ToolCall(
@@ -541,7 +530,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                     {
                         "content": "Hello, world! \\n \\"Special\\" characters: \\t \\\\ /",
                         "role": "user",
-                        "name": "name\\nwith\\nnewlines",
                         "tool_call_id": "tool_call_id\\twith\\ttabs",
                         "tool_calls": [
                             {
@@ -570,7 +558,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
             ROLE,
-            null,
             null,
             null
         );
@@ -641,7 +628,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             null,
             "assistant",
-            "name\nwith\nnewlines",
             "tool_call_id\twith\ttabs",
             Collections.singletonList(
                 new UnifiedCompletionRequest.ToolCall(
@@ -669,7 +655,6 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                 "messages": [
                     {
                         "role": "assistant",
-                        "name": "name\\nwith\\nnewlines",
                         "tool_call_id": "tool_call_id\\twith\\ttabs",
                         "tool_calls": [
                             {

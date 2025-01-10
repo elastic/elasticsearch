@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -510,6 +511,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public String familyTypeName() {
+            return TextFieldMapper.CONTENT_TYPE;
         }
 
         public String getInferenceId() {

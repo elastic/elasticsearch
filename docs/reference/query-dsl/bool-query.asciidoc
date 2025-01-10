@@ -29,7 +29,7 @@ ignored, a score of `0` for all documents is returned. Each query defined under 
 
 |=======================================================================
 
-The `must` and `should` clauses function as logical AND, OR operators, contributing to the scoring of results, but these results will not be cached for faster retrieval. In contrast, the `filter` and `must_not` clauses are used to include or exclude results without impacting score—unless used within a `constant_score` query.
+The `must` and `should` clauses function as logical AND, OR operators, contributing to the scoring of results. However, these results will not be cached for faster retrieval. In contrast, the `filter` and `must_not` clauses are used to include or exclude results without impacting the score, unless used within a `constant_score` query.
 
 The `bool` query takes a _more-matches-is-better_ approach, so the score from
 each matching `must` or `should` clause will be added together to provide the

@@ -88,6 +88,9 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
             var current = new StringBuilder();
             for (String part : fieldName.split("\\.")) {
+                if (current.isEmpty() == false) {
+                    current.append('.');
+                }
                 current.append(part);
                 fieldNames.add(current.toString());
             }

@@ -1,0 +1,7 @@
+pr: 119935
+summary: Optimize `LogsdbIndexModeSettingsProvider#newIndexHasSyntheticSourceUsage(...)`
+  logic
+area: Logs
+type: enhancement
+issues:
+ - 119552

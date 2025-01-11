@@ -12,10 +12,13 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
@@ -51,7 +54,18 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {
-                p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                // Stop propagation if an aggregate is found in the children
+                AtomicBoolean findAggregatePlan = new AtomicBoolean(false);
+                p.transformDown(childPlan -> {
+                    if (childPlan instanceof Aggregate) {
+                        findAggregatePlan.set(true);
+                        return childPlan;
+                    }
+                    return childPlan;
+                });
+                if (findAggregatePlan.get() == false) {
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                }
             }
             return p;
         });

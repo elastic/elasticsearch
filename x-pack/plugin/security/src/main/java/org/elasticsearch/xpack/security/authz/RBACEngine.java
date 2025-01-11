@@ -874,19 +874,17 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    IndicesPermission.AuthorizedComponents authResult = predicate.test(indexAbstraction);
+                    IndicesPermission.AuthorizedComponents authResult = predicate.check(indexAbstraction);
                     if (authResult != null && authResult != IndicesPermission.AuthorizedComponents.NONE) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                            if (authResult == IndicesPermission.AuthorizedComponents.ALL
-                                || authResult == IndicesPermission.AuthorizedComponents.DATA) {
+                            if (authResult.isDataAuthorized()) {
                                 for (Index index : indexAbstraction.getIndices()) {
                                     indicesAndAliases.add(index.getName());
                                 }
                             }
 
-                            if (authResult == IndicesPermission.AuthorizedComponents.ALL
-                                || authResult == IndicesPermission.AuthorizedComponents.FAILURES) {
+                            if (authResult.isFailuresAuthorized()) {
                                 for (Index index : ((DataStream) indexAbstraction).getFailureIndices().getIndices()) {
                                     indicesAndAliases.add(index.getName());
                                 }
@@ -897,10 +895,10 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    IndicesPermission.AuthorizedComponents authResult = predicate.test(indexAbstraction);
+                    IndicesPermission.AuthorizedComponents authResult = predicate.check(indexAbstraction);
                     if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
                         && authResult != null
-                        && authResult != IndicesPermission.AuthorizedComponents.NONE) {
+                        && authResult.isDataAuthorized()) {
                         indicesAndAliases.add(indexAbstraction.getName());
                     }
                 }
@@ -909,17 +907,7 @@ public class RBACEngine implements AuthorizationEngine {
             return indicesAndAliases;
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
-            if (indexAbstraction == null) {
-                // test access (by name) to a resource that does not currently exist
-                // the action handler must handle the case of accessing resources that do not exist
-                return predicate.test(name, null);
-            } else {
-                // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-                // more efficient than checking the index name first because we recommend grant privileges over data stream
-                // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
-                    || predicate.test(indexAbstraction);
-            }
+            return predicate.test(name, indexAbstraction).isAnyAuthorized();
         });
     }
 

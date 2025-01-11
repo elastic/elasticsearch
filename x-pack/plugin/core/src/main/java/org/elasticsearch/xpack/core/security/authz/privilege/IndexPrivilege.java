@@ -83,9 +83,7 @@ public final class IndexPrivilege extends Privilege {
     );
     // This is a special case: read_failures acts like `read` *only* for failure store indices in authorized data streams.
     // This internal action is not used, but having it makes automaton subset checks work as expected with this privilege.
-    private static final Automaton READ_FAILURES_AUTOMATON = patterns(
-        "internal:special/read_failures"
-    );
+    private static final Automaton READ_FAILURES_AUTOMATON = patterns("internal:special/read_failures");
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),

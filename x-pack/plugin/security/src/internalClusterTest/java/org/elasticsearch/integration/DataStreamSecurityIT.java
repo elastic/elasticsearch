@@ -221,7 +221,8 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         bulkRequest.add(
             new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
                 .source("{\"code\": \"well this aint right\"}", XContentType.JSON),
-            new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE).source("{\"@timestamp\": \"2015-01-01T12:10:30Z\", \"code\": 404}", XContentType.JSON)
+            new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+                .source("{\"@timestamp\": \"2015-01-01T12:10:30Z\", \"code\": 404}", XContentType.JSON)
         );
         BulkResponse bulkResponse = adminClient.bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(2));

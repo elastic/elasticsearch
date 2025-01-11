@@ -205,7 +205,7 @@ public final class LimitedRole implements Role {
      */
     @Override
     public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
-        return baseRole.allowedIndicesMatcher(action).and(limitedByRole.allowedIndicesMatcher(action));
+        return baseRole.allowedIndicesMatcher(action).alsoRequire(limitedByRole.allowedIndicesMatcher(action));
     }
 
     @Override

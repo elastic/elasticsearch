@@ -75,7 +75,7 @@ public final class IndicesPermission {
         FAILURES,
         ALL;
 
-        public AuthorizedComponents combine(AuthorizedComponents other) {
+        public AuthorizedComponents union(AuthorizedComponents other) {
             if (other == null) {
                 return this;
             }
@@ -84,6 +84,18 @@ public final class IndicesPermission {
                 case NONE -> other;
                 case DATA -> other.isFailuresAuthorized() ? ALL : DATA;
                 case FAILURES -> other.isDataAuthorized() ? ALL : FAILURES;
+            };
+        }
+
+        public AuthorizedComponents intersection(AuthorizedComponents other) {
+            if (other == null) {
+                return NONE;
+            }
+            return switch (this) {
+                case ALL -> other;
+                case NONE -> NONE;
+                case DATA -> other.isDataAuthorized() ? DATA : NONE;
+                case FAILURES -> other.isFailuresAuthorized() ? FAILURES : NONE;
             };
         }
 
@@ -196,7 +208,7 @@ public final class IndicesPermission {
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         IsResourceAuthorizedPredicate predicate = new IsResourceAuthorizedPredicate((name, abstraction) -> AuthorizedComponents.NONE);
         for (final Group group : groups) {
-            predicate = predicate.and(group.allowedIndicesPredicate(action));
+            predicate = predicate.orAllowIf(group.allowedIndicesPredicate(action));
         }
         return predicate;
     }
@@ -219,7 +231,7 @@ public final class IndicesPermission {
         * authorization tests of that other instance and this one.
         */
         // @Override
-        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
+        public final IsResourceAuthorizedPredicate orAllowIf(IsResourceAuthorizedPredicate other) {
             Objects.requireNonNull(other);
             return new IsResourceAuthorizedPredicate((name, abstraction) -> {
                 AuthorizedComponents authResult = this.biPredicate.apply(name, abstraction);
@@ -228,18 +240,32 @@ public final class IndicesPermission {
                     case null -> other.biPredicate.apply(name, abstraction);
                     case NONE -> other.biPredicate.apply(name, abstraction); // Can't do worse than totally unauthorized, thank u NEXT
                     case ALL -> AuthorizedComponents.ALL; // Can't do better than ALL, so short circuit
-                    case DATA, FAILURES -> authResult.combine(other.biPredicate.apply(name, abstraction));
+                    case DATA, FAILURES -> authResult.union(other.biPredicate.apply(name, abstraction));
+                };
+            });
+        }
+
+        public final IsResourceAuthorizedPredicate alsoRequire(IsResourceAuthorizedPredicate other) {
+            Objects.requireNonNull(other);
+            return new IsResourceAuthorizedPredicate((name, abstraction) -> {
+                AuthorizedComponents authResult = this.biPredicate.apply(name, abstraction);
+                // If we're only authorized for some components, other predicates might authorize us for the rest
+                return switch (authResult) {
+                    case null -> AuthorizedComponents.NONE;
+                    case NONE -> AuthorizedComponents.NONE;
+                    case ALL -> other.biPredicate.apply(name, abstraction);
+                    case DATA, FAILURES -> authResult.intersection(other.biPredicate.apply(name, abstraction));
                 };
             });
         }
 
         /**
          * Check which components of the given {@param indexAbstraction} resource is authorized.
-         * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction)} method.
+         * The resource must exist. Otherwise, use the {@link #check(String, IndexAbstraction)} method.
          * @return An object representing which components of this index abstraction the user is authorized to access
          */
         public final AuthorizedComponents check(IndexAbstraction indexAbstraction) {
-            return test(indexAbstraction.getName(), indexAbstraction);
+            return check(indexAbstraction.getName(), indexAbstraction);
         }
 
         public final boolean test(IndexAbstraction indexAbstraction) {
@@ -253,7 +279,7 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public AuthorizedComponents test(String name, @Nullable IndexAbstraction indexAbstraction) {
+        public AuthorizedComponents check(String name, @Nullable IndexAbstraction indexAbstraction) {
             return biPredicate.apply(name, indexAbstraction);
         }
     }
@@ -582,7 +608,8 @@ public final class IndicesPermission {
 
             final Collection<String> concreteIndices = resource.resolveConcreteIndices(lookup);
             for (Group group : groups) {
-                AuthorizedComponents authorizedComponents = group.allowedIndicesPredicate(action).check(resource.indexAbstraction);
+                AuthorizedComponents authorizedComponents = group.allowedIndicesPredicate(action)
+                    .check(resource.name, resource.indexAbstraction);
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (authorizedComponents != null && authorizedComponents != AuthorizedComponents.NONE) {
                     granted = true;
@@ -676,7 +703,7 @@ public final class IndicesPermission {
             boolean granted = false;
 
             for (Group group : groups) {
-                AuthorizedComponents authResult = group.allowedIndicesPredicate(action).check(resource.indexAbstraction);
+                AuthorizedComponents authResult = group.allowedIndicesPredicate(action).check(resource.name, resource.indexAbstraction);
                 if (authResult != null && authResult.isAnyAuthorized()) {
                     granted = true;
                     break;
@@ -858,7 +885,8 @@ public final class IndicesPermission {
                     if (isMappingUpdateAction
                         && hasMappingUpdateBwcPermissions
                         && resource != null
-                        && resource.getParentDataStream() == null) {
+                        && resource.getParentDataStream() == null
+                        && resource.getType() != IndexAbstraction.Type.DATA_STREAM) {
                         boolean alreadyLogged = logged.getAndSet(true);
                         if (alreadyLogged == false) {
                             for (String privilegeName : this.privilege.name()) {

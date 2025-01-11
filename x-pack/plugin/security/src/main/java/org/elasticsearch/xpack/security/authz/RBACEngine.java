@@ -907,7 +907,7 @@ public class RBACEngine implements AuthorizationEngine {
             return indicesAndAliases;
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
-            return predicate.test(name, indexAbstraction).isAnyAuthorized();
+            return predicate.check(name, indexAbstraction).isAnyAuthorized();
         });
     }
 

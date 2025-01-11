@@ -751,14 +751,12 @@ public class IndicesPermissionTests extends ESTestCase {
                 StringMatcher regularNames = StringMatcher.of("c", "a");
                 StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
                 if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
-                    return regularNames.test(name)
-                        ? IndicesPermission.AuthorizedComponents.DATA
-                        : IndicesPermission.AuthorizedComponents.NONE;
-                } else {
-                    return nonDatastreamNames.test(name)
-                        ? IndicesPermission.AuthorizedComponents.DATA
-                        : IndicesPermission.AuthorizedComponents.NONE;
+                    if (nonDatastreamNames.test(name)) {
+                        return IndicesPermission.AuthorizedComponents.DATA;
+                    }
                 }
+                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+
             }
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
@@ -766,14 +764,12 @@ public class IndicesPermissionTests extends ESTestCase {
                 StringMatcher regularNames = StringMatcher.of("c", "b");
                 StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
                 if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
-                    return regularNames.test(name)
-                        ? IndicesPermission.AuthorizedComponents.DATA
-                        : IndicesPermission.AuthorizedComponents.NONE;
-                } else {
-                    return nonDatastreamNames.test(name)
-                        ? IndicesPermission.AuthorizedComponents.DATA
-                        : IndicesPermission.AuthorizedComponents.NONE;
+                    if (nonDatastreamNames.test(name)) {
+                        return IndicesPermission.AuthorizedComponents.DATA;
+                    }
                 }
+                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+
             }
 
         );
@@ -794,7 +790,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
         IndexAbstraction concreteIndexD = concreteIndexAbstraction("d");
-        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
+        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.alsoRequire(predicate2);
         assertThat(predicate.test(dataStreamA), is(false));
         assertThat(predicate.test(dataStreamB), is(false));
         assertThat(predicate.test(dataStreamC), is(true));

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.fieldcaps;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
@@ -332,7 +331,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertIndices(response, "new_index");
     }
 
-    @Repeat(iterations = 1000)
     public void testNoIndicesIgnoreUnavailable() {
         boolean ignoreUnavailable = true;
         IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
@@ -723,7 +721,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         value = "org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction:TRACE",
         reason = "verify the log output on cancelled"
     )
-    @Repeat(iterations = 1000)
     public void testCancel() throws Exception {
         try (var mockLog = MockLog.capture(TransportFieldCapabilitiesAction.class)) {
             mockLog.addExpectation(

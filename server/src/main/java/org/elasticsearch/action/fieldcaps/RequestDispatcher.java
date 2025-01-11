@@ -261,6 +261,7 @@ final class RequestDispatcher {
                             consumeUnmatchedShardId(new ShardId(in));
                         }
                     } catch (Exception e) {
+                        in.skip(in.available());
                         failure = e;
                     }
                     return TransportResponse.Empty.INSTANCE;

@@ -917,10 +917,11 @@ public final class IndicesPermission {
 
             return (String abstractionName, IndexAbstraction resource) -> {
                 assert resource == null || abstractionName.equals(resource.getName());
-                return switch (resource) {
-                    case IndexAbstraction.Alias alias -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
-                    case DataStream dataStream -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
-                    case IndexAbstraction.ConcreteIndex index -> {
+                return switch (resource.getType()) {
+                    case ALIAS -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
+                    case DATA_STREAM -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
+                    case CONCRETE_INDEX -> {
+                        IndexAbstraction.ConcreteIndex index = (IndexAbstraction.ConcreteIndex) resource;
                         final DataStream ds = index.getParentDataStream();
 
                         if (ds != null) {
@@ -948,13 +949,6 @@ public final class IndicesPermission {
                         yield AuthorizedComponents.NONE;
                     }
                     case null -> indexNameMatcher.test(abstractionName) ? AuthorizedComponents.DATA : AuthorizedComponents.NONE;
-                    default -> {
-                        assert false
-                            : "unsupported index abstraction type, add support for your new index abstraction type "
-                                + resource.getClass().getCanonicalName()
-                                + " here";
-                        throw new IllegalStateException("unsupported index abstraction type: " + resource.getClass().getCanonicalName());
-                    }
                 };
             };
         }

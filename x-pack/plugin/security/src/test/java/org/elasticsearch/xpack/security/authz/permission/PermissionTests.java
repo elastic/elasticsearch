@@ -57,6 +57,15 @@ public class PermissionTests extends ESTestCase {
             when(mockIndexAbstraction.getName()).thenReturn("ingest_foo" + randomAlphaOfLength(3));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
             assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            assertWarnings(
+                "the index privilege [create] allowed the update mapping action ["
+                    + mappingUpdateActionName
+                    + "] on "
+                    + "index ["
+                    + mockIndexAbstraction.getName()
+                    + "], this privilege will not permit mapping updates in the next major release - "
+                    + "users who require access to update mappings must be granted explicit privileges"
+            );
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
             assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
             // mapping updates are NOT permitted on data streams and backing indices

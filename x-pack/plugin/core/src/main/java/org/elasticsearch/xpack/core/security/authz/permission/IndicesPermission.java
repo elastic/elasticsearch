@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -542,7 +543,7 @@ public final class IndicesPermission {
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
-            // we need to consider the selector here?
+
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
             resources.put(resource.name, resource);
             totalResourceCount += resource.size(lookup);
@@ -574,8 +575,6 @@ public final class IndicesPermission {
         final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
-
-        final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (IndexResource resource : requestedResources.values()) {
             // true if ANY group covers the given index AND the given action
@@ -672,23 +671,15 @@ public final class IndicesPermission {
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
     private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
-
-        final boolean isMappingUpdateAction = isMappingUpdateAction(action);
-
-        // check failure store here too
         for (IndexResource resource : requestedResources.values()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
 
             for (Group group : groups) {
                 AuthorizedComponents authResult = group.allowedIndicesPredicate(action).check(resource.indexAbstraction);
-                if (authResult != null && authResult != AuthorizedComponents.NONE) {
-                    boolean actionCheck = group.checkAction(action);
-                    // If action is granted we don't have to check for BWC and can stop at first granting group.
-                    if (actionCheck) {
-                        granted = true;
-                        break;
-                    }
+                if (authResult != null && authResult.isAnyAuthorized()) {
+                    granted = true;
+                    break;
                 }
             }
 
@@ -862,25 +853,32 @@ public final class IndicesPermission {
             boolean actionMatches = actionMatcher.test(action);
             boolean actionAuthorized = actionMatches || (isReadAction && hasReadFailuresPrivilege);
             if (actionAuthorized == false) {
+                AtomicBoolean logged = new AtomicBoolean(false);
                 return (name, resource) -> {
-                    if (isMappingUpdateAction && hasMappingUpdateBwcPermissions && resource.getParentDataStream() == null) {
-                        for (String privilegeName : this.privilege.name()) {
-                            if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
-                                // ATHE: Does this log more often?
-                                deprecationLogger.warn(
-                                    DeprecationCategory.SECURITY,
-                                    "[" + resource.getName() + "] mapping update for ingest privilege [" + privilegeName + "]",
-                                    "the index privilege ["
-                                        + privilegeName
-                                        + "] allowed the update "
-                                        + "mapping action ["
-                                        + action
-                                        + "] on index ["
-                                        + resource.getName()
-                                        + "], this privilege "
-                                        + "will not permit mapping updates in the next major release - users who require access "
-                                        + "to update mappings must be granted explicit privileges"
-                                );
+                    if (isMappingUpdateAction
+                        && hasMappingUpdateBwcPermissions
+                        && resource != null
+                        && resource.getParentDataStream() == null) {
+                        boolean alreadyLogged = logged.getAndSet(true);
+                        if (alreadyLogged == false) {
+                            for (String privilegeName : this.privilege.name()) {
+                                if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
+                                    // ATHE: Does this log more often?
+                                    deprecationLogger.warn(
+                                        DeprecationCategory.SECURITY,
+                                        "[" + resource.getName() + "] mapping update for ingest privilege [" + privilegeName + "]",
+                                        "the index privilege ["
+                                            + privilegeName
+                                            + "] allowed the update "
+                                            + "mapping action ["
+                                            + action
+                                            + "] on index ["
+                                            + resource.getName()
+                                            + "], this privilege "
+                                            + "will not permit mapping updates in the next major release - users who require access "
+                                            + "to update mappings must be granted explicit privileges"
+                                    );
+                                }
                             }
                         }
                         return AuthorizedComponents.ALL;

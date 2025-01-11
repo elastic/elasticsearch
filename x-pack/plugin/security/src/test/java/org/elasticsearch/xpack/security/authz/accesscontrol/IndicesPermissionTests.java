@@ -583,6 +583,11 @@ public class IndicesPermissionTests extends ESTestCase {
             "the index privilege [write] allowed the update mapping action ["
                 + TransportPutMappingAction.TYPE.name()
                 + "] on "
+                + "index [test1], this privilege will not permit mapping updates in the next major release - "
+                + "users who require access to update mappings must be granted explicit privileges",
+            "the index privilege [write] allowed the update mapping action ["
+                + TransportPutMappingAction.TYPE.name()
+                + "] on "
                 + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
@@ -602,6 +607,11 @@ public class IndicesPermissionTests extends ESTestCase {
                 + TransportAutoPutMappingAction.TYPE.name()
                 + "] on "
                 + "index [test1], this privilege will not permit mapping updates in the next major release - "
+                + "users who require access to update mappings must be granted explicit privileges",
+            "the index privilege [index] allowed the update mapping action ["
+                + TransportAutoPutMappingAction.TYPE.name()
+                + "] on "
+                + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
 

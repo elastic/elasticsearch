@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fieldcaps;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;

@@ -823,6 +823,7 @@ public final class SearchPhaseController {
             isCanceled,
             listener,
             numShards,
+            -1,
             onPartialMergeFailure
         );
     }

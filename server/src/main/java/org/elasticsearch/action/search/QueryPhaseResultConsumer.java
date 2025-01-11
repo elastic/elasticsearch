@@ -96,6 +96,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
+     * @param batchReduceSize number of results to accumulate before merging results, or -1 if it should be automatically determined
+     *                        from the {@code request}
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,
@@ -105,6 +107,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Supplier<Boolean> isCanceled,
         SearchProgressListener progressListener,
         int expectedResultSize,
+        int batchReduceSize,
         Consumer<Exception> onPartialMergeFailure
     ) {
         super(expectedResultSize);
@@ -124,11 +127,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasTopDocs = (source == null || size != 0) && queryPhaseRankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
-        // TODO: facepalm
-        if (request.getBatchedReduceSize() == Integer.MAX_VALUE) {
-            batchReduceSize = Integer.MAX_VALUE;
+        if (batchReduceSize >= 0) {
+            this.batchReduceSize = batchReduceSize;
         } else {
-            batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
+            this.batchReduceSize = (hasAggs || hasTopDocs)
+                ? Math.min(request.getBatchedReduceSize(), expectedResultSize)
+                : expectedResultSize;
         }
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
     }

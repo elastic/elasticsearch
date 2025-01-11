@@ -15,7 +15,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -103,7 +104,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     protected final SearchPhaseResults<SearchPhaseResult> results;
-    private final TransportVersion minTransportVersion;
+    private final Version minNodeVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
@@ -176,7 +177,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
-        this.minTransportVersion = clusterState.getMinTransportVersion();
+        this.minNodeVersion = clusterState.nodes().getMinNodeVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -521,7 +522,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         return request;
     }
 
-    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.current();
+    private static final Version BATCHED_QUERY_PHASE_VERSION = Version.V_9_0_0;
 
     @Override
     public void run() throws IOException {
@@ -540,7 +541,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             finishIfAllDone();
             return;
         }
-        final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION);
+        final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
         doCheckNoMissingShards(getName(), request, shardsIts);
         final String localClusterAlias = request.getLocalClusterAlias();
@@ -967,6 +968,8 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");
+
     public static void registerNodeSearchAction(SearchTransportService searchTransportService, SearchService searchService) {
         var transportService = searchTransportService.transportService();
         final Dependencies dependencies = new Dependencies(
@@ -981,19 +984,18 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             NodeQueryRequest::new,
             (request, channel, task) -> {
                 final int shardCount = request.shards.size();
-                // TODO: start at 0
-                request.searchRequest.setBatchedReduceSize(Integer.MAX_VALUE);
                 final int workers = Math.min(shardCount, searchPoolMax);
                 final var state = new QueryPerNodeState(
                     new AtomicInteger(workers - 1),
                     new QueryPhaseResultConsumer(
                         request.searchRequest,
                         dependencies.executor,
-                        new NoopCircuitBreaker("request"),
+                        NOOP_CIRCUIT_BREAKER, // noop cb for now since we do not have a breaker in this situation in un-batched execution
                         searchPhaseController,
                         ((CancellableTask) task)::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
+                        Integer.MAX_VALUE,
                         e -> logger.error("failed to merge on data node", e)
                     ),
                     request,

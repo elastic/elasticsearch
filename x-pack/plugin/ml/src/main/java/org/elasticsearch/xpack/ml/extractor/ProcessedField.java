@@ -38,10 +38,9 @@ public class ProcessedField {
         return Collections.singleton(preProcessor.getOutputFieldType(outputField));
     }
 
-    public Object[] value(SearchHit hit, Function<String, ExtractedField> fieldExtractor) {
+    public Object[] value(SearchHit hit, SourceSupplier sourceSupplier, Function<String, ExtractedField> fieldExtractor) {
         List<String> inputFields = getInputFieldNames();
         Map<String, Object> inputs = Maps.newMapWithExpectedSize(inputFields.size());
-        SourceSupplier sourceSupplier = new SourceSupplier(hit);
         for (String field : inputFields) {
             ExtractedField extractedField = fieldExtractor.apply(field);
             if (extractedField == null) {

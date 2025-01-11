@@ -211,8 +211,7 @@ public class InferenceRunner {
 
                 for (SearchHit doc : batch) {
                     dataCountsTracker.incrementTestDocsCount();
-                    final SourceSupplier sourceSupplier = new SourceSupplier(doc);
-                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
+                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, new SourceSupplier(doc)));
                     bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
 
                     processedDocCount++;

@@ -260,7 +260,8 @@ public class DataFrameDataExtractor {
                 hasNext = false;
                 break;
             }
-            rows.add(createRow(hit));
+            var unpooled = hit.asUnpooled();
+            rows.add(createRow(unpooled, new SourceSupplier(unpooled)));
         }
         return rows;
     }
@@ -280,8 +281,8 @@ public class DataFrameDataExtractor {
         return null;
     }
 
-    private String[] extractProcessedValue(ProcessedField processedField, SearchHit hit) {
-        Object[] values = processedField.value(hit, extractedFieldsByName::get);
+    private String[] extractProcessedValue(ProcessedField processedField, SearchHit hit, SourceSupplier sourceSupplier) {
+        Object[] values = processedField.value(hit, sourceSupplier, extractedFieldsByName::get);
         if (values.length == 0 && context.supportsRowsWithMissingValues == false) {
             return null;
         }
@@ -318,14 +319,14 @@ public class DataFrameDataExtractor {
         return extractedValue;
     }
 
-    private Row createRow(SearchHit hit) {
-        var unpooled = hit.asUnpooled();
-        String[] extractedValues = extractValues(unpooled, new SourceSupplier(unpooled));
+    private Row createRow(SearchHit hit, SourceSupplier sourceSupplier) {
+        assert hit.isPooled() == false;
+        String[] extractedValues = extractValues(hit, sourceSupplier);
         if (extractedValues == null) {
-            return new Row(null, unpooled, true);
+            return new Row(null, hit, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, unpooled, isTraining);
+        Row row = new Row(extractedValues, hit, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",
@@ -349,7 +350,7 @@ public class DataFrameDataExtractor {
             extractedValues[i++] = extractedValue;
         }
         for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
-            String[] processedValues = extractProcessedValue(processedField, hit);
+            String[] processedValues = extractProcessedValue(processedField, hit, sourceSupplier);
             if (processedValues == null) {
                 return null;
             }

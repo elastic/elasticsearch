@@ -218,6 +218,8 @@ final class RequestDispatcher {
             TransportRequestOptions.EMPTY,
             new TransportResponseHandler<>() {
 
+                private Exception failure;
+
                 @Override
                 public Executor executor() {
                     return executor;
@@ -225,11 +227,20 @@ final class RequestDispatcher {
 
                 @Override
                 public void handleResponse(TransportResponse response) {
+                    var f = this.failure;
+                    if (f != null) {
+                        onFailure(f);
+                        return;
+                    }
                     afterRequestsCompleted(nodeRequest.shardIds().size());
                 }
 
                 @Override
                 public void handleException(TransportException e) {
+                    onFailure(e);
+                }
+
+                private void onFailure(Exception e) {
                     try {
                         onRequestFailure(nodeRequest.shardIds(), e);
                     } finally {
@@ -239,14 +250,18 @@ final class RequestDispatcher {
 
                 @Override
                 public TransportResponse read(StreamInput in) throws IOException {
-                    FieldCapabilitiesIndexResponse.readList(in, RequestDispatcher.this::consumeIndexResponse);
-                    int failures = in.readVInt();
-                    for (int i = 0; i < failures; i++) {
-                        consumeFailure(new ShardId(in), in.readException());
-                    }
-                    int unmatched = in.readVInt();
-                    for (int i = 0; i < unmatched; i++) {
-                        consumeUnmatchedShardId(new ShardId(in));
+                    try {
+                        FieldCapabilitiesIndexResponse.readList(in, RequestDispatcher.this::consumeIndexResponse);
+                        int failures = in.readVInt();
+                        for (int i = 0; i < failures; i++) {
+                            consumeFailure(new ShardId(in), in.readException());
+                        }
+                        int unmatched = in.readVInt();
+                        for (int i = 0; i < unmatched; i++) {
+                            consumeUnmatchedShardId(new ShardId(in));
+                        }
+                    } catch (Exception e) {
+                        failure = e;
                     }
                     return TransportResponse.Empty.INSTANCE;
                 }
@@ -277,7 +292,9 @@ final class RequestDispatcher {
     }
 
     private void afterRequestsCompleted(int numRequests) {
-        if (pendingRequests.addAndGet(-numRequests) == 0) {
+        int res = pendingRequests.addAndGet(-numRequests);
+        assert res >= 0;
+        if (res == 0) {
             // Here we only retry after all pending requests have responded to avoid exploding network requests
             // when the cluster is unstable or overloaded as an eager retry approach can add more load to the cluster.
             executionRound.incrementAndGet();

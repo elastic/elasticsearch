@@ -42,6 +42,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -646,6 +647,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         unmatched.add(shardId);
                     }
                 } catch (Exception e) {
+                    if (task.isCancelled() && e instanceof TaskCancelledException taskCancelledException) {
+                        throw taskCancelledException;
+                    }
                     if (failures == null) {
                         failures = new HashMap<>();
                     }

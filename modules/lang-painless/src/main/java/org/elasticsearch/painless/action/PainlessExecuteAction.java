@@ -461,7 +461,6 @@ public class PainlessExecuteAction {
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             result = in.readGenericValue();
         }
 

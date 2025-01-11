@@ -91,7 +91,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             datafeed = new DatafeedConfig(in);
         }
 

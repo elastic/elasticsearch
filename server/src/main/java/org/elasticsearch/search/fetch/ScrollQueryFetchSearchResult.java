@@ -22,7 +22,6 @@ public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
     private final QueryFetchSearchResult result;
 
     public ScrollQueryFetchSearchResult(StreamInput in) throws IOException {
-        super(in);
         SearchShardTarget searchShardTarget = new SearchShardTarget(in);
         result = new QueryFetchSearchResult(in);
         setSearchShardTarget(searchShardTarget);

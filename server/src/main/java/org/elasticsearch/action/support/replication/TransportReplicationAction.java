@@ -1214,7 +1214,6 @@ public abstract class TransportReplicationAction<
         private final long globalCheckpoint;
 
         ReplicaResponse(StreamInput in) throws IOException {
-            super(in);
             localCheckpoint = in.readZLong();
             globalCheckpoint = in.readZLong();
         }

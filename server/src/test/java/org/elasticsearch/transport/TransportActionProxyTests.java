@@ -450,7 +450,6 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         SimpleTestResponse(StreamInput in) throws IOException {
-            super(in);
             this.targetNode = in.readString();
         }
 

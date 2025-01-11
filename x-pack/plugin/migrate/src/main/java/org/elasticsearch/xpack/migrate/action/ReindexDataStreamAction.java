@@ -56,7 +56,6 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         }
 
         public ReindexDataStreamResponse(StreamInput in) throws IOException {
-            super(in);
             this.taskId = in.readString();
         }
 

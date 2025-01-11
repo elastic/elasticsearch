@@ -80,7 +80,6 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
             persistentSettings = Settings.readSettingsFromStream(in);
             transientSettings = Settings.readSettingsFromStream(in);

@@ -42,7 +42,6 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     }
 
     public DelegatePkiAuthenticationResponse(StreamInput input) throws IOException {
-        super(input);
         accessToken = input.readString();
         expiresIn = input.readTimeValue();
         if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {

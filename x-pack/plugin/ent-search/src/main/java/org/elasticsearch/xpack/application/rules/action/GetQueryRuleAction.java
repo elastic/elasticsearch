@@ -126,7 +126,6 @@ public class GetQueryRuleAction {
         private final QueryRule queryRule;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryRule = new QueryRule(in);
         }
 

@@ -28,7 +28,6 @@ public class ConnectorUpdateActionResponse extends ActionResponse implements ToX
     final DocWriteResponse.Result result;
 
     public ConnectorUpdateActionResponse(StreamInput in) throws IOException {
-        super(in);
         result = DocWriteResponse.Result.readFrom(in);
     }
 

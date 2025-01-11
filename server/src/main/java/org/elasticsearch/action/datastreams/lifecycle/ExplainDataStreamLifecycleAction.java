@@ -160,7 +160,6 @@ public class ExplainDataStreamLifecycleAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)

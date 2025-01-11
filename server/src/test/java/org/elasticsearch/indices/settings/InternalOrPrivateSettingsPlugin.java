@@ -104,9 +104,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         static class Response extends ActionResponse {
             Response() {}
 
-            Response(StreamInput in) throws IOException {
-                super(in);
-            }
+            Response(StreamInput in) {}
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {}

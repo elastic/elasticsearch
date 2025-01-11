@@ -50,7 +50,6 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
     private final boolean acknowledged;
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
-        super(in);
         acknowledged = in.readBoolean();
         state = ClusterState.readFrom(in, null);
         explanations = RoutingExplanations.readFrom(in);

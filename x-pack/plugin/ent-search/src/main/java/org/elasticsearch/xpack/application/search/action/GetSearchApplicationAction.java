@@ -109,7 +109,6 @@ public class GetSearchApplicationAction {
         private final SearchApplication searchApp;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.searchApp = new SearchApplication(in);
         }
 

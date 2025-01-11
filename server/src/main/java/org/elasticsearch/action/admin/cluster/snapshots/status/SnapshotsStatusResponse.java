@@ -29,7 +29,6 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
     private final List<SnapshotStatus> snapshots;
 
     public SnapshotsStatusResponse(StreamInput in) throws IOException {
-        super(in);
         snapshots = in.readCollectionAsImmutableList(SnapshotStatus::new);
     }
 

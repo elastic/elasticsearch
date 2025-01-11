@@ -159,7 +159,6 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
         private final ModelSnapshot model;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             model = new ModelSnapshot(in);
         }
 

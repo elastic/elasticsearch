@@ -68,7 +68,6 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
     }
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
-        super(in);
         resolvedTemplate = in.readOptionalWriteable(Template::new);
         if (in.readBoolean()) {
             int overlappingTemplatesCount = in.readInt();

@@ -63,7 +63,6 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             executingPolicies = in.readCollectionAsList(ExecutingPolicy::new);
             coordinatorStats = in.readCollectionAsList(CoordinatorStats::new);
             cacheStats = in.readCollectionAsList(CacheStats::new);

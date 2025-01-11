@@ -90,7 +90,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
-        super(in);
         this.hits = SearchHits.readFrom(in, true);
         this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
         this.suggest = in.readBoolean() ? new Suggest(in) : null;

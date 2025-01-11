@@ -33,7 +33,6 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
     private final Map<String, IndexLifecycleExplainResponse> indexResponses;
 
     public ExplainLifecycleResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readVInt();
         Map<String, IndexLifecycleExplainResponse> indexResponses = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {

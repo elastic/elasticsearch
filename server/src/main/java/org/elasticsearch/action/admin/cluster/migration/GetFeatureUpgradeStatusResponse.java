@@ -48,7 +48,6 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      * @throws IOException if we can't deserialize the object
      */
     public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
-        super(in);
         this.featureUpgradeStatuses = in.readCollectionAsImmutableList(FeatureUpgradeStatus::new);
         this.upgradeStatus = in.readEnum(UpgradeStatus.class);
     }

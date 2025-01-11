@@ -264,7 +264,6 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
             aliasesVersion = in.readVLong();

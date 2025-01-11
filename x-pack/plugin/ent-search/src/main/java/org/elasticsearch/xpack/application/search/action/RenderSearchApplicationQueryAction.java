@@ -31,7 +31,6 @@ public class RenderSearchApplicationQueryAction {
         private final SearchSourceBuilder searchSourceBuilder;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.searchSourceBuilder = new SearchSourceBuilder(in);
         }
 

@@ -298,7 +298,6 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             followIndexCreated = in.readBoolean();
             followIndexShardsAcked = in.readBoolean();
             indexFollowingStarted = in.readBoolean();

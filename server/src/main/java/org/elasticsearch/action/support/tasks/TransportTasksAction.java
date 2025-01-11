@@ -329,7 +329,6 @@ public abstract class TransportTasksAction<
         protected List<TaskResponse> results;
 
         NodeTasksResponse(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             int resultsSize = in.readVInt();
             results = new ArrayList<>(resultsSize);

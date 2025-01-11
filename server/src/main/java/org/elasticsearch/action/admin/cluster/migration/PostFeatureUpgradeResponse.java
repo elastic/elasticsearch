@@ -58,7 +58,6 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
      * @throws IOException if we can't deserialize the object
      */
     public PostFeatureUpgradeResponse(StreamInput in) throws IOException {
-        super(in);
         this.accepted = in.readBoolean();
         this.features = in.readCollectionAsImmutableList(Feature::new);
         this.reason = in.readOptionalString();

@@ -437,32 +437,36 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         float[] centroid,
         float cDotC
     ) throws IOException {
-        long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
-        final IndexOutput tempQuantizedVectorData = segmentWriteState.directory.createTempOutput(
-            binarizedVectorData.getName(),
-            "temp",
-            segmentWriteState.context
-        );
-        final IndexOutput tempScoreQuantizedVectorData = segmentWriteState.directory.createTempOutput(
-            binarizedVectorData.getName(),
-            "score_temp",
-            segmentWriteState.context
-        );
-        IndexInput binarizedDataInput = null;
-        IndexInput binarizedScoreDataInput = null;
-        boolean success = false;
-        int descritizedDimension = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);
-        BinaryQuantizer quantizer = new BinaryQuantizer(
+        final long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
+        final int descritizedDimension = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);
+        final BinaryQuantizer quantizer = new BinaryQuantizer(
             fieldInfo.getVectorDimension(),
             descritizedDimension,
             fieldInfo.getVectorSimilarityFunction()
         );
+
+        IndexInput binarizedDataInput = null;
+        IndexInput binarizedScoreDataInput = null;
+        IndexOutput tempQuantizedVectorData = null;
+        IndexOutput tempScoreQuantizedVectorData = null;
+        boolean success = false;
+
         try {
+            tempQuantizedVectorData = segmentWriteState.directory.createTempOutput(
+                binarizedVectorData.getName(),
+                "temp",
+                segmentWriteState.context
+            );
+            tempScoreQuantizedVectorData = segmentWriteState.directory.createTempOutput(
+                binarizedVectorData.getName(),
+                "score_temp",
+                segmentWriteState.context
+            );
             FloatVectorValues floatVectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
             if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
                 floatVectorValues = new NormalizedFloatVectorValues(floatVectorValues);
             }
-            DocsWithFieldSet docsWithField = writeBinarizedVectorAndQueryData(
+            final DocsWithFieldSet docsWithField = writeBinarizedVectorAndQueryData(
                 tempQuantizedVectorData,
                 tempScoreQuantizedVectorData,
                 floatVectorValues,
@@ -490,10 +494,9 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 cDotC,
                 docsWithField
             );
-            success = true;
             final IndexInput finalBinarizedDataInput = binarizedDataInput;
             final IndexInput finalBinarizedScoreDataInput = binarizedScoreDataInput;
-            OffHeapBinarizedVectorValues vectorValues = new OffHeapBinarizedVectorValues.DenseOffHeapVectorValues(
+            final OffHeapBinarizedVectorValues vectorValues = new OffHeapBinarizedVectorValues.DenseOffHeapVectorValues(
                 fieldInfo.getVectorDimension(),
                 docsWithField.cardinality(),
                 centroid,
@@ -503,7 +506,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 vectorsScorer,
                 finalBinarizedDataInput
             );
-            RandomVectorScorerSupplier scorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
+            final RandomVectorScorerSupplier scorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
                 fieldInfo.getVectorSimilarityFunction(),
                 new OffHeapBinarizedQueryVectorValues(
                     finalBinarizedScoreDataInput,
@@ -513,12 +516,20 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 ),
                 vectorValues
             );
+            final IndexOutput finalTempQuantizedVectorData = tempQuantizedVectorData;
+            final IndexOutput finalTempScoreQuantizedVectorData = tempScoreQuantizedVectorData;
+            success = true;
             return new BinarizedCloseableRandomVectorScorerSupplier(scorerSupplier, vectorValues, () -> {
-                IOUtils.close(finalBinarizedDataInput, finalBinarizedScoreDataInput);
+                IOUtils.close(
+                    finalBinarizedDataInput,
+                    finalBinarizedScoreDataInput,
+                    finalTempQuantizedVectorData,
+                    finalTempScoreQuantizedVectorData
+                );
                 IOUtils.deleteFilesIgnoringExceptions(
                     segmentWriteState.directory,
-                    tempQuantizedVectorData.getName(),
-                    tempScoreQuantizedVectorData.getName()
+                    finalTempQuantizedVectorData.getName(),
+                    finalTempScoreQuantizedVectorData.getName()
                 );
             });
         } finally {
@@ -529,11 +540,12 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                     binarizedDataInput,
                     binarizedScoreDataInput
                 );
-                IOUtils.deleteFilesIgnoringExceptions(
-                    segmentWriteState.directory,
-                    tempQuantizedVectorData.getName(),
-                    tempScoreQuantizedVectorData.getName()
-                );
+                if (tempQuantizedVectorData != null) {
+                    IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempQuantizedVectorData.getName());
+                }
+                if (tempScoreQuantizedVectorData != null) {
+                    IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempScoreQuantizedVectorData.getName());
+                }
             }
         }
     }

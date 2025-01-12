@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
@@ -26,12 +27,12 @@ public interface ExchangeSink {
     void finish();
 
     /**
-     * Whether the sink has received all pages
-     */
-    boolean isFinished();
-
-    /**
      * Whether the sink is blocked on adding more pages
      */
     IsBlockedResult waitForWriting();
+
+    /**
+     * Returns a listener that is notified when the sink is finished
+     */
+    SubscribableListener<Void> onFinished();
 }

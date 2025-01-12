@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
@@ -75,9 +76,10 @@ public class Driver implements Releasable, Describable {
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
-
     private final AtomicBoolean started = new AtomicBoolean();
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
+    private final AtomicBoolean earlyFinished = new AtomicBoolean();
+    private final AtomicReference<Runnable> scheduledTask = new AtomicReference<>();
 
     /**
      * Status reported to the tasks API. We write the status at most once every
@@ -215,6 +217,23 @@ public class Driver implements Releasable, Describable {
         }
     }
 
+    private void earlyFinish() {
+        earlyFinished.set(true);
+        tryResumeDriver();
+    }
+
+    private void tryResumeDriver() {
+        // Attempt to run the scheduled task on the current thread to finish the driver by closing operators
+        SubscribableListener<Void> blockingFuture = blocked.getAndSet(null);
+        if (blockingFuture != null) {
+            blockingFuture.onResponse(null);
+        }
+        Runnable task = scheduledTask.getAndSet(null);
+        if (task != null) {
+            task.run();
+        }
+    }
+
     /**
      * Whether the driver has run the chain of operators to completion.
      */
@@ -245,31 +264,33 @@ public class Driver implements Releasable, Describable {
         ensureNotCancelled();
         boolean movedPage = false;
 
-        for (int i = 0; i < activeOperators.size() - 1; i++) {
-            Operator op = activeOperators.get(i);
-            Operator nextOp = activeOperators.get(i + 1);
+        if (earlyFinished.get() == false) {
+            for (int i = 0; i < activeOperators.size() - 1; i++) {
+                Operator op = activeOperators.get(i);
+                Operator nextOp = activeOperators.get(i + 1);
 
-            // skip blocked operator
-            if (op.isBlocked().listener().isDone() == false) {
-                continue;
-            }
-
-            if (op.isFinished() == false && nextOp.needsInput()) {
-                Page page = op.getOutput();
-                if (page == null) {
-                    // No result, just move to the next iteration
-                } else if (page.getPositionCount() == 0) {
-                    // Empty result, release any memory it holds immediately and move to the next iteration
-                    page.releaseBlocks();
-                } else {
-                    // Non-empty result from the previous operation, move it to the next operation
-                    nextOp.addInput(page);
-                    movedPage = true;
+                // skip blocked operator
+                if (op.isBlocked().listener().isDone() == false) {
+                    continue;
                 }
-            }
 
-            if (op.isFinished()) {
-                nextOp.finish();
+                if (op.isFinished() == false && nextOp.needsInput()) {
+                    Page page = op.getOutput();
+                    if (page == null) {
+                        // No result, just move to the next iteration
+                    } else if (page.getPositionCount() == 0) {
+                        // Empty result, release any memory it holds immediately and move to the next iteration
+                        page.releaseBlocks();
+                    } else {
+                        // Non-empty result from the previous operation, move it to the next operation
+                        nextOp.addInput(page);
+                        movedPage = true;
+                    }
+                }
+
+                if (op.isFinished()) {
+                    nextOp.finish();
+                }
             }
         }
 
@@ -312,17 +333,8 @@ public class Driver implements Releasable, Describable {
 
     public void cancel(String reason) {
         if (cancelReason.compareAndSet(null, reason)) {
-            synchronized (this) {
-                SubscribableListener<Void> fut = this.blocked.get();
-                if (fut != null) {
-                    fut.onFailure(new TaskCancelledException(reason));
-                }
-            }
+            tryResumeDriver();
         }
-    }
-
-    private boolean isCancelled() {
-        return cancelReason.get() != null;
     }
 
     private void ensureNotCancelled() {
@@ -342,6 +354,12 @@ public class Driver implements Releasable, Describable {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");
+            if (driver.activeOperators.isEmpty() == false) {
+                var onFinishedListener = driver.activeOperators.getLast().onFinishedListener();
+                if (onFinishedListener != null) {
+                    onFinishedListener.addListener(ActionListener.running(driver::earlyFinish));
+                }
+            }
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
         }
     }
@@ -371,7 +389,7 @@ public class Driver implements Releasable, Describable {
         Driver driver,
         ActionListener<Void> listener
     ) {
-        executor.execute(new AbstractRunnable() {
+        final var task = new AbstractRunnable() {
 
             @Override
             protected void doRun() {
@@ -383,16 +401,18 @@ public class Driver implements Releasable, Describable {
                 if (fut.isDone()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
-                    synchronized (driver) {
-                        if (driver.isCancelled() == false) {
-                            driver.blocked.set(fut);
-                        }
-                    }
                     ActionListener<Void> readyListener = ActionListener.wrap(
                         ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
+                    driver.blocked.set(fut);
+                    if (driver.cancelReason.get() != null || driver.earlyFinished.get()) {
+                        var resume = driver.blocked.getAndSet(null);
+                        if (resume != null) {
+                            resume.onResponse(null);
+                        }
+                    }
                 }
             }
 
@@ -404,6 +424,17 @@ public class Driver implements Releasable, Describable {
 
             void onComplete(ActionListener<Void> listener) {
                 driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
+            }
+        };
+        final Runnable existing = driver.scheduledTask.getAndSet(task);
+        assert existing == null : existing;
+        final boolean runOnCurrentThread = driver.earlyFinished.get() || driver.cancelReason.get() != null;
+        final Executor executorToUse = runOnCurrentThread ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
+        executorToUse.execute(() -> {
+            final Runnable next = driver.scheduledTask.getAndSet(null);
+            if (next != null) {
+                assert next == task;
+                next.run();
             }
         });
     }

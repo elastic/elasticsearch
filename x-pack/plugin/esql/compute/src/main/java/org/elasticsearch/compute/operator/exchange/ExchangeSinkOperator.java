@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,7 +57,12 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     @Override
     public boolean isFinished() {
-        return sink.isFinished();
+        return sink.onFinished().isDone();
+    }
+
+    @Override
+    public SubscribableListener<Void> onFinishedListener() {
+        return sink.onFinished();
     }
 
     @Override

@@ -129,7 +129,7 @@ public class ExchangeServiceTests extends ESTestCase {
         // sink buffer is full
         assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
         sink1.finish();
-        assertTrue(sink1.isFinished());
+        assertTrue(sink1.onFinished().isDone());
         for (int i = 0; i < 5; i++) {
             assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
             assertEquals(pages[2 + i], source.pollPage());
@@ -138,7 +138,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertFalse(source.waitForReading().listener().isDone());
         assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
-        assertTrue(sink2.isFinished());
+        assertTrue(sink2.onFinished().isDone());
         assertTrue(source.isFinished());
         assertFalse(sourceCompletion.isDone());
         source.finish();
@@ -440,7 +440,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(resp.finished());
         assertNull(resp.takePage());
         assertTrue(sink.waitForWriting().listener().isDone());
-        assertTrue(sink.isFinished());
+        assertTrue(sink.onFinished().isDone());
     }
 
     public void testFinishEarly() throws Exception {

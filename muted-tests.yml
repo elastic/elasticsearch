@@ -268,6 +268,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_unattended/Test unattended put and start}
   issue: https://github.com/elastic/elasticsearch/issues/120019
+- class: org.elasticsearch.index.mapper.IntervalThrottlerTests
+  method: testThrottling
+  issue: https://github.com/elastic/elasticsearch/issues/120023
 
 # Examples:
 #

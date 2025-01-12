@@ -185,6 +185,11 @@ public class EsqlCapabilities {
         UNION_TYPES,
 
         /**
+         * Support unmapped using the INSIST keyword.
+         */
+        UNMAPPED_FIELDS,
+
+        /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,

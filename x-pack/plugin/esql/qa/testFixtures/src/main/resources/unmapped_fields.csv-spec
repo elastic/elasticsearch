@@ -4,6 +4,7 @@
 
 // This one is more of a test of the configuration than the unmapped fields feature.
 doesNotLoadUnmappedFields
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | SORT @timestamp DESC
 ;
@@ -19,6 +20,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsMappedToNonKeywordButNoCastSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST client_ip
 | KEEP @timestamp, client_ip
@@ -36,6 +38,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsMappedToNonKeywordWithCastSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST client_ip
 | EVAL client_ip = client_ip :: IP
@@ -54,6 +57,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsMappedToNonKeywordWithCastToDifferentTypeSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST @timestamp
 | EVAL @timestamp = @timestamp :: LONG
@@ -72,6 +76,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsMappedToKeywordSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST message
 | KEEP @timestamp, message
@@ -89,6 +94,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldDoesNotExistSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST foo
 | KEEP @timestamp, foo
@@ -106,6 +112,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsUnmappedSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST unmapped_message
 | KEEP @timestamp, message, unmapped_message
@@ -123,6 +130,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsUnmappedAndCastSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST unmapped_event_duration
 | EVAL unmapped_event_duration = unmapped_event_duration :: LONG
@@ -145,6 +153,7 @@ FROM partial_mapping_sample_data
 #####################
 
 fieldIsDoesNotExistMultiIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
 | INSIST foo
 | KEEP @timestamp, foo
@@ -169,6 +178,7 @@ FROM partial_mapping_sample_data, sample_data
 ;
 
 fieldIsUnmappedMultiIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
 | INSIST unmapped_message
 | KEEP @timestamp, message, unmapped_message
@@ -193,6 +203,7 @@ FROM partial_mapping_sample_data, sample_data
 ;
 
 fieldIsUnmappedAndCastMultiIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
 | INSIST unmapped_event_duration
 | EVAL unmapped_event_duration = unmapped_event_duration :: LONG
@@ -218,6 +229,7 @@ FROM partial_mapping_sample_data, sample_data
 ;
 
 fieldIsMappedToNonKeywordButNoCastMultiIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
 | INSIST client_ip
 | KEEP @timestamp, client_ip
@@ -242,6 +254,7 @@ FROM partial_mapping_sample_data, sample_data
 ;
 
 fieldIsMappedToNonKeywordWithCastSingleIndex
+required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
 | INSIST client_ip
 | EVAL client_ip = client_ip :: IP
@@ -267,6 +280,7 @@ FROM partial_mapping_sample_data, sample_data
 ;
 
 fieldIsMappedToDifferentTypesNoCastMultiIndex
+required_capability: unmapped_fields
 FROM sample_data_ts_long, sample_data
 | INSIST @timestamp
 | KEEP @timestamp
@@ -290,6 +304,7 @@ null
 ;
 
 fieldIsMappedToDifferentTypesWithCastMultiIndex
+required_capability: unmapped_fields
 FROM sample_data_ts_long, sample_data
 | INSIST @timestamp
 | EVAL @timestamp = @timestamp :: DATETIME
@@ -315,6 +330,7 @@ FROM sample_data_ts_long, sample_data
 ;
 
 fieldIsUnmappedMultiIndex
+required_capability: unmapped_fields
 FROM sample_data, partial_mapping_sample_data
 | INSIST unmapped_event_duration
 | KEEP @timestamp, unmapped_event_duration
@@ -339,6 +355,7 @@ FROM sample_data, partial_mapping_sample_data
 ;
 
 fieldIsPartiallyUnmappedMultiIndex
+required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
 | INSIST message
 | KEEP message
@@ -363,6 +380,7 @@ Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedWithCastToOriginalTypeMultiIndex
+required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
 | INSIST event_duration
 | EVAL event_duration = event_duration :: LONG
@@ -388,6 +406,7 @@ event_duration:long
 ;
 
 fieldIsPartiallyUnmappedWithCastToDifferentTypeMultiIndex
+required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
 | INSIST event_duration
 | EVAL event_duration = event_duration :: DOUBLE

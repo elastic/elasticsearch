@@ -2353,4 +2353,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(), equalTo("value"));
     }
+
+    public void testInvalidInsist() {
+        expectError("FROM text | EVAL x = 4 | INSIST foo", "INSIST command can only be applied on top of a source");
+    }
 }

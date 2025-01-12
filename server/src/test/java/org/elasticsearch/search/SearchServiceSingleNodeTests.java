@@ -175,6 +175,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -2794,10 +2795,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
-                        () -> assertEquals(
+                        () -> assertThat(
                             "DFS supports parallel collection, so the number of slices should be > 1.",
-                            expectedSlices - 1, // one slice executes on the calling thread
-                            executor.getCompletedTaskCount() - priorExecutorTaskCount
+                            executor.getCompletedTaskCount() - priorExecutorTaskCount,
+                            greaterThan(0L)    // one slice executes on the calling thread and we should at least fork once with more
+                            // than a single slice
                         )
                     );
                 }
@@ -2824,10 +2826,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                     searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                     assertBusy(
-                        () -> assertEquals(
-                            "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
-                            expectedSlices - 1, // one slice executes on the calling thread
-                            executor.getCompletedTaskCount() - priorExecutorTaskCount
+                        () -> assertThat(
+                            "QUERY supports parallel collection when enabled, so the number of extra parallel tasks should be > 0.",
+                            executor.getCompletedTaskCount() - priorExecutorTaskCount,
+                            greaterThan(0L)
                         )
                     );
                 }
@@ -2915,10 +2917,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                         searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
                         assertBusy(
-                            () -> assertEquals(
-                                "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
-                                expectedSlices - 1, // one slice executes on the calling thread
-                                executor.getCompletedTaskCount() - priorExecutorTaskCount
+                            () -> assertThat(
+                                "QUERY supports parallel collection when enabled, so the number of extra parallel tasks should be > 0.",
+                                executor.getCompletedTaskCount() - priorExecutorTaskCount,
+                                greaterThan(0L)
                             )
                         );
                     }

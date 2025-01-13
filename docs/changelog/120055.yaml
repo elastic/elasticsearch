@@ -1,6 +1,5 @@
 pr: 120055
-summary: Skip large parts of mappings when loading `MapperService` in `LogsdbInde`
-  `xModeSettingsProvider`
+summary: Optimize loading mappings when determining synthetic source usage and whether host.name can be sorted on.
 area: "Mapping, Logs"
 type: enhancement
 issues: []

@@ -79,6 +79,13 @@ public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
         assert executionState != null
             : "the lifecycle execution state for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
 
+        if (replicateFor == null) {
+            // assert at dev-time, but treat this as a no-op at runtime if somehow this should happen (which it shouldn't)
+            assert false : "the replicate_for time value for index [" + index.getName() + "] must not be null for step [" + NAME + "]";
+            listener.onResponse(true, EmptyInfo.INSTANCE);
+            return;
+        }
+
         final Instant endTime = Instant.ofEpochMilli(executionState.phaseTime() + this.replicateFor.millis());
         final Instant nowTime = nowSupplier.get();
         if (nowTime.isBefore(endTime)) {

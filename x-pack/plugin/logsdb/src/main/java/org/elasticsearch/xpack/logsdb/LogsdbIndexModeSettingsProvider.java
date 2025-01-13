@@ -16,6 +16,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -30,12 +31,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -44,6 +47,7 @@ import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger LOGGER = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     private static final String LOGS_PATTERN = "logs-*-*";
+    private static final Set<String> INCLUDES = Set.of("_source*", "properties.host*");
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
@@ -232,6 +236,14 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
                 if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
                     combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+                } else {
+                    List<CompressedXContent> processedTemplateMappings = new ArrayList<>(combinedTemplateMappings.size());
+                    for (CompressedXContent mapping : combinedTemplateMappings) {
+                        var map = XContentHelper.convertToMap(mapping.compressedReference(), true, XContentType.JSON, INCLUDES, Set.of())
+                            .v2();
+                        processedTemplateMappings.add(new CompressedXContent(map));
+                    }
+                    combinedTemplateMappings = processedTemplateMappings;
                 }
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
                 Mapper hostName = mapperService.mappingLookup().getMapper("host.name");

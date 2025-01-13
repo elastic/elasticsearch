@@ -1086,7 +1086,7 @@ class NodeConstruction {
         );
 
         actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
-        actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedPipelineAction());
+        actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
         FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService();
         FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(

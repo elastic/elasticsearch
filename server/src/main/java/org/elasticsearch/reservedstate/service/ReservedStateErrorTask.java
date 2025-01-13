@@ -63,7 +63,7 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
 
     static ReservedStateMetadata getMetadata(ClusterState state, ErrorState errorState) {
         return errorState.projectId()
-            .map(p -> state.metadata().getProject(p).reservedStateMetadata())
+            .map(p -> ReservedClusterStateService.getPotentiallyNewProject(state, p).reservedStateMetadata())
             .orElseGet(() -> state.metadata().reservedStateMetadata())
             .get(errorState.namespace());
     }

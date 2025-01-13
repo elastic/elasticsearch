@@ -968,7 +968,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             expectThrows(
                 IllegalArgumentException.class,
                 () -> fakeAction.validateForReservedState(
-                    withReservedState,
+                    withReservedState.metadata().reservedStateMetadata().values(),
                     ReservedComposableIndexTemplateAction.NAME,
                     modifiedKeys,
                     pr.name()
@@ -983,6 +983,11 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var modifiedKeysOK = putTemplateAction.modifiedKeys(prOK);
         assertEquals(1, modifiedKeysOK.size());
 
-        fakeAction.validateForReservedState(withReservedState, ReservedComposableIndexTemplateAction.NAME, modifiedKeysOK, prOK.name());
+        fakeAction.validateForReservedState(
+            withReservedState.metadata().reservedStateMetadata().values(),
+            ReservedComposableIndexTemplateAction.NAME,
+            modifiedKeysOK,
+            prOK.name()
+        );
     }
 }

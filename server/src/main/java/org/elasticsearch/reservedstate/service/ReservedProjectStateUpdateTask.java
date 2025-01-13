@@ -54,9 +54,7 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Proj
         }
 
         // use an empty project if it doesnt exist, this is then added to ClusterState below.
-        ProjectMetadata project = currentState.metadata().hasProject(projectId)
-            ? currentState.metadata().getProject(projectId)
-            : ProjectMetadata.builder(projectId).build();
+        ProjectMetadata project = ReservedClusterStateService.getPotentiallyNewProject(currentState, projectId);
 
         var result = execute(project, project.reservedStateMetadata());
         if (result == null) {

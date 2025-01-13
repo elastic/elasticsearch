@@ -148,12 +148,16 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
-    // package private for testing
-    void validateForReservedState(Request request, ClusterState state) {
+    protected void validateForReservedState(Request request, ClusterState state) {
         Optional<String> handlerName = reservedStateHandlerName();
         assert handlerName.isPresent();
 
-        validateForReservedState(state, handlerName.get(), modifiedKeys(request), request.toString());
+        validateForReservedState(
+            state.metadata().reservedStateMetadata().values(),
+            handlerName.get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     // package private for testing

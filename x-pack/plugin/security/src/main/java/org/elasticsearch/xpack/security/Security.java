@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -2413,7 +2414,7 @@ public class Security extends Plugin
         return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
-    List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
             return Collections.emptyList();

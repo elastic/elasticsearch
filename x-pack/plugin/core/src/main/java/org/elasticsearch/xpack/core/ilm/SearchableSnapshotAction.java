@@ -395,7 +395,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         );
 
         Step replicateForStep = new WaitUntilReplicateForTimePassesStep(replicateForKey, dropReplicasKey, replicateFor);
-        UpdateSettingsStep dropRelicasStep = new UpdateSettingsStep(
+        UpdateSettingsStep dropReplicasStep = new UpdateSettingsStep(
             dropReplicasKey,
             nextStepKey,
             client,
@@ -422,7 +422,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(copySettingsStep);
         if (replicateFor != null) {
             steps.add(replicateForStep);
-            steps.add(dropRelicasStep);
+            steps.add(dropReplicasStep);
         }
         steps.add(isDataStreamBranchingStep);
         steps.add(replaceDataStreamBackingIndex);

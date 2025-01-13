@@ -11,8 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -26,7 +24,6 @@ import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessageFac
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
-import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.ml.MlIndexTemplateRegistry;
 
 import java.io.IOException;
@@ -49,30 +46,8 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
             NotificationsIndex.NOTIFICATIONS_INDEX_WRITE_ALIAS,
             clusterService.getNodeName(),
             messageFactory,
-            createIndexAndAliasLister -> {
-                SubscribableListener.<Boolean>newForked(l -> {
-                    MlIndexAndAlias.installIndexTemplateIfRequired(
-                        clusterService.state(),
-                        client,
-                        MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE.getVersion(),
-                        templateRequest(),
-                        l
-                    );
-                }).<Boolean>andThen((l, success) -> {
-                    MlIndexAndAlias.createIndexAndAliasIfNecessary(
-                        client,
-                        clusterService.state(),
-                        indexNameExpressionResolver,
-                        NotificationsIndex.NOTIFICATIONS_INDEX_PREFIX,
-                        NotificationsIndex.NOTIFICATIONS_INDEX_SUFFIX,
-                        NotificationsIndex.NOTIFICATIONS_INDEX_WRITE_ALIAS,
-                        MASTER_TIMEOUT,
-                        ActiveShardCount.DEFAULT,
-                        l
-                    );
-
-                }).addListener(createIndexAndAliasLister);
-            }
+            clusterService,
+            indexNameExpressionResolver
         );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
@@ -104,7 +79,8 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
         }
     }
 
-    private static TransportPutComposableIndexTemplateAction.Request templateRequest() {
+    @Override
+    protected TransportPutComposableIndexTemplateAction.Request putTemplateRequest() {
         var templateConfig = MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE;
         try (
             var parser = JsonXContent.jsonXContent.createParser(
@@ -118,5 +94,13 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
         } catch (IOException e) {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
         }
+    }
+
+    protected int templateVersion() {
+        return MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE.getVersion();
+    }
+
+    protected IndexDetails indexDetails() {
+        return new IndexDetails(NotificationsIndex.NOTIFICATIONS_INDEX_PREFIX, NotificationsIndex.NOTIFICATIONS_INDEX_VERSION);
     }
 }

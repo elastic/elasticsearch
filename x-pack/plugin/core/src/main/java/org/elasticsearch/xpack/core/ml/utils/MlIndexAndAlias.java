@@ -410,15 +410,4 @@ public final class MlIndexAndAlias {
         var template = state.getMetadata().templatesV2().get(templateName);
         return template != null && Long.valueOf(version).equals(template.version());
     }
-
-    /**
-     * True if the index exists
-     * @param state
-     * @param alias
-     * @param index
-     * @return
-     */
-    public static boolean indexIsMissingAlias(ClusterState state, String alias, String index) {
-        return state.metadata().hasAlias(alias);
-    }
 }

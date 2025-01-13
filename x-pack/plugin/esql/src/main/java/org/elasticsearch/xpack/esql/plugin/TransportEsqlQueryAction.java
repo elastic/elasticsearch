@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
@@ -189,11 +190,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
+        FoldContext foldCtx = configuration.newFoldContext();
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             plan,
             configuration,
+            foldCtx,
             executionInfo,
             resultListener
         );
@@ -201,6 +204,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request,
             sessionId,
             configuration,
+            foldCtx,
             enrichPolicyResolver,
             executionInfo,
             remoteClusterService,

@@ -515,7 +515,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ActionListener<AcknowledgedResponse> listener,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) throws Exception {
-        if (isNoOpPipelineUpdate(state.projectState(projectId), request)) {
+        if (isNoOpPipelineUpdate(state.metadata().getProject(projectId), request)) {
             // existing pipeline matches request pipeline -- no need to update
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
@@ -542,8 +542,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         validatePipeline(ingestInfos, request.getId(), config);
     }
 
-    public static boolean isNoOpPipelineUpdate(ProjectState state, PutPipelineRequest request) {
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+    public static boolean isNoOpPipelineUpdate(ProjectMetadata metadata, PutPipelineRequest request) {
+        IngestMetadata currentIngestMetadata = metadata.custom(IngestMetadata.TYPE);
         if (request.getVersion() == null
             && currentIngestMetadata != null
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {

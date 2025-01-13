@@ -858,7 +858,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         assertThat(
             expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> new ReservedClusterStateService(
                     clusterService,
                     mock(RerouteService.class),
@@ -866,7 +866,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                     List.of()
                 )
             ).getMessage(),
-            startsWith("Duplicate key cluster_settings")
+            startsWith("Duplicate handler name: [cluster_settings]")
         );
 
         assertThat(
@@ -879,7 +879,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                     List.of(new TestStateHandler<>(ReservedClusterSettingsAction.NAME))
                 )
             ).getMessage(),
-            startsWith("Duplicate handler names for cluster and project state: [cluster_settings]")
+            startsWith("Duplicate handler name: [cluster_settings]")
         );
     }
 

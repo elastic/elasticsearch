@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -1493,7 +1494,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             ComponentTemplateMetadata.TYPE
         );
 
-        private static final Set<String> MOVED_PROJECT_RESERVED_STATE = Set.of();
+        private static final Set<String> MOVED_PROJECT_RESERVED_STATE = Set.of(ReservedPipelineAction.NAME, "role_mappings");
 
         public static Metadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();

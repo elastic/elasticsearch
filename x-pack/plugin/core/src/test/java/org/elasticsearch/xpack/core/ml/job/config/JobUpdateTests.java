@@ -360,7 +360,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(512L, ByteSizeUnit.MB))
+            () -> update.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(512L, ByteSizeUnit.MB))
         );
         assertEquals(
             "model_memory_limit [1gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [512mb]",
@@ -386,14 +386,14 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
         Exception e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(5000L, ByteSizeUnit.MB))
+            () -> updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(5000L, ByteSizeUnit.MB))
         );
         assertEquals(
             "model_memory_limit [7.8gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [4.8gb]",
             e.getMessage()
         );
 
-        updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(10000L, ByteSizeUnit.MB));
+        updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(10000L, ByteSizeUnit.MB));
     }
 
     public void testUpdate_givenEmptySnapshot() {

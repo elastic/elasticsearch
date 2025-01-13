@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,52 +23,68 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
+import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
+
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * leading to a runtime failure (see {@code LogConfigurator.checkErrorListener()} ). The premature construction would come from any
      * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
     }
 
-    public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ZERO = new ByteSizeValue(0, BYTES);
+    public static final ByteSizeValue ONE = new ByteSizeValue(1, BYTES);
+    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, BYTES);
+
+    /**
+     * @param size the number of {@code unit}s
+     */
+    public static ByteSizeValue of(long size, ByteSizeUnit unit) {
+        if (unit == BYTES) {
+            if (size == 0) {
+                return ZERO;
+            }
+            if (size == 1) {
+                return ONE;
+            }
+            if (size == -1) {
+                return MINUS_ONE;
+            }
+        }
+        return new ByteSizeValue(size, unit);
+    }
 
     public static ByteSizeValue ofBytes(long size) {
-        if (size == 0) {
-            return ZERO;
-        }
-        if (size == 1) {
-            return ONE;
-        }
-        if (size == -1) {
-            return MINUS_ONE;
-        }
-        return new ByteSizeValue(size, ByteSizeUnit.BYTES);
+        return of(size, BYTES);
     }
 
     public static ByteSizeValue ofKb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.KB);
+        return of(size, KB);
     }
 
     public static ByteSizeValue ofMb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.MB);
+        return of(size, MB);
     }
 
     public static ByteSizeValue ofGb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.GB);
+        return of(size, GB);
     }
 
     public static ByteSizeValue ofTb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.TB);
+        return of(size, TB);
     }
 
     public static ByteSizeValue ofPb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.PB);
+        return of(size, PB);
     }
 
     private final long size;
@@ -78,10 +93,10 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static ByteSizeValue readFrom(StreamInput in) throws IOException {
         long size = in.readZLong();
         ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
-        if (unit == ByteSizeUnit.BYTES) {
+        if (unit == BYTES) {
             return ofBytes(size);
         }
-        return new ByteSizeValue(size, unit);
+        return of(size, unit);
     }
 
     @Override
@@ -90,8 +105,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         unit.writeTo(out);
     }
 
-    public ByteSizeValue(long size, ByteSizeUnit unit) {
-        if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
+    ByteSizeValue(long size, ByteSizeUnit unit) {
+        if (size < -1 || (size == -1 && unit != BYTES)) {
             throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
@@ -185,22 +200,22 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public String toString() {
         long bytes = getBytes();
         double value = bytes;
-        String suffix = ByteSizeUnit.BYTES.getSuffix();
+        String suffix = BYTES.getSuffix();
         if (bytes >= ByteSizeUnit.C5) {
             value = getPbFrac();
-            suffix = ByteSizeUnit.PB.getSuffix();
+            suffix = PB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C4) {
             value = getTbFrac();
-            suffix = ByteSizeUnit.TB.getSuffix();
+            suffix = TB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C3) {
             value = getGbFrac();
-            suffix = ByteSizeUnit.GB.getSuffix();
+            suffix = GB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C2) {
             value = getMbFrac();
-            suffix = ByteSizeUnit.MB.getSuffix();
+            suffix = MB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C1) {
             value = getKbFrac();
-            suffix = ByteSizeUnit.KB.getSuffix();
+            suffix = KB.getSuffix();
         }
         return Strings.format1Decimals(value, suffix);
     }
@@ -231,25 +246,25 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
         String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
         if (lowerSValue.endsWith("k")) {
-            return parse(sValue, lowerSValue, "k", ByteSizeUnit.KB, settingName);
+            return parse(sValue, lowerSValue, "k", KB, settingName);
         } else if (lowerSValue.endsWith("kb")) {
-            return parse(sValue, lowerSValue, "kb", ByteSizeUnit.KB, settingName);
+            return parse(sValue, lowerSValue, "kb", KB, settingName);
         } else if (lowerSValue.endsWith("m")) {
-            return parse(sValue, lowerSValue, "m", ByteSizeUnit.MB, settingName);
+            return parse(sValue, lowerSValue, "m", MB, settingName);
         } else if (lowerSValue.endsWith("mb")) {
-            return parse(sValue, lowerSValue, "mb", ByteSizeUnit.MB, settingName);
+            return parse(sValue, lowerSValue, "mb", MB, settingName);
         } else if (lowerSValue.endsWith("g")) {
-            return parse(sValue, lowerSValue, "g", ByteSizeUnit.GB, settingName);
+            return parse(sValue, lowerSValue, "g", GB, settingName);
         } else if (lowerSValue.endsWith("gb")) {
-            return parse(sValue, lowerSValue, "gb", ByteSizeUnit.GB, settingName);
+            return parse(sValue, lowerSValue, "gb", GB, settingName);
         } else if (lowerSValue.endsWith("t")) {
-            return parse(sValue, lowerSValue, "t", ByteSizeUnit.TB, settingName);
+            return parse(sValue, lowerSValue, "t", TB, settingName);
         } else if (lowerSValue.endsWith("tb")) {
-            return parse(sValue, lowerSValue, "tb", ByteSizeUnit.TB, settingName);
+            return parse(sValue, lowerSValue, "tb", TB, settingName);
         } else if (lowerSValue.endsWith("p")) {
-            return parse(sValue, lowerSValue, "p", ByteSizeUnit.PB, settingName);
+            return parse(sValue, lowerSValue, "p", PB, settingName);
         } else if (lowerSValue.endsWith("pb")) {
-            return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
+            return parse(sValue, lowerSValue, "pb", PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
             return parseBytes(lowerSValue, settingName, sValue);
         } else {
@@ -288,7 +303,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             try {
-                return new ByteSizeValue(Long.parseLong(s), unit);
+                return of(Long.parseLong(s), unit);
             } catch (final NumberFormatException e) {
                 try {
                     final double doubleValue = Double.parseDouble(s);

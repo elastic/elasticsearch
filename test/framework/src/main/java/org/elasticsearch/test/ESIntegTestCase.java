@@ -486,13 +486,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (random.nextBoolean()) {
             builder.put(
                 IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 300), ByteSizeUnit.MB)
+                ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 1, 300), ByteSizeUnit.MB)
             );
         }
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just
-                                                                                                                                    // don't
-                                                                                                                                    // flush
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB)); // just
+                                                                                                                                   // don't
+                                                                                                                                   // flush
         }
         if (random.nextBoolean()) {
             builder.put(

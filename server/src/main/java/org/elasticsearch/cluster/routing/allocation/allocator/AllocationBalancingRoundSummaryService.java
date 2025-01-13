@@ -19,16 +19,19 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *
  * Summarizing balancer rounds and reporting the results will provide information with which to do a cost-benefit analysis of the work that
  * the allocation rebalancing performs.
+ *
+ * TODO (Dianna): how to handle master step down. Probably refuse to take further add*() calls, but return any previous results that have
+ * not yet been drained for reporting
  */
 public class AllocationBalancingRoundSummaryService {
 
+    public static final AllocationBalancingRoundSummaryService NOOP = new AllocationBalancingRoundSummaryService();
+
     /** Value to return if no balancing rounds have occurred in the requested time period. */
-    private final BalancingSummary.CombinedClusterBalancingRoundSummary EMPTY_RESULTS =
+    public static final BalancingSummary.CombinedClusterBalancingRoundSummary EMPTY_RESULTS =
         new BalancingSummary.CombinedClusterBalancingRoundSummary(
-            0,
-            0,
             new LinkedList<>(),
-            new BalancingSummary.ClusterShardMovements(0, 0, 0, 0, 0),
+            new BalancingSummary.ClusterShardAssignments(0L, 0L, 0L, 0L, 0L, 0L),
             new HashMap<>()
         );
 

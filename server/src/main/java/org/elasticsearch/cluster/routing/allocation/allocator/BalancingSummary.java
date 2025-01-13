@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.core.Tuple;
+
 import java.util.List;
 import java.util.Map;
 
@@ -21,17 +23,14 @@ public class BalancingSummary {
      * Holds combined {@link BalancingRoundSummary} results. Essentially holds a list of the balancing events and the summed up changes
      * across all those events: what allocation work was done across some period of time.
      *
-     * @param eventsStartTime The earliest start time of all the combined balancing rounds.
-     * @param eventsEndTime The latest end time of all the combined balancing rounds.
-     * @param events A list of all the cluster events that started the balancing rounds.
-     * @param shardMovements The sum of all shard movements across all combined balancing rounds.
+     * @param events A list of all the cluster events that started the balancing rounds and time duration for computation + reconciliation
+     *               of each event.
+     * @param shardAssignments The sum of all shard movements across all combined balancing rounds.
      * @param nodeChanges The total change stats per node in the cluster from the earliest balancing round to the latest one.
      */
     record CombinedClusterBalancingRoundSummary(
-        long eventsStartTime,
-        long eventsEndTime,
-        List<ClusterRebalancingEvent> events,
-        ClusterShardMovements shardMovements,
+        List<Tuple<Long, ClusterRebalancingEvent>> events,
+        ClusterShardAssignments shardAssignments,
         Map<String, IndividualNodeRebalancingChangeStats> nodeChanges
     ) {};
 
@@ -39,7 +38,7 @@ public class BalancingSummary {
      * Summarizes the impact to the cluster as a result of a rebalancing round.
      *
      * @param eventStartTime Time at which the desired balance calculation began due to a cluster event.
-     * @param computationEndTime Time at which the new desired balance calculation was finished.
+     * @param eventEndTime Time at which the new desired balance calculation was finished.
      * @param event Reports what provoked the rebalancing round. The rebalancer only runs when requested, not on a periodic basis.
      * @param computationFinishReason Whether the balancing round converged to a final allocation, or exiting early for some reason.
      * @param shardMovements Lists the total number of shard moves, and breaks down the total into number shards moved by category,
@@ -49,10 +48,10 @@ public class BalancingSummary {
      */
     record BalancingRoundSummary(
         long eventStartTime,
-        long computationEndTime,
+        long eventEndTime,
         ClusterRebalancingEvent event,
         DesiredBalance.ComputationFinishReason computationFinishReason,
-        ClusterShardMovements shardMovements,
+        ClusterShardAssignments shardMovements,
         Map<String, IndividualNodeRebalancingChangeStats> nodeChanges
     ) {
         @Override
@@ -79,8 +78,8 @@ public class BalancingSummary {
      * @param dataMovedAwayFromNodeInMB
      */
     record IndividualNodeRebalancingChangeStats(
-        long nodeWeightBeforeRebalancing,
-        long nodeWeightAfterRebalancing,
+        float nodeWeightBeforeRebalancing,
+        float nodeWeightAfterRebalancing,
         long dataMovedToNodeInMB,
         long dataMovedAwayFromNodeInMB
     ) {
@@ -102,24 +101,26 @@ public class BalancingSummary {
     /**
      * Tracks and summarizes the more granular reasons why shards are moved between nodes.
      *
-     * @param numShardMoves total number of shard moves
+     * @param numShardsMoved total number of shard moves between nodes
      * @param numAllocationDeciderForcedShardMoves total number of shards that must be moved because they violate an AllocationDecider rule
      * @param numRebalancingShardMoves total number of shards moved to improve cluster balance and are not otherwise required to move
      * @param numShutdownForcedShardMoves total number of shards that must move off of a node because it is shutting down
+     * @param numNewlyAssignedShardsNotMoved
      * @param numStuckShards total number of shards violating an AllocationDecider on their current node and on every other cluster node
      */
-    record ClusterShardMovements(
-        long numShardMoves,
+    public record ClusterShardAssignments(
+        long numShardsMoved,
         long numAllocationDeciderForcedShardMoves,
         long numRebalancingShardMoves,
         long numShutdownForcedShardMoves,
+        long numNewlyAssignedShardsNotMoved,
         long numStuckShards
     ) {
         @Override
         public String toString() {
             return "ClusterShardMovements{"
-                + "numShardMoves="
-                + numShardMoves
+                + "numShardsMoved="
+                + numShardsMoved
                 + ", numAllocationDeciderForcedShardMoves="
                 + numAllocationDeciderForcedShardMoves
                 + ", numRebalancingShardMoves="

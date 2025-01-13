@@ -74,16 +74,16 @@ public class DesiredBalanceMetrics {
     );
 
     public void updateMetrics(
-        ClusterAllocationStats clusterAllocationStats,
+        BalancingRoundStats balancingRoundStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
         Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats
     ) {
-        assert clusterAllocationStats != null : "allocation stats cannot be null";
+        assert balancingRoundStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
-        if (clusterAllocationStats != ClusterAllocationStats.EMPTY_ALLOCATION_STATS) {
-            this.unassignedShards = clusterAllocationStats.unassignedShards();
-            this.totalAllocations = clusterAllocationStats.totalAllocations();
-            this.undesiredAllocations = clusterAllocationStats.undesiredAllocationsExcludingShuttingDownNodes();
+        if (balancingRoundStats.executedReconciliation()) {
+            this.unassignedShards = balancingRoundStats.unassignedShards();
+            this.totalAllocations = balancingRoundStats.totalAllocations();
+            this.undesiredAllocations = balancingRoundStats.undesiredAllocationsExcludingShuttingDownNodes();
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);

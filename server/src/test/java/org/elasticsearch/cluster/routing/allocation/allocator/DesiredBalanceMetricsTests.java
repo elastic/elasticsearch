@@ -23,10 +23,25 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
 
     public void testZeroAllMetrics() {
         DesiredBalanceMetrics metrics = new DesiredBalanceMetrics(MeterRegistry.NOOP);
+        long startTime = randomNonNegativeLong();
+        long endTime = randomNonNegativeLong();
+        long newlyAssignedShards = randomNonNegativeLong();
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomNonNegativeLong();
         long undesiredAllocations = randomNonNegativeLong();
-        metrics.updateMetrics(new ClusterAllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
+        metrics.updateMetrics(
+            new BalancingRoundStats(
+                startTime,
+                endTime,
+                newlyAssignedShards,
+                unassignedShards,
+                totalAllocations,
+                undesiredAllocations,
+                true
+            ),
+            Map.of(),
+            Map.of()
+        );
         assertEquals(totalAllocations, metrics.totalAllocations());
         assertEquals(unassignedShards, metrics.unassignedShards());
         assertEquals(undesiredAllocations, metrics.undesiredAllocations());
@@ -40,10 +55,25 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         DesiredBalanceMetrics metrics = new DesiredBalanceMetrics(meterRegistry);
 
+        long startTime = randomNonNegativeLong();
+        long endTime = randomNonNegativeLong();
+        long newlyAssignedShards = randomNonNegativeLong();
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomLongBetween(100, 10000000);
         long undesiredAllocations = randomLongBetween(0, totalAllocations);
-        metrics.updateMetrics(new ClusterAllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of(), Map.of());
+        metrics.updateMetrics(
+            new BalancingRoundStats(
+                startTime,
+                endTime,
+                newlyAssignedShards,
+                unassignedShards,
+                totalAllocations,
+                undesiredAllocations,
+                true
+            ),
+            Map.of(),
+            Map.of()
+        );
 
         // Collect when not master
         meterRegistry.getRecorder().collect();
@@ -102,8 +132,10 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
     public void testUndesiredAllocationRatioIsZeroWhenTotalShardsIsZero() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         DesiredBalanceMetrics metrics = new DesiredBalanceMetrics(meterRegistry);
+        long startTime = randomNonNegativeLong();
+        long endTime = randomNonNegativeLong();
         long unassignedShards = randomNonNegativeLong();
-        metrics.updateMetrics(new ClusterAllocationStats(unassignedShards, 0, 0), Map.of(), Map.of());
+        metrics.updateMetrics(new BalancingRoundStats(startTime, endTime, 0, unassignedShards, 0, 0, true), Map.of(), Map.of());
 
         metrics.setNodeIsMaster(true);
         meterRegistry.getRecorder().collect();

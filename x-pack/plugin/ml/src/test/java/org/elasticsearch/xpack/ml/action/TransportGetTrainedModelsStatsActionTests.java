@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
@@ -100,7 +101,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     parameters.client,
                     parameters.ingestService.getClusterService(),
                     Settings.EMPTY,
-                    mock(InferenceAuditor.class)
+                    new SetOnce<>(mock(InferenceAuditor.class))
                 )
             );
 

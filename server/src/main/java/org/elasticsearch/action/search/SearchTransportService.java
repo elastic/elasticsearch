@@ -401,12 +401,12 @@ public class SearchTransportService {
 
         // TODO: remove this handler once the lowest compatible version stops using it
         // this handler exists for BwC purposes only, we don't need the original indices to free the context
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, in -> {
+        final Writeable.Reader<ScrollFreeContextRequest> bwcFreeCtxRequestReader = in -> {
             var res = new ScrollFreeContextRequest(in);
-            // this handler exists for BwC purposes only, we don't need the original indices to free the context
             OriginalIndices.readOriginalIndices(in);
             return res;
-        }, freeContextHandler);
+        };
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, bwcFreeCtxRequestReader, freeContextHandler);
         // BwC handler that translates FREE_CONTEXT_ACTION_NAME into FREE_CONTEXT_SCROLL_ACTION_NAME same way we use
         // FREE_CONTEXT_SCROLL_ACTION_NAME throughout on local nodes
         transportService.registerRequestHandler(
@@ -414,11 +414,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             false,
-            in -> new TransportActionProxy.ProxyRequest<>(in, i -> {
-                var res = new ScrollFreeContextRequest(i);
-                OriginalIndices.readOriginalIndices(i);
-                return res;
-            }),
+            in -> new TransportActionProxy.ProxyRequest<>(in, bwcFreeCtxRequestReader::read),
             new TransportActionProxy.ProxyRequestHandler<>(
                 transportService,
                 FREE_CONTEXT_SCROLL_ACTION_NAME,

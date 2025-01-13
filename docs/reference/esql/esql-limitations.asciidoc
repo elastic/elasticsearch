@@ -34,7 +34,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
-* `text`
+* `text` family including `text` and `semantic_text`
 * experimental:[] `unsigned_long`
 * `version`
 * Spatial types

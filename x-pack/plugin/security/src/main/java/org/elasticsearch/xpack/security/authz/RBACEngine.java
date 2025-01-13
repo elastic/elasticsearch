@@ -897,7 +897,11 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
                     if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
-                        IndicesPermission.AuthorizedComponents authResult = predicate.check(indexAbstraction);
+                        IndicesPermission.AuthorizedComponents authResult = predicate.check(
+                            indexAbstraction.getName(),
+                            indexAbstraction,
+                            false
+                        );
                         if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
                             && authResult != null
                             && authResult.isDataAuthorized()) {

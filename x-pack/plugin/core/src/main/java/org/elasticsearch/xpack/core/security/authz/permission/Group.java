@@ -125,7 +125,7 @@ public class Group {
         }
 
         @Override
-        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction resource) {
+        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction resource, boolean authByDataStream) {
             if (actionAuthorized == false) {
                 if (isMappingUpdateAction
                     && group.hasMappingUpdateBwcPermissions
@@ -157,7 +157,12 @@ public class Group {
                 }
                 return IndicesPermission.AuthorizedComponents.NONE;
             } else {
-                assert resource == null || name.equals(resource.getName());
+                if (resource == null) {
+                    return group.indexNameMatcher.test(name)
+                        ? IndicesPermission.AuthorizedComponents.DATA
+                        : IndicesPermission.AuthorizedComponents.NONE;
+                }
+                assert name.equals(resource.getName());
                 return switch (resource.getType()) {
                     case ALIAS -> group.checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
                     case DATA_STREAM -> group.checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
@@ -165,24 +170,25 @@ public class Group {
                         IndexAbstraction.ConcreteIndex index = (IndexAbstraction.ConcreteIndex) resource;
                         final DataStream ds = index.getParentDataStream();
 
-                        if (ds != null) {
+                        if (ds != null) { // This index is owned by a data stream
                             boolean isFailureStoreIndex = ds.getFailureIndices().containsIndex(resource.getName());
 
                             if (isReadAction) {
                                 // If we're trying to read a failure store index, we need to have read_failures for the data stream
                                 if (isFailureStoreIndex) {
                                     if ((group.hasReadFailuresPrivilege && group.indexNameMatcher.test(ds.getName()))) {
-                                        yield IndicesPermission.AuthorizedComponents.FAILURES; // And authorize it as a failures index (i.e.
-                                                                                               // no
-                                        // DLS/FLS)
+                                        // And authorize it as a failure store index (i.e. no DLS/FLS)
+                                        yield IndicesPermission.AuthorizedComponents.FAILURES;
                                     }
                                 } else { // not a failure store index
-                                    if (group.indexNameMatcher.test(ds.getName()) || group.indexNameMatcher.test(resource.getName())) {
+                                    if ((authByDataStream && group.indexNameMatcher.test(ds.getName()))
+                                        || group.indexNameMatcher.test(resource.getName())) {
                                         yield IndicesPermission.AuthorizedComponents.DATA;
                                     }
                                 }
                             } else { // Not a read action, authenticate as normal
-                                if (group.checkParentNameAndResourceName(ds.getName(), resource.getName())) {
+                                String indexName = resource.getName();
+                                if ((authByDataStream && group.indexNameMatcher.test(ds.getName())) || group.indexNameMatcher.test(indexName)) {
                                     yield IndicesPermission.AuthorizedComponents.DATA;
                                 }
                             }
@@ -197,10 +203,6 @@ public class Group {
                 };
             }
         }
-    }
-
-    private boolean checkParentNameAndResourceName(String dsName, String indexName) {
-        return indexNameMatcher.test(dsName) || indexNameMatcher.test(indexName);
     }
 
     private IndicesPermission.AuthorizedComponents checkMultiIndexAbstraction(

@@ -22,7 +22,7 @@ public abstract class IsResourceAuthorizedPredicate {
      */
     static class NoResourcesAuthorizedChecker extends IsResourceAuthorizedPredicate {
         @Override
-        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction indexAbstraction) {
+        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction indexAbstraction, boolean authByDataStream) {
             return IndicesPermission.AuthorizedComponents.NONE;
         }
     }
@@ -41,14 +41,14 @@ public abstract class IsResourceAuthorizedPredicate {
         }
 
         @Override
-        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction) {
+        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction, boolean authByDataStream) {
             IndicesPermission.AuthorizedComponents authResult = a.check(name, abstraction);
             // If we're only authorized for some components, other predicates might authorize us for the rest
             return switch (authResult) {
-                case null -> b.check(name, abstraction);
-                case NONE -> b.check(name, abstraction); // Can't do worse than totally unauthorized, thank u NEXT
+                case null -> b.check(name, abstraction, authByDataStream);
+                case NONE -> b.check(name, abstraction, authByDataStream); // Can't do worse than totally unauthorized, thank u NEXT
                 case ALL -> IndicesPermission.AuthorizedComponents.ALL; // Can't do better than ALL, so short circuit
-                case DATA, FAILURES -> authResult.union(b.check(name, abstraction));
+                case DATA, FAILURES -> authResult.union(b.check(name, abstraction, authByDataStream));
             };
         }
     }
@@ -67,14 +67,14 @@ public abstract class IsResourceAuthorizedPredicate {
         }
 
         @Override
-        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction) {
-            IndicesPermission.AuthorizedComponents authResult = a.check(name, abstraction);
+        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction, boolean authByDataStream) {
+            IndicesPermission.AuthorizedComponents authResult = a.check(name, abstraction, authByDataStream);
             // We can short circuit out if anything is unauthorized here
             return switch (authResult) {
                 case null -> IndicesPermission.AuthorizedComponents.NONE;
                 case NONE -> IndicesPermission.AuthorizedComponents.NONE;
-                case ALL -> b.check(name, abstraction);
-                case DATA, FAILURES -> authResult.intersection(b.check(name, abstraction));
+                case ALL -> b.check(name, abstraction, authByDataStream);
+                case DATA, FAILURES -> authResult.intersection(b.check(name, abstraction, authByDataStream));
             };
         }
     }
@@ -84,7 +84,6 @@ public abstract class IsResourceAuthorizedPredicate {
      * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
      * authorization tests of that other instance and this one.
      */
-    // @Override
     public final IsResourceAuthorizedPredicate orAllowIf(IsResourceAuthorizedPredicate other) {
         return new OrChecker(this, other);
     }
@@ -108,11 +107,13 @@ public abstract class IsResourceAuthorizedPredicate {
         return authResult != null && authResult.isDataAuthorized();
     }
 
-    /**
-     * Verifies if access is authorized to the resource with the given {@param name}.
-     * The {@param indexAbstraction}, which is the resource to be accessed, must be supplied if the resource exists or be {@code null}
-     * if it doesn't.
-     * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
-     */
-    public abstract IndicesPermission.AuthorizedComponents check(String name, @Nullable IndexAbstraction indexAbstraction);
+    public IndicesPermission.AuthorizedComponents check(String name, @Nullable IndexAbstraction indexAbstraction) {
+        return check(name, indexAbstraction, true);
+    }
+
+    public abstract IndicesPermission.AuthorizedComponents check(
+        String name,
+        @Nullable IndexAbstraction indexAbstraction,
+        boolean allowAuthorizationViaDataStream
+    );
 }

@@ -750,7 +750,8 @@ public class IndicesPermissionTests extends ESTestCase {
     public void testResourceAuthorizedPredicateAnd() {
         IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate() {
             @Override
-            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction) {
+            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction, boolean authByDataStream) {
+                assertTrue(authByDataStream);
                 StringMatcher regularNames = StringMatcher.of("c", "a");
                 StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
                 if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
@@ -763,7 +764,8 @@ public class IndicesPermissionTests extends ESTestCase {
         };
         IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate() {
             @Override
-            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction) {
+            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction, boolean authByDataStream) {
+                assertTrue(authByDataStream);
                 StringMatcher regularNames = StringMatcher.of("c", "b");
                 StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
                 if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {

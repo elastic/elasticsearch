@@ -38,7 +38,7 @@ public final class EsqlAsyncTestUtils {
         }
     }
 
-   public static EsqlQueryResponse runAsyncQuery(Client client, String query, Boolean ccsMetadata, TimeValue waitCompletionTime) {
+    public static EsqlQueryResponse runAsyncQuery(Client client, String query, Boolean ccsMetadata, TimeValue waitCompletionTime) {
         EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());

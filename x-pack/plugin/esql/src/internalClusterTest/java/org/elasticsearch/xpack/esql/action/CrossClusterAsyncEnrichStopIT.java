@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQuery;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForCluster;

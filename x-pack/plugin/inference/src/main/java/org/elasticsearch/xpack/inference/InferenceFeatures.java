@@ -40,7 +40,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX
+            SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX,
+            TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX
         );
     }
 }

@@ -2132,7 +2132,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(matchField.name(), equalTo("j"));
     }
 
-
     public void testRerankCommand() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
@@ -2148,7 +2147,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Default window size is 20
         assertThat(rerank.windowSize().fold(), equalTo(20));
     }
-
 
     public void testInlineConvertUnsupportedType() {
         expectError("ROW 3::BYTE", "line 1:5: Unsupported conversion to type [BYTE]");

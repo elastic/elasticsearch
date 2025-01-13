@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger LOGGER = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     private static final String LOGS_PATTERN = "logs-*-*";
-    private static final Set<String> INCLUDES = Set.of("_source*", "properties.host*");
+    private static final Set<String> MAPPING_INCLUDES = Set.of("_doc._source.*", "_doc.properties.host**", "_doc.subobjects");
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
@@ -238,9 +238,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     combinedTemplateMappings = List.of(new CompressedXContent("{}"));
                 } else {
                     List<CompressedXContent> processedTemplateMappings = new ArrayList<>(combinedTemplateMappings.size());
-                    for (CompressedXContent mapping : combinedTemplateMappings) {
-                        var map = XContentHelper.convertToMap(mapping.compressedReference(), true, XContentType.JSON, INCLUDES, Set.of())
-                            .v2();
+                    for (CompressedXContent mappingSource : combinedTemplateMappings) {
+                        var ref = mappingSource.compressedReference();
+                        var map = XContentHelper.convertToMap(ref, true, XContentType.JSON, MAPPING_INCLUDES, Set.of()).v2();
                         processedTemplateMappings.add(new CompressedXContent(map));
                     }
                     combinedTemplateMappings = processedTemplateMappings;

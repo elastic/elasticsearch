@@ -1010,7 +1010,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
-        registerHandler.accept(new RestCatComponentTemplateAction());
+        registerHandler.accept(new RestCatComponentTemplateAction(projectIdResolver));
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
 

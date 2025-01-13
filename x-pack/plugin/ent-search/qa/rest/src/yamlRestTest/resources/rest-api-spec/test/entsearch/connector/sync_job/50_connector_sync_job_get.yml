@@ -51,7 +51,7 @@ setup:
   - set: { id: sync-job-id }
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=", X-elastic-product-origin: "connectors" }  # entsearch-user with read-only access
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
       connector.sync_job_get:
         connector_sync_job_id: $sync-job-id
 

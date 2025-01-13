@@ -436,13 +436,18 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {
         XContentParser parser = context.parser();
+        int arrDepth = 1;
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
-                return;
-            }
-            if (token == XContentParser.Token.VALUE_STRING) {
+                arrDepth -= 1;
+                if (arrDepth <= 0) {
+                    return;
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
                 parseValue(parser, values);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                arrDepth += 1;
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 // ignore null values
             } else {

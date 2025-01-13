@@ -59,6 +59,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -459,22 +460,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
-        List<String> stacktraceIds = responseBuilder.getStackTraceEvents()
-            .keySet()
-            .stream()
-            .map(TraceEventID::stacktraceID)
-            .collect(Collectors.toSet())
-            .stream()
-            .sorted()
-            .toList();
-        List<String> hostIds = responseBuilder.getStackTraceEvents()
-            .keySet()
-            .stream()
-            .map(TraceEventID::hostID)
-            .collect(Collectors.toSet())
-            .stream()
-            .sorted()
-            .toList();
+        Set<String> stacktraceIds = new TreeSet<>();
+        Set<String> hostIds = new TreeSet<>();
+        for (TraceEventID id : responseBuilder.getStackTraceEvents().keySet()) {
+            stacktraceIds.add(id.stacktraceID());
+            hostIds.add(id.hostID());
+        }
         log.info("Using [{}] hostIds and [{}] stacktraceIds.", hostIds.size(), stacktraceIds.size());
 
         ClusterState clusterState = clusterService.state();
@@ -482,7 +473,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
         log.trace("Using [{}] slice(s) to lookup stacktraces.", sliceCount);
-        List<List<String>> slicedEventIds = sliced(stacktraceIds, sliceCount);
+        List<List<String>> slicedEventIds = sliced(new ArrayList<>(stacktraceIds), sliceCount);
 
         StackTraceHandler handler = new StackTraceHandler(
             submitTask,

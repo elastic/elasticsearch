@@ -411,7 +411,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         int originalSourceLength = context.sourceToParse().source().length();
         XContentType contentType = context.sourceToParse().getXContentType();
-        BytesReference originalSource = removeInferenceMetadataFields(context.mappingLookup(), context.sourceToParse().source(), contentType);
+        BytesReference originalSource = removeInferenceMetadataFields(
+            context.mappingLookup(),
+            context.sourceToParse().source(),
+            contentType
+        );
         final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType, false);
 
         if (adaptedSource != null) {

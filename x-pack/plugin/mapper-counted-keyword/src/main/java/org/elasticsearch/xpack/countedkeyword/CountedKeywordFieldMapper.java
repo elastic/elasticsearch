@@ -488,6 +488,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
+        var keepMode = sourceKeepMode();
+        if (keepMode.isPresent() && (keepMode.get() == SourceKeepMode.ARRAYS || keepMode.get() == SourceKeepMode.ALL)) {
+            return super.syntheticSourceSupport();
+        }
+
         var loader = new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName());
         return new SyntheticSourceSupport.Native(loader);
     }

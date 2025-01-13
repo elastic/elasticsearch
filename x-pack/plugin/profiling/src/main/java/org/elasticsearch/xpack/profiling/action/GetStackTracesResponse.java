@@ -142,9 +142,4 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     public int hashCode() {
         return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
     }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
-    }
 }

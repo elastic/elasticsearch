@@ -26,7 +26,6 @@ public class LogicalOptimizerContext {
     }
 
     public FoldContext foldCtx() {
-        // TODO this has an equals method!? but foldCtx is explicitly mutable state....
         return foldCtx;
     }
 
@@ -45,7 +44,7 @@ public class LogicalOptimizerContext {
 
     @Override
     public String toString() {
-        return "LogicalOptimizerContext[" + "configuration=" + configuration + ']';
+        return "LogicalOptimizerContext[configuration=" + configuration + ", foldCtx=" + foldCtx + ']';
     }
 
 }

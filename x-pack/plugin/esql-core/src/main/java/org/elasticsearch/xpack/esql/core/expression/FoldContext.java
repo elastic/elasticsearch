@@ -40,10 +40,17 @@ public class FoldContext {
         this.allowedBytes = allowedBytes;
     }
 
-    long initialAllowedBytes() {
+    /**
+     * The maximum allowed bytes. {@link #allowedBytes()} will be the same as this
+     * for an unused context.
+     */
+    public long initialAllowedBytes() {
         return initialAllowedBytes;
     }
 
+    /**
+     * The remaining allowed bytes.
+     */
     long allowedBytes() {
         return allowedBytes;
     }
@@ -58,6 +65,11 @@ public class FoldContext {
     @Override
     public int hashCode() {
         return Objects.hash(initialAllowedBytes, allowedBytes);
+    }
+
+    @Override
+    public String toString() {
+        return "FoldContext[" + allowedBytes + '/' + initialAllowedBytes + ']';
     }
 
     /**

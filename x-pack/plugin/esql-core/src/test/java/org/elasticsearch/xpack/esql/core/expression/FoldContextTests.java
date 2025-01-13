@@ -87,4 +87,11 @@ public class FoldContextTests extends ESTestCase {
         view.addWithoutBreaking(-1);
         assertThat(view.getUsed(), equalTo(9L));
     }
+
+    public void testToString() {
+        // Random looking numbers are indeed random. Just so we have consistent numbers to assert on in toString.
+        FoldContext ctx = new FoldContext(123);
+        ctx.trackAllocation(Source.EMPTY, 22);
+        assertThat(ctx.toString(), equalTo("FoldContext[101/123]"));
+    }
 }

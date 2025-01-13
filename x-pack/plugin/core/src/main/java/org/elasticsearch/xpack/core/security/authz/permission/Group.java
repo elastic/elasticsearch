@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -104,32 +103,38 @@ public class Group {
     }
 
     IsResourceAuthorizedPredicate allowedIndicesPredicate(String action) {
-        return new IsResourceAuthorizedPredicate(allowedIndicesChecker(action));
+        return new GroupChecker(action, this);
     }
 
-    /**
-     * Returns a checker which checks if users are permitted to access index abstractions for the given action.
-     *
-     * @param action
-     * @return A function which checks an index name and returns the components of this abstraction the user is authorized to access
-     * with the given action.
-     */
-    private BiFunction<String, IndexAbstraction, IndicesPermission.AuthorizedComponents> allowedIndicesChecker(String action) {
-        boolean isReadAction = READ.predicate().test(action);
-        boolean isMappingUpdateAction = IndicesPermission.isMappingUpdateAction(action);
-        boolean actionMatches = actionMatcher.test(action);
-        boolean actionAuthorized = actionMatches || (isReadAction && hasReadFailuresPrivilege);
-        if (actionAuthorized == false) {
-            AtomicBoolean logged = new AtomicBoolean(false);
-            return (name, resource) -> {
+    static class GroupChecker extends IsResourceAuthorizedPredicate {
+        private final String action;
+        private final Group group;
+        private final boolean isReadAction;
+        private final boolean isMappingUpdateAction;
+        private final boolean actionMatches;
+        private final boolean actionAuthorized;
+        private final AtomicBoolean deprecationLogEmitted = new AtomicBoolean(false);
+
+        GroupChecker(String action, Group group) {
+            this.action = action;
+            this.group = group;
+            isReadAction = READ.predicate().test(action);
+            isMappingUpdateAction = IndicesPermission.isMappingUpdateAction(action);
+            actionMatches = group.actionMatcher.test(action);
+            actionAuthorized = actionMatches || (isReadAction && group.hasReadFailuresPrivilege);
+        }
+
+        @Override
+        public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction resource) {
+            if (actionAuthorized == false) {
                 if (isMappingUpdateAction
-                    && hasMappingUpdateBwcPermissions
+                    && group.hasMappingUpdateBwcPermissions
                     && resource != null
                     && resource.getParentDataStream() == null
                     && resource.getType() != IndexAbstraction.Type.DATA_STREAM) {
-                    boolean alreadyLogged = logged.getAndSet(true);
+                    boolean alreadyLogged = deprecationLogEmitted.getAndSet(true);
                     if (alreadyLogged == false) {
-                        for (String privilegeName : this.privilege.name()) {
+                        for (String privilegeName : group.privilege.name()) {
                             if (IndicesPermission.PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                 deprecationLogger.warn(
                                     DeprecationCategory.SECURITY,
@@ -151,48 +156,47 @@ public class Group {
                     return IndicesPermission.AuthorizedComponents.ALL;
                 }
                 return IndicesPermission.AuthorizedComponents.NONE;
-            };
-        }
+            } else {
+                assert resource == null || name.equals(resource.getName());
+                return switch (resource.getType()) {
+                    case ALIAS -> group.checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
+                    case DATA_STREAM -> group.checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
+                    case CONCRETE_INDEX -> {
+                        IndexAbstraction.ConcreteIndex index = (IndexAbstraction.ConcreteIndex) resource;
+                        final DataStream ds = index.getParentDataStream();
 
-        return (String abstractionName, IndexAbstraction resource) -> {
-            assert resource == null || abstractionName.equals(resource.getName());
-            return switch (resource.getType()) {
-                case ALIAS -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
-                case DATA_STREAM -> checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
-                case CONCRETE_INDEX -> {
-                    IndexAbstraction.ConcreteIndex index = (IndexAbstraction.ConcreteIndex) resource;
-                    final DataStream ds = index.getParentDataStream();
+                        if (ds != null) {
+                            boolean isFailureStoreIndex = ds.getFailureIndices().containsIndex(resource.getName());
 
-                    if (ds != null) {
-                        boolean isFailureStoreIndex = ds.getFailureIndices().containsIndex(resource.getName());
-
-                        if (isReadAction) {
-                            // If we're trying to read a failure store index, we need to have read_failures for the data stream
-                            if (isFailureStoreIndex) {
-                                if ((hasReadFailuresPrivilege && indexNameMatcher.test(ds.getName()))) {
-                                    yield IndicesPermission.AuthorizedComponents.FAILURES; // And authorize it as a failures index (i.e. no
-                                                                                           // DLS/FLS)
+                            if (isReadAction) {
+                                // If we're trying to read a failure store index, we need to have read_failures for the data stream
+                                if (isFailureStoreIndex) {
+                                    if ((group.hasReadFailuresPrivilege && group.indexNameMatcher.test(ds.getName()))) {
+                                        yield IndicesPermission.AuthorizedComponents.FAILURES; // And authorize it as a failures index (i.e.
+                                                                                               // no
+                                        // DLS/FLS)
+                                    }
+                                } else { // not a failure store index
+                                    if (group.indexNameMatcher.test(ds.getName()) || group.indexNameMatcher.test(resource.getName())) {
+                                        yield IndicesPermission.AuthorizedComponents.DATA;
+                                    }
                                 }
-                            } else { // not a failure store index
-                                if (indexNameMatcher.test(ds.getName()) || indexNameMatcher.test(resource.getName())) {
+                            } else { // Not a read action, authenticate as normal
+                                if (group.checkParentNameAndResourceName(ds.getName(), resource.getName())) {
                                     yield IndicesPermission.AuthorizedComponents.DATA;
                                 }
                             }
-                        } else { // Not a read action, authenticate as normal
-                            if (checkParentNameAndResourceName(ds.getName(), resource.getName())) {
-                                yield IndicesPermission.AuthorizedComponents.DATA;
-                            }
+                        } else if (group.indexNameMatcher.test(resource.getName())) {
+                            yield IndicesPermission.AuthorizedComponents.DATA;
                         }
-                    } else if (indexNameMatcher.test(resource.getName())) {
-                        yield IndicesPermission.AuthorizedComponents.DATA;
+                        yield IndicesPermission.AuthorizedComponents.NONE;
                     }
-                    yield IndicesPermission.AuthorizedComponents.NONE;
-                }
-                case null -> indexNameMatcher.test(abstractionName)
-                    ? IndicesPermission.AuthorizedComponents.DATA
-                    : IndicesPermission.AuthorizedComponents.NONE;
-            };
-        };
+                    case null -> group.indexNameMatcher.test(name)
+                        ? IndicesPermission.AuthorizedComponents.DATA
+                        : IndicesPermission.AuthorizedComponents.NONE;
+                };
+            }
+        }
     }
 
     private boolean checkParentNameAndResourceName(String dsName, String indexName) {

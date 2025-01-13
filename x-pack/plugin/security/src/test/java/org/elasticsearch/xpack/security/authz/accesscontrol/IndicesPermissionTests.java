@@ -748,30 +748,33 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testResourceAuthorizedPredicateAnd() {
-        IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate((String name, IndexAbstraction abstraction) -> {
-            StringMatcher regularNames = StringMatcher.of("c", "a");
-            StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
-            if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
-                if (nonDatastreamNames.test(name)) {
-                    return IndicesPermission.AuthorizedComponents.DATA;
+        IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate() {
+            @Override
+            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction) {
+                StringMatcher regularNames = StringMatcher.of("c", "a");
+                StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
+                if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
+                    if (nonDatastreamNames.test(name)) {
+                        return IndicesPermission.AuthorizedComponents.DATA;
+                    }
                 }
+                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
             }
-            return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
-
-        });
-        IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate((String name, IndexAbstraction abstraction) -> {
-            StringMatcher regularNames = StringMatcher.of("c", "b");
-            StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
-            if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
-                if (nonDatastreamNames.test(name)) {
-                    return IndicesPermission.AuthorizedComponents.DATA;
+        };
+        IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate() {
+            @Override
+            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction) {
+                StringMatcher regularNames = StringMatcher.of("c", "b");
+                StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
+                if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
+                    if (nonDatastreamNames.test(name)) {
+                        return IndicesPermission.AuthorizedComponents.DATA;
+                    }
                 }
+                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+
             }
-            return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
-
-        }
-
-        );
+        };
         Metadata.Builder mb = Metadata.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(
                 List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),

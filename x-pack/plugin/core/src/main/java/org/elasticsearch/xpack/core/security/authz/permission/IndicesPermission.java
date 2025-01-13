@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -49,9 +48,6 @@ import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivile
  * on specific indices
  */
 public final class IndicesPermission {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
-
     public static final IndicesPermission NONE = new IndicesPermission(new RestrictedIndices(Automatons.EMPTY), Group.EMPTY_ARRAY);
 
     static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
@@ -200,7 +196,7 @@ public final class IndicesPermission {
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         if (groups.length == 0) {
-            return new IsResourceAuthorizedPredicate((name, abstraction) -> AuthorizedComponents.NONE);
+            return new IsResourceAuthorizedPredicate.NoResourcesAuthorizedChecker();
         }
 
         IsResourceAuthorizedPredicate predicate = groups[0].allowedIndicesPredicate(action);

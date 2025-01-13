@@ -10,7 +10,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 
@@ -82,5 +84,22 @@ public abstract class CollectionUtils {
             }
         }
         return list;
+    }
+
+    public static <T, S extends T> List<S> collectType(Collection<T> list, Class<S> clazz) {
+        return list.stream().<S>mapMulti((e, c) -> {
+            if (clazz.isInstance(e)) {
+                c.accept(clazz.cast(e));
+            }
+        }).toList();
+    }
+
+    public static <T> OptionalInt findIndex(List<T> list, Predicate<T> predicate) {
+        for (int i = 0; i < list.size(); i++) {
+            if (predicate.test(list.get(i))) {
+                return OptionalInt.of(i);
+            }
+        }
+        return OptionalInt.empty();
     }
 }

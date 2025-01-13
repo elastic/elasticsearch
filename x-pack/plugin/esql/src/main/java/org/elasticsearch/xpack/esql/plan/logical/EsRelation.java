@@ -204,4 +204,8 @@ public class EsRelation extends LeafPlan {
             throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
         }
     }
+
+    public EsRelation withAttributes(List<Attribute> concat) {
+        return new EsRelation(source(), index, concat, indexMode, frozen);
+    }
 }

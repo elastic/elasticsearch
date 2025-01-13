@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
+import org.elasticsearch.xpack.esql.plan.InsistParameters;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -45,7 +46,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -296,6 +299,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             null,
             "FROM"
         );
+    }
+
+    @Override
+    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
+        var source = source(ctx);
+        return input -> {
+            if (input instanceof LeafPlan) {
+                return new Insist(source, new InsistParameters(visitIdentifier(ctx.identifier())), input);
+            }
+            throw new ParsingException(source, "INSIST command can only be applied on top of a source");
+        };
     }
 
     @Override

@@ -488,7 +488,8 @@ public class CsvTests extends ESTestCase {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
             var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2()));
+            Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
+            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields));
         }
         return TestPhysicalOperationProviders.create(indexPages);
     }

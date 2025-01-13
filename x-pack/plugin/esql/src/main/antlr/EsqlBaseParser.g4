@@ -52,6 +52,7 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     // in development
+    | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? joinCommand
@@ -127,6 +128,10 @@ field
 
 fromCommand
     : FROM indexPattern (COMMA indexPattern)* metadata?
+    ;
+
+insistCommand
+    : DEV_INSIST identifier
     ;
 
 indexPattern

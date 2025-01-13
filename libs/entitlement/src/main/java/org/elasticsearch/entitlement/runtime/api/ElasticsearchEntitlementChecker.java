@@ -18,14 +18,18 @@ import java.io.PrintWriter;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.ProxySelector;
+import java.net.ResponseCache;
 import java.net.SocketImplFactory;
 import java.net.URL;
+import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 
 /**
@@ -309,5 +313,40 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
         policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_ResponseCache$$setDefault(Class<?> callerClass, ResponseCache rc) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URL$(Class<?> callerClass, URL context, String spec, URLStreamHandler handler) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession) {
+        policyManager.checkReadSensitiveNetworkInformation(callerClass);
     }
 }

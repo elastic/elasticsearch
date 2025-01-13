@@ -407,19 +407,18 @@ public class SearchTransportService {
             OriginalIndices.readOriginalIndices(in);
             return res;
         }, freeContextHandler);
+        // BwC handler that translates FREE_CONTEXT_ACTION_NAME into FREE_CONTEXT_SCROLL_ACTION_NAME same way we use
+        // FREE_CONTEXT_SCROLL_ACTION_NAME throughout on local nodes
         transportService.registerRequestHandler(
             TransportActionProxy.getProxyAction(FREE_CONTEXT_ACTION_NAME),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             false,
-            in -> {
-                return new TransportActionProxy.ProxyRequest<>(in, i -> {
-                    var res = new ScrollFreeContextRequest(i);
-                    // this handler exists for BwC purposes only, we don't need the original indices to free the context
-                    OriginalIndices.readOriginalIndices(i);
-                    return res;
-                });
-            },
+            in -> new TransportActionProxy.ProxyRequest<>(in, i -> {
+                var res = new ScrollFreeContextRequest(i);
+                OriginalIndices.readOriginalIndices(i);
+                return res;
+            }),
             new TransportActionProxy.ProxyRequestHandler<>(
                 transportService,
                 FREE_CONTEXT_SCROLL_ACTION_NAME,

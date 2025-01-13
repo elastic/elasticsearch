@@ -295,7 +295,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             if (unit == ByteSizeUnit.BYTES) {
                 continue;
             }
-            for (int tenths = 5; tenths <= 5; tenths++) { // No other tenths values work!
+            for (int tenths = 1; tenths <= 9; tenths++) {
                 checkFractionRoundTrip("23." + tenths + unit.getSuffix());
             }
         }
@@ -303,11 +303,6 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     private void checkFractionRoundTrip(String fractionalValue) {
         assertEquals(fractionalValue, ByteSizeValue.parseBytesSizeValue(fractionalValue, "test").toString());
-        assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
-                + fractionalValue
-                + "] found for setting [test]"
-        );
     }
 
     public void testGetBytesAsInt() {

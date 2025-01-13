@@ -14,12 +14,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -202,6 +203,9 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
     }
 
+    /**
+     * @return a string with at most one decimal point whose magnitude is close to {@code this}.
+     */
     @Override
     public String toString() {
         long bytes = getBytes();
@@ -306,24 +310,52 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         ByteSizeUnit unit,
         final String settingName
     ) {
+        assert unit != BYTES : "Use parseBytes";
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             try {
                 return of(Long.parseLong(s), unit);
             } catch (final NumberFormatException e) {
+                BigDecimal decimalValue;
                 try {
-                    final double doubleValue = Double.parseDouble(s);
-                    DeprecationLoggerHolder.deprecationLogger.warn(
-                        DeprecationCategory.PARSING,
-                        "fractional_byte_values",
-                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                        initialInput,
-                        settingName
+                    decimalValue = new BigDecimal(s);
+                } catch (NumberFormatException e2) {
+                    ElasticsearchParseException toThrow = new ElasticsearchParseException(
+                        "failed to parse setting [{}] with value [{}]",
+                        e,
+                        settingName,
+                        initialInput
                     );
-                    return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
-                } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+                    toThrow.addSuppressed(e2);
+                    throw toThrow;
                 }
+                if (decimalValue.signum() < 0) {
+                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", settingName, initialInput);
+                } else if (decimalValue.scale() > 2) {
+                    throw new ElasticsearchParseException(
+                        "failed to parse setting [{}] with more than two decimals in value [{}]",
+                        settingName,
+                        initialInput
+                    );
+                }
+                long sizeInBytes;
+                try {
+                    // Note we always round up here for two reasons:
+                    // 1. Practically: toString truncates, so if we ever round down, we'll lose a tenth
+                    // 2. In principle: if the user asks for 1.1kb, which is 1126.4 bytes, and we only give then 1126, then
+                    // we have not given them what they asked for.
+                    sizeInBytes = decimalValue.multiply(new BigDecimal(unit.toBytes(1))).setScale(0, RoundingMode.UP).longValueExact();
+                } catch (ArithmeticException e2) {
+                    ElasticsearchParseException toThrow = new ElasticsearchParseException(
+                        "failed to parse setting [{}] with value beyond {}: [{}]",
+                        settingName,
+                        Long.MAX_VALUE,
+                        initialInput
+                    );
+                    toThrow.addSuppressed(e2);
+                    throw toThrow;
+                }
+                return new ByteSizeValue(sizeInBytes, unit);
             }
         } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException(

@@ -294,17 +294,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testImplicitCastingErrorMessages() {
-        assertEquals(
-            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
-            error("row a = round(123.45, \"c\")")
-        );
+        assertEquals("1:23: Cannot convert string [c] to [LONG], error [Cannot parse number [c]]", error("row a = round(123.45, \"c\")"));
         assertEquals(
             "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
             error("row a = 1 | eval x = acos(\"c\")")
         );
         assertEquals(
             "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
-                + "line 1:38: Cannot convert string [a] to [INTEGER], error [Cannot parse number [a]]",
+                + "line 1:38: Cannot convert string [a] to [LONG], error [Cannot parse number [a]]",
             error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
         );
         assertEquals(

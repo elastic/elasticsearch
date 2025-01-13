@@ -15,6 +15,12 @@ import java.io.PrintWriter;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.InetAddress;
+import java.net.Proxy;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.SocketImpl;
 import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
@@ -167,4 +173,27 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
+    // Binding/connecting ctor
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog, InetAddress bindAddr);
+
+    void check$java_net_ServerSocket$accept(Class<?> callerClass, ServerSocket that);
+
+    void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint);
+
+    void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint, int backlog);
+
+    // Binding/connecting ctors
+    void check$java_net_Socket$(Class<?> callerClass, Proxy proxy);
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port);
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port);
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port, InetAddress localAddr, int localPort);
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port, InetAddress localAddr, int localPort);
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port, boolean stream);
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress host, int port, boolean stream);
+
+    void check$java_net_Socket$bind(Class<?> callerClass, Socket that, SocketAddress endpoint);
+
+    void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint);
+
+    void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog);
 }

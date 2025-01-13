@@ -18,6 +18,11 @@ import java.io.PrintWriter;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.InetAddress;
+import java.net.Proxy;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
@@ -309,5 +314,77 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
         policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog, InetAddress bindAddr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$accept(Class<?> callerClass, ServerSocket that) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint, int backlog) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, Proxy proxy) {
+        if (proxy.type() == Proxy.Type.SOCKS || proxy.type() == Proxy.Type.HTTP) {
+            policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+        }
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, String host, int port) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION | NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION | NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, String host, int port, InetAddress localAddr, int localPort) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION | NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port, InetAddress localAddr, int localPort) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION | NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, String host, int port, boolean stream) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION | NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$(Class<?> callerClass, InetAddress host, int port, boolean stream) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION | NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$bind(Class<?> callerClass, Socket that, SocketAddress endpoint) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.net.SocketImpl;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

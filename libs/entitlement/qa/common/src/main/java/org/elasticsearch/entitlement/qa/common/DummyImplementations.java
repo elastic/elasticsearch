@@ -9,8 +9,15 @@
 
 package org.elasticsearch.entitlement.qa.common;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.SocketException;
+import java.net.SocketImpl;
 import java.security.cert.Certificate;
 import java.text.BreakIterator;
 import java.text.Collator;
@@ -287,6 +294,71 @@ class DummyImplementations {
         @Override
         public Certificate[] getServerCertificates() {
             throw unexpected();
+        }
+    }
+
+    private static class DummySocketImpl extends SocketImpl {
+        @Override
+        protected void create(boolean stream) {}
+
+        @Override
+        protected void connect(String host, int port) {}
+
+        @Override
+        protected void connect(InetAddress address, int port) {}
+
+        @Override
+        protected void connect(SocketAddress address, int timeout) {}
+
+        @Override
+        protected void bind(InetAddress host, int port) {}
+
+        @Override
+        protected void listen(int backlog) {}
+
+        @Override
+        protected void accept(SocketImpl s) {}
+
+        @Override
+        protected InputStream getInputStream() {
+            return null;
+        }
+
+        @Override
+        protected OutputStream getOutputStream() {
+            return null;
+        }
+
+        @Override
+        protected int available() {
+            return 0;
+        }
+
+        @Override
+        protected void close() {}
+
+        @Override
+        protected void sendUrgentData(int data) {}
+
+        @Override
+        public void setOption(int optID, Object value) {}
+
+        @Override
+        public Object getOption(int optID) {
+            return null;
+        }
+    }
+
+    static class DummySocket extends Socket {
+        DummySocket() throws SocketException {
+            super(new DummySocketImpl());
+        }
+    }
+
+
+    static class DummyServerSocket extends ServerSocket {
+        DummyServerSocket() {
+            super(new DummySocketImpl());
         }
     }
 

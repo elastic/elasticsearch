@@ -274,6 +274,9 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
   method: testCheckThrows {pathPrefix=denied actionName=sslSessionImpl_getSessionContext}
   issue: https://github.com/elastic/elasticsearch/issues/120053
+- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
+  method: testCheckThrows {pathPrefix=denied_nonmodular actionName=sslSessionImpl_getSessionContext}
+  issue: https://github.com/elastic/elasticsearch/issues/120054
 
 # Examples:
 #

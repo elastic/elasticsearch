@@ -175,6 +175,20 @@ public class PolicyManager {
         });
     }
 
+    /**
+     * Check for operations that can modify the way network operations are handled
+     */
+    public void checkChangeNetworkHandling(Class<?> callerClass) {
+        checkChangeJVMGlobalState(callerClass);
+    }
+
+    /**
+     * Check for operations that can access sensitive network information, e.g. secrets, tokens or SSL sessions
+     */
+    public void checkReadSensitiveNetworkInformation(Class<?> callerClass) {
+        neverEntitled(callerClass, "access sensitive network information");
+    }
+
     private String operationDescription(String methodName) {
         // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
         return methodName.substring(methodName.indexOf('$'));

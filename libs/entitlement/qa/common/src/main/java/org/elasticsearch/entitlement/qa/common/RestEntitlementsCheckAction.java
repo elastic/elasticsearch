@@ -35,9 +35,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.DatagramSocketImpl;
-import java.net.DatagramSocketImplFactory;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProxySelector;
+import java.net.ResponseCache;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -47,6 +48,10 @@ import java.net.SocketException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
+import java.net.URLStreamHandler;
+import java.net.spi.InetAddressResolver;
+import java.net.spi.InetAddressResolverProvider;
+import java.net.spi.URLStreamHandlerProvider;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +60,9 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
@@ -62,6 +70,7 @@ import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckActio
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.forPlugins;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@SuppressWarnings("unused")
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
     public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
@@ -88,6 +97,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Map<String, CheckAction> checkActions = Map.ofEntries(
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
+        entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
         entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
         entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
         entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
@@ -130,6 +140,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("url_setURLStreamHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::url$$setURLStreamHandlerFactory)),
         entry("urlConnection_setFileNameMap", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setFileNameMap)),
         entry("urlConnection_setContentHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory)),
+
+        entry("proxySelector_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultProxySelector)),
+        entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
+        entry("createInetAddressResolverProvider", alwaysDenied(RestEntitlementsCheckAction::createInetAddressResolverProvider)),
+        entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
+        entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
+        entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
+        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext)),
         entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
         entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
         entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
@@ -137,6 +155,76 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
         entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket))
     );
+
+    private static void createURLStreamHandlerProvider() {
+        var x = new URLStreamHandlerProvider() {
+            @Override
+            public URLStreamHandler createURLStreamHandler(String protocol) {
+                return null;
+            }
+        };
+    }
+
+    private static void sslSessionImplGetSessionContext() {
+        SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
+        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
+            SSLSession session = socket.getSession();
+
+            session.getSessionContext();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void createURLWithURLStreamHandler() {
+        try {
+            var x = new URL("http", "host", 1234, "file", new URLStreamHandler() {
+                @Override
+                protected URLConnection openConnection(URL u) {
+                    return null;
+                }
+            });
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void createURLWithURLStreamHandler2() {
+        try {
+            var x = new URL(null, "spec", new URLStreamHandler() {
+                @Override
+                protected URLConnection openConnection(URL u) {
+                    return null;
+                }
+            });
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void createInetAddressResolverProvider() {
+        var x = new InetAddressResolverProvider() {
+            @Override
+            public InetAddressResolver get(Configuration configuration) {
+                return null;
+            }
+
+            @Override
+            public String name() {
+                return "TEST";
+            }
+        };
+    }
+
+    private static void setDefaultResponseCache() {
+        ResponseCache.setDefault(null);
+    }
+
+    private static void setDefaultProxySelector() {
+        ProxySelector.setDefault(null);
+    }
 
     private static void setDefaultSSLContext() {
         try {
@@ -162,6 +250,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     @SuppressForbidden(reason = "Specifically testing Runtime.halt")
     private static void runtimeHalt() {
         Runtime.getRuntime().halt(123);
+    }
+
+    @SuppressForbidden(reason = "Specifically testing System.exit")
+    private static void systemExit() {
+        System.exit(123);
     }
 
     private static void createClassLoader() {
@@ -275,12 +368,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
     private static void datagramSocket$$setDatagramSocketImplFactory() {
         try {
-            DatagramSocket.setDatagramSocketImplFactory(new DatagramSocketImplFactory() {
-                @Override
-                public DatagramSocketImpl createDatagramSocketImpl() {
-                    throw new IllegalStateException();
-                }
-            });
+            DatagramSocket.setDatagramSocketImplFactory(() -> { throw new IllegalStateException(); });
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

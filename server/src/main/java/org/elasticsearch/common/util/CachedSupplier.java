@@ -19,7 +19,9 @@ import java.util.function.Supplier;
 public final class CachedSupplier<T> implements Supplier<T> {
 
     private volatile Supplier<T> supplier;
-    private volatile T result;
+    // result does not need to be volatile as we only read it after reading that the supplier got nulled out. Since we null out the
+    // supplier after setting the result, total store order from an observed volatile write is sufficient to make a plain read safe.
+    private T result;
 
     public static <R> CachedSupplier<R> wrap(Supplier<R> supplier) {
         if (supplier instanceof CachedSupplier<R> c) {
@@ -38,14 +40,18 @@ public final class CachedSupplier<T> implements Supplier<T> {
         if (supplier == null) {
             return result;
         }
-        initResult();
-        return result;
+        return initResult();
     }
 
-    private synchronized void initResult() {
-        if (supplier != null) {
-            result = supplier.get();
+    private synchronized T initResult() {
+        var s = supplier;
+        if (s != null) {
+            T res = s.get();
+            result = res;
             supplier = null;
+            return res;
+        } else {
+            return result;
         }
     }
 

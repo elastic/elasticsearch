@@ -29,7 +29,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyBKDReader;
 
 import java.io.IOException;
@@ -124,7 +124,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
             success = true;
         } finally {
             if (success == false) {
-                org.apache.lucene.util.IOUtils.closeWhileHandlingException(this);
+                IOUtils.closeWhileHandlingException(this);
             }
         }
     }

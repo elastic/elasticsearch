@@ -32,7 +32,13 @@ public class RoundErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature,
-            (v, p) -> p == 0 ? "numeric" : "whole number except unsigned_long or counter types"));
+        return equalTo(
+            typeErrorMessage(
+                true,
+                validPerPosition,
+                signature,
+                (v, p) -> p == 0 ? "numeric" : "whole number except unsigned_long or counter types"
+            )
+        );
     }
 }

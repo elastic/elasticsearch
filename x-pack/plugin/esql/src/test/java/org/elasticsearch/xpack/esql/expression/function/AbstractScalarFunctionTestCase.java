@@ -108,9 +108,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         ExpectedEvaluatorToString evaluatorToString,
         List<TestCaseSupplier> suppliers
     ) {
-        return parameterSuppliersFromTypedData(
-            anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString)
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
     }
 
     /**

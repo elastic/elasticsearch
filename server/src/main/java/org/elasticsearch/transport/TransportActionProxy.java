@@ -32,13 +32,13 @@ public final class TransportActionProxy {
 
     private TransportActionProxy() {} // no instance
 
-    private static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
+    public static class ProxyRequestHandler<T extends ProxyRequest<TransportRequest>> implements TransportRequestHandler<T> {
 
         private final TransportService service;
         private final String action;
         private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
 
-        ProxyRequestHandler(
+        public ProxyRequestHandler(
             TransportService service,
             String action,
             Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
@@ -126,7 +126,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    public static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -135,7 +135,7 @@ public final class TransportActionProxy {
             this.targetNode = targetNode;
         }
 
-        ProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+        public ProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
             super(in);
             targetNode = new DiscoveryNode(in);
             wrapped = reader.read(in);
@@ -150,8 +150,8 @@ public final class TransportActionProxy {
         }
     }
 
-    private static class CancellableProxyRequest<T extends TransportRequest> extends ProxyRequest<T> {
-        CancellableProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+    public static class CancellableProxyRequest<T extends TransportRequest> extends ProxyRequest<T> {
+        public CancellableProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
             super(in, reader);
         }
 

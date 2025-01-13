@@ -400,14 +400,32 @@ public class SearchTransportService {
         );
 
         // TODO: remove this handler once the lowest compatible version stops using it
+        // this handler exists for BwC purposes only, we don't need the original indices to free the context
         transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, in -> {
             var res = new ScrollFreeContextRequest(in);
             // this handler exists for BwC purposes only, we don't need the original indices to free the context
             OriginalIndices.readOriginalIndices(in);
             return res;
         }, freeContextHandler);
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::readFrom);
-
+        transportService.registerRequestHandler(
+            TransportActionProxy.getProxyAction(FREE_CONTEXT_ACTION_NAME),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true,
+            false,
+            in -> {
+                return new TransportActionProxy.ProxyRequest<>(in, i -> {
+                    var res = new ScrollFreeContextRequest(i);
+                    // this handler exists for BwC purposes only, we don't need the original indices to free the context
+                    OriginalIndices.readOriginalIndices(i);
+                    return res;
+                });
+            },
+            new TransportActionProxy.ProxyRequestHandler<>(
+                transportService,
+                FREE_CONTEXT_SCROLL_ACTION_NAME,
+                request -> SearchFreeContextResponse::readFrom
+            )
+        );
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             freeContextExecutor,

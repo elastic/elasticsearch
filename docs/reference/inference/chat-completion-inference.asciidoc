@@ -59,7 +59,7 @@ The type of {infer} task that the model performs. If included, this must be set 
 
 `messages`::
 (Required, array of objects) A list of objects representing the conversation.
-Requests should generally only add new messages from the user (role `user). The other message roles ("assistant", "system", or "tool") should generally only be copied from the response to a previous completion request, such that the messages array is built up over the course of a conversation.
+Requests should generally only add new messages from the user (role `user`). The other message roles (`assistant`, `system`, or `tool`) should generally only be copied from the response to a previous completion request, such that the messages array is built up throughout a conversation.
 +
 .Assistant message
 [%collapsible%closed]

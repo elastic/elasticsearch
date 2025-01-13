@@ -70,13 +70,14 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
-    private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
-
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
     private static final String DEFAULT_EIS_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     private static final String DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".eis-alpha-1";
     private static final Set<String> DEFAULT_EIS_ENDPOINT_IDS = Set.of(DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1);
+
+    private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
+    private final List<Model> defaultEndpoints;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -85,6 +86,23 @@ public class ElasticInferenceService extends SenderService {
     ) {
         super(factory, serviceComponents);
         this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
+        this.defaultEndpoints = initDefaultEndpoints();
+    }
+
+    private List<Model> initDefaultEndpoints() {
+        return List.of(v1DefaultCompletionModel());
+    }
+
+    private ElasticInferenceServiceCompletionModel v1DefaultCompletionModel() {
+        return new ElasticInferenceServiceCompletionModel(
+            DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1,
+            TaskType.COMPLETION,
+            NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_EIS_CHAT_COMPLETION_MODEL_ID_V1, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            elasticInferenceServiceComponents
+        );
     }
 
     @Override
@@ -234,19 +252,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        defaultsListener.onResponse(List.of(firstDefaultCompletionModel()));
-    }
-
-    private ElasticInferenceServiceCompletionModel firstDefaultCompletionModel() {
-        return new ElasticInferenceServiceCompletionModel(
-            DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1,
-            TaskType.COMPLETION,
-            NAME,
-            new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_EIS_CHAT_COMPLETION_MODEL_ID_V1, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            elasticInferenceServiceComponents
-        );
+        defaultsListener.onResponse(defaultEndpoints);
     }
 
     private static ElasticInferenceServiceModel createModel(

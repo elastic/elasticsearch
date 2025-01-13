@@ -59,6 +59,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1827,7 +1828,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
         throws IOException {
+        return createIndex(client::performRequest, name, settings, mapping, aliases);
+    }
 
+    protected static CreateIndexResponse createIndex(
+        CheckedFunction<Request, Response, IOException> execute,
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases
+    ) throws IOException {
         final Request request = newXContentRequest(HttpMethod.PUT, "/" + name, (builder, params) -> {
             if (settings != null) {
                 builder.startObject("settings");
@@ -1863,7 +1873,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
                 request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
             }
-        final Response response = client.performRequest(request);
+        final Response response = execute.apply(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
         }

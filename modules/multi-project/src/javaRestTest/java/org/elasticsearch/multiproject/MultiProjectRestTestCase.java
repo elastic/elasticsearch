@@ -26,11 +26,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public abstract class MultiProjectRestTestCase extends ESRestTestCase {
-    protected static void setRequestProjectId(Request request, String projectId) {
+    protected static Request setRequestProjectId(Request request, String projectId) {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.removeHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
         options.addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
         request.setOptions(options);
+        return request;
     }
 
     protected static void clearRequestProjectId(Request request) {

@@ -37,7 +37,6 @@ tasks.named("yamlRestTest").configure {
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
     '^cluster.state/30_expand_wildcards/*',
-    '^cluster.stats/*/*',
     '^data_stream/lifecycle/*/*',
     '^data_stream/10_basic/Create data stream with failure store',
     '^data_stream/10_basic/Delete data stream with failure store',

@@ -452,7 +452,7 @@ public class EsqlCapabilities {
         /**
          * KQL function
          */
-        KQL_FUNCTION(Build.current().isSnapshot()),
+        KQL_FUNCTION,
 
         /**
          * Hash function

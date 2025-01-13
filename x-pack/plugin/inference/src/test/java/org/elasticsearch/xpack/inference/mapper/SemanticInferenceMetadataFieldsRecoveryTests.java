@@ -253,11 +253,11 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     }
 
     private static SemanticTextField randomSemanticText(
-            boolean useLegacyFormat,
-            String fieldName,
-            Model model,
-            List<String> inputs,
-            XContentType contentType
+        boolean useLegacyFormat,
+        String fieldName,
+        Model model,
+        List<String> inputs,
+        XContentType contentType
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {

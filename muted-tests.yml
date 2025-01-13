@@ -271,6 +271,9 @@ tests:
 - class: org.elasticsearch.index.mapper.IntervalThrottlerTests
   method: testThrottling
   issue: https://github.com/elastic/elasticsearch/issues/120023
+- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
+  method: testCheckThrows {pathPrefix=denied actionName=sslSessionImpl_getSessionContext}
+  issue: https://github.com/elastic/elasticsearch/issues/120053
 
 # Examples:
 #

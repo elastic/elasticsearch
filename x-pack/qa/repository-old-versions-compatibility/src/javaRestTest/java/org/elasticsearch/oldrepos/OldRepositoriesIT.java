@@ -19,13 +19,13 @@ import org.elasticsearch.test.cluster.util.Version;
  * when deployed ES version 5/6. The cluster then upgrades to version 9, verifying that the archive index
  * is successfully restored.
  */
-public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
+public class OldRepositoriesIT extends AbstractUpgradeCompatibilityTestCase {
 
     static {
         clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
     }
 
-    public ArchiveIndexIT(Version version) {
+    public OldRepositoriesIT(Version version) {
         super(version);
     }
 
@@ -36,7 +36,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 3. Index Restored to version: Current-1: 8.x
      * 4. Cluster upgraded to version Current: 9.x
      */
-    public void testRestoreArchiveIndexVersion5() throws Exception {
+    public void testRestoreMountIndexVersion5() throws Exception {
         verifyCompatibility(TestSnapshotCases.ES_VERSION_5);
     }
 
@@ -47,7 +47,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 3. Index Restored to version: Current-1: 8.x
      * 4. Cluster upgraded to version Current: 9.x
      */
-    public void testMountSearchableSnapshotVersion6() throws Exception {
+    public void testRestoreMountIndexVersion6() throws Exception {
         verifyCompatibility(TestSnapshotCases.ES_VERSION_6);
     }
 
@@ -83,7 +83,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 2. Added 1 documents to index and created a snapshot (Steps 1-2 into resources/snapshot_v5_standard_token_filter.zip)
      * 3. Index Restored to version: Current: 9.x
      */
-    public void testRestoreVersion5StandardTokenFilter() throws Exception {
+    public void testRestoreMountVersion5StandardTokenFilter() throws Exception {
         verifyCompatibilityNoUpgrade(TestSnapshotCases.ES_VERSION_5_STANDARD_TOKEN_FILTER, warnings -> {
             assertEquals(1, warnings.size());
             assertEquals("The [standard] token filter is " + "deprecated and will be removed in a future version.", warnings.getFirst());
@@ -122,7 +122,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 2. Added 1 documents to index and created a snapshot (Steps 1-2 into resources/snapshot_v6_standard_token_filter.zip)
      * 3. Index Restored to version: Current: 9.x
      */
-    public void testRestoreVersion6StandardTokenFilter() throws Exception {
+    public void testRestoreMountVersion6StandardTokenFilter() throws Exception {
         verifyCompatibilityNoUpgrade(TestSnapshotCases.ES_VERSION_6_STANDARD_TOKEN_FILTER, warnings -> {
             assertEquals(1, warnings.size());
             assertEquals("The [standard] token filter is " + "deprecated and will be removed in a future version.", warnings.getFirst());
@@ -136,7 +136,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 3. Added 1 documents to index and created a snapshot (Steps 1-3 into resources/snapshot_vlucene_80.zip)
      * 4. Index Restored to version: Current : 9.x
      */
-    public void testRestoreVersion6LuceneCodec80() throws Exception {
+    public void testRestoreMountVersion6LuceneCodec80() throws Exception {
         verifyCompatibilityNoUpgrade(TestSnapshotCases.ES_VERSION_6_LUCENE_CODEC_80);
     }
 
@@ -147,7 +147,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 3. Added 1 documents to index and created a snapshot (Steps 1-3 into resources/snapshot_vlucene_84.zip)
      * 4. Index Restored to version: Current: 9.x
      */
-    public void testRestoreVersion6LuceneCodec84() throws Exception {
+    public void testRestoreMountVersion6LuceneCodec84() throws Exception {
         verifyCompatibilityNoUpgrade(TestSnapshotCases.ES_VERSION_6_LUCENE_CODEC_84);
     }
 
@@ -158,7 +158,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 3. Added 1 documents to index and created a snapshot (Steps 1-3 into resources/snapshot_vlucene_86.zip)
      * 4. Index Restored to version: Current: 9.x
      */
-    public void testRestoreVersion6LuceneCodec86() throws Exception {
+    public void testRestoreMountVersion6LuceneCodec86() throws Exception {
         verifyCompatibilityNoUpgrade(TestSnapshotCases.ES_VERSION_6_LUCENE_CODEC_86);
     }
 
@@ -169,7 +169,7 @@ public class ArchiveIndexIT extends AbstractUpgradeCompatibilityTestCase {
      * 3. Added 1 documents to index and created a snapshot (Steps 1-3 into resources/snapshot_vlucene_87.zip)
      * 4. Index Restored to version: Current: 9.x
      */
-    public void testRestoreVersion6LuceneCodec87() throws Exception {
+    public void testRestoreMountVersion6LuceneCodec87() throws Exception {
         verifyCompatibilityNoUpgrade(TestSnapshotCases.ES_VERSION_6_LUCENE_CODEC_87);
     }
 }

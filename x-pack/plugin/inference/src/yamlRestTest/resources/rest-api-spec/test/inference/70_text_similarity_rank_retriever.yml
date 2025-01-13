@@ -219,6 +219,10 @@ setup:
 
 ---
 "text similarity reranker properly handles aliases":
+  - requires:
+      cluster_features: "text_similarity_reranker_alias_handling_fix"
+      reason: Test for alias handling fix
+
   # Create an empty index that will have an earlier shard index than the index with the desired result when referenced
   # via the alias
   - do:

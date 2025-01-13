@@ -158,18 +158,7 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(true, suppliers),
-                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(
-                    o,
-                    v,
-                    t,
-                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version"
-                )
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

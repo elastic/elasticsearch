@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostLogicalOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemp
  * Base class for functions that converts a constant into an interval type - DATE_PERIOD or TIME_DURATION.
  * The functions will be folded at the end of LogicalPlanOptimizer by the coordinator, it does not reach data node.
  */
-public abstract class FoldablesConvertFunction extends AbstractConvertFunction implements PostLogicalOptimizationVerificationAware {
+public abstract class FoldablesConvertFunction extends AbstractConvertFunction implements PostOptimizationVerificationAware {
 
     protected FoldablesConvertFunction(Source source, Expression field) {
         super(source, field);

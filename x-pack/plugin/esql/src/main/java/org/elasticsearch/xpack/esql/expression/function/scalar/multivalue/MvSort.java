@@ -29,7 +29,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
-import org.elasticsearch.xpack.esql.capabilities.PostLogicalOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 /**
  * Sorts a multivalued field in lexicographical order.
  */
-public class MvSort extends EsqlScalarFunction implements OptionalArgument, PostLogicalOptimizationVerificationAware {
+public class MvSort extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSort", MvSort::new);
 
     private final Expression field, order;

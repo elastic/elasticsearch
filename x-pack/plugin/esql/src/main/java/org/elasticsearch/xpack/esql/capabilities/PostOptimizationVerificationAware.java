@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
  * Interface implemented by expressions that require validation post logical optimization,
  * when the plan and references have been not just resolved but also replaced.
  */
-public interface PostLogicalOptimizationVerificationAware {
+public interface PostOptimizationVerificationAware {
 
     /**
      * Validates the implementing expression - discovered failures are reported to the given

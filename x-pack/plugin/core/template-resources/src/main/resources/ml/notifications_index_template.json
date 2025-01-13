@@ -12,13 +12,7 @@
         "hidden": true
       }
     },
-    "mappings" : ${xpack.ml.notifications.mappings},
-    "aliases" : {
-      ".ml-notifications-write": {
-        "is_hidden": true,
-        "is_write_index": true
-        }
-      }
+    "mappings" : ${xpack.ml.notifications.mappings}
   },
   "_meta" : {
     "description": "index template for ML notifications indices",

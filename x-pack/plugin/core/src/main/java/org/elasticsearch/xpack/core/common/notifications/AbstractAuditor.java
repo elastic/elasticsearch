@@ -92,7 +92,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private static void onIndexFailure(Exception exception) {
-        logger.error("Failed to write audit message", exception);
+        logger.debug("Failed to write audit message", exception);
     }
 
     protected void indexDoc(ToXContent toXContent) {

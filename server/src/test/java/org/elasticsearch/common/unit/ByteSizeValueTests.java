@@ -12,6 +12,7 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -193,13 +194,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         long size2 = -1L;
         exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size2, unit2));
-        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+        assertEquals("Negative values are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
 
         // Make sure for any unit a size < -1 throws an exception
         ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
         long size3 = -1L * randomNonNegativeLong() - 1L;
         exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size3, unit3));
-        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
+        assertEquals("Negative values are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
     }
 
     public void testConversionHashCode() {
@@ -228,38 +229,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     @Override
-    protected ByteSizeValue mutateInstance(final ByteSizeValue instance) {
-        final long instanceSize = instance.getSize();
-        final ByteSizeUnit instanceUnit = instance.getUnit();
-        final long mutateSize;
-        final ByteSizeUnit mutateUnit;
-        switch (between(0, 1)) {
-            case 0 -> {
-                final long unitBytes = instanceUnit.toBytes(1);
-                mutateSize = randomValueOtherThan(instanceSize, () -> randomNonNegativeLong() / unitBytes);
-                mutateUnit = instanceUnit;
-            }
-            case 1 -> {
-                mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
-                final long newUnitBytes = mutateUnit.toBytes(1);
-                /*
-                 * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other
-                 * unit so in this case we need to randomize a new size. Additionally, if the size unit pair is such that
-                 * the representation would be such that the number of represented bytes would exceed Long.Max_VALUE, we
-                 * have to randomize a new size too.
-                 */
-                if (instanceSize == 0 || instanceSize >= Long.MAX_VALUE / newUnitBytes) {
-                    mutateSize = randomValueOtherThanMany(
-                        v -> v == instanceSize && v >= Long.MAX_VALUE / newUnitBytes,
-                        () -> randomNonNegativeLong() / newUnitBytes
-                    );
-                } else {
-                    mutateSize = instanceSize;
-                }
-            }
-            default -> throw new AssertionError("Invalid randomisation branch");
-        }
-        return ByteSizeValue.of(mutateSize, mutateUnit);
+    protected ByteSizeValue mutateInstance(final ByteSizeValue original) {
+        return new ByteSizeValue(
+            randomValueOtherThan(original.getSizeInBytes(), ESTestCase::randomNonNegativeLong),
+            randomFrom(ByteSizeUnit.values())
+        );
     }
 
     public void testParse() {
@@ -465,7 +439,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             IllegalArgumentException.class,
             () -> ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(102L))
         );
-        assertThat(e.getMessage(), containsString("Values less than -1 bytes are not supported: -2b"));
+        assertThat(e.getMessage(), containsString("Negative values are not supported: -2b"));
 
         e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE));
         assertThat(e.getMessage(), containsString("subtraction result has -1 bytes"));
@@ -518,11 +492,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
         ByteSizeValue equalityResult = ByteSizeValue.min(ByteSizeValue.of(1024, ByteSizeUnit.MB), ByteSizeValue.of(1, ByteSizeUnit.GB));
         assertThat(equalityResult, is(ByteSizeValue.of(1024, ByteSizeUnit.MB)));
-        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.MB));
+        assertThat(equalityResult.getDesiredUnit(), is(ByteSizeUnit.MB));
 
         equalityResult = ByteSizeValue.min(ByteSizeValue.of(1, ByteSizeUnit.GB), ByteSizeValue.of(1024, ByteSizeUnit.MB));
         assertThat(equalityResult, is(ByteSizeValue.of(1, ByteSizeUnit.GB)));
-        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.GB));
+        assertThat(equalityResult.getDesiredUnit(), is(ByteSizeUnit.GB));
 
         String exceptionMessage = "one of the arguments has -1 bytes";
         Exception e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));

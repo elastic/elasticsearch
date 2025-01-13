@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -36,15 +35,14 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Function returning the first non-null value.
+ * Function returning the first non-null value. {@code COALESCE} runs as though
+ * it were lazily evaluating each position in each incoming {@link Block}.
  */
 public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
@@ -198,10 +196,27 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator::apply).toList();
+        if (childEvaluators.stream().allMatch(ExpressionEvaluator.Factory::eagerEvalSafeInLazy)) {
+            return new ExpressionEvaluator.Factory() {
+                @Override
+                public ExpressionEvaluator get(DriverContext context) {
+                    return new CoalesceEagerEvaluator(
+                        context,
+                        PlannerUtils.toElementType(dataType()),
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
+                }
+
+                @Override
+                public String toString() {
+                    return "CoalesceEagerEvaluator[values=" + childEvaluators + ']';
+                }
+            };
+        }
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceEvaluator(
+                return new CoalesceLazyEvaluator(
                     context,
                     PlannerUtils.toElementType(dataType()),
                     childEvaluators.stream().map(x -> x.get(context)).toList()
@@ -210,24 +225,33 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
             @Override
             public String toString() {
-                return "CoalesceEvaluator[values=" + childEvaluators + ']';
+                return "CoalesceLazyEvaluator[values=" + childEvaluators + ']';
             }
         };
     }
 
-    private record CoalesceEvaluator(DriverContext driverContext, ElementType resultType, List<EvalOperator.ExpressionEvaluator> evaluators)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    protected abstract static sealed class AbstractCoalesceEvaluator implements EvalOperator.ExpressionEvaluator permits
+        CoalesceEagerEvaluator, CoalesceLazyEvaluator {
+        protected final DriverContext driverContext;
+        protected final ElementType resultType;
+        protected final List<EvalOperator.ExpressionEvaluator> evaluators;
+
+        protected AbstractCoalesceEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
+            this.driverContext = driverContext;
+            this.resultType = resultType;
+            this.evaluators = evaluators;
+        }
+
         @Override
-        public Block eval(Page page) {
-            return blockAtATime(page);
+        public final Block eval(Page page) {
+            return entireBlock(page);
         }
 
         /**
-         * Evaluate COALESCE block-at-a-time for as long as we can, then shift to
-         * position-at-a-time.
+         * Evaluate COALESCE for an entire {@link Block} for as long as we can, then shift to
+         * {@link #perPosition} evaluation.
          * <p>
-         *     Block-at-a-time evaluation is the "normal" way to run the compute engine,
+         *     Entire Block evaluation is the "normal" way to run the compute engine,
          *     just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
          *     that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
          * </p>
@@ -237,51 +261,115 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
          *     <li>If this is the last evaluator we just return it. COALESCE done.</li>
          *     <li>
          *         Otherwise, the {@linkplain Block} has mixed nulls and non-nulls so we drop
-         *         into a block-at-a-time evaluator.
+         *         into a per position evaluator.
          *     </li>
          * </ul>
          */
-        private Block blockAtATime(Page page) {
+        private Block entireBlock(Page page) {
             int lastFullBlockIdx = 0;
             while (true) {
                 Block lastFullBlock = evaluators.get(lastFullBlockIdx++).eval(page);
                 if (lastFullBlockIdx == evaluators.size() || lastFullBlock.asVector() != null) {
                     return lastFullBlock;
                 }
-                if (lastFullBlock.areAllValuesNull()) {
-                    // Result is all nulls and isn't the last result so we don't need any of it.
-                    lastFullBlock.close();
-                    continue;
-                }
-                try {
-                    // The result has some nulls and some non-nulls.
-                    return positionAtATime(page, lastFullBlockIdx, lastFullBlock);
-                } finally {
-                    lastFullBlock.close();
-                }
+               if (lastFullBlock.areAllValuesNull()) {
+                   // Result is all nulls and isn't the last result so we don't need any of it.
+                   lastFullBlock.close();
+                   continue;
+               }
+                // The result has some nulls and some non-nulls.
+                return perPosition(page, lastFullBlock, lastFullBlockIdx);
             }
         }
 
         /**
-         * Evaluate COALESCE position-at-a-time. We have a block that contains
-         * some nulls and some non-nulls and we have some remaining evaluators.
-         * For each position we either:
-         * <ul>
-         *     <li>Take the non-null values from the {@code lastFullBlock}</li>
-         *     <li>
-         *         Evaluator the remaining evaluators one at a time, keeping
-         *         the first non-null value.
-         *     </li>
-         * </ul>
+         * Evaluate each position of the incoming {@link Page} for COALESCE
+         * independently. Our attempt to evaluate entire blocks has yielded
+         * a block that contains some nulls and some non-nulls and we have
+         * to fill in the nulls with the results of calling the remaining
+         * evaluators.
          * <p>
-         *     It's important that we're evaluating position-by-position because
-         *     the evaluators may produce warnings, and we really don't want those
-         *     warnings to sneak into the output if they are for values that
-         *     aren't needed. This lazy evaluation is not fast. Not at all. But
-         *     it's very important not to leak the warnings.
+         *     This <strong>must not</strong> return warnings caused by
+         *     evaluating positions for which a previous evaluator returned
+         *     non-null. These are positions that, at least from the perspective
+         *     of a compute engine user, don't <strong>have</strong> to be
+         *     evaluated. Put another way, this must function as though
+         *     {@code COALESCE} were per-position lazy. It can manage that
+         *     any way it likes.
          * </p>
          */
-        private Block positionAtATime(Page page, int firstToEvaluate, Block lastFullBlock) {
+        protected abstract Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate);
+
+        @Override
+        public final String toString() {
+            return getClass().getSimpleName() + "[values=" + evaluators + ']';
+        }
+
+        @Override
+        public final void close() {
+            Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
+        }
+    }
+
+    /**
+     * Evaluates {@code COALESCE} eagerly per position if entire-block evaluation fails.
+     * First we evaluate all remaining evaluators, and then we pluck the first non-null
+     * value from each one. This is <strong>much</strong> faster than
+     * {@link CoalesceLazyEvaluator} but will include spurious warnings if any of the
+     * evaluators make them so we only use it for evaluators that are
+     * {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy safe} to evaluate eagerly
+     * in a lazy environment.
+     */
+    private static final class CoalesceEagerEvaluator extends AbstractCoalesceEvaluator {
+        CoalesceEagerEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
+            super(driverContext, resultType, evaluators);
+        }
+
+        @Override
+        protected Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate) {
+            int positionCount = page.getPositionCount();
+            Block[] flatten = new Block[evaluators.size() - firstToEvaluate + 1];
+            try {
+                flatten[0] = lastFullBlock;
+                for (int f = 1; f < flatten.length; f++) {
+                    flatten[f] = evaluators.get(firstToEvaluate + f - 1).eval(page);
+                }
+                try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                    position: for (int p = 0; p < positionCount; p++) {
+                        for (Block f : flatten) {
+                            if (false == f.isNull(p)) {
+                                result.copyFrom(f, p, p + 1);
+                                continue position;
+                            }
+                        }
+                        result.appendNull();
+                    }
+                    return result.build();
+                }
+            } finally {
+                Releasables.close(flatten);
+            }
+        }
+    }
+
+    /**
+     * Evaluates {@code COALESCE} lazily per position if entire-block evaluation fails.
+     * For each position we either:
+     * <ul>
+     *     <li>Take the non-null values from the {@code lastFullBlock}</li>
+     *     <li>
+     *         Evaluator the remaining evaluators one at a time, keeping
+     *         the first non-null value.
+     *     </li>
+     * </ul>
+     */
+    private static final class CoalesceLazyEvaluator extends AbstractCoalesceEvaluator {
+        CoalesceLazyEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
+            super(driverContext, resultType, evaluators);
+        }
+
+        @Override
+        protected Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
             try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
                 position: for (int p = 0; p < positionCount; p++) {
@@ -307,17 +395,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                     }
                 }
                 return result.build();
+            } finally {
+                lastFullBlock.close();
             }
-        }
-
-        @Override
-        public String toString() {
-            return "CoalesceEvaluator[values=" + evaluators + ']';
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
         }
     }
 }

@@ -97,9 +97,9 @@ public class EvalBenchmark {
             "add_double",
             "case_1_eager",
             "case_1_lazy",
-            "coalesce_1_noop",
-            "coalesce_1_eager",
-            "coalesce_1_lazy",
+            "coalesce_2_noop",
+            "coalesce_2_eager",
+            "coalesce_2_lazy",
             "date_trunc",
             "equal_to_const",
             "long_equal_to_long",
@@ -154,7 +154,7 @@ public class EvalBenchmark {
                 }
                 yield evaluator;
             }
-            case "coalesce_1_noop", "coalesce_1_eager", "coalesce_1_lazy" -> {
+            case "coalesce_2_noop", "coalesce_2_eager", "coalesce_2_lazy" -> {
                 FieldAttribute f1 = longField();
                 FieldAttribute f2 = longField();
                 Expression lhs = f1;
@@ -165,7 +165,7 @@ public class EvalBenchmark {
                     new Coalesce(Source.EMPTY, lhs, List.of(f2)),
                     layout(f1, f2)
                 ).get(driverContext);
-                String desc = operation.endsWith("lazy") ? "CoalesceEvaluator" : "CoalesceEvaluator"; // NOCOMMIT eager/lazy here
+                String desc = operation.endsWith("lazy") ? "CoalesceLazyEvaluator" : "CoalesceEagerEvaluator";
                 if (evaluator.toString().contains(desc) == false) {
                     throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
                 }
@@ -284,7 +284,7 @@ public class EvalBenchmark {
                     }
                 }
             }
-            case "coalesce_1_noop" -> {
+            case "coalesce_2_noop" -> {
                 LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
                 LongVector result = actual.<LongBlock>getBlock(2).asVector();
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -294,7 +294,7 @@ public class EvalBenchmark {
                     }
                 }
             }
-            case "coalesce_1_eager" -> {
+            case "coalesce_2_eager" -> {
                 LongBlock f1 = actual.<LongBlock>getBlock(0);
                 LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
                 LongVector result = actual.<LongBlock>getBlock(2).asVector();
@@ -305,7 +305,7 @@ public class EvalBenchmark {
                     }
                 }
             }
-            case "coalesce_1_lazy" -> {
+            case "coalesce_2_lazy" -> {
                 LongBlock f1 = actual.<LongBlock>getBlock(0);
                 LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
                 LongVector result = actual.<LongBlock>getBlock(2).asVector();
@@ -380,7 +380,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
-            case "case_1_eager", "case_1_lazy", "coalesce_1_noop" -> {
+            case "case_1_eager", "case_1_lazy", "coalesce_2_noop" -> {
                 var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -389,7 +389,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(f1.build(), f2.build());
             }
-            case "coalesce_1_eager", "coalesce_1_lazy" -> {
+            case "coalesce_2_eager", "coalesce_2_lazy" -> {
                 var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {

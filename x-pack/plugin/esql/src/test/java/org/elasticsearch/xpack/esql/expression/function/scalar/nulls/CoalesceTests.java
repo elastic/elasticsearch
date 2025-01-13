@@ -62,7 +62,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> noNullsSuppliers = new ArrayList<>();
-        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce");
+        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "CoalesceEager");
         builder.expectString(strings -> strings.filter(v -> v != null).findFirst());
         builder.expectLong(longs -> longs.filter(v -> v != null).findFirst());
         builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
@@ -77,7 +77,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(first, DataType.IP, "first"),
                     new TestCaseSupplier.TypedData(second, DataType.IP, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.IP,
                 equalTo(first == null ? second : first)
             );
@@ -92,7 +92,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(first, DataType.VERSION, "first"),
                     new TestCaseSupplier.TypedData(second, DataType.VERSION, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.VERSION,
                 equalTo(first == null ? second : first)
             );
@@ -105,7 +105,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(firstDate, DataType.DATETIME, "first"),
                     new TestCaseSupplier.TypedData(secondDate, DataType.DATETIME, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATETIME,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
@@ -118,11 +118,12 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(firstDate, DataType.DATE_NANOS, "first"),
                     new TestCaseSupplier.TypedData(secondDate, DataType.DATE_NANOS, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATE_NANOS,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
+
 
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {
@@ -180,7 +181,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,
                     rightDataSupplier,
-                    (l, r) -> equalTo("CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    (l, r) -> equalTo("CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
                     dataType,
                     (l, r) -> l
                 )
@@ -287,5 +288,4 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));
         }
     }
-
 }

@@ -73,12 +73,6 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
 
     @Override
     public FloatBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
-        if (block.areAllValuesNull()) {
-            for (int p = beginInclusive; p < endExclusive; p++) {
-                appendNull();
-            }
-            return this;
-        }
         return copyFrom((FloatBlock) block, beginInclusive, endExclusive);
     }
 

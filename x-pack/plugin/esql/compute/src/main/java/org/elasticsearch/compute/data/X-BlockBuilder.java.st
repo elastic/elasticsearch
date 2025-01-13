@@ -120,6 +120,8 @@ $endif$
         return copyFrom(($Type$Block) block, beginInclusive, endExclusive);
     }
 
+    // NOCOMMIT it's slow to check if all values are null for single position copies.
+
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.

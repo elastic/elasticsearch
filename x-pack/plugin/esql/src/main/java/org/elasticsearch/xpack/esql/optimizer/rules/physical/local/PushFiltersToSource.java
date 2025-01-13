@@ -124,7 +124,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 queryExec.source(),
                 queryExec.indexName(),
                 queryExec.indexMode(),
-                queryExec.indexNameWithModes(),
                 queryExec.output(),
                 query,
                 queryExec.limit(),

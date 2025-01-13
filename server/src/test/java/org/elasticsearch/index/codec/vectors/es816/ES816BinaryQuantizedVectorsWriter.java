@@ -476,7 +476,9 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             CodecUtil.writeFooter(tempScoreQuantizedVectorData);
             success = true;
         } finally {
-            if (success == false) {
+            if (success) {
+                IOUtils.close(tempQuantizedVectorData, tempScoreQuantizedVectorData);
+            } else {
                 IOUtils.closeWhileHandlingException(tempQuantizedVectorData, tempScoreQuantizedVectorData);
                 if (tempQuantizedVectorData != null) {
                     IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempQuantizedVectorData.getName());
@@ -484,8 +486,6 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 if (tempScoreQuantizedVectorData != null) {
                     IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempScoreQuantizedVectorData.getName());
                 }
-            } else {
-                IOUtils.close(tempQuantizedVectorData, tempScoreQuantizedVectorData);
             }
         }
 

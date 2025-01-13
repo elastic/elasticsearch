@@ -129,7 +129,7 @@ public class RestIndicesActionTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.routingTable(project.id(), randomBoolean() ? routingTable : RoutingTable.builder()))
             .build();
 
-        final RestIndicesAction action = new RestIndicesAction(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final RestIndicesAction action = new RestIndicesAction(TestProjectResolvers.singleProject(project.id()));
         final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, clusterState, indicesStats);
 
         // now, verify the table is correct

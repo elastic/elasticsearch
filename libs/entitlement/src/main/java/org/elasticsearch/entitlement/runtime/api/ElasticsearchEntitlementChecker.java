@@ -349,4 +349,24 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession) {
         policyManager.checkReadSensitiveNetworkInformation(callerClass);
     }
+
+    @Override
+    public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
 }

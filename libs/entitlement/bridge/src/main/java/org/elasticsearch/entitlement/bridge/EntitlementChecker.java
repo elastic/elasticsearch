@@ -189,4 +189,16 @@ public interface EntitlementChecker {
 
     // The only implementation of SSLSession#getSessionContext(); unfortunately it's an interface, so we need to check the implementation
     void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession);
+
+    ////////////////////
+    //
+    // Load native libraries
+    //
+    void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
+
+    void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
+
+    void check$java_lang_System$$load(Class<?> callerClass, String filename);
+
+    void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
 }

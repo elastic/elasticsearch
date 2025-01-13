@@ -219,77 +219,6 @@ public final class IndicesPermission {
     }
 
     /**
-     * This encapsulates the authorization test for resources.
-     * There is an additional test for resources that are missing or that are not a datastream or a backing index.
-     */
-    public static class IsResourceAuthorizedPredicate {
-
-        private final BiFunction<String, IndexAbstraction, AuthorizedComponents> biPredicate;
-
-        public IsResourceAuthorizedPredicate(BiFunction<String, IndexAbstraction, AuthorizedComponents> biPredicate) {
-            this.biPredicate = biPredicate;
-        }
-
-        /**
-        * Given another {@link IsResourceAuthorizedPredicate} instance in {@param other},
-        * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
-        * authorization tests of that other instance and this one.
-        */
-        // @Override
-        public final IsResourceAuthorizedPredicate orAllowIf(IsResourceAuthorizedPredicate other) {
-            Objects.requireNonNull(other);
-            return new IsResourceAuthorizedPredicate((name, abstraction) -> {
-                AuthorizedComponents authResult = this.biPredicate.apply(name, abstraction);
-                // If we're only authorized for some components, other predicates might authorize us for the rest
-                return switch (authResult) {
-                    case null -> other.biPredicate.apply(name, abstraction);
-                    case NONE -> other.biPredicate.apply(name, abstraction); // Can't do worse than totally unauthorized, thank u NEXT
-                    case ALL -> AuthorizedComponents.ALL; // Can't do better than ALL, so short circuit
-                    case DATA, FAILURES -> authResult.union(other.biPredicate.apply(name, abstraction));
-                };
-            });
-        }
-
-        public final IsResourceAuthorizedPredicate alsoRequire(IsResourceAuthorizedPredicate other) {
-            Objects.requireNonNull(other);
-            return new IsResourceAuthorizedPredicate((name, abstraction) -> {
-                AuthorizedComponents authResult = this.biPredicate.apply(name, abstraction);
-                // If we're only authorized for some components, other predicates might authorize us for the rest
-                return switch (authResult) {
-                    case null -> AuthorizedComponents.NONE;
-                    case NONE -> AuthorizedComponents.NONE;
-                    case ALL -> other.biPredicate.apply(name, abstraction);
-                    case DATA, FAILURES -> authResult.intersection(other.biPredicate.apply(name, abstraction));
-                };
-            });
-        }
-
-        /**
-         * Check which components of the given {@param indexAbstraction} resource is authorized.
-         * The resource must exist. Otherwise, use the {@link #check(String, IndexAbstraction)} method.
-         * @return An object representing which components of this index abstraction the user is authorized to access
-         */
-        public final AuthorizedComponents check(IndexAbstraction indexAbstraction) {
-            return check(indexAbstraction.getName(), indexAbstraction);
-        }
-
-        public final boolean test(IndexAbstraction indexAbstraction) {
-            AuthorizedComponents authResult = check(indexAbstraction);
-            return authResult != null && authResult.isDataAuthorized();
-        }
-
-        /**
-         * Verifies if access is authorized to the resource with the given {@param name}.
-         * The {@param indexAbstraction}, which is the resource to be accessed, must be supplied if the resource exists or be {@code null}
-         * if it doesn't.
-         * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
-         */
-        public AuthorizedComponents check(String name, @Nullable IndexAbstraction indexAbstraction) {
-            return biPredicate.apply(name, indexAbstraction);
-        }
-    }
-
-    /**
      * Checks if the permission matches the provided action, without looking at indices.
      * To be used in very specific cases where indices actions need to be authorized regardless of their indices.
      * The usecase for this is composite actions that are initially only authorized based on the action name (indices are not
@@ -896,7 +825,6 @@ public final class IndicesPermission {
                         if (alreadyLogged == false) {
                             for (String privilegeName : this.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
-                                    // ATHE: Does this log more often?
                                     deprecationLogger.warn(
                                         DeprecationCategory.SECURITY,
                                         "[" + resource.getName() + "] mapping update for ingest privilege [" + privilegeName + "]",

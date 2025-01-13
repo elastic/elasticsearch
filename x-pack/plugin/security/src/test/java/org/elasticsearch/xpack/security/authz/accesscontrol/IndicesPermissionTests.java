@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -746,7 +747,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testResourceAuthorizedPredicateAnd() {
-        IndicesPermission.IsResourceAuthorizedPredicate predicate1 = new IndicesPermission.IsResourceAuthorizedPredicate(
+        IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate(
             (String name, IndexAbstraction abstraction) -> {
                 StringMatcher regularNames = StringMatcher.of("c", "a");
                 StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
@@ -759,7 +760,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
             }
         );
-        IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
+        IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate(
             (String name, IndexAbstraction abstraction) -> {
                 StringMatcher regularNames = StringMatcher.of("c", "b");
                 StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
@@ -790,7 +791,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
         IndexAbstraction concreteIndexD = concreteIndexAbstraction("d");
-        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.alsoRequire(predicate2);
+        IsResourceAuthorizedPredicate predicate = predicate1.alsoRequire(predicate2);
         assertThat(predicate.test(dataStreamA), is(false));
         assertThat(predicate.test(dataStreamB), is(false));
         assertThat(predicate.test(dataStreamC), is(true));

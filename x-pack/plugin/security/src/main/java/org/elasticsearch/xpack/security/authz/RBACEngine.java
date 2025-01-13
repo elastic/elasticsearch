@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
@@ -895,12 +895,15 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    IndicesPermission.AuthorizedComponents authResult = predicate.check(indexAbstraction);
-                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
-                        && authResult != null
-                        && authResult.isDataAuthorized()) {
-                        indicesAndAliases.add(indexAbstraction.getName());
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                        IndicesPermission.AuthorizedComponents authResult = predicate.check(indexAbstraction);
+                        if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                            && authResult != null
+                            && authResult.isDataAuthorized()) {
+                            indicesAndAliases.add(indexAbstraction.getName());
+                        }
                     }
+
                 }
             }
             timeChecker.accept(indicesAndAliases);

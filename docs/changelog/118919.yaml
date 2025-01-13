@@ -1,0 +1,5 @@
+pr: 118919
+summary: Remove unsupported timeout from rest-api-spec license API
+area: License
+type: bug
+issues: []

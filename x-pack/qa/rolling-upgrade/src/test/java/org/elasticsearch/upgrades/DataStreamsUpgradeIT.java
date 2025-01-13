@@ -255,7 +255,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void upgradeDataStream(String dataStreamName, int numRollovers) throws Exception {
+    private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster) throws Exception {
+        final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
+        for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
+            rollover(dataStreamName);
+        }
         Request reindexRequest = new Request("POST", "/_migration/reindex");
         reindexRequest.setJsonEntity(Strings.format("""
             {
@@ -276,18 +280,31 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
-            /*
-             * total_indices_in_data_stream is determined at the beginning of the reindex, and does not take into account the write
-             * index being rolled over
-             */
-            assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(numRollovers + 1));
+            final int originalWriteIndex = 1;
             if (isOriginalClusterSameMajorVersionAsCurrent()) {
+                assertThat(
+                    statusResponseMap.get("total_indices_in_data_stream"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount)
+                );
                 // If the original cluster was the same as this one, we don't want any indices reindexed:
                 assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
                 assertThat(statusResponseMap.get("successes"), equalTo(0));
             } else {
-                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(numRollovers + 1));
-                assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
+                // The number of rollovers that will have happened when we call reindex:
+                final int rolloversPerformedByReindex = explicitRolloverOnNewClusterCount == 0 ? 1 : 0;
+                assertThat(
+                    statusResponseMap.get("total_indices_in_data_stream"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount + rolloversPerformedByReindex)
+                );
+                /*
+                 * total_indices_requiring_upgrade is made up of: (the original write index) + numRolloversOnOldCluster. The number of
+                 * rollovers on the upgraded cluster is irrelevant since those will not be reindexed.
+                 */
+                assertThat(
+                    statusResponseMap.get("total_indices_requiring_upgrade"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster)
+                );
+                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1));
             }
         }, 60, TimeUnit.SECONDS);
         Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");

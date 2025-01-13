@@ -316,11 +316,19 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
     }
 
-    public void testParseFractionalNumber() throws IOException {
-        ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
-        String fractionalValue = "23.5" + unit.getSuffix();
-        ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
-        assertEquals(fractionalValue, instance.toString());
+    public void testParseFractionalNumber() {
+        for (var unit : ByteSizeUnit.values()) {
+            if (unit == ByteSizeUnit.BYTES) {
+                continue;
+            }
+            for (int tenths = 5; tenths <= 5; tenths++) { // No other tenths values work!
+                checkFractionRoundTrip("23." + tenths + unit.getSuffix());
+            }
+        }
+    }
+
+    private void checkFractionRoundTrip(String fractionalValue) {
+        assertEquals(fractionalValue, ByteSizeValue.parseBytesSizeValue(fractionalValue, "test").toString());
         assertWarnings(
             "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
                 + fractionalValue

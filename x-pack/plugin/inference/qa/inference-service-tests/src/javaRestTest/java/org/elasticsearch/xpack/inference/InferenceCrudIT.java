@@ -242,7 +242,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            assertThat(services.size(), equalTo(10));
+        } else {
+            assertThat(services.size(), equalTo(9));
+        }
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -250,8 +255,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             providers[i] = (String) serviceConfig.get("service");
         }
 
-        assertArrayEquals(
-            providers,
+        var providerList = new ArrayList<>(
             List.of(
                 "alibabacloud-ai-search",
                 "amazonbedrock",
@@ -259,12 +263,18 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
-                "elastic",
                 "googleaistudio",
                 "openai",
                 "streaming_completion_test_service"
-            ).toArray()
+            )
         );
+
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            providerList.add(6, "elastic");
+        }
+
+        assertArrayEquals(providers, providerList.toArray());
     }
 
     @SuppressWarnings("unchecked")

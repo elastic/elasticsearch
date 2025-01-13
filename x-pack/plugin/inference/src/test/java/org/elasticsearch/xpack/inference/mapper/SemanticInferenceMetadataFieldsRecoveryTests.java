@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -42,7 +43,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingByte;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase {
@@ -247,6 +250,24 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         );
         builder.endObject();
         return BytesReference.bytes(builder);
+    }
+
+    private static SemanticTextField randomSemanticText(
+            boolean useLegacyFormat,
+            String fieldName,
+            Model model,
+            List<String> inputs,
+            XContentType contentType
+    ) throws IOException {
+        ChunkedInference results = switch (model.getTaskType()) {
+            case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
+                case BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
+                default -> throw new AssertionError("invalid element type: " + model.getServiceSettings().elementType().name());
+            };
+            case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs, false);
+            default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
+        };
+        return semanticTextFieldFromChunkedInferenceResults(useLegacyFormat, fieldName, model, inputs, results, contentType);
     }
 
     private static List<String> randomInputs() {

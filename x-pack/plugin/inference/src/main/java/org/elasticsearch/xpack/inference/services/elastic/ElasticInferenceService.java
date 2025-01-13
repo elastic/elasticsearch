@@ -16,6 +16,8 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -71,10 +74,9 @@ public class ElasticInferenceService extends SenderService {
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
-
-    public static final String DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1 = ".eis-alpha-1";
-
-    public static final List<String> DEFAULT_EIS_ENDPOINT_IDS = List.of(DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1);
+    private static final String DEFAULT_EIS_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
+    private static final String DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".eis-alpha-1";
+    private static final Set<String> DEFAULT_EIS_ENDPOINT_IDS = Set.of(DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -227,7 +229,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public List<DefaultConfigId> defaultConfigIds() {
-        return List.of(new DefaultConfigId(DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1, TaskType.COMPLETION, this));
+        return List.of(new DefaultConfigId(DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1, TaskType.COMPLETION, this));
     }
 
     @Override
@@ -236,18 +238,14 @@ public class ElasticInferenceService extends SenderService {
     }
 
     private ElasticInferenceServiceCompletionModel firstDefaultCompletionModel() {
-        var serviceSettings = new HashMap<String, Object>(1);
-        serviceSettings.put(MODEL_ID, "elastic-model"); // TODO
-
         return new ElasticInferenceServiceCompletionModel(
-            DEFAULT_EIS_COMPLETION_ENDPOINT_ID_V1,
+            DEFAULT_EIS_CHAT_COMPLETION_ENDPOINT_ID_V1,
             TaskType.COMPLETION,
             NAME,
-            serviceSettings,
-            null,
-            null,
-            elasticInferenceServiceComponents,
-            ConfigurationParseContext.PERSISTENT
+            new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_EIS_CHAT_COMPLETION_MODEL_ID_V1, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            elasticInferenceServiceComponents
         );
     }
 

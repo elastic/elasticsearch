@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.inference.ingest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -114,7 +115,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build(),
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         try {
@@ -142,7 +143,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> config = new HashMap<>() {
@@ -202,7 +203,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
         try {
             processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
@@ -260,7 +261,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
         try {
             processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
@@ -306,7 +307,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> regression = new HashMap<>() {
@@ -365,7 +366,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> config = new HashMap<>() {
@@ -395,7 +396,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> config = new HashMap<>();
@@ -430,7 +431,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> regression = new HashMap<>() {
@@ -460,7 +461,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> regression = new HashMap<>() {
@@ -491,7 +492,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
         for (var nameAndMap : List.of(
             Tuple.tuple(ClassificationConfig.NAME.getPreferredName(), Map.of()),
@@ -517,7 +518,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> input = new HashMap<>() {
@@ -553,7 +554,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> input = new HashMap<>() {
@@ -595,7 +596,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         Map<String, Object> inputMap1 = new HashMap<>() {
@@ -662,7 +663,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         for (var isList : new boolean[] { true, false }) {
@@ -706,7 +707,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         {
@@ -763,7 +764,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         int numInputs = randomIntBetween(1, 3);
@@ -787,7 +788,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         int numInputs = 2;
@@ -839,7 +840,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             client,
             clusterService,
             Settings.EMPTY,
-            mock(InferenceAuditor.class)
+            new SetOnce<>(mock(InferenceAuditor.class))
         );
 
         var e = expectThrows(ElasticsearchParseException.class, () -> processorFactory.parseInputFields("my_processor", List.of()));

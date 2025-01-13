@@ -40,11 +40,11 @@ public class InboundDecoder implements Releasable {
     private final ChannelType channelType;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), ChannelType.MIX);
+        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), ChannelType.MIX);
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ChannelType channelType) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), channelType);
+        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), channelType);
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {

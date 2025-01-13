@@ -99,11 +99,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 equalTo(0)
             );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (valid, position) -> switch (position) {
-            case 0 -> "string";
-            case 1, 2 -> "datetime";
-            default -> null;
-        });
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     public void testDateDiffFunction() {

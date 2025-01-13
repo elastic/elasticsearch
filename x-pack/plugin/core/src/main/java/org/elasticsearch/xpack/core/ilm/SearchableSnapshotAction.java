@@ -394,6 +394,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             getRestoredIndexPrefix(swapAliasesKey)
         );
 
+        // note that the replicateForStep and dropReplicasStep will only be used if replicateFor != null, see the construction of
+        // the list of steps below
         Step replicateForStep = new WaitUntilReplicateForTimePassesStep(replicateForKey, dropReplicasKey, replicateFor);
         UpdateSettingsStep dropReplicasStep = new UpdateSettingsStep(
             dropReplicasKey,

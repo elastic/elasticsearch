@@ -206,10 +206,15 @@ public final class IndicesPermission {
     }
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
-        IsResourceAuthorizedPredicate predicate = new IsResourceAuthorizedPredicate((name, abstraction) -> AuthorizedComponents.NONE);
-        for (final Group group : groups) {
-            predicate = predicate.orAllowIf(group.allowedIndicesPredicate(action));
+        if (groups.length == 0) {
+            return new IsResourceAuthorizedPredicate((name, abstraction) -> AuthorizedComponents.NONE);
         }
+
+        IsResourceAuthorizedPredicate predicate = groups[0].allowedIndicesPredicate(action);
+        for (int i = 1; i < groups.length; i++) {
+            predicate = predicate.orAllowIf(groups[i].allowedIndicesPredicate(action));
+        }
+
         return predicate;
     }
 

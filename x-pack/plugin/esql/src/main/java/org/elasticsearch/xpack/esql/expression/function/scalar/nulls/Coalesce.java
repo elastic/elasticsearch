@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -35,6 +36,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -217,26 +220,83 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             EvalOperator.ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
-            /*
-             * We have to evaluate lazily so any errors or warnings that would be
-             * produced by the right hand side are avoided. And so if anything
-             * on the right hand side is slow we skip it.
-             *
-             * And it'd be good if that lazy evaluation were fast. But this
-             * implementation isn't. It's fairly simple - running position at
-             * a time - but it's not at all fast.
-             */
+            return blockAtATime(page);
+        }
+
+        /**
+         * Evaluate COALESCE block-at-a-time for as long as we can, then shift to
+         * position-at-a-time.
+         * <p>
+         *     Block-at-a-time evaluation is the "normal" way to run the compute engine,
+         *     just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
+         *     that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
+         * </p>
+         * <ul>
+         *     <li>If the {@linkplain Block} doesn't have any nulls we return it. COALESCE done.</li>
+         *     <li>If the {@linkplain Block} is only nulls we skip it and try the next evaluator.</li>
+         *     <li>If this is the last evaluator we just return it. COALESCE done.</li>
+         *     <li>
+         *         Otherwise, the {@linkplain Block} has mixed nulls and non-nulls so we drop
+         *         into a block-at-a-time evaluator.
+         *     </li>
+         * </ul>
+         */
+        private Block blockAtATime(Page page) {
+            int lastFullBlockIdx = 0;
+            while (true) {
+                Block lastFullBlock = evaluators.get(lastFullBlockIdx++).eval(page);
+                if (lastFullBlockIdx == evaluators.size() || lastFullBlock.asVector() != null) {
+                    return lastFullBlock;
+                }
+                if (lastFullBlock.areAllValuesNull()) {
+                    // Result is all nulls and isn't the last result so we don't need any of it.
+                    lastFullBlock.close();
+                    continue;
+                }
+                try {
+                    // The result has some nulls and some non-nulls.
+                    return positionAtATime(page, lastFullBlockIdx, lastFullBlock);
+                } finally {
+                    lastFullBlock.close();
+                }
+            }
+        }
+
+        /**
+         * Evaluate COALESCE position-at-a-time. We have a block that contains
+         * some nulls and some non-nulls and we have some remaining evaluators.
+         * For each position we either:
+         * <ul>
+         *     <li>Take the non-null values from the {@code lastFullBlock}</li>
+         *     <li>
+         *         Evaluator the remaining evaluators one at a time, keeping
+         *         the first non-null value.
+         *     </li>
+         * </ul>
+         * <p>
+         *     It's important that we're evaluating position-by-position because
+         *     the evaluators may produce warnings, and we really don't want those
+         *     warnings to sneak into the output if they are for values that
+         *     aren't needed. This lazy evaluation is not fast. Not at all. But
+         *     it's very important not to leak the warnings.
+         * </p>
+         */
+        private Block positionAtATime(Page page, int firstToEvaluate, Block lastFullBlock) {
             int positionCount = page.getPositionCount();
             try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
                 position: for (int p = 0; p < positionCount; p++) {
+                    if (lastFullBlock.isNull(p) == false) {
+                        result.copyFrom(lastFullBlock, p, p + 1);
+                        continue;
+                    }
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
                         IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
-                        for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                            try (Block block = eval.eval(limited)) {
+                        for (int e = firstToEvaluate; e < evaluators.size(); e++) {
+                            try (Block block = evaluators.get(e).eval(limited)) {
                                 if (false == block.isNull(0)) {
                                     result.copyFrom(block, 0, 1);
                                     continue position;

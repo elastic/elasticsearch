@@ -12,8 +12,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,17 +35,24 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class CoalesceTests extends AbstractScalarFunctionTestCase {
     public CoalesceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -228,4 +242,50 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         // Known not to be nullable because it contains a non-null literal
         assertThat(exp.nullable(), equalTo(Nullability.FALSE));
     }
+
+    /**
+     * Inserts random non-null garbage <strong>around</strong> the expected data
+     * and runs
+     */
+    public void testEvaluateWithGarbage() {
+        DriverContext context = driverContext();
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        int positions = between(2, 1024);
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+        Page onePositionPage = row(testCase.getDataValues());
+        Block[] manyPositionsBlocks = new Block[Math.toIntExact(data.stream().filter(d -> d.isForceLiteral() == false).count())];
+        int realPosition = between(0, positions - 1);
+        try {
+            int b = 0;
+            for (TestCaseSupplier.TypedData d : data) {
+                ElementType elementType = PlannerUtils.toElementType(d.type());
+                try (Block.Builder builder = elementType.newBlockBuilder(positions, context.blockFactory())) {
+                    for (int p = 0; p < positions; p++) {
+                        if (p == realPosition) {
+                            builder.copyFrom(onePositionPage.getBlock(b), 0, 1);
+                        } else {
+                            builder.copyFrom(
+                                BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), randomLiteral(d.type()).value(), 1),
+                                0,
+                                1
+                            );
+                        }
+                    }
+                    manyPositionsBlocks[b] = builder.build();
+                }
+                b++;
+            }
+            try (
+                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(context);
+                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
+            ) {
+                assertThat(block.getPositionCount(), is(positions));
+                assertThat(toJavaObjectUnsignedLongAware(block, realPosition), testCase.getMatcher());
+                assertThat("evaluates to tracked block", block.blockFactory(), sameInstance(context.blockFactory()));
+            }
+        } finally {
+            Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));
+        }
+    }
+
 }

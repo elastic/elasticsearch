@@ -29,6 +29,8 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -147,6 +149,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    public static final LicensedFeature.Momentary INFERENCE_API_FEATURE = LicensedFeature.momentary(
+        "inference",
+        "api",
+        License.OperationMode.ENTERPRISE
     );
 
     public static final String NAME = "inference";

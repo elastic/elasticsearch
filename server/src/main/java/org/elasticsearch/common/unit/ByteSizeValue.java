@@ -60,7 +60,15 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 return MINUS_ONE;
             }
         }
-        return new ByteSizeValue(size, unit);
+        if (size < 0) {
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
+        }
+        if (size > Long.MAX_VALUE / unit.toBytes(1)) {
+            throw new IllegalArgumentException(
+                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
+            );
+        }
+        return new ByteSizeValue(size * unit.toBytes(1), unit);
     }
 
     public static ByteSizeValue ofBytes(long size) {
@@ -87,8 +95,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         return of(size, PB);
     }
 
-    private final long size;
-    private final ByteSizeUnit unit;
+    private final long sizeInBytes;
+    private final ByteSizeUnit desiredUnit;
 
     public static ByteSizeValue readFrom(StreamInput in) throws IOException {
         long size = in.readZLong();
@@ -101,31 +109,23 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZLong(size);
-        unit.writeTo(out);
+        out.writeZLong(Math.divideExact(sizeInBytes, desiredUnit.toBytes(1)));
+        desiredUnit.writeTo(out);
     }
 
-    ByteSizeValue(long size, ByteSizeUnit unit) {
-        if (size < -1 || (size == -1 && unit != BYTES)) {
-            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
-        }
-        if (size > Long.MAX_VALUE / unit.toBytes(1)) {
-            throw new IllegalArgumentException(
-                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
-            );
-        }
-        this.size = size;
-        this.unit = unit;
+    ByteSizeValue(long sizeInBytes, ByteSizeUnit desiredUnit) {
+        this.sizeInBytes = sizeInBytes;
+        this.desiredUnit = desiredUnit;
     }
 
     // For testing
-    long getSize() {
-        return size;
+    long getSizeInBytes() {
+        return sizeInBytes;
     }
 
     // For testing
-    ByteSizeUnit getUnit() {
-        return unit;
+    ByteSizeUnit getDesiredUnit() {
+        return desiredUnit;
     }
 
     @Deprecated
@@ -138,27 +138,27 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public long getBytes() {
-        return unit.toBytes(size);
+        return sizeInBytes;
     }
 
     public long getKb() {
-        return unit.toKB(size);
+        return getBytes() / KB.toBytes(1);
     }
 
     public long getMb() {
-        return unit.toMB(size);
+        return getBytes() / MB.toBytes(1);
     }
 
     public long getGb() {
-        return unit.toGB(size);
+        return getBytes() / GB.toBytes(1);
     }
 
     public long getTb() {
-        return unit.toTB(size);
+        return getBytes() / TB.toBytes(1);
     }
 
     public long getPb() {
-        return unit.toPB(size);
+        return getBytes() / PB.toBytes(1);
     }
 
     public double getKbFrac() {
@@ -190,10 +190,16 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      *         serialising the value to JSON.
      */
     public String getStringRep() {
-        if (size <= 0) {
-            return String.valueOf(size);
+        if (sizeInBytes <= 0) {
+            return String.valueOf(sizeInBytes);
         }
-        return size + unit.getSuffix();
+        long numUnits = sizeInBytes / desiredUnit.toBytes(1);
+        long residue = sizeInBytes % desiredUnit.toBytes(1);
+        if (residue == 0) {
+            return numUnits + desiredUnit.getSuffix();
+        } else {
+            return sizeInBytes + BYTES.getSuffix();
+        }
     }
 
     @Override
@@ -343,7 +349,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public int hashCode() {
-        return Long.hashCode(size * unit.toBytes(1));
+        return Long.hashCode(getBytes());
     }
 
     @Override

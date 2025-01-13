@@ -44,14 +44,13 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
-import java.net.spi.InetAddressResolver;
-import java.net.spi.InetAddressResolverProvider;
 import java.net.spi.URLStreamHandlerProvider;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -71,25 +70,25 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
     private final String prefix;
 
-    record CheckAction(Runnable action, boolean isAlwaysDeniedToPlugins) {
+    record CheckAction(Runnable action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
-         * Used both for always-denied entitlements as well as those granted only to the server itself.
+         * Used both for always-denied entitlements and those granted only to the server itself.
          */
         static CheckAction deniedToPlugins(Runnable action) {
-            return new CheckAction(action, true);
+            return new CheckAction(action, true, null);
         }
 
         static CheckAction forPlugins(Runnable action) {
-            return new CheckAction(action, false);
+            return new CheckAction(action, false, null);
         }
 
         static CheckAction alwaysDenied(Runnable action) {
-            return new CheckAction(action, true);
+            return new CheckAction(action, true, null);
         }
     }
 
-    private static final Map<String, CheckAction> checkActions = Map.ofEntries(
+    private static final Map<String, CheckAction> checkActions = Stream.of(
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
         entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
@@ -138,12 +137,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
         entry("proxySelector_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultProxySelector)),
         entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
-        entry("createInetAddressResolverProvider", alwaysDenied(RestEntitlementsCheckAction::createInetAddressResolverProvider)),
+        entry(
+            "createInetAddressResolverProvider",
+            new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, true, 18)
+        ),
         entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
         entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
         entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
         entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext))
-    );
+    )
+        .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
+        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
     private static void createURLStreamHandlerProvider() {
         var x = new URLStreamHandlerProvider() {
@@ -191,20 +195,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static void createInetAddressResolverProvider() {
-        var x = new InetAddressResolverProvider() {
-            @Override
-            public InetAddressResolver get(Configuration configuration) {
-                return null;
-            }
-
-            @Override
-            public String name() {
-                return "TEST";
-            }
-        };
     }
 
     private static void setDefaultResponseCache() {

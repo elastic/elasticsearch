@@ -63,7 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrl;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrlMessage;
 
 public class ElasticInferenceService extends SenderService {
 
@@ -72,9 +72,8 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    // TODO since we're doing a limited release do we want to expose the chat completion task type yet for EIS?
     // The task types exposed via the _inference/_services API
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_EXTERNAL = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_SERVICES_API = EnumSet.of(TaskType.SPARSE_EMBEDDING);
     private static final String SERVICE_NAME = "Elastic";
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -142,7 +141,7 @@ public class ElasticInferenceService extends SenderService {
             var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES);
 
             if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
-                responseString = responseString + " " + useChatCompletionUrl(model);
+                responseString = responseString + " " + useChatCompletionUrlMessage(model);
             }
             listener.onFailure(new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST));
         }
@@ -225,7 +224,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return SUPPORTED_TASK_TYPES_FOR_EXTERNAL;
+        return SUPPORTED_TASK_TYPES_FOR_SERVICES_API;
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -401,7 +400,7 @@ public class ElasticInferenceService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_EXTERNAL)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_SERVICES_API)
                     .setConfigurations(configurationMap)
                     .build();
             }

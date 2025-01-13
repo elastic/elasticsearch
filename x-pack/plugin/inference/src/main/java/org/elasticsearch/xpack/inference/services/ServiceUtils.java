@@ -790,7 +790,7 @@ public final class ServiceUtils {
         );
     }
 
-    public static String useChatCompletionUrl(Model model) {
+    public static String useChatCompletionUrlMessage(Model model) {
         return org.elasticsearch.common.Strings.format(
             "The task type for the inference entity is %s, please use the _inference/%s/%s/%s URL.",
             model.getTaskType(),

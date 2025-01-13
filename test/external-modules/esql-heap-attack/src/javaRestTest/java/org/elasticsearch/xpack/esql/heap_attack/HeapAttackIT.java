@@ -200,7 +200,7 @@ public class HeapAttackIT extends ESRestTestCase {
         logger.info("expected fold circuit breaking {}", map);
         assertMap(
             map,
-            matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "ql_fold_too_much_memory_exception"))
+            matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "fold_too_much_memory_exception"))
         );
     }
 
@@ -409,7 +409,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * Returns many moderately long strings.
      */
     public void testManyRepeatFromRow() throws IOException {
-        int strings = 600;
+        int strings = 300;
         Response resp = manyRepeat("ROW a = 99", strings);
         assertManyStrings(resp, strings);
     }
@@ -418,7 +418,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * Hits a circuit breaker by building many moderately long strings.
      */
     public void testHugeManyRepeatFromRow() throws IOException {
-        assertFoldCircuitBreaks(() -> manyRepeat("ROW a = 99", 1000));
+        assertFoldCircuitBreaks(() -> manyRepeat("ROW a = 99", 400));
     }
 
     /**

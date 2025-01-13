@@ -220,6 +220,84 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Max longs and overflows
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max long>, <-20>",
+                List.of(DataType.LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Long.MAX_VALUE, DataType.LONG, "number"),
+                        new TestCaseSupplier.TypedData(-20L, DataType.LONG, "decimals")
+                    ),
+                    "RoundLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.LONG,
+                    equalTo(0L)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max long>, <-19>",
+                List.of(DataType.LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Long.MAX_VALUE, DataType.LONG, "number"),
+                        new TestCaseSupplier.TypedData(-19L, DataType.LONG, "decimals")
+                    ),
+                    "RoundLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.LONG,
+                    equalTo(0L)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<big long>, <-18>",
+                List.of(DataType.LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Long.MAX_VALUE, DataType.LONG, "number"),
+                        new TestCaseSupplier.TypedData(-18L, DataType.LONG, "decimals")
+                    ),
+                    "RoundLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.LONG,
+                    equalTo(9000000000000000000L)
+                )
+            )
+        );
+        // Max integers and overflows
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max integer>, <-10>",
+                List.of(DataType.INTEGER, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Integer.MAX_VALUE, DataType.INTEGER, "number"),
+                        new TestCaseSupplier.TypedData(-10L, DataType.LONG, "decimals")
+                    ),
+                    "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.INTEGER,
+                    equalTo(0)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max integer>, <-9>",
+                List.of(DataType.INTEGER, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Integer.MAX_VALUE, DataType.INTEGER, "number"),
+                        new TestCaseSupplier.TypedData(-9L, DataType.LONG, "decimals")
+                    ),
+                    "RoundIntEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.INTEGER,
+                    equalTo(2000000000)
+                )
+            )
+        );
+
         // Integer or Long without a decimals parameter is a noop
         suppliers.add(supplier("<integer>", DataType.INTEGER, ESTestCase::randomInt, "Attribute[channel=0]", Function.identity()));
         suppliers.add(supplier("<long>", DataType.LONG, ESTestCase::randomLong, "Attribute[channel=0]", Function.identity()));

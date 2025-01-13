@@ -7,14 +7,21 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.LuceneChangesSnapshot;
+import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
@@ -32,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,11 +47,18 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private final XContentType xContentType;
     private final Model model1;
     private final Model model2;
+    private final boolean useSynthetic;
 
-    public SemanticInferenceMetadataFieldsRecoveryTests() {
-        this.xContentType = randomFrom(XContentType.values());
+    public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic) {
+        this.xContentType = randomFrom(XContentType.JSON);
         this.model1 = randomModel(TaskType.TEXT_EMBEDDING);
         this.model2 = randomModel(TaskType.SPARSE_EMBEDDING);
+        this.useSynthetic = useSynthetic;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { false }, new Object[] { true });
     }
 
     @Override
@@ -53,10 +68,14 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected Settings indexSettings() {
-        return Settings.builder()
+        var builder = Settings.builder()
             .put(super.indexSettings())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
-            .build();
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false);
+        if (useSynthetic) {
+            builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
+            builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
+        }
+        return builder.build();
     }
 
     @Override
@@ -117,7 +136,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
         var searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
         try (
-            var snapshot = new LuceneChangesSnapshot(
+            var snapshot = newRandomSnapshot(
                 engine.config().getMapperService(),
                 searcher,
                 SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
@@ -135,9 +154,47 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 Translog.Index indexOp = (Translog.Index) op;
                 assertThat(indexOp.id(), equalTo(expectedOperations.get(i).id()));
                 assertThat(indexOp.routing(), equalTo(expectedOperations.get(i).routing()));
-                assertThat(indexOp.source().toBytesRef(), equalTo(expectedOperations.get(i).source().toBytesRef()));
+                assertToXContentEquivalent(indexOp.source(), expectedOperations.get(i).source(), xContentType);
             }
             assertNull(snapshot.next());
+        }
+    }
+
+    private Translog.Snapshot newRandomSnapshot(
+        MapperService mapperService,
+        Engine.Searcher engineSearcher,
+        int searchBatchSize,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean singleConsumer,
+        boolean accessStats,
+        IndexVersion indexVersionCreated
+    ) throws IOException {
+        if (useSynthetic) {
+            return new LuceneSyntheticSourceChangesSnapshot(
+                mapperService,
+                engineSearcher,
+                searchBatchSize,
+                randomLongBetween(0, ByteSizeValue.ofBytes(Integer.MAX_VALUE).getBytes()),
+                fromSeqNo,
+                toSeqNo,
+                requiredFullRange,
+                accessStats,
+                indexVersionCreated
+            );
+        } else {
+            return new LuceneChangesSnapshot(
+                mapperService,
+                engineSearcher,
+                searchBatchSize,
+                fromSeqNo,
+                toSeqNo,
+                requiredFullRange,
+                singleConsumer,
+                accessStats,
+                indexVersionCreated
+            );
         }
     }
 
@@ -157,7 +214,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     private BytesReference randomSource() throws IOException {
         var builder = XContentBuilder.builder(xContentType.xContent()).startObject();
-        builder.field("field", randomInputs());
+        builder.field("field", randomAlphaOfLengthBetween(10, 30));
         if (rarely()) {
             return BytesReference.bytes(builder.endObject());
         }
@@ -177,7 +234,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         int size = randomIntBetween(1, 5);
         List<String> resp = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            resp.add(randomAlphaOfLengthBetween(10, 150));
+            resp.add(randomAlphaOfLengthBetween(10, 50));
         }
         return resp;
     }

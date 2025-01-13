@@ -22,6 +22,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
@@ -208,7 +209,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * This method sets up the {@code sourceMetadataFetcher} with the provided {@link LeafReaderContext},
      * ensuring it is ready to fetch metadata for subsequent operations.
      *
-     * <p>Note: This method should be called before {@link #addSourceMetadata(Source, int)} at the start of every leaf
+     * <p>Note: This method should be called before {@link #addSourceMetadata(BytesReference, int)} at the start of every leaf
      * to ensure the metadata fetcher is properly initialized.</p>
      */
     protected void setNextSourceMetadataReader(LeafReaderContext context) {
@@ -222,23 +223,24 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * with additional metadata fields. If the {@code sourceMetadataFetcher} is null or no metadata
      * fields are fetched, the original source is returned unchanged.
      *
-     * @param originalSource the source used as the base for creating a new {@link Source} with added metadata
+     * @param originalSourceBytes the original source bytes
      * @param segmentDocID the document ID used to fetch metadata fields
      * @return a new {@link Source} instance containing the original data and additional metadata,
      *         or the original source if no metadata is added
      * @throws IOException if an error occurs while fetching metadata values
      */
-    protected Source addSourceMetadata(Source originalSource, int segmentDocID) throws IOException {
+    protected BytesReference addSourceMetadata(BytesReference originalSourceBytes, int segmentDocID) throws IOException {
         if (sourceMetadataFetcher == null) {
-            return originalSource;
+            return originalSourceBytes;
         }
+        var originalSource = Source.fromBytes(originalSourceBytes);
         List<Object> values = sourceMetadataFetcher.fetchValues(originalSource, segmentDocID, List.of());
         if (values.isEmpty()) {
-            return originalSource;
+            return originalSourceBytes;
         }
         var map = originalSource.source();
         map.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(map, originalSource.sourceContentType());
+        return Source.fromMap(map, originalSource.sourceContentType()).internalSourceRef();
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

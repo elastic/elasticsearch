@@ -159,18 +159,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
             IndexWriterConfig.OpenMode.CREATE
         ).setCodec(engineConfig.getCodec());
         try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
-            writer.addDocument(parsedDocs.rootDoc());
+            writer.addDocuments(parsedDocs.docs());
             final DirectoryReader reader = open(writer);
-            if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
+            if (reader.leaves().size() != 1) {
                 reader.close();
-                throw new IllegalStateException(
-                    "Expected a single document segment; "
-                        + "but ["
-                        + reader.leaves().size()
-                        + " segments with "
-                        + reader.leaves().get(0).reader().numDocs()
-                        + " documents"
-                );
+                throw new IllegalStateException("Expected a single segment; " + "but [" + reader.leaves().size() + "] segments");
             }
             return reader;
         } catch (IOException e) {

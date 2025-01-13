@@ -22,13 +22,14 @@ package org.elasticsearch.xpack.lucene.bwc.codecs.lucene86;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.PointsReader;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.core.IOUtils;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyBKDReader;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ import java.util.Map;
 
 /** Reads the metadata of point values previously written with Lucene86PointsWriter */
 public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
-    final IndexInput dataIn;
+    final IndexInput indexIn, dataIn;
     final SegmentReadState readState;
     final Map<Integer, PointValues> readers = new HashMap<>();
 
@@ -45,79 +46,94 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
     public Lucene86MetadataOnlyPointsReader(SegmentReadState readState) throws IOException {
         this.readState = readState;
 
+        String metaFileName = IndexFileNames.segmentFileName(
+            readState.segmentInfo.name,
+            readState.segmentSuffix,
+            Lucene86MetadataOnlyPointsFormat.META_EXTENSION
+        );
         String indexFileName = IndexFileNames.segmentFileName(
             readState.segmentInfo.name,
             readState.segmentSuffix,
             Lucene86MetadataOnlyPointsFormat.INDEX_EXTENSION
         );
-
-        Map<Integer, Long> fieldToFileOffset = new HashMap<>();
-
-        // Read index file
-        try (ChecksumIndexInput indexIn = EndiannessReverserUtil.openChecksumInput(readState.directory, indexFileName, readState.context)) {
-            Throwable priorE = null;
-            try {
-                CodecUtil.checkIndexHeader(
-                    indexIn,
-                    Lucene86MetadataOnlyPointsFormat.META_CODEC_NAME,
-                    Lucene86MetadataOnlyPointsFormat.INDEX_VERSION_START,
-                    Lucene86MetadataOnlyPointsFormat.INDEX_VERSION_CURRENT,
-                    readState.segmentInfo.getId(),
-                    readState.segmentSuffix
-                );
-                int count = indexIn.readVInt();
-                for (int i = 0; i < count; i++) {
-                    int fieldNumber = indexIn.readVInt();
-                    long fp = indexIn.readVLong();
-                    fieldToFileOffset.put(fieldNumber, fp);
-                }
-            } catch (Throwable t) {
-                priorE = t;
-            } finally {
-                CodecUtil.checkFooter(indexIn, priorE);
-            }
-        }
-
         String dataFileName = IndexFileNames.segmentFileName(
             readState.segmentInfo.name,
             readState.segmentSuffix,
             Lucene86MetadataOnlyPointsFormat.DATA_EXTENSION
         );
-        boolean success = false;
-        dataIn = EndiannessReverserUtil.openInput(readState.directory, dataFileName, readState.context);
-        try {
 
+        boolean success = false;
+        try {
+            indexIn = EndiannessReverserUtil.openInput(readState.directory, indexFileName, readState.context);
             CodecUtil.checkIndexHeader(
-                dataIn,
-                Lucene86MetadataOnlyPointsFormat.DATA_CODEC_NAME,
-                Lucene86MetadataOnlyPointsFormat.DATA_VERSION_START,
-                Lucene86MetadataOnlyPointsFormat.DATA_VERSION_START,
+                indexIn,
+                Lucene86MetadataOnlyPointsFormat.INDEX_CODEC_NAME,
+                Lucene86MetadataOnlyPointsFormat.VERSION_START,
+                Lucene86MetadataOnlyPointsFormat.VERSION_CURRENT,
                 readState.segmentInfo.getId(),
                 readState.segmentSuffix
             );
 
-            // NOTE: data file is too costly to verify checksum against all the bytes on open,
-            // but for now we at least verify proper structure of the checksum footer: which looks
-            // for FOOTER_MAGIC + algorithmID. This is cheap and can detect some forms of corruption
-            // such as file truncation.
-            CodecUtil.retrieveChecksum(dataIn);
+            dataIn = EndiannessReverserUtil.openInput(readState.directory, dataFileName, readState.context);
+            CodecUtil.checkIndexHeader(
+                dataIn,
+                Lucene86MetadataOnlyPointsFormat.DATA_CODEC_NAME,
+                Lucene86MetadataOnlyPointsFormat.VERSION_START,
+                Lucene86MetadataOnlyPointsFormat.VERSION_CURRENT,
+                readState.segmentInfo.getId(),
+                readState.segmentSuffix
+            );
 
-            for (Map.Entry<Integer, Long> ent : fieldToFileOffset.entrySet()) {
-                int fieldNumber = ent.getKey();
-                long fp = ent.getValue();
-                dataIn.seek(fp);
-                PointValues reader = new MetadataOnlyBKDReader(dataIn);
-                readers.put(fieldNumber, reader);
+            // long indexLength = -1, dataLength = -1;
+            try (
+                ChecksumIndexInput metaIn = EndiannessReverserUtil.openChecksumInput(readState.directory, metaFileName, readState.context)
+            ) {
+                Throwable priorE = null;
+                try {
+                    CodecUtil.checkIndexHeader(
+                        metaIn,
+                        Lucene86MetadataOnlyPointsFormat.META_CODEC_NAME,
+                        Lucene86MetadataOnlyPointsFormat.VERSION_START,
+                        Lucene86MetadataOnlyPointsFormat.VERSION_CURRENT,
+                        readState.segmentInfo.getId(),
+                        readState.segmentSuffix
+                    );
+
+                    while (true) {
+                        int fieldNumber = metaIn.readInt();
+                        if (fieldNumber == -1) {
+                            break;
+                        } else if (fieldNumber < 0) {
+                            throw new CorruptIndexException("Illegal field number: " + fieldNumber, metaIn);
+                        }
+                        PointValues reader = new MetadataOnlyBKDReader(metaIn);
+                        readers.put(fieldNumber, reader);
+                    }
+                    // indexLength = metaIn.readLong();
+                    // dataLength = metaIn.readLong();
+                } catch (Throwable t) {
+                    priorE = t;
+                } finally {
+                    // CodecUtil.checkFooter(metaIn, priorE);
+                }
             }
-
+            // At this point, checksums of the meta file have been validated so we
+            // know that indexLength and dataLength are very likely correct.
+            // CodecUtil.retrieveChecksum(indexIn, indexLength);
+            // CodecUtil.retrieveChecksum(dataIn, dataLength);
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
+                org.apache.lucene.util.IOUtils.closeWhileHandlingException(this);
             }
         }
     }
 
+    /**
+     * Returns the underlying {@link PointValues}.
+     *
+     * @lucene.internal
+     */
     @Override
     public PointValues getValues(String fieldName) {
         FieldInfo fieldInfo = readState.fieldInfos.fieldInfo(fieldName);
@@ -133,12 +149,13 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
 
     @Override
     public void checkIntegrity() throws IOException {
+        CodecUtil.checksumEntireFile(indexIn);
         CodecUtil.checksumEntireFile(dataIn);
     }
 
     @Override
     public void close() throws IOException {
-        dataIn.close();
+        IOUtils.close(indexIn, dataIn);
         // Free up heap:
         readers.clear();
     }

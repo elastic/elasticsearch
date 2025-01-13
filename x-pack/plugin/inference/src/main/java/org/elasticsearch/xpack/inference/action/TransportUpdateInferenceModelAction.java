@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
@@ -80,8 +79,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client,
-        Settings settings
+        Client client
     ) {
         super(
             UpdateInferenceModelAction.NAME,

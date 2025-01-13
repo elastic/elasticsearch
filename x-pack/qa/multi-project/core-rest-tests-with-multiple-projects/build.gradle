@@ -33,8 +33,6 @@ restResources {
 tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
-    '^cat.component_templates/10_basic/*',
-    '^cat.component_templates/10_basic/*/*',
     '^cat.recovery/*/*',
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',

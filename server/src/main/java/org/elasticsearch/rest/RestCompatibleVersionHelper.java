@@ -11,7 +11,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.ParsedMediaType;
 
@@ -27,7 +26,6 @@ class RestCompatibleVersionHelper {
     /**
      * @return The requested API version, or {@link Optional#empty()} if there was no explicit version in the request.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     static Optional<RestApiVersion> getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,
@@ -52,8 +50,7 @@ class RestCompatibleVersionHelper {
         if (hasContent) {
 
             // content-type version must be current or prior
-            // This can be uncommented once all references to RestApiVersion.V_7 are removed
-            /*if (contentTypeVersion > RestApiVersion.current().major || contentTypeVersion < RestApiVersion.minimumSupported().major) {
+            if (contentTypeVersion > RestApiVersion.current().major || contentTypeVersion < RestApiVersion.minimumSupported().major) {
                 throw new ElasticsearchStatusException(
                     "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
                     RestStatus.BAD_REQUEST,
@@ -62,7 +59,7 @@ class RestCompatibleVersionHelper {
                     contentTypeVersion,
                     contentTypeHeader
                 );
-            }*/
+            }
             // if both accept and content-type are sent, the version must match
             if (contentTypeVersion != acceptVersion) {
                 throw new ElasticsearchStatusException(

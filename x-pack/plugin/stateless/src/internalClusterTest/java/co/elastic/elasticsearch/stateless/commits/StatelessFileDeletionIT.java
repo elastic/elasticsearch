@@ -347,6 +347,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         startMasterOnlyNode();
 
         String indexNode = startIndexNode();
+
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -371,9 +372,14 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         internalCluster().stopNode(indexNode);
 
+        // The files should be pruned from memory, even though they will stay on the object store.
+        assertBusy(() -> assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0)));
+
         for (TranslogReplicator.BlobTranslogFile translogFile : activeTranslogFiles) {
             assertTrue(blobContainer.blobExists(operationPurpose, translogFile.blobName()));
         }
+        // Start a new node to take over the shards or else the test will hang for a while in teardown
+        startIndexNode();
     }
 
     public void testActiveTranslogFilesNotPrunedOnFailure() throws Exception {
@@ -418,7 +424,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // Pause to wait async delete complete if it is scheduled
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
 
-        assertThat(translogReplicator.getActiveTranslogFiles().size(), greaterThan(0));
+        // The files should be pruned from memory, even though they will stay on the object store.
+        assertBusy(() -> assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0)));
 
         for (TranslogReplicator.BlobTranslogFile translogFile : activeTranslogFiles) {
             assertTrue(blobContainer.blobExists(operationPurpose, translogFile.blobName()));

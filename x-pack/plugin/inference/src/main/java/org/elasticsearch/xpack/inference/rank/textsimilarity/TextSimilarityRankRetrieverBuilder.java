@@ -44,8 +44,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         "text_similarity_reranker_retriever_composition_supported"
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX = new NodeFeature(
-        "text_similarity_reranker_alias_handling_fix",
-        true
+        "text_similarity_reranker_alias_handling_fix"
     );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");

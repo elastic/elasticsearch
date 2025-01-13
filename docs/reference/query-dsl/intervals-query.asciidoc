@@ -303,11 +303,21 @@ matches. Defaults to `-1`.
 
 If unspecified or set to `-1`, there is no width restriction on the match. If
 set to `0`, the terms must appear next to each other.
+
+Internal intervals can have their own `max_gaps` values. In this case
+we first find internal intervals with their `max_gaps` values, and then
+combine them to see if a gap between internal intervals match
+the value of `max_gaps` of the `all_of` rule.
+
+For examples, how `max_gaps` works, see <<interval-max_gaps-all-rule>>.
 --
 
 `ordered`::
 (Optional, Boolean) If `true`, intervals produced by the rules should appear in
 the order in which they are specified. Defaults to `false`.
+
+If `ordered` is `false`, intervals can appear in any order,
+including overlapping with each other.
 
 `filter`::
 (Optional, <<interval_filter,interval filter>> rule object) Rule used to filter
@@ -468,3 +478,94 @@ This query does *not* match a document containing the phrase `hot porridge is
 salty porridge`, because the intervals returned by the match query for `hot
 porridge` only cover the initial two terms in this document, and these do not
 overlap the intervals covering `salty`.
+
+[[interval-max_gaps-all-rule]]
+===== max_gaps in `all_of` ordered and unordered rule
+
+The following `intervals` search returns documents containing `my
+favorite food` without any gap, followed by `cold porridge` that
+can have at most 4 tokens between "cold" and "porridge". These
+two inner intervals when combined in the outer `all_of` interval,
+must have at most 1 gap between each other.
+
+Because the `all_of` rule has `ordered` set to `true`, the inner
+intervals are expected to be in the provided order. Thus,
+this search would match a `my_text` value of `my favorite food is cold
+porridge` but not `when it's cold my favorite food is porridge`.
+
+[source,console]
+--------------------------------------------------
+POST _search
+{
+  "query": {
+    "intervals" : {
+      "my_text" : {
+        "all_of" : {
+          "ordered" : true,     <1>
+          "max_gaps": 1,
+          "intervals" : [
+            {
+              "match" : {
+                "query" : "my favorite food",
+                "max_gaps" : 0,
+                "ordered" : true
+              }
+            },
+            {
+              "match" : {
+                "query" : "cold porridge",
+                "max_gaps" : 4,
+                "ordered" : true
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The `ordered` parameter is set to `true`, so intervals must appear in the order specified.
+
+
+Below is the same query, but with `ordered` set to `false`. This means that
+intervals can appear in any order, even overlap with each other.
+Thus, this search would match a `my_text` value of `my favorite food is cold
+porridge`, as well as `when it's cold my favorite food is porridge`.
+In `when it's cold my favorite food is porridge`, `cold .... porridge` interval
+overlaps with `my favorite food` interval.
+
+[source,console]
+--------------------------------------------------
+POST _search
+{
+  "query": {
+    "intervals" : {
+      "my_text" : {
+        "all_of" : {
+          "ordered" : false, <1>
+          "max_gaps": 1,
+          "intervals" : [
+            {
+              "match" : {
+                "query" : "my favorite food",
+                "max_gaps" : 0,
+                "ordered" : true
+              }
+            },
+            {
+              "match" : {
+                "query" : "cold porridge",
+                "max_gaps" : 4,
+                "ordered" : true
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> The `ordered` parameter is set to `true`, so intervals can appear in any order,
+even overlap with each other.

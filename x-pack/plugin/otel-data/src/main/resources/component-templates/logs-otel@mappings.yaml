@@ -9,6 +9,7 @@ template:
       mode: logsdb
       sort:
         field: [ "resource.attributes.host.name", "@timestamp" ]
+        order: [ "asc", "desc" ]
   mappings:
     properties:
       attributes:
@@ -39,6 +40,8 @@ template:
       log.level:
         type: alias
         path: severity_text
+      event_name:
+        type: keyword
       body:
         type: object
         properties:

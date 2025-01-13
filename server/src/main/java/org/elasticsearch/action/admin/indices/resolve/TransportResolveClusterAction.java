@@ -101,11 +101,13 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
             if (request.queryingCluster()) {
                 /*
                  * User does not want to check whether an index expression matches, so we use the "*:dummy*" index pattern to
-                 * 1) determine all the local configured remotes and
+                 * 1) determine all the local configured remote cluster and
                  * 2) for older clusters that do not understand the new clusterInfoOnly setting (or for even older clusters
-                 *    where we need to fall back to using _resolve/index), fallback to matching any/all index/alias/datastreams
+                 *    where we need to fall back to using _resolve/index), we have to provide an index expression so use dummy*
+                 *    and then ignore the matching_indices value that comes back from those remotes. This is preferable to sending
+                 *    just "*" since that could be an expensive operation on clusters with thousands of indices/aliases/datastreams
                  */
-                remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), new String[] { "*:*" }, false);
+                remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), new String[] { "*:dummy*" }, false);
                 if (remoteClusterIndices.isEmpty()) {
                     // no remote clusters are configured on the primary "querying" cluster
                     listener.onResponse(new ResolveClusterActionResponse(Map.of()));

@@ -11,7 +11,9 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[In
 --
 
 Resolves the specified index expressions to return information about
-each cluster, including the local cluster, if included.
+each cluster, including the local "querying" cluster, if included. If no index expression
+is provided, this endpoint will return information about all the remote
+clusters that are configured on the querying cluster.
 
 This endpoint is useful before doing a <<modules-cross-cluster-search,{ccs}>> in
 order to determine which remote clusters should be included in a search.
@@ -26,7 +28,7 @@ For each cluster in the index expression, information is returned about:
    in the index expression scope
 2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
-   the index expression
+   the index expression (if one provided)
 4. whether the search is likely to have errors returned when you do the {ccs} (including any
    authorization errors if your user does not have permission to query a remote cluster or
    the indices on that cluster)
@@ -70,6 +72,14 @@ PUT _cluster/settings
 // TEST[setup:host]
 // TEST[s/35.238.149.\d+:930\d+/\${transport_host}/]
 ////
+
+[source,console]
+----
+GET /_resolve/cluster
+----
+// TEST[continued]
+
+FILL IN LEFTOFF
 
 [source,console]
 ----

@@ -48,7 +48,7 @@ public class OldCodecsAvailableTests extends ESTestCase {
                     String codecVersion = classNameMatcher.group(1);
                     String wrappedCodecClassPath = "org.elasticsearch.xpack.lucene.bwc.codecs.lucene"
                         + codecVersion
-                        + "BWCLucene"
+                        + ".BWCLucene"
                         + codecVersion
                         + "Codec";
                     assertTrue(isClassPresent(wrappedCodecClassPath));
